@@ -2,8 +2,9 @@
 import type { TocHeading } from '../types/blog';
 import BaseLayout from './BaseLayout.astro';
 import TableOfContents from '../components/TableOfContents.astro';
-import TagBadge from '../components/TagBadge.astro';
 import ReadingProgress from '../components/ReadingProgress.astro';
+import ArticleActions from '../components/ArticleActions.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { formatDate } from '../lib/format-date';
@@ -18,6 +19,7 @@ interface Props {
   readingTime: number;
   headings: TocHeading[];
   lang?: 'en' | 'ja';
+  slug: string;
 }
 
 const {
@@ -29,52 +31,74 @@ const {
   readingTime,
   headings,
   lang = 'en',
+  slug,
 } = Astro.props;
+
+const dateStr = [
+  publishDate.getFullYear(),
+  String(publishDate.getMonth() + 1).padStart(2, '0'),
+  String(publishDate.getDate()).padStart(2, '0'),
+].join('.');
 ---
 
 <BaseLayout title={title} description={description} lang={lang}>
   <ReadingProgress />
   <Header />
+
+  <Breadcrumb
+    segments={[
+      { label: 'Length³', href: '/' },
+      { label: 'articles', href: '/' },
+      { label: slug },
+    ]}
+  />
+
   <div class="article-shell">
+    <!-- TOC -->
     <aside class="toc-aside" aria-label="Table of contents">
       <TableOfContents headings={headings} />
     </aside>
 
-    <article class="prose" data-pagefind-body lang={lang}>
-      <header class="article-header">
-        <time datetime={publishDate.toISOString()}>
-          {formatDate(publishDate, lang)}
-        </time>
-        {
-          updatedDate && (
-            <time datetime={updatedDate.toISOString()} class="updated">
-              Updated: {formatDate(updatedDate, lang)}
-            </time>
-          )
-        }
-        {
-          tags.length > 0 && (
-            <ul class="tags" aria-label="Tags">
+    <!-- Prose -->
+    <div class="prose-area">
+      <article class="prose" data-pagefind-body lang={lang}>
+        <header class="article-header">
+          <div class="article-header-meta">
+            <div class="article-header-tags">
               {tags.map((tag) => (
-                <li>
-                  <TagBadge tag={tag} />
-                </li>
+                <a href={`/tags/${tag.toLowerCase()}`} class="article-header-tag">#{tag}</a>
               ))}
-            </ul>
-          )
-        }
-        <h1>{title}</h1>
-        <span class="reading-time">{readingTime} min read</span>
-      </header>
+            </div>
+            {tags.length > 0 && <span aria-hidden="true">·</span>}
+            <time datetime={publishDate.toISOString()} class="article-header-date">
+              {dateStr}
+            </time>
+            {updatedDate && (
+              <span class="article-header-date">
+                (upd. {formatDate(updatedDate, lang)})
+              </span>
+            )}
+          </div>
 
-      <div class="article-body">
+          <h1>{title}</h1>
+          <hr class="article-header-hr" />
+
+          {description && (
+            <p class="article-header-lead">{description}</p>
+          )}
+
+          <p class="article-reading-time">{readingTime} min read</p>
+        </header>
+
         <slot />
-      </div>
-    </article>
+      </article>
+    </div>
 
+    <!-- Actions -->
     <aside class="actions-aside" aria-label="Utility actions">
-      <slot name="actions" />
+      <ArticleActions slug={slug} readingTime={readingTime} />
     </aside>
   </div>
+
   <Footer />
 </BaseLayout>

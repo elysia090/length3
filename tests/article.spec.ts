@@ -27,5 +27,5 @@ test('article page has reading progress bar', async ({ page }) => {
 
 test('editor page loads', async ({ page }) => {
   await page.goto('/editor');
-  await expect(page.locator('.editor-layout')).toBeVisible();
+  await expect(page.locator('.editor-root')).toBeVisible();
 });

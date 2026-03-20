@@ -25,6 +25,7 @@ const tocHeadings: TocHeading[] = headings.map((h) => ({
   text: h.text,
 }));
 
+const slug = toSlug(entry.id);
 const readingTime = estimateReadingTime(entry.body ?? '');
 ---
 
@@ -37,6 +38,7 @@ const readingTime = estimateReadingTime(entry.body ?? '');
   readingTime={readingTime}
   headings={tocHeadings}
   lang={entry.data.lang}
+  slug={slug}
 >
   <Content />
 </ArticleLayout>

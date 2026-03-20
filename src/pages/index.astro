@@ -12,7 +12,6 @@ import { toSlug } from '../lib/slugify';
 import { estimateReadingTime } from '../lib/reading-time';
 
 const allPosts = await getCollection('blog', ({ data }) => !data.draft);
-
 allPosts.sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());
 
 const tagCounts = new Map<string, number>();
@@ -30,19 +29,16 @@ const processed: ProcessedPost[] = allPosts.map((entry) => ({
 }));
 ---
 
-<BaseLayout title="length3" description="A technical blog.">
+<BaseLayout title="Length³" description="A technical blog.">
   <Header />
   <main class="index-layout">
+    <div class="index-rotate-label" aria-hidden="true">articles</div>
     <section class="article-list" aria-label="Articles">
       {processed.map((p) => <ArticleCard post={p} />)}
     </section>
-    <Sidebar tagCounts={tagCounts} totalPosts={allPosts.length} />
+    <div class="index-sidebar">
+      <Sidebar tagCounts={tagCounts} totalPosts={allPosts.length} />
+    </div>
   </main>
   <Footer />
 </BaseLayout>
-
-<style>
-  .article-list {
-    min-width: 0;
-  }
-</style>

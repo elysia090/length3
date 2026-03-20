@@ -1,0 +1,56 @@
+---
+interface Segment {
+  label: string;
+  href?: string;
+}
+
+interface Props {
+  segments: Segment[];
+}
+
+const { segments } = Astro.props;
+---
+
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  {
+    segments.map((seg, i) => (
+      <>
+        {i > 0 && <span class="sep" aria-hidden="true">/</span>}
+        {seg.href ? (
+          <a href={seg.href} class="crumb">{seg.label}</a>
+        ) : (
+          <span class="crumb crumb-current" aria-current="page">{seg.label}</span>
+        )}
+      </>
+    ))
+  }
+</nav>
+
+<style>
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    padding: 0.75rem 0 0;
+  }
+
+  .sep {
+    color: var(--color-border);
+  }
+
+  .crumb {
+    color: var(--color-muted);
+    transition: color 0.1s;
+  }
+
+  a.crumb:hover {
+    color: var(--color-accent);
+  }
+
+  .crumb-current {
+    color: var(--color-text);
+  }
+</style>

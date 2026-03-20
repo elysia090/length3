@@ -1,0 +1,160 @@
+---
+interface Props {
+  slug: string;
+  readingTime: number;
+}
+
+const { slug: _slug, readingTime } = Astro.props;
+---
+
+<div class="article-actions" data-reading-time={readingTime}>
+  <div class="actions-group">
+    <button class="action-row" id="copy-link-btn" aria-label="Copy link to clipboard">
+      <span class="action-dash" aria-hidden="true">—</span>
+      <span class="action-label">Copy link</span>
+      <span class="action-arrow" aria-hidden="true">&rsaquo;</span>
+    </button>
+    <button class="action-row" id="share-btn" aria-label="Share article">
+      <span class="action-dash" aria-hidden="true">×</span>
+      <span class="action-label">Share</span>
+      <span class="action-arrow" aria-hidden="true">&rsaquo;</span>
+    </button>
+  </div>
+
+  <div class="reading-stats" aria-live="polite" aria-label="Reading progress stats">
+    <div class="stat-row">
+      <span class="stat-pct" id="pct-read">0%</span>
+      <span class="stat-detail">read</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-detail" id="min-left">—</span>
+      <span class="stat-detail">left</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-detail">{readingTime} min</span>
+      <span class="stat-detail">total</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const container = document.querySelector<HTMLElement>('.article-actions');
+  const rt = Number(container?.dataset['readingTime'] ?? '5');
+
+  // Copy link
+  document.getElementById('copy-link-btn')?.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(window.location.href);
+    const label = document.querySelector('#copy-link-btn .action-label');
+    if (label) {
+      label.textContent = 'Copied!';
+      setTimeout(() => { label.textContent = 'Copy link'; }, 1500);
+    }
+  });
+
+  // Share
+  document.getElementById('share-btn')?.addEventListener('click', () => {
+    if (navigator.share) {
+      navigator.share({ url: window.location.href, title: document.title }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+    }
+  });
+
+  // Reading progress stats
+  function updateStats() {
+    const scrolled = window.scrollY;
+    const total = document.body.scrollHeight - window.innerHeight;
+    const pct = total > 0 ? Math.min(100, Math.round((scrolled / total) * 100)) : 0;
+    const minsLeft = Math.max(0, Math.round(rt * (1 - pct / 100)));
+
+    const pctEl = document.getElementById('pct-read');
+    const minEl = document.getElementById('min-left');
+    if (pctEl) pctEl.textContent = `${pct}%`;
+    if (minEl) minEl.textContent = minsLeft > 0 ? `~${minsLeft} min` : '< 1 min';
+
+    const bar = document.getElementById('reading-progress');
+    if (bar) {
+      bar.style.setProperty('--progress', `${pct}%`);
+      bar.setAttribute('aria-valuenow', String(pct));
+    }
+  }
+
+  window.addEventListener('scroll', updateStats, { passive: true });
+  updateStats();
+</script>
+
+<style>
+  .article-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .actions-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    border-top: 1px solid var(--color-border);
+    padding-top: 1rem;
+  }
+
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    text-align: left;
+    width: 100%;
+    transition: color 0.1s;
+  }
+
+  .action-row:hover {
+    color: var(--color-text);
+  }
+
+  .action-dash {
+    width: 1rem;
+    flex-shrink: 0;
+    color: var(--color-accent);
+    font-weight: 600;
+  }
+
+  .action-label { flex: 1; }
+
+  .action-arrow {
+    color: var(--color-border);
+    font-size: 1rem;
+  }
+
+  .reading-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    border-top: 1px solid var(--color-border);
+    padding-top: 1rem;
+  }
+
+  .stat-row {
+    display: flex;
+    gap: 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    color: var(--color-muted);
+    align-items: baseline;
+  }
+
+  .stat-pct {
+    font-size: 0.875rem;
+    color: var(--color-text);
+    font-weight: 500;
+    min-width: 2.5rem;
+  }
+
+  .stat-detail { color: var(--color-muted); }
+</style>
