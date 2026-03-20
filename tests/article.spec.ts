@@ -21,7 +21,8 @@ test('article page has reading progress bar', async ({ page }) => {
   const firstLink = page.locator('.article-card h2 a').first();
   const href = await firstLink.getAttribute('href');
   await page.goto(href!);
-  await expect(page.locator('#reading-progress')).toBeVisible();
+  // Progress bar starts at 0% width; check it is mounted in the DOM
+  await expect(page.locator('#reading-progress')).toBeAttached();
 });
 
 test('editor page loads', async ({ page }) => {

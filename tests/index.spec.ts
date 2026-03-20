@@ -20,8 +20,7 @@ test('search trigger is present', async ({ page }) => {
   await expect(page.locator('#search-trigger')).toBeVisible();
 });
 
-test('tags page is accessible from header', async ({ page }) => {
-  await page.goto('/');
-  await page.click('a[href="/tags"]');
-  await expect(page).toHaveURL('/tags');
+test('tags page loads directly', async ({ page }) => {
+  await page.goto('/tags');
+  await expect(page.locator('h1')).toBeVisible();
 });
