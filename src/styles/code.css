@@ -1,0 +1,15 @@
+/* CodeMirror host sizing */
+.cm-host {
+  height: 100%;
+  min-height: 300px;
+}
+
+.cm-editor {
+  height: 100%;
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.cm-scroller {
+  overflow: auto;
+}

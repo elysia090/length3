@@ -1,0 +1,7 @@
+name = "length3"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+assets = { directory = "./dist" }
+
+[observability]
+enabled = true

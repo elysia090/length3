@@ -1,0 +1,9 @@
+dist/
+node_modules/
+.astro/
+.wrangler/
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/

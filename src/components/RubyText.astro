@@ -1,0 +1,10 @@
+---
+interface Props {
+  base: string;
+  reading: string;
+}
+
+const { base, reading } = Astro.props;
+---
+
+<ruby>{base}<rp>(</rp><rt>{reading}</rt><rp>)</rp></ruby>

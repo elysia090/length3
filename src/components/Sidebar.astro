@@ -1,0 +1,110 @@
+---
+import SearchModal from './SearchModal.astro';
+import TagBadge from './TagBadge.astro';
+
+interface Props {
+  tagCounts: Map<string, number>;
+  totalPosts: number;
+}
+
+const { tagCounts, totalPosts } = Astro.props;
+const topTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+---
+
+<aside class="sidebar" aria-label="Blog sidebar">
+  <section class="sidebar-section">
+    <SearchModal />
+  </section>
+
+  <section class="sidebar-section stats">
+    <h2 class="sidebar-label">Stats</h2>
+    <p class="stat-line">
+      <span class="stat-value">{totalPosts}</span> articles
+    </p>
+    <p class="stat-line">
+      <span class="stat-value">{tagCounts.size}</span> tags
+    </p>
+  </section>
+
+  {
+    topTags.length > 0 && (
+      <section class="sidebar-section tag-cloud" aria-label="Tags">
+        <h2 class="sidebar-label">Tags</h2>
+        <ul class="tag-list">
+          {topTags.map(([tag, count]) => (
+            <li>
+              <TagBadge tag={tag} />
+              <span class="tag-count">({count})</span>
+            </li>
+          ))}
+        </ul>
+        <a href="/tags" class="all-tags-link">
+          All tags &rarr;
+        </a>
+      </section>
+    )
+  }
+</aside>
+
+<style>
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .sidebar-section {
+    border-top: 1px solid var(--color-border);
+    padding-top: 1.5rem;
+  }
+
+  .sidebar-section:first-child {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .sidebar-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .stat-line {
+    font-size: 0.9375rem;
+    color: var(--color-muted);
+    margin-bottom: 0.3rem;
+  }
+
+  .stat-value {
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  .tag-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .tag-count {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    margin-left: 0.1rem;
+  }
+
+  .all-tags-link {
+    font-size: 0.875rem;
+    color: var(--color-accent);
+  }
+
+  .all-tags-link:hover {
+    text-decoration: underline;
+  }
+</style>

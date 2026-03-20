@@ -1,0 +1,89 @@
+---
+import type { TocHeading } from '../types/blog';
+
+interface Props {
+  headings: TocHeading[];
+}
+
+const { headings } = Astro.props;
+const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+{
+  filtered.length > 0 && (
+    <nav class="toc" aria-label="Table of contents">
+      <p class="toc-label">Contents</p>
+      <ol>
+        {filtered.map((h) => (
+          <li class={`toc-item toc-depth-${h.depth}`}>
+            <a href={`#${h.slug}`}>{h.text}</a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
+
+<script>
+  const headingEls = document.querySelectorAll('article h2[id], article h3[id]');
+  const tocLinks = document.querySelectorAll('.toc a');
+
+  if (headingEls.length > 0 && tocLinks.length > 0) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            for (const link of tocLinks) {
+              link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+            }
+          }
+        }
+      },
+      { rootMargin: '0px 0px -60% 0px' },
+    );
+
+    for (const el of headingEls) observer.observe(el);
+  }
+</script>
+
+<style>
+  .toc {
+    font-size: 0.875rem;
+  }
+
+  .toc-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .toc-item {
+    margin-bottom: 0.3rem;
+  }
+
+  .toc-depth-3 {
+    padding-left: 1rem;
+  }
+
+  .toc a {
+    color: var(--color-muted);
+    text-decoration: none;
+    line-height: 1.5;
+    transition: color 0.15s;
+  }
+
+  .toc a:hover,
+  .toc a.active {
+    color: var(--color-accent);
+  }
+</style>
