@@ -12,31 +12,37 @@ const { segments } = Astro.props;
 ---
 
 <nav class="breadcrumb" aria-label="Breadcrumb">
-  {
-    segments.map((seg, i) => (
-      <>
+  <ol>
+    {segments.map((seg, i) => (
+      <li>
         {i > 0 && <span class="sep" aria-hidden="true">/</span>}
         {seg.href ? (
           <a href={seg.href} class="crumb">{seg.label}</a>
         ) : (
           <span class="crumb crumb-current" aria-current="page">{seg.label}</span>
         )}
-      </>
-    ))
-  }
+      </li>
+    ))}
+  </ol>
 </nav>
 
 <style>
   .breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
     font-family: var(--font-mono);
     font-size: 0.75rem;
     color: var(--ink-2);
     max-width: 1200px;
     margin: 0 auto;
     padding: 1rem 1.5rem 0;    /* bumped from 0.75rem for breathing room */
+  }
+
+  .breadcrumb ol {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;                  /* 8px — grid aligned */
+    list-style: none;
+    padding: 0;
+    margin: 0;
   }
 
   .sep {
@@ -48,7 +54,8 @@ const { segments } = Astro.props;
     transition: color 80ms ease;
   }
 
-  a.crumb:hover {
+  a.crumb:hover,
+  a.crumb:active {
     color: var(--amber);
   }
 

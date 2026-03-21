@@ -19,19 +19,25 @@ import '../../styles/code.css';
         <!-- spec §4: amber is not used on any button -->
         <button class="editor-btn editor-btn-discard" id="discard-btn">Discard</button>
         <button class="editor-btn editor-btn-preview" id="preview-btn">Preview</button>
-        <button class="editor-btn editor-btn-publish" id="publish-btn">Publish →</button>
+        <button class="editor-btn editor-btn-publish" id="publish-btn" aria-label="Publish article">Publish →</button>
       </div>
+    </div>
+
+    <!-- Mobile tabs — APG Tabs pattern, visible < 640px -->
+    <div class="editor-tabs" role="tablist" aria-label="Editor panels">
+      <button role="tab" aria-selected="true" aria-controls="editor-pane" id="tab-edit" class="editor-tab">Edit</button>
+      <button role="tab" aria-selected="false" aria-controls="preview-pane" id="tab-preview" class="editor-tab">Preview</button>
     </div>
 
     <!-- MAIN: editor + preview -->
     <div class="editor-main">
       <!-- LEFT: dark editor pane — spec §4 -->
-      <div class="editor-pane" role="region" aria-label="MDX source editor">
+      <div class="editor-pane tab-active" id="editor-pane" role="tabpanel" aria-label="MDX source editor">
         <div class="editor-body" id="editor-mount"></div>
       </div>
 
       <!-- RIGHT: light preview pane — spec §4 -->
-      <div class="preview-pane" role="region" aria-label="Live preview">
+      <div class="preview-pane" id="preview-pane" role="tabpanel" aria-label="Live preview">
         <div class="preview-body">
           <div class="preview-content prose" id="preview-output">
             <p class="preview-placeholder">Start writing MDX…</p>
@@ -66,6 +72,29 @@ import '../../styles/code.css';
   const mount = document.getElementById('editor-mount');
   const output = document.getElementById('preview-output');
   const posEl = document.getElementById('status-pos');
+  let docChanged = false;
+
+  // Nielsen H5: warn before leaving with unsaved changes
+  window.addEventListener('beforeunload', (e) => {
+    if (docChanged) e.preventDefault();
+  });
+
+  // Nielsen H3: Discard confirmation
+  document.getElementById('discard-btn')?.addEventListener('click', (e) => {
+    if (docChanged && !confirm('Discard all changes?')) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  // Nielsen H1: Publish feedback
+  document.getElementById('publish-btn')?.addEventListener('click', () => {
+    const btn = document.getElementById('publish-btn');
+    if (btn) {
+      btn.textContent = 'Published!';
+      setTimeout(() => { btn.textContent = 'Publish →'; }, 1500);
+    }
+  });
 
   const initialDoc = `---
 title: Untitled
@@ -215,6 +244,7 @@ Start writing here.
             if (posEl) posEl.textContent = `Ln ${line.number} · Col ${col}`;
           }
           if (update.docChanged) {
+            docChanged = true;
             const text = update.state.doc.toString();
             renderPreview(text);
           }
@@ -270,6 +300,37 @@ Start writing here.
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
   }
+
+  // ── Mobile tab switching — APG Tabs pattern ──────────────────
+  const tabs = document.querySelectorAll<HTMLButtonElement>('.editor-tab');
+  const editorPane = document.getElementById('editor-pane');
+  const previewPane = document.getElementById('preview-pane');
+
+  function activateTab(tab: HTMLButtonElement) {
+    for (const t of tabs) {
+      t.setAttribute('aria-selected', String(t === tab));
+      t.tabIndex = t === tab ? 0 : -1;
+    }
+    if (editorPane && previewPane) {
+      const isEdit = tab.id === 'tab-edit';
+      editorPane.classList.toggle('tab-active', isEdit);
+      previewPane.classList.toggle('tab-active', !isEdit);
+    }
+  }
+
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => activateTab(tab));
+    tab.addEventListener('keydown', (e) => {
+      const tabArr = [...tabs];
+      const idx = tabArr.indexOf(tab);
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const next = e.key === 'ArrowRight' ? tabArr[(idx + 1) % tabArr.length]! : tabArr[(idx - 1 + tabArr.length) % tabArr.length]!;
+        next.focus();
+        activateTab(next);
+      }
+    });
+  }
 </script>
 
 <style>
@@ -297,7 +358,7 @@ Start writing here.
   .editor-topbar-left {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.5rem;                  /* 8px — grid aligned */
     font-family: var(--font-mono);
     font-size: 0.6875rem;
   }
@@ -333,7 +394,7 @@ Start writing here.
   .editor-btn {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    padding: 0.2rem 0.6rem;
+    padding: 0.5rem 0.75rem;      /* WCAG 2.5.8: touch target */
     background: transparent;
     cursor: pointer;
     transition: color 80ms ease;
@@ -344,11 +405,11 @@ Start writing here.
      Tokens are interpreted for dark background readability */
   .editor-btn-discard {
     border: none;
-    color: #6b6860;   /* Ink-3 equivalent on dark: recessive */
+    color: #9a9690;   /* upgraded for WCAG AA contrast on dark bg */
   }
 
   .editor-btn-discard:hover {
-    color: #9a9690;
+    color: #c8c4be;
   }
 
   .editor-btn-preview {
@@ -372,6 +433,15 @@ Start writing here.
   .editor-btn-publish:hover {
     border-color: #9a9690;
     color: #f9f8f5;
+  }
+
+  .editor-btn:active {
+    opacity: 0.8;
+  }
+
+  .editor-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 
   /* ── Main: 50/50 split ── */
@@ -429,7 +499,7 @@ Start writing here.
   }
 
   .preview-placeholder {
-    color: var(--ink-3);
+    color: var(--ink-2);           /* upgraded from Ink-3 for WCAG AA */
     font-style: italic;
     font-size: 0.9375rem;
   }
@@ -449,7 +519,7 @@ Start writing here.
     font-family: var(--font-mono);
     font-size: 0.6875rem;  /* bumped from 0.65rem for readability */
     color: #7a776f;        /* midpoint between Ink-3 and Ink-2 for dark bg legibility */
-    padding: 0 0.3rem;
+    padding: 0 0.25rem;           /* 4px — grid aligned */
     letter-spacing: 0.02em;
   }
 
@@ -467,21 +537,52 @@ Start writing here.
     letter-spacing: 0.02em;
   }
 
+  /* ── Editor tabs — hidden on desktop, visible on mobile ── */
+  .editor-tabs {
+    display: none;
+  }
+
+  .editor-tab {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    background: transparent;
+    color: #9a9690;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 80ms ease, border-color 80ms ease;
+  }
+
+  .editor-tab[aria-selected='true'] {
+    color: var(--amber);
+    border-bottom-color: var(--amber);
+  }
+
   /* ── Mobile: tab mode below 640px — spec §8 ── */
   @media (max-width: 639px) {
+    .editor-tabs {
+      display: flex;
+      background: #201d19;
+      border-bottom: 1px solid #252118;
+    }
+
     .editor-root {
       grid-template-rows: 40px auto 1fr 24px;
     }
 
     .editor-main {
       grid-template-columns: 1fr;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: 1fr;
     }
 
     .editor-pane {
-      display: none;   /* Tab mode: managed by JS tab switch */
+      display: none;
       border-right: none;
-      border-bottom: 1px solid #252118;
+    }
+
+    .preview-pane {
+      display: none;
     }
 
     .editor-pane.tab-active,

@@ -40,7 +40,7 @@
       />
       <button class="search-esc-btn" id="search-close" aria-label="Close search">esc</button>
     </div>
-    <div id="pagefind-results" class="search-results" role="listbox" aria-label="Search results"></div>
+    <div id="pagefind-results" class="search-results" role="region" aria-label="Search results"></div>
     <div class="search-footer" aria-hidden="true">
       <span class="search-hint">↑↓ navigate</span>
       <span class="search-hint">↵ open</span>
@@ -225,11 +225,11 @@
     font-family: var(--font-display);
     font-size: 1rem;
     color: var(--ink);
-    outline: none;
+    /* outline preserved for :focus-visible — WCAG 2.4.7 */
   }
 
   .search-field::placeholder {
-    color: var(--ink-3);
+    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 14px */
     font-family: var(--font-mono);
     font-size: 0.875rem;
   }
@@ -237,11 +237,11 @@
   .search-esc-btn {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    padding: 0.2rem 0.45rem;
+    padding: 0.5rem 0.75rem;
     border: 1px solid var(--rule);
     border-radius: 2px;
     background: var(--bg-2);
-    color: var(--ink-3);
+    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 11px */
     cursor: pointer;
     flex-shrink: 0;
     transition: color 80ms ease;

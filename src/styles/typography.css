@@ -132,7 +132,7 @@
 }
 
 .prose li {
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.25rem;        /* 4px — grid aligned */
 }
 
 .prose ul > li::marker {
