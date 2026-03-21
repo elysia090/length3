@@ -2,14 +2,13 @@
 export const prerender = true;
 
 import { getCollection } from 'astro:content';
-import type { ProcessedPost } from '../types/blog';
+import type { ProcessedPost } from '../lib/types';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Sidebar from '../components/Sidebar.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { toSlug } from '../lib/slugify';
-import { estimateReadingTime } from '../lib/reading-time';
+import { toSlug, estimateReadingTime } from '../lib/utils';
 
 const allPosts = await getCollection('blog', ({ data }) => !data.draft);
 allPosts.sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());

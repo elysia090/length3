@@ -1,5 +1,5 @@
 ---
-import type { TocHeading } from '../types/blog';
+import type { TocHeading } from '../lib/types';
 import BaseLayout from './BaseLayout.astro';
 import TableOfContents from '../components/TableOfContents.astro';
 import ReadingProgress from '../components/ReadingProgress.astro';
@@ -7,8 +7,7 @@ import ArticleActions from '../components/ArticleActions.astro';
 import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { formatDate } from '../lib/format-date';
-import { tagToSlug } from '../lib/slugify';
+import { formatDate, tagToSlug } from '../lib/utils';
 import '../styles/code.css';
 
 interface Props {
