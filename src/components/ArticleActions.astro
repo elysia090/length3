@@ -96,14 +96,14 @@ const { slug: _slug, readingTime } = Astro.props;
   .actions-group {
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.25rem;                 /* 4px — grid aligned */
   }
 
   .action-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.4rem 0;
+    padding: 1rem 0;              /* WCAG 2.5.8: 44px touch target */
     background: none;
     border: none;
     cursor: pointer;
@@ -115,8 +115,14 @@ const { slug: _slug, readingTime } = Astro.props;
     transition: color 80ms ease;
   }
 
-  .action-row:hover {
+  .action-row:hover,
+  .action-row:active {
     color: var(--ink);
+  }
+
+  .action-row:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .action-dash {
@@ -141,7 +147,7 @@ const { slug: _slug, readingTime } = Astro.props;
 
   .stat-row {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.25rem;                 /* 4px — grid aligned */
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     color: var(--ink-2);

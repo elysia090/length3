@@ -134,9 +134,18 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
     transition: color 80ms ease, border-color 80ms ease;
   }
 
-  .toc-link:hover {
+  .toc-link:hover,
+  .toc-link:active {
     color: var(--ink);
     border-left-color: var(--rule);
+  }
+
+  @media (pointer: coarse) {
+    .toc-link {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
   }
 
   /* spec §4: active — amber border-left + amber text, 80ms ease */
