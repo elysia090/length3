@@ -10,114 +10,84 @@ const { post } = Astro.props;
 const { entry, slug, readingTime, excerpt } = post;
 const { title, publishDate, tags } = entry.data;
 
-// Split date: year and MM.DD — spec §4
-const year = publishDate.getFullYear().toString();
-const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(publishDate.getDate()).padStart(2, '0')}`;
+const dateStr = formatDate(publishDate);
 ---
 
 <article class="article-card">
-  <div class="card-date" aria-label={formatDate(publishDate)}>
-    <span class="card-year">{year}</span>
-    <span class="card-mmdd">{mmdd}</span>
+  <div class="card-meta">
+    <time datetime={publishDate.toISOString()} class="card-date">{dateStr}</time>
+    {readingTime > 0 && (
+      <>
+        <span class="card-meta-sep" aria-hidden="true">—</span>
+        <span class="card-reading-time">{readingTime} min</span>
+      </>
+    )}
   </div>
-  <div class="card-body">
-    {
-      tags.length > 0 && (
-        <div class="card-tags" aria-label="tags">
-          {tags.map((t) => (
-            <a href={`/tags/${t.toLowerCase()}`} class="card-tag">#{t}</a>
-          ))}
-        </div>
-      )
-    }
-    <h2 class="card-title">
-      <a href={`/${slug}`}>{title}</a>
-    </h2>
-    <p class="card-excerpt">{excerpt}</p>
-    <div class="card-footer">
-      <span class="card-reading-time">{readingTime} min</span>
-    </div>
-  </div>
+  <h2 class="card-title">
+    <a href={`/${slug}`}>{title}</a>
+  </h2>
+  {excerpt && <p class="card-excerpt">{excerpt}</p>}
+  {
+    tags.length > 0 && (
+      <div class="card-tags" aria-label="tags">
+        {tags.map((t) => (
+          <a href={`/tags/${t.toLowerCase()}`} class="card-tag">#{t}</a>
+        ))}
+      </div>
+    )
+  }
 </article>
 
 <style>
-  /* spec §4: 80px date column + 1fr content, 24px gap */
+  /* Single-column card: date → title → description → tags */
   .article-card {
-    display: grid;
-    grid-template-columns: 80px 1fr;
-    gap: 0 24px;
-    padding: 24px 0;
+    padding: 32px 0;
     border-bottom: 1px solid var(--rule);
   }
 
-  /* spec §4: first item padding-top: 0 */
   .article-card:first-child {
     padding-top: 0;
   }
 
-  /* spec §4: last item no bottom border */
   .article-card:last-child {
     border-bottom: none;
   }
 
-  /* spec §4: "2行を縦に並べ、間に明示的なgapなし" */
-  .card-date {
+  /* Date + reading time — inline, top of card */
+  .card-meta {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    padding-top: 0.15rem;
+    align-items: center;
+    gap: 0.5rem;
     font-family: var(--font-mono);
-    flex-shrink: 0;
-    line-height: 1.3;   /* tight — year and MM.DD read as one block */
+    font-size: 0.75rem;
+    color: var(--ink-2);
+    margin-bottom: 4px;
   }
 
-  /* spec §4: year — Ink-3, letter-spacing 0.06em */
-  .card-year {
-    font-size: 0.75rem;
-    letter-spacing: 0.06em;
+  .card-date {
+    letter-spacing: 0.04em;
+    color: var(--amber);
+  }
+
+  .card-meta-sep {
     color: var(--ink-3);
   }
 
-  /* spec §4: MM.DD — 0.8rem, Ink-2, letter-spacing 0.04em */
-  .card-mmdd {
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
+  .card-reading-time {
     color: var(--ink-2);
   }
 
-  .card-body {
-    min-width: 0;
-  }
-
-  /* spec §4: tags — amber, 0.75rem, 6px bottom margin */
-  .card-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 6px;
-  }
-
-  .card-tag {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--amber);
-    transition: color 80ms ease;
-  }
-
-  .card-tag:hover {
-    color: var(--ink);
-  }
-
-  /* spec §4: title — Fraunces 1.25rem weight 400 */
+  /* Title — gravitational center, heaviest element */
   .card-title {
     font-family: var(--font-display);
-    font-size: 1.25rem;
-    font-weight: 400;
-    line-height: 1.4;
-    margin-bottom: 0.5rem;
+    font-size: 1.375rem;          /* 22px — dominant */
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+    margin-bottom: 6px;
+    text-wrap: balance;
   }
 
-  /* spec §4: hover — title transitions to amber, 80ms ease */
   .card-title a {
     color: var(--ink);
     transition: color 80ms ease;
@@ -128,21 +98,37 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
     color: var(--amber);
   }
 
-  /* spec §4: description — 0.88rem, Ink-2, line-height 1.75 */
+  /* Description — secondary, below title */
   .card-excerpt {
     font-size: 0.88rem;
     line-height: 1.75;
     color: var(--ink-2);
-    margin-bottom: 0.75rem;
+    margin-bottom: 16px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
-  .card-footer {
+  /* Tags — bottom of card, bordered pills */
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .card-tag {
     font-family: var(--font-mono);
     font-size: 0.75rem;
+    color: var(--ink-2);
+    padding: 2px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    transition: color 80ms ease, border-color 80ms ease;
   }
 
-  /* spec §4: reading time — Ink-3 */
-  .card-reading-time {
-    color: var(--ink-3);
+  .card-tag:hover {
+    color: var(--amber);
+    border-color: var(--amber);
   }
 </style>

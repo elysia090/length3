@@ -100,9 +100,9 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
   .toc-label {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.8rem;    /* bumped from 0.75rem to match TOC link size */
     letter-spacing: 0.14em;
-    color: var(--ink-3);
+    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at small size */
     text-transform: uppercase;
     margin-bottom: 16px;   /* spec §4 */
   }

@@ -22,6 +22,7 @@
     "@astrojs/cloudflare": "^13.1.2",
     "@astrojs/mdx": "^5.0.2",
     "@codemirror/language": "^6.12.2",
+    "@codemirror/view": "^6.40.0",
     "@lezer/highlight": "^1.2.3",
     "@types/node": "^25.5.0",
     "astro": "^6.0.7",

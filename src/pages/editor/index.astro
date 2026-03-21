@@ -56,8 +56,9 @@ import '../../styles/code.css';
 </BaseLayout>
 
 <script>
-  import { EditorView, basicSetup } from 'codemirror';
-  import { EditorState } from '@codemirror/state';
+  import { EditorView, basicSetup, type ViewUpdate } from 'codemirror';
+  import { EditorState, RangeSetBuilder } from '@codemirror/state';
+  import { Decoration, type DecorationSet, ViewPlugin } from '@codemirror/view';
   import { markdown } from '@codemirror/lang-markdown';
   import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
@@ -141,6 +142,62 @@ Start writing here.
     { tag: tags.meta, color: '#9a9690' },
   ]);
 
+  // ── Frontmatter YAML decoration — colorize keys/values within --- blocks ──
+  const fmKeyMark = Decoration.mark({ class: 'cm-fm-key' });
+  const fmValMark = Decoration.mark({ class: 'cm-fm-val' });
+  const fmDelimMark = Decoration.mark({ class: 'cm-fm-delim' });
+
+  function buildFrontmatterDecos(view: EditorView): DecorationSet {
+    const builder = new RangeSetBuilder<Decoration>();
+    const doc = view.state.doc;
+    const text = doc.toString();
+    // Detect frontmatter: must start at line 1 with ---
+    if (!text.startsWith('---')) return builder.finish();
+    const endIdx = text.indexOf('\n---', 3);
+    if (endIdx === -1) return builder.finish();
+    const fmEnd = endIdx + 4; // include closing ---\n
+
+    for (let i = 1; i <= doc.lines; i++) {
+      const line = doc.line(i);
+      if (line.from >= fmEnd) break;
+      const lineText = line.text;
+
+      if (lineText.trim() === '---') {
+        // Delimiter line
+        builder.add(line.from, line.to, fmDelimMark);
+      } else {
+        // YAML key: value
+        const colonIdx = lineText.indexOf(':');
+        if (colonIdx > 0) {
+          builder.add(line.from, line.from + colonIdx, fmKeyMark);
+          const valStart = colonIdx + 1;
+          const valText = lineText.slice(valStart);
+          if (valText.trim().length > 0) {
+            // Find first non-space after colon
+            const trimOffset = valText.length - valText.trimStart().length;
+            builder.add(line.from + valStart + trimOffset, line.to, fmValMark);
+          }
+        }
+      }
+    }
+    return builder.finish();
+  }
+
+  const frontmatterPlugin = ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = buildFrontmatterDecos(view);
+      }
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = buildFrontmatterDecos(update.view);
+        }
+      }
+    },
+    { decorations: (v) => v.decorations },
+  );
+
   if (mount && output) {
     const state = EditorState.create({
       doc: initialDoc,
@@ -149,6 +206,7 @@ Start writing here.
         markdown(),
         length3Theme,
         syntaxHighlighting(length3Highlight),
+        frontmatterPlugin,
         EditorView.updateListener.of((update) => {
           if (update.selectionSet || update.docChanged) {
             const pos = update.state.selection.main.head;
@@ -170,22 +228,40 @@ Start writing here.
 
   function renderPreview(text: string) {
     if (!output) return;
+    // Extract frontmatter metadata
+    let title = '';
+    const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      const titleMatch = fmMatch[1].match(/^title:\s*(.+)$/m);
+      if (titleMatch) title = titleMatch[1].trim();
+    }
     // Strip frontmatter
     const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
     // Naive markdown → HTML (dev preview only)
-    const html = body
-      .split('\n')
+    const lines = body.split('\n');
+    let prevBlank = false;
+    const bodyHtml = lines
       .map((line) => {
-        if (line.startsWith('### ')) return `<h3>${esc(line.slice(4))}</h3>`;
-        if (line.startsWith('## ')) return `<h2>${esc(line.slice(3))}</h2>`;
-        if (line.startsWith('# ')) return `<h1>${esc(line.slice(2))}</h1>`;
-        if (line.startsWith('> ')) return `<blockquote><p>${esc(line.slice(2))}</p></blockquote>`;
-        if (line.trim() === '') return '<br>';
+        if (line.startsWith('### ')) { prevBlank = false; return `<h3>${esc(line.slice(4))}</h3>`; }
+        if (line.startsWith('## ')) { prevBlank = false; return `<h2>${esc(line.slice(3))}</h2>`; }
+        if (line.startsWith('# ')) { prevBlank = false; return `<h1>${esc(line.slice(2))}</h1>`; }
+        if (line.startsWith('> ')) { prevBlank = false; return `<blockquote><p>${esc(line.slice(2))}</p></blockquote>`; }
+        if (line.trim() === '') {
+          if (prevBlank) return '';  // skip consecutive blank lines
+          prevBlank = true;
+          return '';  // paragraph breaks handled by <p> margin, not <br>
+        }
+        prevBlank = false;
         const escaped = esc(line).replace(/`([^`]+)`/g, '<code>$1</code>');
         return `<p>${escaped}</p>`;
       })
+      .filter(Boolean)
       .join('');
-    output.innerHTML = html;
+    // Build article-header if title exists, matching article page structure
+    const headerHtml = title
+      ? `<header class="article-header"><h1>${esc(title)}</h1><hr class="article-header-hr"></header>`
+      : '';
+    output.innerHTML = headerHtml + bodyHtml;
   }
 
   function esc(s: string): string {
@@ -244,7 +320,7 @@ Start writing here.
   }
 
   .editor-bc-file {
-    color: var(--ink-3);
+    color: var(--ink-2);   /* upgraded from Ink-3 for readability on dark bg */
   }
 
   .editor-topbar-actions {
@@ -329,6 +405,11 @@ Start writing here.
     font-family: var(--font-mono);
   }
 
+  /* Frontmatter YAML decoration — spec §4: key=muted blue, value=muted green */
+  .editor-body :global(.cm-fm-delim) { color: #9a9690; }
+  .editor-body :global(.cm-fm-key) { color: #7a9ab8; }
+  .editor-body :global(.cm-fm-val) { color: #7ec49a; }
+
   /* ── Preview pane (light) — spec §4: BG, padding 40px 48px ── */
   .preview-pane {
     display: flex;
@@ -366,22 +447,22 @@ Start writing here.
 
   .status-item {
     font-family: var(--font-mono);
-    font-size: 0.65rem;   /* spec §4: 0.65rem */
-    color: var(--ink-3);
+    font-size: 0.6875rem;  /* bumped from 0.65rem for readability */
+    color: #7a776f;        /* midpoint between Ink-3 and Ink-2 for dark bg legibility */
     padding: 0 0.3rem;
     letter-spacing: 0.02em;
   }
 
   .status-sep {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
+    font-size: 0.6875rem;
     color: #3a3630;
   }
 
   .status-right {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
-    color: var(--ink-3);
+    font-size: 0.6875rem;  /* bumped from 0.65rem for readability */
+    color: #7a776f;        /* midpoint between Ink-3 and Ink-2 for dark bg legibility */
     margin-left: auto;
     letter-spacing: 0.02em;
   }
