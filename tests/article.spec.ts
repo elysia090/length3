@@ -220,9 +220,10 @@ test.describe('Article page', () => {
     test('prefers-reduced-motion removes transitions — spec §5', async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await goToFirstArticle(page);
+      await expect(page.locator('.toc-link').first()).toBeAttached();
       const transition = await getComputedStyleProp(page, '.toc-link', 'transition');
       // With reduced-motion, transition should be "none" or 0s duration
-      expect(transition === 'none' || transition.includes('0s') || transition === '').toBe(true);
+      expect(transition === 'none' || transition.includes('0s')).toBe(true);
     });
   });
 });
