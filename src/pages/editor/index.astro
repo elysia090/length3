@@ -87,6 +87,7 @@ import '../../styles/code.css';
   import { markdown } from '@codemirror/lang-markdown';
   import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
+  import { marked } from 'marked';
 
   const mount = document.getElementById('editor-mount');
   const output = document.getElementById('preview-output');
@@ -289,160 +290,6 @@ Start writing here.
 
   // ── Markdown preview renderer ─────────────────────────────────
 
-  /** Escape HTML special characters to prevent XSS. */
-  function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
-  /** Apply inline Markdown formatting to an already-HTML-escaped string. */
-  function inline(text: string): string {
-    return (
-      esc(text)
-        // bold-italic must come before bold and italic
-        .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
-        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
-        .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
-        .replace(/_([^_\n]+)_/g, '<em>$1</em>')
-        .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
-        .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-        // links — only allow safe URL prefixes
-        .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\n]+|[#/][^)\n]*)\)/g, '<a href="$2">$1</a>')
-    );
-  }
-
-  /** Parse a pipe-table row into trimmed cell strings. */
-  function tableRow(row: string): string[] {
-    return row
-      .trim()
-      .replace(/^\||\|$/g, '')
-      .split('|')
-      .map((c) => c.trim());
-  }
-
-  /** Convert Markdown body text to HTML. Handles the block elements writers use daily. */
-  function parseBlocks(text: string): string {
-    const lines = text.split('\n');
-    let html = '';
-    let i = 0;
-
-    while (i < lines.length) {
-      const line = lines[i]!;
-
-      // ── Fenced code block `` ` `` `` ` `` `` ` ``lang … `` ` `` `` ` `` `` ` `` ──
-      const fenceMatch = line.match(/^```(\w*)$/);
-      if (fenceMatch) {
-        const lang = fenceMatch[1] ?? '';
-        const code: string[] = [];
-        i++;
-        while (i < lines.length && !lines[i]!.startsWith('```')) {
-          code.push(lines[i]!);
-          i++;
-        }
-        html += `<pre><code${lang ? ` class="language-${esc(lang)}"` : ''}>${esc(code.join('\n'))}</code></pre>`;
-        i++; // skip closing ```
-        continue;
-      }
-
-      // ── ATX heading ──
-      const hMatch = line.match(/^(#{1,6}) (.*)/);
-      if (hMatch) {
-        const lvl = hMatch[1]!.length;
-        html += `<h${lvl}>${inline(hMatch[2]!)}</h${lvl}>`;
-        i++;
-        continue;
-      }
-
-      // ── Horizontal rule (--- / *** / ___) ──
-      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
-        html += '<hr>';
-        i++;
-        continue;
-      }
-
-      // ── Blockquote ──
-      if (line.startsWith('> ')) {
-        const bq: string[] = [];
-        while (i < lines.length && lines[i]!.startsWith('> ')) {
-          bq.push(lines[i]!.slice(2));
-          i++;
-        }
-        html += `<blockquote>${parseBlocks(bq.join('\n'))}</blockquote>`;
-        continue;
-      }
-
-      // ── Unordered list ──
-      if (/^[-*+] /.test(line)) {
-        html += '<ul>';
-        while (i < lines.length && /^[-*+] /.test(lines[i]!)) {
-          html += `<li>${inline(lines[i]!.replace(/^[-*+] /, ''))}</li>`;
-          i++;
-        }
-        html += '</ul>';
-        continue;
-      }
-
-      // ── Ordered list ──
-      if (/^\d+\. /.test(line)) {
-        html += '<ol>';
-        while (i < lines.length && /^\d+\. /.test(lines[i]!)) {
-          html += `<li>${inline(lines[i]!.replace(/^\d+\. /, ''))}</li>`;
-          i++;
-        }
-        html += '</ol>';
-        continue;
-      }
-
-      // ── Pipe table — requires separator row on next line ──
-      const nextLine = lines[i + 1] ?? '';
-      if (line.includes('|') && /^\|?[-:| ]+\|?$/.test(nextLine)) {
-        const headers = tableRow(line);
-        i += 2; // skip header + separator
-        html += `<table><thead><tr>${headers.map((c) => `<th>${inline(c)}</th>`).join('')}</tr></thead>`;
-        if (i < lines.length && lines[i]!.includes('|')) {
-          html += '<tbody>';
-          while (i < lines.length && lines[i]!.includes('|')) {
-            html += `<tr>${tableRow(lines[i]!)
-              .map((c) => `<td>${inline(c)}</td>`)
-              .join('')}</tr>`;
-            i++;
-          }
-          html += '</tbody>';
-        }
-        html += '</table>';
-        continue;
-      }
-
-      // ── Blank line ──
-      if (line.trim() === '') {
-        i++;
-        continue;
-      }
-
-      // ── Paragraph — accumulate contiguous prose lines ──
-      const para: string[] = [];
-      while (
-        i < lines.length &&
-        lines[i]!.trim() !== '' &&
-        !/^#{1,6} /.test(lines[i]!) &&
-        !lines[i]!.startsWith('> ') &&
-        !/^[-*+] /.test(lines[i]!) &&
-        !/^\d+\. /.test(lines[i]!) &&
-        !/^```/.test(lines[i]!) &&
-        !/^(-{3,}|\*{3,}|_{3,})$/.test(lines[i]!.trim()) &&
-        !(lines[i]!.includes('|') && /^\|?[-:| ]+\|?$/.test(lines[i + 1] ?? ''))
-      ) {
-        para.push(lines[i]!);
-        i++;
-      }
-      if (para.length > 0) {
-        html += `<p>${para.map(inline).join('<br>')}</p>`;
-      }
-    }
-
-    return html;
-  }
-
   function renderPreview(text: string) {
     if (!output) return;
 
@@ -464,9 +311,9 @@ Start writing here.
     const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
 
     const headerHtml = title
-      ? `<header class="article-header"><h1>${inline(title)}</h1><hr class="article-header-hr"></header>`
+      ? `<header class="article-header"><h1>${marked.parseInline(title) as string}</h1><hr class="article-header-hr"></header>`
       : '';
-    output.innerHTML = headerHtml + parseBlocks(body);
+    output.innerHTML = headerHtml + marked.parse(body);
 
     // Update character count in status bar
     const chars = body.replace(/\s/g, '').length;

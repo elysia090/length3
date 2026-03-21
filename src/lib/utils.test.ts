@@ -87,7 +87,7 @@ describe('formatDate', () => {
   // Use a fixed UTC midnight so local-timezone offsets do not shift the date
   const date = new Date('2026-03-20T12:00:00Z');
 
-  it('defaults to en-CA locale (YYYY-MM-DD)', () => {
+  it('defaults to en locale (YYYY-MM-DD)', () => {
     expect(formatDate(date, 'en')).toMatch(/^2026-\d{2}-\d{2}$/);
   });
 

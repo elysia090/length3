@@ -18,14 +18,11 @@
   </div>
 </aside>
 
-<!-- Search modal — spec §4 -->
-<div
+<!-- Search modal — spec §4 — native <dialog> for built-in focus trap, Escape, and backdrop -->
+<dialog
   id="search-modal"
   class="search-overlay"
-  role="dialog"
-  aria-modal="true"
   aria-label="Search"
-  hidden
 >
   <div class="search-card">
     <div class="search-input-row">
@@ -49,14 +46,13 @@
       <span class="search-powered">Pagefind</span>
     </div>
   </div>
-</div>
+</dialog>
 
 <script>
   const trigger = document.getElementById('search-trigger') as HTMLButtonElement | null;
-  const modal = document.getElementById('search-modal') as HTMLElement | null;
+  const modal = document.getElementById('search-modal') as HTMLDialogElement | null;
   const closeBtn = document.getElementById('search-close') as HTMLButtonElement | null;
   let initialized = false;
-  let previouslyFocused: HTMLElement | null = null;
 
   async function initSearch() {
     if (initialized) return;
@@ -72,73 +68,42 @@
 
   function openSearch() {
     if (!modal || !trigger) return;
-    previouslyFocused = document.activeElement as HTMLElement;
-    modal.hidden = false;
     trigger.setAttribute('aria-expanded', 'true');
-    document.body.style.overflow = 'hidden';
+    modal.showModal();
     initSearch();
-    const input = document.getElementById('pagefind-input');
-    input?.focus();
+    document.getElementById('pagefind-input')?.focus();
   }
 
   function closeSearch() {
     if (!modal || !trigger) return;
-    modal.hidden = true;
+    modal.close();
     trigger.setAttribute('aria-expanded', 'false');
-    document.body.style.overflow = '';
-    previouslyFocused?.focus();
-    previouslyFocused = null;
-  }
-
-  // Focus trap — spec §6
-  function trapFocus(e: KeyboardEvent) {
-    if (!modal || modal.hidden) return;
-    if (e.key !== 'Tab') return;
-
-    const focusable = Array.from(
-      modal.querySelectorAll<HTMLElement>('button, input, [href], [tabindex]:not([tabindex="-1"])'),
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0]!;
-    const last = focusable[focusable.length - 1]!;
-
-    if (e.shiftKey) {
-      if (document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      }
-    } else {
-      if (document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
   }
 
   trigger?.addEventListener('click', openSearch);
   closeBtn?.addEventListener('click', closeSearch);
 
+  // Close on backdrop click (click outside .search-card)
   modal?.addEventListener('click', (e) => {
-    if (e.target === modal) closeSearch();
+    if (e.target === modal) modal.close();
   });
 
+  // Sync aria-expanded when dialog closes (covers Escape key)
+  modal?.addEventListener('close', () => {
+    trigger?.setAttribute('aria-expanded', 'false');
+  });
+
+  // Open on '/' when no input is focused and modal is closed — spec §4
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !modal?.hidden) {
-      closeSearch();
-      return;
-    }
-    // Open on '/' when no input is focused and modal is hidden — spec §4
     if (
       e.key === '/' &&
-      modal?.hidden &&
+      !modal?.open &&
       !(document.activeElement instanceof HTMLInputElement) &&
       !(document.activeElement instanceof HTMLTextAreaElement)
     ) {
       e.preventDefault();
       openSearch();
-      return;
     }
-    trapFocus(e);
   });
 </script>
 
@@ -183,18 +148,29 @@
   /* No backdrop-filter blur — spec §4: "Blur is a visual effect that serves the
      interface's aesthetics, not the reader's task." */
   .search-overlay {
+    /* Reset native <dialog> styles */
+    border: none;
+    padding: 0;
+    background: transparent;
+    max-width: 100vw;
+    max-height: 100vh;
+    width: 100%;
+    height: 100%;
+    /* Position as full-screen overlay */
     position: fixed;
     inset: 0;
-    background: rgba(28, 26, 24, 0.6); /* spec §4 */
-    z-index: 500;
-    display: flex;
     align-items: flex-start;
     justify-content: center;
     padding-top: 12vh;
   }
 
-  .search-overlay[hidden] {
-    display: none;
+  /* Override UA display:none only when open */
+  .search-overlay[open] {
+    display: flex;
+  }
+
+  .search-overlay::backdrop {
+    background: rgba(28, 26, 24, 0.6); /* spec §4 */
   }
 
   /* spec §4: 560px wide, border-radius 6px */
