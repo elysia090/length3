@@ -15,4 +15,3 @@ export interface TocHeading {
   slug: string;
   text: string;
 }
-

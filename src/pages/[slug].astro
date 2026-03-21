@@ -4,9 +4,8 @@ export const prerender = true;
 import { getCollection, render } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
-import type { TocHeading } from '../types/blog';
-import { toSlug } from '../lib/slugify';
-import { estimateReadingTime } from '../lib/reading-time';
+import type { TocHeading } from '../lib/types';
+import { toSlug, estimateReadingTime } from '../lib/utils';
 
 export const getStaticPaths = (async () => {
   const posts = await getCollection('blog', ({ data }) => !data.draft);
