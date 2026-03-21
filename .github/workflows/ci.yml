@@ -10,6 +10,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Restrict GITHUB_TOKEN to the minimum required.
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint & type check
