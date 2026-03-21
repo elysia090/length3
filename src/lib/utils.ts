@@ -29,9 +29,8 @@ export function estimateReadingTime(text: string): number {
 }
 
 export function formatDate(date: Date, locale: 'en' | 'ja' = 'en'): string {
-  return date.toLocaleDateString(locale === 'ja' ? 'ja-JP' : 'en-CA', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return locale === 'ja' ? `${y}/${m}/${d}` : `${y}-${m}-${d}`;
 }

@@ -38,9 +38,18 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
   const headingEls = document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]');
 
   // spec §8: collapse TOC on mobile (< 720px) — starts open in SSR/desktop
-  if (tocDetails && window.innerWidth < 720) {
-    tocDetails.removeAttribute('open');
+  // Use matchMedia so the state updates on resize/orientation change
+  const mobileQuery = window.matchMedia('(max-width: 719px)');
+  function syncTocOpen(mobile: boolean) {
+    if (!tocDetails) return;
+    if (mobile) {
+      tocDetails.removeAttribute('open');
+    } else {
+      tocDetails.setAttribute('open', '');
+    }
   }
+  syncTocOpen(mobileQuery.matches);
+  mobileQuery.addEventListener('change', (e) => syncTocOpen(e.matches));
 
   // ── Active section tracking ──────────────────────────────────
   if (links.length > 0 && headingEls.length > 0) {
