@@ -12,8 +12,8 @@
   --editor-bg:  #181511;   /* editor dark pane */
 
   /* Typography */
-  --font-display: 'Fraunces', Georgia, 'Hiragino Mincho ProN', serif;
-  --font-sans:    system-ui, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Noto Sans JP', 'Hiragino Mincho ProN', serif;
+  --font-sans:    'Noto Sans JP', system-ui, 'Hiragino Kaku Gothic ProN', sans-serif;
   --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', monospace;
 
   /* Layout */

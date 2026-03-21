@@ -5,8 +5,7 @@
  * To generate WOFF2 from the source TTF:
  *   python3 -c "from fontTools.ttLib import TTFont; f = TTFont('Fraunces-Variable.ttf'); f.flavor = 'woff2'; f.save('Fraunces-Variable.woff2')"
  *
- * Current files in /public/fonts/ are placeholder stubs — replace with
- * real Fraunces variable font files before deploying.
+ * Font files in /public/fonts/ are real Fraunces variable fonts (woff2 + ttf).
  *
  * font-display: optional
  *   Gives the browser a 100 ms window to load from cache.

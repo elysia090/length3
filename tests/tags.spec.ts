@@ -12,16 +12,16 @@ test.describe('Tags index page', () => {
     await expect(page.locator('main h1')).toContainText('Tags');
   });
 
-  test('renders tag badges', async ({ page }) => {
-    await expect(page.locator('.tag-badge').first()).toBeVisible();
+  test('renders tag cards', async ({ page }) => {
+    await expect(page.locator('.tag-card').first()).toBeVisible();
   });
 
-  test('tag counts are shown next to each badge', async ({ page }) => {
-    await expect(page.locator('.count').first()).toContainText('(');
+  test('tag counts are shown inside each card', async ({ page }) => {
+    await expect(page.locator('.tag-count').first()).toBeVisible();
   });
 
   test('tag links navigate to tag detail page', async ({ page }) => {
-    const href = await page.locator('.tag-badge').first().getAttribute('href');
+    const href = await page.locator('.tag-card').first().getAttribute('href');
     expect(href).toMatch(/^\/tags\//);
   });
 
@@ -38,7 +38,7 @@ test.describe('Tag detail page', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate via the tags index to get a real tag slug
     await page.goto('/tags');
-    const tagHref = (await page.locator('.tag-badge').first().getAttribute('href')) ?? '/tags/meta';
+    const tagHref = (await page.locator('.tag-card').first().getAttribute('href')) ?? '/tags/meta';
     await page.goto(tagHref);
   });
 
