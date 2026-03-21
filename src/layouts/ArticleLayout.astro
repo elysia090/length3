@@ -2,7 +2,6 @@
 import type { TocHeading } from '../lib/types';
 import BaseLayout from './BaseLayout.astro';
 import TableOfContents from '../components/TableOfContents.astro';
-import ReadingProgress from '../components/ReadingProgress.astro';
 import ArticleActions from '../components/ArticleActions.astro';
 import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
@@ -38,13 +37,11 @@ const dateStr = formatDate(publishDate, lang);
 ---
 
 <BaseLayout title={title} description={description} lang={lang}>
-  <ReadingProgress />
   <Header />
 
   <Breadcrumb
     segments={[
       { label: 'Length³', href: '/' },
-      { label: 'articles', href: '/' },
       { label: slug },
     ]}
   />

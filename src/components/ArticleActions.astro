@@ -6,6 +6,20 @@ interface Props {
 const { readingTime } = Astro.props;
 ---
 
+<!--
+  Reading progress bar lives here (position: fixed — DOM location is irrelevant).
+  Previously in ReadingProgress.astro, but that split one feature across two files
+  with the controlling script always living here. Merged per KISS.
+-->
+<div
+  id="reading-progress"
+  role="progressbar"
+  aria-valuemin={0}
+  aria-valuemax={100}
+  aria-valuenow={0}
+  aria-label="Reading progress"
+></div>
+
 <div class="article-actions" data-reading-time={readingTime}>
   <div class="actions-group">
     <button class="action-row" id="copy-link-btn" aria-label="Copy link to clipboard">
@@ -40,32 +54,33 @@ const { readingTime } = Astro.props;
   const container = document.querySelector<HTMLElement>('.article-actions');
   const rt = Number(container?.dataset['readingTime'] ?? '5');
 
+  /** Temporarily swap an element's text, then restore it after `ms` milliseconds. */
+  function flash(selector: string, tempText: string, restoreText: string, ms = 1500) {
+    const el = document.querySelector<HTMLElement>(selector);
+    if (!el) return;
+    el.textContent = tempText;
+    setTimeout(() => { el.textContent = restoreText; }, ms);
+  }
+
   // Copy link
   document.getElementById('copy-link-btn')?.addEventListener('click', async () => {
     await navigator.clipboard.writeText(window.location.href);
-    const label = document.querySelector('#copy-link-btn .action-label');
-    if (label) {
-      label.textContent = 'Copied!';
-      setTimeout(() => { label.textContent = 'Copy link'; }, 1500);
-    }
+    flash('#copy-link-btn .action-label', 'Copied!', 'Copy link');
   });
 
-  // Share
+  // Share (native sheet when available, clipboard fallback otherwise)
   document.getElementById('share-btn')?.addEventListener('click', () => {
     if (navigator.share) {
       navigator.share({ url: window.location.href, title: document.title }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        const label = document.querySelector('#share-btn .action-label');
-        if (label) {
-          label.textContent = 'Copied!';
-          setTimeout(() => { label.textContent = 'Share'; }, 1500);
-        }
-      }).catch(() => {});
+      navigator.clipboard
+        .writeText(window.location.href)
+        .then(() => flash('#share-btn .action-label', 'Copied!', 'Share'))
+        .catch(() => {});
     }
   });
 
-  // Reading progress stats
+  // Reading progress stats + bar
   function updateStats() {
     const scrolled = window.scrollY;
     const total = document.body.scrollHeight - window.innerHeight;
@@ -89,6 +104,19 @@ const { readingTime } = Astro.props;
 </script>
 
 <style>
+  /* Reading progress bar — position: fixed so DOM location is irrelevant */
+  #reading-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2px;
+    width: var(--progress, 0%);
+    background: var(--amber);
+    z-index: 200;
+    transition: width 150ms linear;
+    pointer-events: none;
+  }
+
   .article-actions {
     display: flex;
     flex-direction: column;
