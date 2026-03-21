@@ -1,81 +1,32 @@
 ---
-interface Props {
-  tagCounts: Map<string, number>;
-  totalPosts: number;
-}
-
-const { tagCounts, totalPosts } = Astro.props;
-const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
-const topTags = sortedTags.slice(0, 15);
+// Sidebar: search only — spec §1
+// "The sidebar contains search and nothing else."
 ---
 
 <aside class="sidebar" aria-label="Blog sidebar">
-
-  <!-- SEARCH -->
-  <section class="sidebar-section">
-    <h2 class="sidebar-label">SEARCH</h2>
-    <div class="search-input-wrap">
-      <button
-        id="search-trigger"
-        class="search-underline-btn"
-        aria-haspopup="dialog"
-        aria-expanded="false"
-        aria-controls="search-modal"
-      >
-        <span class="search-icon">Q</span>
-        <span class="search-placeholder">/ to search</span>
-      </button>
-    </div>
-  </section>
-
-  <!-- STATS -->
-  <section class="sidebar-section">
-    <h2 class="sidebar-label">STATS</h2>
-    <div class="stats-grid">
-      <div class="stat-cell">
-        <span class="stat-num">{totalPosts}</span>
-        <span class="stat-name">articles</span>
-      </div>
-      <div class="stat-cell">
-        <span class="stat-num">{tagCounts.size}</span>
-        <span class="stat-name">tags</span>
-      </div>
-      <div class="stat-cell">
-        <span class="stat-num">∞</span>
-        <span class="stat-name">ongoing</span>
-      </div>
-      <div class="stat-cell">
-        <span class="stat-num">1</span>
-        <span class="stat-name">author</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- TAGS -->
-  {
-    topTags.length > 0 && (
-      <section class="sidebar-section">
-        <h2 class="sidebar-label">TAGS</h2>
-        <ul class="tag-list">
-          {topTags.map(([tag, count]) => (
-            <li class="tag-row">
-              <a href={`/tags/${tag.toLowerCase()}`} class="tag-name">#{tag}</a>
-              <span class="tag-dots" aria-hidden="true"></span>
-              <span class="tag-count">{count}</span>
-            </li>
-          ))}
-        </ul>
-        {sortedTags.length > 15 && (
-          <a href="/tags" class="all-tags-link">all tags →</a>
-        )}
-      </section>
-    )
-  }
-
+  <div class="search-input-wrap">
+    <button
+      id="search-trigger"
+      class="search-underline-btn"
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      aria-controls="search-modal"
+    >
+      <span class="search-icon" aria-hidden="true">Q</span>
+      <span class="search-placeholder">/ to search</span>
+    </button>
+  </div>
 </aside>
 
-<!-- Search modal (fullscreen) -->
-<div id="search-modal" class="search-overlay" role="dialog" aria-modal="true" aria-label="Search" hidden>
+<!-- Search modal — spec §4 -->
+<div
+  id="search-modal"
+  class="search-overlay"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Search"
+  hidden
+>
   <div class="search-card">
     <div class="search-input-row">
       <span class="search-q" aria-hidden="true">Q</span>
@@ -85,16 +36,16 @@ const topTags = sortedTags.slice(0, 15);
         class="search-field"
         placeholder="Search articles..."
         autocomplete="off"
-        aria-label="Search"
+        aria-label="Search articles"
       />
       <button class="search-esc-btn" id="search-close" aria-label="Close search">esc</button>
     </div>
-    <div id="pagefind-results" class="search-results"></div>
-    <div class="search-footer">
+    <div id="pagefind-results" class="search-results" role="listbox" aria-label="Search results"></div>
+    <div class="search-footer" aria-hidden="true">
       <span class="search-hint">↑↓ navigate</span>
       <span class="search-hint">↵ open</span>
       <span class="search-hint">esc close</span>
-      <span class="search-powered">Powered by Pagefind</span>
+      <span class="search-powered">Pagefind</span>
     </div>
   </div>
 </div>
@@ -104,12 +55,12 @@ const topTags = sortedTags.slice(0, 15);
   const modal = document.getElementById('search-modal') as HTMLElement | null;
   const closeBtn = document.getElementById('search-close') as HTMLButtonElement | null;
   let initialized = false;
+  let previouslyFocused: HTMLElement | null = null;
 
   async function initSearch() {
     if (initialized) return;
     initialized = true;
     try {
-      // @ts-expect-error runtime asset — use variable to prevent Vite from resolving at build time
       const pagefindSrc = `${location.origin}/pagefind/pagefind-ui.js`;
       const { PagefindUI } = await import(/* @vite-ignore */ pagefindSrc);
       new PagefindUI({ element: '#pagefind-results', showImages: false, showSubResults: true });
@@ -120,6 +71,7 @@ const topTags = sortedTags.slice(0, 15);
 
   function openSearch() {
     if (!modal || !trigger) return;
+    previouslyFocused = document.activeElement as HTMLElement;
     modal.hidden = false;
     trigger.setAttribute('aria-expanded', 'true');
     document.body.style.overflow = 'hidden';
@@ -133,6 +85,35 @@ const topTags = sortedTags.slice(0, 15);
     modal.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
     document.body.style.overflow = '';
+    previouslyFocused?.focus();
+    previouslyFocused = null;
+  }
+
+  // Focus trap — spec §6
+  function trapFocus(e: KeyboardEvent) {
+    if (!modal || modal.hidden) return;
+    if (e.key !== 'Tab') return;
+
+    const focusable = Array.from(
+      modal.querySelectorAll<HTMLElement>(
+        'button, input, [href], [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
   }
 
   trigger?.addEventListener('click', openSearch);
@@ -143,161 +124,62 @@ const topTags = sortedTags.slice(0, 15);
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeSearch();
-    if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && !modal?.hidden === false) {
+    if (e.key === 'Escape' && !modal?.hidden) {
+      closeSearch();
+      return;
+    }
+    // Open on '/' when no input is focused and modal is hidden — spec §4
+    if (e.key === '/' && modal?.hidden && !(document.activeElement instanceof HTMLInputElement) && !(document.activeElement instanceof HTMLTextAreaElement)) {
       e.preventDefault();
       openSearch();
+      return;
     }
+    trapFocus(e);
   });
 </script>
 
 <style>
-  /* ── Sidebar layout ── */
+  /* ── Sidebar layout — search only ── */
   .sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
     padding-top: 2rem;
   }
 
-  .sidebar-section {
-    border-top: 1px solid var(--color-border);
-    padding-top: 1rem;
-  }
-
-  .sidebar-label {
-    font-family: var(--font-mono);
-    font-size: 0.625rem;
-    font-weight: 400;
-    letter-spacing: 0.14em;
-    color: var(--color-muted);
-    text-transform: uppercase;
-    margin-bottom: 0.875rem;
-  }
-
-  /* ── Search input ── */
+  /* ── Search trigger ── */
   .search-underline-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     width: 100%;
-    padding: 0.4rem 0;
+    padding: 0.5rem 0;
     border: none;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--rule);
     background: none;
     cursor: pointer;
     font-family: var(--font-mono);
     font-size: 0.8125rem;
-    color: var(--color-muted);
+    color: var(--ink-2);
     text-align: left;
-    transition: border-color 0.15s, color 0.15s;
+    transition: border-color 80ms ease, color 80ms ease;
   }
 
   .search-underline-btn:hover {
-    border-bottom-color: var(--color-accent);
-    color: var(--color-text);
+    border-bottom-color: var(--amber);
+    color: var(--ink);
   }
 
   .search-icon {
     font-weight: 600;
-    color: var(--color-accent);
+    color: var(--amber);
     flex-shrink: 0;
   }
 
-  /* ── Stats grid ── */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    border: 1px solid var(--color-border);
-    border-radius: 1px;
-  }
-
-  .stat-cell {
-    display: flex;
-    flex-direction: column;
-    padding: 0.75rem;
-    border-right: 1px solid var(--color-border);
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .stat-cell:nth-child(2n) { border-right: none; }
-  .stat-cell:nth-child(n+3) { border-bottom: none; }
-
-  .stat-num {
-    font-family: var(--font-mono);
-    font-size: 1.5rem;
-    font-weight: 400;
-    line-height: 1;
-    color: var(--color-text);
-    margin-bottom: 0.3rem;
-  }
-
-  .stat-name {
-    font-family: var(--font-mono);
-    font-size: 0.625rem;
-    letter-spacing: 0.08em;
-    color: var(--color-muted);
-    text-transform: lowercase;
-  }
-
-  /* ── Tag list ── */
-  .tag-list {
-    list-style: none;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-
-  .tag-row {
-    display: flex;
-    align-items: baseline;
-    gap: 0.3rem;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-  }
-
-  .tag-name {
-    color: var(--color-tag);
-    flex-shrink: 0;
-    transition: color 0.1s;
-  }
-
-  .tag-name:hover {
-    color: var(--color-accent);
-  }
-
-  .tag-dots {
-    flex: 1;
-    border-bottom: 1px dotted var(--color-border);
-    margin-bottom: 0.15em;
-  }
-
-  .tag-count {
-    color: var(--color-muted);
-    flex-shrink: 0;
-  }
-
-  .all-tags-link {
-    display: inline-block;
-    margin-top: 0.5rem;
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    color: var(--color-muted);
-    transition: color 0.1s;
-  }
-
-  .all-tags-link:hover {
-    color: var(--color-accent);
-  }
-
-  /* ── Search overlay ── */
+  /* ── Search overlay — spec §4 ── */
+  /* No backdrop-filter blur — spec §4: "Blur is a visual effect that serves the
+     interface's aesthetics, not the reader's task." */
   .search-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(18, 18, 16, 0.72);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: rgba(28, 26, 24, 0.6);   /* spec §4 */
     z-index: 500;
     display: flex;
     align-items: flex-start;
@@ -309,54 +191,64 @@ const topTags = sortedTags.slice(0, 15);
     display: none;
   }
 
+  /* spec §4: 560px wide, border-radius 6px */
   .search-card {
-    width: min(640px, calc(100vw - 2rem));
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: 2px;
+    width: min(560px, calc(100vw - 2rem));
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   }
 
   .search-input-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--color-border);
+    padding: 12px 16px;   /* spec §4 */
+    border-bottom: 1px solid var(--rule);
   }
 
   .search-q {
     font-family: var(--font-mono);
     font-size: 1rem;
     font-weight: 600;
-    color: var(--color-accent);
+    color: var(--amber);
     flex-shrink: 0;
   }
 
+  /* spec §4: search input uses Fraunces — "feels like composing a thought" */
   .search-field {
     flex: 1;
     border: none;
     background: none;
-    font-family: var(--font-sans);
-    font-size: 0.9375rem;
-    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    color: var(--ink);
     outline: none;
   }
 
   .search-field::placeholder {
-    color: var(--color-muted);
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
   }
 
   .search-esc-btn {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     padding: 0.2rem 0.45rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--rule);
     border-radius: 2px;
-    background: var(--color-surface);
-    color: var(--color-muted);
+    background: var(--bg-2);
+    color: var(--ink-3);
     cursor: pointer;
     flex-shrink: 0;
+    transition: color 80ms ease;
+  }
+
+  .search-esc-btn:hover {
+    color: var(--ink);
   }
 
   .search-results {
@@ -366,44 +258,56 @@ const topTags = sortedTags.slice(0, 15);
     padding: 0.5rem 0;
   }
 
+  /* spec §4: footer — keyboard guide only, right-aligned "Pagefind" */
   .search-footer {
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.6rem 1.25rem;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
+    padding: 0.5rem 16px;
+    border-top: 1px solid var(--rule);
+    background: var(--bg-2);
   }
 
   .search-hint {
     font-family: var(--font-mono);
-    font-size: 0.625rem;
-    color: var(--color-muted);
+    font-size: 0.7rem;   /* spec §4: 0.7rem */
+    color: var(--ink-3);
   }
 
   .search-powered {
     margin-left: auto;
     font-family: var(--font-mono);
-    font-size: 0.625rem;
-    color: var(--color-muted);
-    opacity: 0.7;
+    font-size: 0.7rem;
+    color: var(--ink-3);
   }
 
-  /* Pagefind result overrides */
+  /* Pagefind result overrides — spec §4 */
   :global(.pagefind-ui__result) {
-    padding: 0.75rem 1.25rem;
-    border-bottom: 1px solid var(--color-border);
+    padding: 10px 16px;   /* spec §4 */
+    border-bottom: 1px solid var(--rule);
+    border-left: 2px solid transparent;
   }
-  :global(.pagefind-ui__result:last-child) { border-bottom: none; }
+  :global(.pagefind-ui__result:last-child) {
+    border-bottom: none;
+  }
+  :global(.pagefind-ui__result:focus-within),
+  :global(.pagefind-ui__result[aria-selected='true']) {
+    border-left-color: var(--amber);
+    background: var(--bg-2);
+  }
   :global(.pagefind-ui__result-title) {
-    font-family: var(--font-sans);
-    font-size: 0.9375rem;
-    color: var(--color-text);
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    color: var(--ink);
   }
   :global(.pagefind-ui__result-excerpt) {
     font-size: 0.8125rem;
-    color: var(--color-muted);
+    color: var(--ink-2);
     margin-top: 0.25rem;
   }
-  :global(mark) { background: #fef3c7; color: var(--color-text); }
+  :global(mark) {
+    background: none;
+    color: var(--amber);
+    font-style: italic;
+  }
 </style>

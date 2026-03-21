@@ -5,68 +5,65 @@
 <header class="site-header">
   <div class="header-inner">
     <a href="/" class="site-title" aria-label="Length³ home">
-      Length<sup>3</sup>
+      Length<sup class="site-title-sup">3</sup>
     </a>
-    <nav class="header-nav" aria-label="Site navigation">
+    <nav class="header-nav" aria-label="primary">
       <a href="/">(Articles)</a>
       <a href="/tags">(Tags)</a>
+      <a href="/about">(About)</a>
     </nav>
   </div>
 </header>
 
 <style>
   .site-header {
-    border-top: 2px solid var(--color-text);
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-bg);
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg);
+    /* spec §4: position static — scrolls away with page */
   }
 
   .header-inner {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-width: 1160px;
+    max-width: 1200px;
     margin: 0 auto;
-    padding: 0.8rem 1.5rem;
+    padding: 20px 1.5rem;   /* spec §4: 20px top and bottom */
   }
 
   .site-title {
     font-family: var(--font-mono);
-    font-size: 0.9375rem;
+    font-size: 0.88rem;   /* spec §4 */
     font-weight: 400;
-    letter-spacing: -0.01em;
-    color: var(--color-text);
+    color: var(--ink);
   }
 
-  .site-title sup {
+  .site-title-sup {
+    color: var(--amber);   /* spec §4: ³ is amber */
     font-size: 0.6em;
     vertical-align: super;
     line-height: 0;
   }
 
   .site-title:hover {
-    color: var(--color-accent);
+    color: var(--amber);
   }
 
   .header-nav {
     display: flex;
     gap: 1.75rem;
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--color-muted);
+    font-size: 0.75rem;   /* spec §4 */
+    color: var(--ink-2);
   }
 
+  /* spec §4: hover transitions text inside parens to Ink, no underline */
   .header-nav a {
-    transition: color 0.1s;
+    transition: color 80ms ease;
   }
 
   .header-nav a:hover {
-    color: var(--color-text);
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
+    color: var(--ink);
+    /* no text-decoration — spec §4 */
   }
 </style>

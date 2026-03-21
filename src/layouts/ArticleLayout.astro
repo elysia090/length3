@@ -53,13 +53,17 @@ const dateStr = [
     ]}
   />
 
+  <!--
+    Article shell: TOC | prose | empty right column
+    spec §1: "The right column is deliberately empty — no widgets, no actions, no metadata."
+  -->
   <div class="article-shell">
-    <!-- TOC -->
+    <!-- TOC — left column, sticky -->
     <aside class="toc-aside" aria-label="Table of contents">
       <TableOfContents headings={headings} />
     </aside>
 
-    <!-- Prose -->
+    <!-- Prose — center column -->
     <div class="prose-area">
       <article class="prose" data-pagefind-body lang={lang}>
         <header class="article-header">
@@ -92,12 +96,13 @@ const dateStr = [
 
         <slot />
       </article>
+
+      <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
+      <ArticleActions slug={slug} readingTime={readingTime} />
     </div>
 
-    <!-- Actions -->
-    <aside class="actions-aside" aria-label="Utility actions">
-      <ArticleActions slug={slug} readingTime={readingTime} />
-    </aside>
+    <!-- Right column: intentionally empty — spec §1 -->
+    <div class="article-empty-margin" aria-hidden="true"></div>
   </div>
 
   <Footer />

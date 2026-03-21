@@ -4,7 +4,7 @@
 
 <footer class="site-footer">
   <div class="footer-inner">
-    <span class="footer-brand">Length<sup>3</sup></span>
+    <span class="footer-brand">Length<sup class="footer-sup">3</sup></span>
     <span class="footer-sep" aria-hidden="true">—</span>
     <span class="footer-copy">&copy; {new Date().getFullYear()}</span>
   </div>
@@ -12,12 +12,12 @@
 
 <style>
   .site-footer {
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--rule);
     margin-top: auto;
   }
 
   .footer-inner {
-    max-width: 1160px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 1.25rem 1.5rem;
     display: flex;
@@ -25,16 +25,17 @@
     gap: 0.75rem;
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    color: var(--color-muted);
+    color: var(--ink-2);
   }
 
-  .footer-brand sup {
+  .footer-sup {
     font-size: 0.6em;
     vertical-align: super;
     line-height: 0;
+    color: var(--amber);
   }
 
   .footer-sep {
-    color: var(--color-border);
+    color: var(--rule);
   }
 </style>

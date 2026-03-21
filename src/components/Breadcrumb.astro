@@ -33,24 +33,26 @@ const { segments } = Astro.props;
     gap: 0.4rem;
     font-family: var(--font-mono);
     font-size: 0.75rem;
-    color: var(--color-muted);
-    padding: 0.75rem 0 0;
+    color: var(--ink-2);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0.75rem 1.5rem 0;
   }
 
   .sep {
-    color: var(--color-border);
+    color: var(--rule);
   }
 
   .crumb {
-    color: var(--color-muted);
-    transition: color 0.1s;
+    color: var(--ink-2);
+    transition: color 80ms ease;
   }
 
   a.crumb:hover {
-    color: var(--color-accent);
+    color: var(--amber);
   }
 
   .crumb-current {
-    color: var(--color-text);
+    color: var(--ink);
   }
 </style>
