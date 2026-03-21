@@ -20,6 +20,7 @@
   letter-spacing: -0.02em;
   margin-bottom: 1rem;         /* bumped from 0.75rem for stronger presence */
   font-feature-settings: 'palt';
+  text-wrap: balance;          /* spec §2: even distribution on multi-line */
 }
 
 .prose h2 {
@@ -30,6 +31,7 @@
   letter-spacing: -0.02em;
   margin-top: 3rem;
   margin-bottom: 1rem;
+  text-wrap: balance;                  /* spec §2: even distribution on multi-line */
 }
 
 .prose h2[id] {
@@ -46,6 +48,7 @@
   margin-bottom: 0.75rem;
   padding-left: 1.25rem;
   border-left: 2px solid var(--rule);
+  text-wrap: balance;                  /* spec §2: even distribution on multi-line */
 }
 
 .prose h3[id] {
@@ -249,4 +252,5 @@ rt {
   font-family: var(--font-mono);
   font-size: 0.75rem;   /* spec §2: UI label */
   color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 12px */
+  margin-top: 0.5rem;   /* visual pause after lead paragraph */
 }

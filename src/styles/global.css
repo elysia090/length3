@@ -41,6 +41,8 @@ html {
 
 body {
   min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 a {
@@ -92,6 +94,7 @@ img {
   border-left: 1px solid var(--rule);
   padding-left: 2.5rem;
   padding-top: 0;
+  align-self: start;   /* sidebar border only spans its natural height */
 }
 
 /* ─── Article Shell ──────────────────────────────────────────── */

@@ -149,11 +149,11 @@ const { slug: _slug, readingTime } = Astro.props;
   }
 
   .stat-pct {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;  /* reduced from 0.875rem to match quiet design */
     color: var(--ink);
-    font-weight: 500;
+    font-weight: 400;      /* reduced from 500 for proportional weight */
     min-width: 2.5rem;
   }
 
-  .stat-detail { color: var(--ink-3); }
+  .stat-detail { color: var(--ink-2); }  /* upgraded from Ink-3 for WCAG AA */
 </style>

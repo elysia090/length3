@@ -46,7 +46,7 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
     display: grid;
     grid-template-columns: 80px 1fr;
     gap: 0 24px;
-    padding: 24px 0;
+    padding: 32px 0;            /* bumped from 24px for more generous vertical rhythm */
     border-bottom: 1px solid var(--rule);
   }
 
@@ -65,10 +65,10 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    padding-top: 0.15rem;
+    padding-top: 1.25rem;  /* align date block with title area */
     font-family: var(--font-mono);
     flex-shrink: 0;
-    line-height: 1.3;   /* tight — year and MM.DD read as one block */
+    line-height: 1.3;     /* tight — year and MM.DD read as one block */
   }
 
   /* spec §4: year — Ink-2 (upgraded from Ink-3 for WCAG AA at 12px) */
@@ -89,12 +89,12 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
     min-width: 0;
   }
 
-  /* spec §4: tags — amber, 0.75rem, 6px bottom margin */
+  /* spec §4: tags — amber, 0.75rem */
   .card-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    margin-bottom: 6px;
+    margin-bottom: 8px;         /* bumped from 6px, aligns to 8px grid */
   }
 
   .card-tag {
@@ -108,14 +108,15 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
     color: var(--ink);
   }
 
-  /* spec §4 + §7: title — Fraunces 1.25rem, gravitational center of each card */
+  /* spec §4 + §7: title — Fraunces, gravitational center of each card */
   .card-title {
     font-family: var(--font-display);
-    font-size: 1.25rem;
-    font-weight: 500;         /* bumped from 400 for stronger visual gravity */
-    line-height: 1.4;
-    letter-spacing: -0.01em;  /* tighten to feel intentional at this weight */
-    margin-bottom: 0.5rem;
+    font-size: 1.3125rem;       /* 21px — slightly larger for stronger gravity */
+    font-weight: 500;           /* bumped from 400 for stronger visual gravity */
+    line-height: 1.35;
+    letter-spacing: -0.015em;   /* tighten to feel intentional at this weight */
+    margin-bottom: 0.625rem;    /* 10px — breathing room before excerpt */
+    text-wrap: balance;
   }
 
   /* spec §4: hover — title transitions to amber, 80ms ease */
@@ -129,12 +130,16 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
     color: var(--amber);
   }
 
-  /* spec §4: description — 0.88rem, Ink-2, line-height 1.75 */
+  /* spec §4: description — 0.88rem, Ink-2, line-height 1.75, max 2 lines */
   .card-excerpt {
     font-size: 0.88rem;
     line-height: 1.75;
     color: var(--ink-2);
     margin-bottom: 0.75rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .card-footer {

@@ -238,17 +238,24 @@ Start writing here.
     // Strip frontmatter
     const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
     // Naive markdown → HTML (dev preview only)
-    const bodyHtml = body
-      .split('\n')
+    const lines = body.split('\n');
+    let prevBlank = false;
+    const bodyHtml = lines
       .map((line) => {
-        if (line.startsWith('### ')) return `<h3>${esc(line.slice(4))}</h3>`;
-        if (line.startsWith('## ')) return `<h2>${esc(line.slice(3))}</h2>`;
-        if (line.startsWith('# ')) return `<h1>${esc(line.slice(2))}</h1>`;
-        if (line.startsWith('> ')) return `<blockquote><p>${esc(line.slice(2))}</p></blockquote>`;
-        if (line.trim() === '') return '<br>';
+        if (line.startsWith('### ')) { prevBlank = false; return `<h3>${esc(line.slice(4))}</h3>`; }
+        if (line.startsWith('## ')) { prevBlank = false; return `<h2>${esc(line.slice(3))}</h2>`; }
+        if (line.startsWith('# ')) { prevBlank = false; return `<h1>${esc(line.slice(2))}</h1>`; }
+        if (line.startsWith('> ')) { prevBlank = false; return `<blockquote><p>${esc(line.slice(2))}</p></blockquote>`; }
+        if (line.trim() === '') {
+          if (prevBlank) return '';  // skip consecutive blank lines
+          prevBlank = true;
+          return '';  // paragraph breaks handled by <p> margin, not <br>
+        }
+        prevBlank = false;
         const escaped = esc(line).replace(/`([^`]+)`/g, '<code>$1</code>');
         return `<p>${escaped}</p>`;
       })
+      .filter(Boolean)
       .join('');
     // Build article-header if title exists, matching article page structure
     const headerHtml = title
