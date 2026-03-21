@@ -10,7 +10,7 @@ const { post } = Astro.props;
 const { entry, slug, readingTime, excerpt } = post;
 const { title, publishDate, tags } = entry.data;
 
-// Split date into year and MM.DD
+// Split date: year and MM.DD — spec §4
 const year = publishDate.getFullYear().toString();
 const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(publishDate.getDate()).padStart(2, '0')}`;
 ---
@@ -41,95 +41,108 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
 </article>
 
 <style>
+  /* spec §4: 80px date column + 1fr content, 24px gap */
   .article-card {
     display: grid;
-    grid-template-columns: 3.5rem 1fr;
-    gap: 0 1.5rem;
-    padding: 1.75rem 0;
-    border-bottom: 1px solid var(--color-border);
+    grid-template-columns: 80px 1fr;
+    gap: 0 24px;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--rule);
   }
 
+  /* spec §4: first item padding-top: 0 */
+  .article-card:first-child {
+    padding-top: 0;
+  }
+
+  /* spec §4: last item no bottom border */
   .article-card:last-child {
     border-bottom: none;
   }
 
+  /* spec §4: "2行を縦に並べ、間に明示的なgapなし" */
   .card-date {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    padding-top: 0.2rem;
+    padding-top: 0.15rem;
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    line-height: 1.5;
-    color: var(--color-muted);
     flex-shrink: 0;
+    line-height: 1.3;   /* tight — year and MM.DD read as one block */
   }
 
+  /* spec §4: year — Ink-3, letter-spacing 0.06em */
   .card-year {
-    font-size: 0.625rem;
-    letter-spacing: 0.04em;
-    color: var(--color-muted);
-    opacity: 0.75;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
   }
 
+  /* spec §4: MM.DD — 0.8rem, Ink-2, letter-spacing 0.04em */
   .card-mmdd {
-    font-size: 0.75rem;
-    color: var(--color-muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-2);
   }
 
   .card-body {
     min-width: 0;
   }
 
+  /* spec §4: tags — amber, 0.75rem, 6px bottom margin */
   .card-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.625rem;
-    margin-bottom: 0.5rem;
+    gap: 0.5rem;
+    margin-bottom: 6px;
   }
 
   .card-tag {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    color: var(--color-tag);
-    transition: color 0.1s;
+    font-size: 0.75rem;
+    color: var(--amber);
+    transition: color 80ms ease;
   }
 
   .card-tag:hover {
-    color: var(--color-accent);
+    color: var(--ink);
   }
 
+  /* spec §4: title — Fraunces 1.25rem weight 400 */
   .card-title {
     font-family: var(--font-display);
-    font-size: 1.3125rem;
+    font-size: 1.25rem;
     font-weight: 400;
-    line-height: 1.35;
-    letter-spacing: -0.01em;
-    margin-bottom: 0.6rem;
-    font-feature-settings: 'palt';
+    line-height: 1.4;
+    margin-bottom: 0.5rem;
   }
 
+  /* spec §4: hover — title transitions to amber, 80ms ease */
   .card-title a {
-    color: var(--color-text);
-    transition: color 0.1s;
+    color: var(--ink);
+    transition: color 80ms ease;
+    cursor: default;
   }
 
   .card-title a:hover {
-    color: var(--color-accent);
+    color: var(--amber);
   }
 
+  /* spec §4: description — 0.88rem, Ink-2, line-height 1.75 */
   .card-excerpt {
-    font-size: 0.9375rem;
-    line-height: 1.65;
-    color: var(--color-muted);
+    font-size: 0.88rem;
+    line-height: 1.75;
+    color: var(--ink-2);
     margin-bottom: 0.75rem;
   }
 
   .card-footer {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    color: var(--color-muted);
-    display: flex;
-    gap: 1rem;
+    font-size: 0.75rem;
+  }
+
+  /* spec §4: reading time — Ink-3 */
+  .card-reading-time {
+    color: var(--ink-3);
   }
 </style>

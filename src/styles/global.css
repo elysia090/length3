@@ -1,27 +1,25 @@
 /* ─── Design Tokens ─────────────────────────────────────────── */
 :root {
-  /* Colors: ash-white × amber */
-  --color-bg:         #f2f0ec;
-  --color-surface:    #ebe8e3;
-  --color-text:       #1a1917;
-  --color-muted:      #6b6860;
-  --color-border:     #ccc9c2;
-  --color-accent:     #d97706;   /* amber — primary accent */
-  --color-accent-dim: #f59e0b;   /* lighter amber */
-  --color-tag:        #92400e;   /* dark amber for tag text */
-  --color-code-dark:  #18181b;   /* editor / code block bg */
-  --color-code-light: #eeece8;   /* inline code bg */
+  /* Colors — spec §3 */
+  --amber:      #d4820a;   /* single accent: tags, TOC active, links, ruby, cursor */
+  --amber-lt:   #e8a030;   /* code block left border */
+  --ink:        #1c1a18;   /* primary text */
+  --ink-2:      #52504a;   /* secondary text: descriptions, dates, meta */
+  --ink-3:      #9a9690;   /* tertiary: labels, placeholders — large text only */
+  --rule:       #dedad5;   /* dividers only */
+  --bg:         #f9f8f5;   /* page background */
+  --bg-2:       #f0ede8;   /* secondary surface: code, sidebar */
+  --editor-bg:  #181511;   /* editor dark pane */
 
   /* Typography */
-  --font-display: Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', 'Times New Roman', serif;
+  --font-display: 'Fraunces', Georgia, 'Hiragino Mincho ProN', serif;
   --font-sans:    system-ui, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
-  --font-mono:    ui-monospace, 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', monospace;
 
   /* Layout */
-  --measure:          72ch;
-  --sidebar-width:    280px;
-  --toc-width:        200px;
-  --spacing-base:     1rem;
+  --measure:        680px;
+  --sidebar-width:  280px;
+  --toc-width:      200px;
 }
 
 /* ─── Reset ──────────────────────────────────────────────────── */
@@ -35,17 +33,14 @@
 html {
   font-family: var(--font-sans);
   font-size: 16px;
-  color: var(--color-text);
-  background-color: var(--color-bg);
+  color: var(--ink);
+  background-color: var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 body {
   min-height: 100dvh;
-  /* Subtle grain texture */
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
 }
 
 a {
@@ -58,51 +53,55 @@ img {
   height: auto;
 }
 
-/* ─── Index Layout ───────────────────────────────────────────── */
-/* 3-column: [rotate-label | articles | sidebar] */
-.index-layout {
-  display: grid;
-  grid-template-columns: 36px 1fr var(--sidebar-width);
-  grid-template-areas: 'rot list side';
-  gap: 0 2.5rem;
-  max-width: 1160px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
+/* ─── Focus outline — spec §6 ────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
 }
 
-.index-rotate-label {
-  grid-area: rot;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.12em;
-  color: var(--color-muted);
-  text-transform: lowercase;
-  align-self: start;
-  padding-top: 1rem;
-  user-select: none;
+/* ─── Reduced motion — spec §5 ──────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ─── Index Layout ───────────────────────────────────────────── */
+/* 2-column: [articles | sidebar] — spec §1 */
+.index-layout {
+  display: grid;
+  grid-template-columns: 1fr var(--sidebar-width);
+  grid-template-areas: 'list side';
+  gap: 0 2.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
 }
 
 .article-list {
   grid-area: list;
   min-width: 0;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--rule);
 }
 
 .index-sidebar {
   grid-area: side;
+  border-left: 1px solid var(--rule);
+  padding-left: 2.5rem;
   padding-top: 0;
 }
 
 /* ─── Article Shell ──────────────────────────────────────────── */
-/* 3-column: [toc | prose | actions] */
+/* 3-column: [toc | prose | empty] — spec §1 */
 .article-shell {
   display: grid;
   grid-template-columns: var(--toc-width) minmax(0, var(--measure)) 1fr;
-  grid-template-areas: 'toc prose act';
+  grid-template-areas: 'toc prose empty';
   gap: 0 2.5rem;
-  max-width: 1160px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 1.5rem 4rem;
 }
@@ -110,9 +109,9 @@ img {
 .toc-aside {
   grid-area: toc;
   position: sticky;
-  top: 2rem;
+  top: 32px;
   align-self: start;
-  max-height: calc(100dvh - 4rem);
+  max-height: calc(100dvh - 64px);
   overflow-y: auto;
   padding-top: 2rem;
 }
@@ -122,38 +121,59 @@ img {
   min-width: 0;
 }
 
-.actions-aside {
-  grid-area: act;
-  position: sticky;
-  top: 2rem;
-  align-self: start;
-  padding-top: 2rem;
+/* ─── Responsive ─────────────────────────────────────────────── */
+
+/* 960–1199px: sidebar narrows to 240px; article right whitespace shrinks */
+@media (max-width: 1199px) and (min-width: 960px) {
+  .index-layout {
+    grid-template-columns: 1fr 240px;
+  }
+  .article-shell {
+    grid-template-columns: var(--toc-width) minmax(0, var(--measure)) minmax(80px, 1fr);
+  }
 }
 
-/* ─── Responsive ─────────────────────────────────────────────── */
-@media (max-width: 960px) {
+/* 720–959px: index single-column; article TOC+prose only (no right whitespace) */
+@media (max-width: 959px) and (min-width: 720px) {
+  .article-shell {
+    grid-template-columns: var(--toc-width) minmax(0, var(--measure));
+    grid-template-areas: 'toc prose';
+  }
+}
+
+/* Below 840px: index sidebar disappears — spec §1 */
+@media (max-width: 840px) {
   .index-layout {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      'list'
-      'side';
+    grid-template-areas: 'list';
   }
-  .index-rotate-label { display: none; }
-  .index-sidebar { border-top: 1px solid var(--color-border); padding-top: 2rem; }
+  .index-sidebar {
+    display: none;
+  }
 }
 
-@media (max-width: 800px) {
+/* 640–719px: single column; TOC collapses to <details> at article top */
+@media (max-width: 719px) {
   .article-shell {
     grid-template-columns: 1fr;
     grid-template-areas:
       'toc'
-      'prose'
-      'act';
+      'prose';
   }
-  .toc-aside,
-  .actions-aside {
+  .toc-aside {
     position: static;
     max-height: none;
+    padding-top: 1rem;
+  }
+}
+
+/* Below 640px: full single column */
+@media (max-width: 639px) {
+  .article-shell {
+    padding: 0 1rem 3rem;
+  }
+  .index-layout {
+    padding: 1.5rem 1rem 3rem;
   }
 }
 

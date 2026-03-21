@@ -7,54 +7,49 @@ import '../../styles/code.css';
 <BaseLayout title="Editor — Length³" description="Live MDX editor">
   <div class="editor-root">
 
-    <!-- LEFT: dark editor pane -->
-    <div class="editor-pane" role="region" aria-label="MDX source editor">
-      <div class="editor-toolbar">
-        <span class="editor-breadcrumb">
-          <span class="editor-bc-icon">◆</span>
-          <span class="editor-bc-sep">articles /</span>
-          <span class="editor-bc-file" id="editor-filename">untitled.mdx</span>
-        </span>
-        <div class="editor-toolbar-actions">
-          <button class="editor-action-btn" id="discard-btn">Discard</button>
-          <button class="editor-action-btn" id="preview-btn">Preview</button>
-          <button class="editor-action-btn editor-publish-btn" id="publish-btn">Publish →</button>
-        </div>
+    <!-- TOP BAR — spec §4: 40px, #201d19 bg -->
+    <div class="editor-topbar">
+      <div class="editor-topbar-left">
+        <!-- spec §4: Logo "L³" in amber -->
+        <span class="editor-logo">L<sup>³</sup></span>
+        <span class="editor-bc-sep">articles /</span>
+        <span class="editor-bc-file" id="editor-filename">untitled.mdx</span>
       </div>
-
-      <div class="editor-body" id="editor-mount"></div>
-
-      <div class="editor-statusbar" aria-label="Editor status">
-        <span class="status-item status-lang">MDX</span>
-        <span class="status-sep">|</span>
-        <span class="status-item">UTF-8</span>
-        <span class="status-sep">|</span>
-        <span class="status-item" id="status-pos">Ln 1, Col 1</span>
-        <span class="status-sep">|</span>
-        <span class="status-item status-ok">Prettier ✓</span>
-        <span class="status-sep">|</span>
-        <span class="status-item status-ok">Biome ✓</span>
-        <span class="status-sep">|</span>
-        <span class="status-item status-ok">astro check — 0 errors</span>
+      <div class="editor-topbar-actions">
+        <!-- spec §4: amber is not used on any button -->
+        <button class="editor-btn editor-btn-discard" id="discard-btn">Discard</button>
+        <button class="editor-btn editor-btn-preview" id="preview-btn">Preview</button>
+        <button class="editor-btn editor-btn-publish" id="publish-btn">Publish →</button>
       </div>
     </div>
 
-    <!-- RIGHT: light preview pane -->
-    <div class="preview-pane" role="region" aria-label="Live preview">
-      <div class="preview-toolbar">
-        <span class="preview-breadcrumb">
-          <a href="/">Length³</a>
-          <span class="pbc-sep">/</span>
-          <span>editor</span>
-          <span class="pbc-sep">/</span>
-          <span>preview</span>
-        </span>
+    <!-- MAIN: editor + preview -->
+    <div class="editor-main">
+      <!-- LEFT: dark editor pane — spec §4 -->
+      <div class="editor-pane" role="region" aria-label="MDX source editor">
+        <div class="editor-body" id="editor-mount"></div>
       </div>
-      <div class="preview-body">
-        <div class="preview-content prose" id="preview-output">
-          <p class="preview-placeholder">Start writing MDX…</p>
+
+      <!-- RIGHT: light preview pane — spec §4 -->
+      <div class="preview-pane" role="region" aria-label="Live preview">
+        <div class="preview-body">
+          <div class="preview-content prose" id="preview-output">
+            <p class="preview-placeholder">Start writing MDX…</p>
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- STATUS BAR — spec §4: 24px, #1a1714, amber never used here -->
+    <div class="editor-statusbar" aria-label="Editor status">
+      <span class="status-item">UTF-8</span>
+      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="status-item" id="status-pos">Ln 1 · Col 1</span>
+      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="status-item">Prettier ✓</span>
+      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="status-item">Biome ✓</span>
+      <span class="status-right">astro check: 0 errors</span>
     </div>
 
   </div>
@@ -64,7 +59,8 @@ import '../../styles/code.css';
   import { EditorView, basicSetup } from 'codemirror';
   import { EditorState } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
-  import { oneDark } from '@codemirror/theme-one-dark';
+  import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+  import { tags } from '@lezer/highlight';
 
   const mount = document.getElementById('editor-mount');
   const output = document.getElementById('preview-output');
@@ -81,19 +77,84 @@ date: ${new Date().toISOString().slice(0, 10)}
 Start writing here.
 `;
 
+  // ── Custom theme — spec §4 ────────────────────────────────────
+  const length3Theme = EditorView.theme({
+    '&': {
+      backgroundColor: '#181511',   /* --editor-bg */
+      color: '#c8c4be',
+    },
+    '.cm-content': { caretColor: '#d4820a' },
+    '.cm-cursor': { borderLeftColor: '#d4820a', borderLeftWidth: '2px' },
+    '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.025)' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a8070' },
+    '.cm-gutters': {
+      backgroundColor: '#181511',
+      color: '#3a3630',
+      border: 'none',
+      width: '40px',
+    },
+    '.cm-lineNumbers .cm-gutterElement': { paddingRight: '8px' },
+    '.cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.2)' },
+    '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.25)' },
+    '.cm-line': { paddingLeft: '8px' },
+  }, { dark: true });
+
+  // ── Syntax highlight — spec §4 ────────────────────────────────
+  const length3Highlight = HighlightStyle.define([
+    // Frontmatter delimiters (---)
+    { tag: tags.processingInstruction, color: '#9a9690' },
+    // YAML keys
+    { tag: tags.attributeName, color: '#7a9ab8' },
+    { tag: tags.propertyName, color: '#7a9ab8' },
+    // YAML values / strings
+    { tag: tags.string, color: '#7ec49a' },
+    { tag: tags.number, color: '#7ec49a' },
+    { tag: tags.bool, color: '#7ec49a' },
+    // Markdown H1
+    { tag: tags.heading1, color: '#e8a030', fontWeight: '500' },
+    // Markdown H2
+    { tag: tags.heading2, color: '#d4820a', fontWeight: '400' },
+    // Markdown H3–H6
+    { tag: tags.heading3, color: '#d4820a' },
+    { tag: tags.heading4, color: '#d4820a' },
+    // Code / keywords
+    { tag: tags.keyword, color: '#d4820a' },
+    { tag: tags.operator, color: '#d4820a' },
+    // Inline code content
+    { tag: tags.monospace, color: '#e8a030' },
+    // Function names
+    { tag: tags.function(tags.name), color: '#8bb8e8' },
+    { tag: tags.function(tags.variableName), color: '#8bb8e8' },
+    // Comments
+    { tag: tags.comment, color: '#3d3a34', fontStyle: 'italic' },
+    // Links / URLs
+    { tag: tags.url, color: '#7ec49a', textDecoration: 'underline' },
+    { tag: tags.link, color: '#7a9ab8' },
+    // Emphasis
+    { tag: tags.emphasis, fontStyle: 'italic', color: '#c8c4be' },
+    { tag: tags.strong, fontWeight: 'bold', color: '#c8c4be' },
+    // Default fallback
+    { tag: tags.name, color: '#c8c4be' },
+    { tag: tags.variableName, color: '#c8c4be' },
+    { tag: tags.content, color: '#c8c4be' },
+    { tag: tags.atom, color: '#7ec49a' },
+    { tag: tags.meta, color: '#9a9690' },
+  ]);
+
   if (mount && output) {
     const state = EditorState.create({
       doc: initialDoc,
       extensions: [
         basicSetup,
         markdown(),
-        oneDark,
+        length3Theme,
+        syntaxHighlighting(length3Highlight),
         EditorView.updateListener.of((update) => {
           if (update.selectionSet || update.docChanged) {
             const pos = update.state.selection.main.head;
             const line = update.state.doc.lineAt(pos);
             const col = pos - line.from + 1;
-            if (posEl) posEl.textContent = `Ln ${line.number}, Col ${col}`;
+            if (posEl) posEl.textContent = `Ln ${line.number} · Col ${col}`;
           }
           if (update.docChanged) {
             const text = update.state.doc.toString();
@@ -120,7 +181,6 @@ Start writing here.
         if (line.startsWith('# ')) return `<h1>${esc(line.slice(2))}</h1>`;
         if (line.startsWith('> ')) return `<blockquote><p>${esc(line.slice(2))}</p></blockquote>`;
         if (line.trim() === '') return '<br>';
-        // inline code
         const escaped = esc(line).replace(/`([^`]+)`/g, '<code>$1</code>');
         return `<p>${escaped}</p>`;
       })
@@ -137,85 +197,121 @@ Start writing here.
 </script>
 
 <style>
+  /* ── Root: full viewport, 3 rows (topbar / main / statusbar) ── */
   .editor-root {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 40px 1fr 24px;   /* spec §4 */
     height: 100dvh;
     overflow: hidden;
+    background: var(--editor-bg);
   }
 
-  /* ── Left: editor ── */
-  .editor-pane {
-    display: flex;
-    flex-direction: column;
-    background: #18181b;
-    color: #e5e7eb;
-    overflow: hidden;
-  }
-
-  .editor-toolbar {
+  /* ── Top bar — spec §4: 40px, #201d19 ── */
+  .editor-topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid #27272a;
+    padding: 0 16px;
+    background: #201d19;   /* spec §4: slightly lighter than Editor-BG */
+    border-bottom: 1px solid #252118;
     flex-shrink: 0;
+    height: 40px;
   }
 
-  .editor-breadcrumb {
+  .editor-topbar-left {
     display: flex;
     align-items: center;
     gap: 0.4rem;
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    color: #71717a;
   }
 
-  .editor-bc-icon {
-    color: var(--color-accent);
-    font-size: 0.5rem;
+  /* spec §4: L³ logo in amber */
+  .editor-logo {
+    color: var(--amber);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .editor-logo sup {
+    font-size: 0.6em;
+    vertical-align: super;
+    line-height: 0;
   }
 
   .editor-bc-sep {
-    color: #3f3f46;
+    color: #3a3630;   /* spec §4: Ink-3 dark equivalent */
   }
 
   .editor-bc-file {
-    color: #a1a1aa;
+    color: var(--ink-3);
   }
 
-  .editor-toolbar-actions {
+  .editor-topbar-actions {
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
 
-  .editor-action-btn {
+  /* spec §4: amber not on any button */
+  .editor-btn {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    padding: 0.25rem 0.6rem;
-    border: 1px solid #3f3f46;
-    border-radius: 1px;
+    padding: 0.2rem 0.6rem;
     background: transparent;
-    color: #a1a1aa;
     cursor: pointer;
-    transition: border-color 0.1s, color 0.1s;
+    transition: color 80ms ease;
   }
 
-  .editor-action-btn:hover {
-    border-color: #71717a;
-    color: #e5e7eb;
+  /* Dark-context button colors — spec §4 role hierarchy preserved:
+     Discard (least prominent) → Preview → Publish (most prominent)
+     Tokens are interpreted for dark background readability */
+  .editor-btn-discard {
+    border: none;
+    color: #6b6860;   /* Ink-3 equivalent on dark: recessive */
   }
 
-  .editor-publish-btn {
-    border-color: var(--color-accent) !important;
-    color: var(--color-accent) !important;
-    font-weight: 500;
+  .editor-btn-discard:hover {
+    color: #9a9690;
   }
 
-  .editor-publish-btn:hover {
-    background: var(--color-accent);
-    color: #18181b !important;
+  .editor-btn-preview {
+    border: 1px solid #3a3630;
+    border-radius: 2px;
+    color: #9a9690;   /* Ink-2 equivalent on dark: secondary */
+  }
+
+  .editor-btn-preview:hover {
+    border-color: #52504a;
+    color: #c8c4be;
+  }
+
+  /* spec §4: Publish — Ink text (primary/brightest), Rule border, NOT amber */
+  .editor-btn-publish {
+    border: 1px solid #52504a;
+    border-radius: 2px;
+    color: #e2ddd8;   /* Ink equivalent on dark: primary, most readable */
+  }
+
+  .editor-btn-publish:hover {
+    border-color: #9a9690;
+    color: #f9f8f5;
+  }
+
+  /* ── Main: 50/50 split ── */
+  .editor-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;   /* spec §4: exactly 50/50 */
+    overflow: hidden;
+  }
+
+  /* ── Editor pane (dark) — spec §4 ── */
+  .editor-pane {
+    display: flex;
+    flex-direction: column;
+    background: var(--editor-bg);   /* #181511 */
+    border-right: 1px solid #252118;
+    overflow: hidden;
   }
 
   .editor-body {
@@ -233,78 +329,18 @@ Start writing here.
     font-family: var(--font-mono);
   }
 
-  /* Status bar */
-  .editor-statusbar {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    padding: 0.3rem 1rem;
-    background: var(--color-accent);
-    flex-shrink: 0;
-    flex-wrap: wrap;
-  }
-
-  .status-item {
-    font-family: var(--font-mono);
-    font-size: 0.625rem;
-    color: #1a1917;
-    letter-spacing: 0.02em;
-    padding: 0 0.3rem;
-  }
-
-  .status-lang {
-    font-weight: 600;
-  }
-
-  .status-ok { color: #431407; }
-
-  .status-sep {
-    font-family: var(--font-mono);
-    font-size: 0.625rem;
-    color: rgba(26, 25, 23, 0.4);
-  }
-
-  /* ── Right: preview ── */
+  /* ── Preview pane (light) — spec §4: BG, padding 40px 48px ── */
   .preview-pane {
     display: flex;
     flex-direction: column;
-    background: var(--color-bg);
-    border-left: 1px solid var(--color-border);
+    background: var(--bg);
     overflow: hidden;
-  }
-
-  .preview-toolbar {
-    padding: 0.5rem 1.5rem;
-    border-bottom: 1px solid var(--color-border);
-    flex-shrink: 0;
-  }
-
-  .preview-breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    color: var(--color-muted);
-  }
-
-  .preview-breadcrumb a {
-    color: var(--color-muted);
-    transition: color 0.1s;
-  }
-
-  .preview-breadcrumb a:hover {
-    color: var(--color-accent);
-  }
-
-  .pbc-sep {
-    color: var(--color-border);
   }
 
   .preview-body {
     flex: 1;
     overflow-y: auto;
-    padding: 2rem 2.5rem;
+    padding: 40px 48px;   /* spec §4 */
   }
 
   .preview-content {
@@ -312,15 +348,64 @@ Start writing here.
   }
 
   .preview-placeholder {
-    color: var(--color-muted);
+    color: var(--ink-3);
     font-style: italic;
     font-size: 0.9375rem;
   }
 
-  @media (max-width: 700px) {
+  /* ── Status bar — spec §4: 24px, #1a1714, amber never used ── */
+  .editor-statusbar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 16px;
+    background: #1a1714;   /* spec §4: slightly darker than Editor-BG */
+    height: 24px;
+    flex-shrink: 0;
+  }
+
+  .status-item {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;   /* spec §4: 0.65rem */
+    color: var(--ink-3);
+    padding: 0 0.3rem;
+    letter-spacing: 0.02em;
+  }
+
+  .status-sep {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: #3a3630;
+  }
+
+  .status-right {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--ink-3);
+    margin-left: auto;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Mobile: tab mode below 640px — spec §8 ── */
+  @media (max-width: 639px) {
     .editor-root {
+      grid-template-rows: 40px auto 1fr 24px;
+    }
+
+    .editor-main {
       grid-template-columns: 1fr;
-      grid-template-rows: 1fr 1fr;
+      grid-template-rows: auto 1fr;
+    }
+
+    .editor-pane {
+      display: none;   /* Tab mode: managed by JS tab switch */
+      border-right: none;
+      border-bottom: 1px solid #252118;
+    }
+
+    .editor-pane.tab-active,
+    .preview-pane.tab-active {
+      display: flex;
     }
   }
 </style>
