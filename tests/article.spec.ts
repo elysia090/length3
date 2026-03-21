@@ -213,7 +213,7 @@ test.describe('Article page', () => {
       );
       for (let i = 1; i < levels.length; i++) {
         // Each heading may be at most one level deeper than the previous
-        expect(levels[i]! - levels[i - 1]!).toBeLessThanOrEqual(1);
+        expect((levels[i] ?? 0) - (levels[i - 1] ?? 0)).toBeLessThanOrEqual(1);
       }
     });
 
