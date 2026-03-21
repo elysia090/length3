@@ -94,6 +94,8 @@ import '../../styles/code.css';
     const btn = document.getElementById('publish-btn');
     if (btn) {
       btn.textContent = 'Published!';
+      // Clear the dirty flag so beforeunload no longer warns after publishing
+      docChanged = false;
       setTimeout(() => { btn.textContent = 'Publish →'; }, 1500);
     }
   });
