@@ -32,3 +32,9 @@ test('editor-mobile', async ({ page }) => {
   await page.goto('/editor');
   await page.screenshot({ path: `${OUT}/editor-mobile.png`, fullPage: true });
 });
+
+test('japanese-article', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/japanese-test');
+  await page.screenshot({ path: `${OUT}/japanese-article.png`, fullPage: true });
+});
