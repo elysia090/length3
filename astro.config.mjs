@@ -42,6 +42,9 @@ export default defineConfig({
     optimizeDeps: {
       exclude: ['pagefind'],
     },
+    build: {
+      chunkSizeWarningLimit: 1024,
+    },
   },
 
   build: {

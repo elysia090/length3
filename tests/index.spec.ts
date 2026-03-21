@@ -205,8 +205,10 @@ test.describe('Index page', () => {
 
     test('modal has no backdrop-filter blur — spec §4', async ({ page }) => {
       await page.locator('#search-trigger').click();
+      await expect(page.locator('#search-modal')).toBeVisible();
       const backdropFilter = await getComputedStyleProp(page, '#search-modal', 'backdrop-filter');
-      expect(backdropFilter).toMatch(/^(none|)$/);
+      // 'none' is the expected value; '' would indicate the element was not found (silent-pass guard)
+      expect(backdropFilter).toBe('none');
     });
 
     test('search card is 560px wide — spec §4', async ({ page }) => {

@@ -161,6 +161,7 @@ test.describe('Editor page', () => {
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto('/editor');
 
+      await expect(page.locator('.editor-main')).toBeAttached();
       const cols = await page.evaluate(() => {
         const main = document.querySelector('.editor-main');
         return main ? getComputedStyle(main).gridTemplateColumns : '';
