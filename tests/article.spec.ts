@@ -96,8 +96,8 @@ test.describe('Article page', () => {
       if (href) {
         await firstLink.click();
         await page.waitForTimeout(500); // allow smooth scroll
-        // Hash should be updated
-        const hash = await page.evaluate(() => window.location.hash);
+        // Hash should be updated — decode percent-encoded CJK chars before compare
+        const hash = await page.evaluate(() => decodeURIComponent(window.location.hash));
         expect(hash).toBe(href);
       }
     });
@@ -183,6 +183,45 @@ test.describe('Article page', () => {
     test('code block left border is 2px — spec §4', async ({ page }) => {
       const bw = await getComputedStyleProp(page, '.prose pre', 'border-left-width');
       expect(bw).toBe('2px');
+    });
+  });
+
+  // ── Breadcrumb ───────────────────────────────────────────────────
+  test.describe('Breadcrumb', () => {
+    test('breadcrumb nav is present', async ({ page }) => {
+      await expect(page.locator('.breadcrumb')).toBeVisible();
+    });
+
+    test('breadcrumb contains a home link', async ({ page }) => {
+      const homeLink = page.locator('.breadcrumb a').first();
+      await expect(homeLink).toBeVisible();
+    });
+
+    test('breadcrumb current item has aria-current="page"', async ({ page }) => {
+      const current = page.locator('.breadcrumb [aria-current="page"]');
+      await expect(current).toBeVisible();
+    });
+  });
+
+  // ── Japanese lang attribute ───────────────────────────────────────
+  test.describe('Japanese article', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.goto('/japanese-test');
+    });
+
+    test('prose has lang="ja" on Japanese articles', async ({ page }) => {
+      const lang = await page.locator('.prose').getAttribute('lang');
+      expect(lang).toBe('ja');
+    });
+
+    test('Japanese article renders ruby elements', async ({ page }) => {
+      await expect(page.locator('ruby').first()).toBeAttached();
+    });
+
+    test('ruby text (rt) is amber colored', async ({ page }) => {
+      const color = await getComputedStyleProp(page, 'rt', 'color');
+      // amber #d4820a = rgb(212, 130, 10)
+      expect(color).toBe('rgb(212, 130, 10)');
     });
   });
 

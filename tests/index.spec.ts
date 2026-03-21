@@ -96,9 +96,9 @@ test.describe('Index page', () => {
       expect(width).toBe(80);
     });
 
-    test('card year has letter-spacing 0.06em — spec §4', async ({ page }) => {
-      const ls = await getComputedStyleProp(page, '.card-year', 'letter-spacing');
-      // 0.06em at 12px = 0.72px
+    test('card date has letter-spacing — spec §4', async ({ page }) => {
+      const ls = await getComputedStyleProp(page, '.card-date', 'letter-spacing');
+      // 0.04em at 12px = 0.48px
       expect(parseFloat(ls)).toBeGreaterThan(0);
     });
 
