@@ -9,7 +9,7 @@ test.describe('Tags index page', () => {
     // Use page.evaluate to avoid piercing Astro dev toolbar Shadow DOM
     const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length);
     expect(h1Count).toBe(1);
-    await expect(page.locator('h1')).toContainText('Tags');
+    await expect(page.locator('main h1')).toContainText('Tags');
   });
 
   test('renders tag badges', async ({ page }) => {
