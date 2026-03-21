@@ -7,6 +7,8 @@ draft: false
 lang: en
 ---
 
+import RubyText from '../../components/RubyText.astro';
+
 # Getting Started
 
 Welcome to **length3**, a technical blog built on Astro 6 with TypeScript in strict mode,
@@ -33,7 +35,7 @@ console.log(greeting);
 This blog has full support for Japanese text including `<ruby>` annotations,
 `line-break: strict`, and `text-wrap: pretty` for well-composed CJK paragraphs.
 
-例えば、東京（とうきょう）は日本の首都です。
+例えば、<RubyText base="東京" reading="とうきょう" />は日本の首都です。
 
 ## What's Next
 
