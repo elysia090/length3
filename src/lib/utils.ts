@@ -3,9 +3,18 @@ export function toSlug(id: string): string {
   return id.replace(/\.(mdx?|md)$/, '').toLowerCase();
 }
 
-/** Converts a tag string to a URL-safe slug. */
+/** Converts a tag string to a URL-safe slug.
+ *
+ * Uses Unicode property escapes (\p{L}\p{N}, requires the `u` flag) so that
+ * CJK tags like "機械学習" are preserved rather than stripped to "".
+ * Without the `u` flag, \w only covers [A-Za-z0-9_] — pure kanji tags would
+ * produce an empty string and all map to the same /tags/ route.
+ */
 export function tagToSlug(tag: string): string {
-  return tag.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+  return tag
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}-]/gu, '');
 }
 
 /** Estimates reading time in minutes, accounting for CJK character density. */

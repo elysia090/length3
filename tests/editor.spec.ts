@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { getComputedStyleProp } from './helpers';
 
 test.describe('Editor page', () => {
@@ -22,16 +22,16 @@ test.describe('Editor page', () => {
 
     test('top bar is 40px tall — spec §4', async ({ page }) => {
       const height = await page.evaluate(() => {
-        const bar = document.querySelector('.editor-topbar') as HTMLElement | null;
-        return bar ? bar.offsetHeight : 0;
+        const bar = document.querySelector('.editor-topbar');
+        return bar ? (bar as HTMLElement).offsetHeight : 0;
       });
       expect(height).toBe(40);
     });
 
     test('status bar is 24px tall — spec §4', async ({ page }) => {
       const height = await page.evaluate(() => {
-        const bar = document.querySelector('.editor-statusbar') as HTMLElement | null;
-        return bar ? bar.offsetHeight : 0;
+        const bar = document.querySelector('.editor-statusbar');
+        return bar ? (bar as HTMLElement).offsetHeight : 0;
       });
       expect(height).toBe(24);
     });
@@ -41,9 +41,12 @@ test.describe('Editor page', () => {
       await page.goto('/editor');
 
       const [editorWidth, previewWidth] = await page.evaluate(() => {
-        const editorPane = document.querySelector('.editor-pane') as HTMLElement | null;
-        const previewPane = document.querySelector('.preview-pane') as HTMLElement | null;
-        return [editorPane?.offsetWidth ?? 0, previewPane?.offsetWidth ?? 0];
+        const editorPane = document.querySelector('.editor-pane');
+        const previewPane = document.querySelector('.preview-pane');
+        return [
+          (editorPane as HTMLElement | null)?.offsetWidth ?? 0,
+          (previewPane as HTMLElement | null)?.offsetWidth ?? 0,
+        ];
       });
       // Allow 1px tolerance for subpixel rendering
       expect(Math.abs(editorWidth - previewWidth)).toBeLessThanOrEqual(1);
@@ -52,10 +55,10 @@ test.describe('Editor page', () => {
 
   // ── Top bar — spec §4 ────────────────────────────────────────────
   test.describe('Top bar', () => {
-    test('logo shows "L³" in amber — spec §4', async ({ page }) => {
+    test('logo shows "L3" in amber — spec §4', async ({ page }) => {
       await expect(page.locator('.editor-logo')).toBeVisible();
-      const color = await getComputedStyleProp(page, '.editor-logo', 'color');
       // amber #d4820a = rgb(212, 130, 10)
+      const color = await getComputedStyleProp(page, '.editor-logo', 'color');
       expect(color).toBe('rgb(212, 130, 10)');
     });
 
@@ -72,8 +75,8 @@ test.describe('Editor page', () => {
     });
 
     test('Publish button is NOT amber — spec §4', async ({ page }) => {
-      const color = await getComputedStyleProp(page, '#publish-btn', 'color');
       // Must not be amber rgb(212, 130, 10)
+      const color = await getComputedStyleProp(page, '#publish-btn', 'color');
       expect(color).not.toBe('rgb(212, 130, 10)');
     });
   });
@@ -81,23 +84,22 @@ test.describe('Editor page', () => {
   // ── Editor pane — spec §4 ────────────────────────────────────────
   test.describe('Editor pane', () => {
     test('editor pane has warm-dark background — spec §4', async ({ page }) => {
-      const bg = await getComputedStyleProp(page, '.editor-pane', 'background-color');
       // editor-bg #181511 = rgb(24, 21, 17)
+      const bg = await getComputedStyleProp(page, '.editor-pane', 'background-color');
       expect(bg).toBe('rgb(24, 21, 17)');
     });
 
     test('CodeMirror editor mounts inside editor pane', async ({ page }) => {
-      await page.waitForTimeout(500); // allow CM to initialise
-      const cm = page.locator('.editor-pane .cm-editor');
-      await expect(cm).toBeAttached();
+      // toBeAttached() retries automatically — no fixed timeout needed
+      await expect(page.locator('.editor-pane .cm-editor')).toBeAttached();
     });
   });
 
   // ── Preview pane — spec §4 ───────────────────────────────────────
   test.describe('Preview pane', () => {
     test('preview pane has light background — spec §4', async ({ page }) => {
-      const bg = await getComputedStyleProp(page, '.preview-pane', 'background-color');
       // bg #f9f8f5 = rgb(249, 248, 245)
+      const bg = await getComputedStyleProp(page, '.preview-pane', 'background-color');
       expect(bg).toBe('rgb(249, 248, 245)');
     });
 
@@ -109,14 +111,13 @@ test.describe('Editor page', () => {
   // ── Status bar — spec §4 ─────────────────────────────────────────
   test.describe('Status bar', () => {
     test('status bar has darker-than-editor-bg background — spec §4', async ({ page }) => {
-      const bg = await getComputedStyleProp(page, '.editor-statusbar', 'background-color');
       // #1a1714 = rgb(26, 23, 20)
+      const bg = await getComputedStyleProp(page, '.editor-statusbar', 'background-color');
       expect(bg).toBe('rgb(26, 23, 20)');
     });
 
     test('status bar is NOT amber — spec §4', async ({ page }) => {
       const bg = await getComputedStyleProp(page, '.editor-statusbar', 'background-color');
-      // amber #d4820a = rgb(212, 130, 10)
       expect(bg).not.toBe('rgb(212, 130, 10)');
     });
 
@@ -137,24 +138,20 @@ test.describe('Editor page', () => {
     });
 
     test('char count shows "chars" text', async ({ page }) => {
-      await page.waitForTimeout(500);
-      const text = await page.locator('#status-count').textContent();
-      expect(text).toMatch(/chars/);
+      // toContainText retries automatically until the text appears
+      await expect(page.locator('#status-count')).toContainText('chars');
     });
   });
 
   // ── Preview rendering ─────────────────────────────────────────────
   test.describe('Preview rendering', () => {
     test('preview output renders markdown headings', async ({ page }) => {
-      await page.waitForTimeout(500);
-      // Default template has "## Introduction"
+      // toBeAttached() retries — no fixed timeout needed
       await expect(page.locator('#preview-output h2').first()).toBeAttached();
     });
 
     test('preview title matches frontmatter title', async ({ page }) => {
-      await page.waitForTimeout(500);
-      const titleEl = page.locator('#preview-output h1').first();
-      await expect(titleEl).toContainText('Untitled');
+      await expect(page.locator('#preview-output h1').first()).toContainText('Untitled');
     });
   });
 
@@ -165,10 +162,10 @@ test.describe('Editor page', () => {
       await page.goto('/editor');
 
       const cols = await page.evaluate(() => {
-        const main = document.querySelector('.editor-main') as HTMLElement | null;
+        const main = document.querySelector('.editor-main');
         return main ? getComputedStyle(main).gridTemplateColumns : '';
       });
-      // Single column: should not be "... ..." (two columns)
+      // Single column: should not contain two separate column values
       const columnCount = cols.trim().split(/\s+/).filter(Boolean).length;
       expect(columnCount).toBeLessThanOrEqual(1);
     });

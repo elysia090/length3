@@ -6,13 +6,9 @@ interface Props {
   lang?: 'en' | 'ja';
 }
 
-const {
-  title,
-  description = 'A technical blog.',
-  ogImage,
-  lang = 'en',
-} = Astro.props;
+const { title, description = 'A technical blog.', ogImage, lang = 'en' } = Astro.props;
 
+import '../styles/fonts.css';
 import '../styles/global.css';
 import '../styles/typography.css';
 ---
@@ -23,28 +19,26 @@ import '../styles/typography.css';
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <!-- Fraunces: locally bundled variable font — no external dependency -->
-    <style>
-      @font-face {
-        font-family: 'Fraunces';
-        src: url('/fonts/Fraunces-Variable.ttf') format('truetype');
-        font-weight: 100 900;
-        font-style: normal;
-        font-display: swap;
-      }
-      @font-face {
-        font-family: 'Fraunces';
-        src: url('/fonts/Fraunces-Italic-Variable.ttf') format('truetype');
-        font-weight: 100 900;
-        font-style: italic;
-        font-display: swap;
-      }
-    </style>
+    <!--
+      Preload the upright variable font so the browser can start fetching it
+      before CSS is parsed. Only the normal (non-italic) file is preloaded
+      because italic is non-critical path on first render.
+      crossorigin is required for fonts even when self-hosted (CORS fetch).
+    -->
+    <link
+      rel="preload"
+      href="/fonts/Fraunces-Variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     {ogImage && <meta property="og:image" content={ogImage} />}
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={Astro.url.href} />
   </head>
   <body>
     <slot />

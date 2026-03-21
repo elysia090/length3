@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Tags index page', () => {
   test.beforeEach(async ({ page }) => {
@@ -6,9 +6,10 @@ test.describe('Tags index page', () => {
   });
 
   test('has a single h1 reading "Tags"', async ({ page }) => {
-    const h1 = page.locator('h1');
-    await expect(h1).toHaveCount(1);
-    await expect(h1).toContainText('Tags');
+    // Use page.evaluate to avoid piercing Astro dev toolbar Shadow DOM
+    const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length);
+    expect(h1Count).toBe(1);
+    await expect(page.locator('h1')).toContainText('Tags');
   });
 
   test('renders tag badges', async ({ page }) => {
@@ -20,8 +21,7 @@ test.describe('Tags index page', () => {
   });
 
   test('tag links navigate to tag detail page', async ({ page }) => {
-    const firstTag = page.locator('.tag-badge').first();
-    const href = await firstTag.getAttribute('href');
+    const href = await page.locator('.tag-badge').first().getAttribute('href');
     expect(href).toMatch(/^\/tags\//);
   });
 
@@ -35,18 +35,17 @@ test.describe('Tags index page', () => {
 });
 
 test.describe('Tag detail page', () => {
-  let tagHref: string;
-
   test.beforeEach(async ({ page }) => {
     // Navigate via the tags index to get a real tag slug
     await page.goto('/tags');
-    const firstTag = page.locator('.tag-badge').first();
-    tagHref = (await firstTag.getAttribute('href')) ?? '/tags/meta';
+    const tagHref = (await page.locator('.tag-badge').first().getAttribute('href')) ?? '/tags/meta';
     await page.goto(tagHref);
   });
 
   test('has a single h1 with the tag name', async ({ page }) => {
-    // Scope to main to exclude Astro dev toolbar h1s
+    // Use page.evaluate to avoid piercing Astro dev toolbar Shadow DOM
+    const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length);
+    expect(h1Count).toBe(1);
     await expect(page.locator('main h1')).toBeVisible();
   });
 
@@ -65,14 +64,15 @@ test.describe('Tag detail page', () => {
   });
 
   test('breadcrumb Tags link points to /tags', async ({ page }) => {
-    const tagsLink = page.locator('.breadcrumb a').filter({ hasText: 'Tags' });
-    const href = await tagsLink.getAttribute('href');
+    const href = await page
+      .locator('.breadcrumb a')
+      .filter({ hasText: 'Tags' })
+      .getAttribute('href');
     expect(href).toBe('/tags');
   });
 
   test('article card titles link to articles', async ({ page }) => {
-    const link = page.locator('.article-card h2 a').first();
-    const href = await link.getAttribute('href');
+    const href = await page.locator('.article-card h2 a').first().getAttribute('href');
     expect(href).toMatch(/^\//);
   });
 

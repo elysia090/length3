@@ -1,0 +1,47 @@
+/*
+ * @font-face declarations for Fraunces variable font.
+ *
+ * Font files should be WOFF2 (primary) with TTF as fallback.
+ * To generate WOFF2 from the source TTF:
+ *   python3 -c "from fontTools.ttLib import TTFont; f = TTFont('Fraunces-Variable.ttf'); f.flavor = 'woff2'; f.save('Fraunces-Variable.woff2')"
+ *
+ * Current files in /public/fonts/ are placeholder stubs — replace with
+ * real Fraunces variable font files before deploying.
+ *
+ * font-display: optional
+ *   Gives the browser a 100 ms window to load from cache.
+ *   If not available in time, uses the system fallback and never swaps —
+ *   eliminating FOUT and CLS on first load. Repeat visitors get the
+ *   custom font instantly from cache.
+ *
+ * unicode-range: U+0000-04FF
+ *   Fraunces covers Latin, Latin Extended, and Cyrillic ranges.
+ *   Limiting to U+0000-04FF prevents the browser from downloading
+ *   this display font for pages that only render CJK content.
+ */
+
+@font-face {
+  font-family: 'Fraunces';
+  src:
+    url('/fonts/Fraunces-Variable.woff2') format('woff2') tech('variations'),
+    url('/fonts/Fraunces-Variable.ttf')   format('truetype') tech('variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: optional;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Fraunces';
+  src:
+    url('/fonts/Fraunces-Italic-Variable.woff2') format('woff2') tech('variations'),
+    url('/fonts/Fraunces-Italic-Variable.ttf')   format('truetype') tech('variations');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: optional;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

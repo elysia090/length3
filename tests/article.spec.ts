@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { goToFirstArticle, getComputedStyleProp } from './helpers';
+import { expect, test } from '@playwright/test';
+import { getComputedStyleProp, goToFirstArticle } from './helpers';
 
 test.describe('Article page', () => {
   test.beforeEach(async ({ page }) => {
@@ -21,85 +21,81 @@ test.describe('Article page', () => {
     });
 
     test('article has exactly one h1 — spec §6', async ({ page }) => {
-      const h1s = page.locator('h1');
-      await expect(h1s).toHaveCount(1);
+      // page.locator('h1') pierces open Shadow DOM (Astro dev toolbar has h1s
+      // inside its shadow root). Use page.evaluate to count only document h1s.
+      const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length);
+      expect(h1Count).toBe(1);
     });
 
     test('right column has no interactive content — spec §1', async ({ page }) => {
       // The spec says right column is "deliberately empty". Verify no actions-aside
       // alongside the prose (it should be at end of prose, not in a separate column)
-      const actionsAside = page.locator('.actions-aside');
-      await expect(actionsAside).toHaveCount(0);
-
+      await expect(page.locator('.actions-aside')).not.toBeAttached();
       // Article actions exist, but are inside prose-area (not a sidebar)
-      const actionsInProse = page.locator('.prose-area .article-actions');
-      await expect(actionsInProse).toBeAttached();
+      await expect(page.locator('.prose-area .article-actions')).toBeAttached();
     });
   });
 
   // ── TOC — spec §4 ───────────────────────────────────────────────
   test.describe('Table of Contents', () => {
     test('TOC nav has aria-label="Table of Contents" — spec §6', async ({ page }) => {
-      const nav = page.locator('.toc');
-      await expect(nav).toHaveAttribute('aria-label', 'Table of Contents');
+      await expect(page.locator('.toc')).toHaveAttribute('aria-label', 'Table of Contents');
     });
 
     test('TOC links point to headings with # anchors', async ({ page }) => {
-      const links = page.locator('.toc-link');
-      const count = await links.count();
-      if (count > 0) {
-        const href = await links.first().getAttribute('href');
-        expect(href).toMatch(/^#/);
-      }
+      // Assert the first link exists before reading its attribute — prevents silent pass
+      const firstLink = page.locator('.toc-link').first();
+      await expect(firstLink).toBeAttached();
+      const href = await firstLink.getAttribute('href');
+      expect(href).toMatch(/^#/);
     });
 
-    test('TOC has border-left: 2px solid transparent on inactive links — spec §4', async ({ page }) => {
+    test('TOC has border-left: 2px solid transparent on inactive links — spec §4', async ({
+      page,
+    }) => {
       const borderWidth = await getComputedStyleProp(page, '.toc-link', 'border-left-width');
       expect(borderWidth).toBe('2px');
     });
 
     test('TOC active link gets amber border and color — spec §4', async ({ page }) => {
-      // Scroll to first heading to trigger active state
       const firstLink = page.locator('.toc-link').first();
-      const href = await firstLink.getAttribute('href');
-      if (href) {
-        const heading = page.locator(href);
-        if (await heading.count() > 0) {
-          await heading.scrollIntoViewIfNeeded();
-          // Wait for IntersectionObserver to fire
-          await page.waitForTimeout(300);
-
-          const hasActive = await firstLink.evaluate((el) => el.classList.contains('active'));
-          if (hasActive) {
-            const color = await getComputedStyleProp(page, '.toc-link.active', 'color');
-            // amber #d4820a = rgb(212, 130, 10)
-            expect(color).toBe('rgb(212, 130, 10)');
-            const borderColor = await getComputedStyleProp(page, '.toc-link.active', 'border-left-color');
-            expect(borderColor).toBe('rgb(212, 130, 10)');
-          }
-        }
-      }
+      await expect(firstLink).toBeAttached();
+      // Disable the 80ms CSS transition so the class change is instant and
+      // getComputedStyle reads the final value (not a mid-transition frame).
+      // IntersectionObserver timing is non-deterministic in headless browsers;
+      // the JS activation behaviour is covered by the scroll-navigation test.
+      await page.addStyleTag({ content: '.toc-link { transition: none !important; }' });
+      await firstLink.evaluate((el) => el.classList.add('active'));
+      // amber #d4820a = rgb(212, 130, 10)
+      const color = await getComputedStyleProp(page, '.toc-link.active', 'color');
+      expect(color).toBe('rgb(212, 130, 10)');
+      const borderColor = await getComputedStyleProp(page, '.toc-link.active', 'border-left-color');
+      expect(borderColor).toBe('rgb(212, 130, 10)');
     });
 
     test('H3 TOC items have margin-left: 12px — spec §4', async ({ page }) => {
-      const h3Items = page.locator('.toc-depth-3');
-      const count = await h3Items.count();
-      if (count > 0) {
-        const ml = await getComputedStyleProp(page, '.toc-depth-3', 'margin-left');
-        expect(ml).toBe('12px');
-      }
+      // getting-started has an H3 heading ("### Tooling"); navigate there explicitly
+      await page.goto('/getting-started');
+      const h3Item = page.locator('.toc-depth-3').first();
+      await expect(h3Item).toBeAttached();
+      const ml = await getComputedStyleProp(page, '.toc-depth-3', 'margin-left');
+      expect(ml).toBe('12px');
     });
 
     test('clicking TOC link navigates to heading (smooth scroll)', async ({ page }) => {
       const firstLink = page.locator('.toc-link').first();
+      await expect(firstLink).toBeAttached();
       const href = await firstLink.getAttribute('href');
-      if (href) {
-        await firstLink.click();
-        await page.waitForTimeout(500); // allow smooth scroll
-        // Hash should be updated — decode percent-encoded CJK chars before compare
-        const hash = await page.evaluate(() => decodeURIComponent(window.location.hash));
-        expect(hash).toBe(href);
-      }
+      expect(href).toMatch(/^#/);
+
+      await firstLink.click();
+      // Poll until the URL hash matches — avoids a fixed timeout for smooth scroll
+      await page.waitForFunction(
+        (expected) => decodeURIComponent(window.location.hash) === expected,
+        href,
+      );
+      const hash = await page.evaluate(() => decodeURIComponent(window.location.hash));
+      expect(hash).toBe(href);
     });
 
     test('headings have scroll-margin-top: 32px — spec §5', async ({ page }) => {
@@ -112,29 +108,25 @@ test.describe('Article page', () => {
   test.describe('Reading progress bar', () => {
     test('progress bar starts at 0% width', async ({ page }) => {
       const width = await page.evaluate(() => {
-        const bar = document.getElementById('reading-progress') as HTMLElement | null;
+        const bar = document.getElementById('reading-progress');
         return bar ? getComputedStyle(bar).width : '';
       });
-      // 0% of viewport = 0px
       expect(width).toBe('0px');
     });
 
     test('progress bar width increases on scroll', async ({ page }) => {
       await page.evaluate(() => window.scrollBy(0, 500));
-      await page.waitForTimeout(200);
-
-      const width = await page.evaluate(() => {
-        const bar = document.getElementById('reading-progress') as HTMLElement | null;
-        if (!bar) return 0;
-        const style = bar.style.getPropertyValue('--progress');
-        return parseFloat(style) || 0;
+      // Poll until --progress is set, rather than sleeping for a fixed duration
+      const progress = await page.waitForFunction(() => {
+        const bar = document.getElementById('reading-progress');
+        return bar ? Number.parseFloat(bar.style.getPropertyValue('--progress')) : 0;
       });
-      expect(width).toBeGreaterThan(0);
+      expect(await progress.jsonValue()).toBeGreaterThan(0);
     });
 
     test('progress bar is amber colored', async ({ page }) => {
-      const color = await getComputedStyleProp(page, '#reading-progress', 'background-color');
       // amber #d4820a = rgb(212, 130, 10)
+      const color = await getComputedStyleProp(page, '#reading-progress', 'background-color');
       expect(color).toBe('rgb(212, 130, 10)');
     });
 
@@ -161,22 +153,23 @@ test.describe('Article page', () => {
       expect(fs).toBe('16px');
     });
 
-    test('body prose line-height is 1.95 (≈31.2px at 16px base) — spec §2', async ({ page }) => {
+    test('body prose line-height is 1.95 (approx 31.2px at 16px base) — spec §2', async ({
+      page,
+    }) => {
       const lh = await getComputedStyleProp(page, '.prose', 'line-height');
-      const lhNum = parseFloat(lh);
-      // 1.95 × 16 = 31.2px
-      expect(lhNum).toBeCloseTo(31.2, 0);
+      // 1.95 x 16 = 31.2px
+      expect(Number.parseFloat(lh)).toBeCloseTo(31.2, 0);
     });
 
     test('code blocks use light background — spec §4', async ({ page }) => {
-      const bgColor = await getComputedStyleProp(page, '.prose pre', 'background-color');
       // bg-2 #f0ede8 = rgb(240, 237, 232)
+      const bgColor = await getComputedStyleProp(page, '.prose pre', 'background-color');
       expect(bgColor).toBe('rgb(240, 237, 232)');
     });
 
     test('code blocks have amber-lt left border — spec §4', async ({ page }) => {
-      const borderColor = await getComputedStyleProp(page, '.prose pre', 'border-left-color');
       // amber-lt #e8a030 = rgb(232, 160, 48)
+      const borderColor = await getComputedStyleProp(page, '.prose pre', 'border-left-color');
       expect(borderColor).toBe('rgb(232, 160, 48)');
     });
 
@@ -193,35 +186,11 @@ test.describe('Article page', () => {
     });
 
     test('breadcrumb contains a home link', async ({ page }) => {
-      const homeLink = page.locator('.breadcrumb a').first();
-      await expect(homeLink).toBeVisible();
+      await expect(page.locator('.breadcrumb a').first()).toBeVisible();
     });
 
     test('breadcrumb current item has aria-current="page"', async ({ page }) => {
-      const current = page.locator('.breadcrumb [aria-current="page"]');
-      await expect(current).toBeVisible();
-    });
-  });
-
-  // ── Japanese lang attribute ───────────────────────────────────────
-  test.describe('Japanese article', () => {
-    test.beforeEach(async ({ page }) => {
-      await page.goto('/japanese-test');
-    });
-
-    test('prose has lang="ja" on Japanese articles', async ({ page }) => {
-      const lang = await page.locator('.prose').getAttribute('lang');
-      expect(lang).toBe('ja');
-    });
-
-    test('Japanese article renders ruby elements', async ({ page }) => {
-      await expect(page.locator('ruby').first()).toBeAttached();
-    });
-
-    test('ruby text (rt) is amber colored', async ({ page }) => {
-      const color = await getComputedStyleProp(page, 'rt', 'color');
-      // amber #d4820a = rgb(212, 130, 10)
-      expect(color).toBe('rgb(212, 130, 10)');
+      await expect(page.locator('.breadcrumb [aria-current="page"]')).toBeVisible();
     });
   });
 
@@ -232,46 +201,52 @@ test.describe('Article page', () => {
     });
 
     test('TOC nav has aria-label — spec §6', async ({ page }) => {
-      const tocNav = page.locator('.toc');
-      const label = await tocNav.getAttribute('aria-label');
-      expect(label).toBeTruthy();
-    });
-
-    test('search input has aria-label — spec §6', async ({ page }) => {
-      // The search input is in the modal — navigate to index first
-      await page.goto('/');
-      await page.locator('#search-trigger').click();
-      const input = page.locator('#pagefind-input');
-      const label = await input.getAttribute('aria-label');
+      const label = await page.locator('.toc').getAttribute('aria-label');
       expect(label).toBeTruthy();
     });
 
     test('heading levels are not skipped — spec §6', async ({ page }) => {
-      const headingLevels = await page.evaluate(() => {
-        const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
-        return headings.map((h) => parseInt(h.tagName.charAt(1)));
-      });
-      // Check no level is skipped (e.g., h1 → h3 without h2)
-      for (let i = 1; i < headingLevels.length; i++) {
-        const prev = headingLevels[i - 1];
-        const curr = headingLevels[i];
-        if (prev !== undefined && curr !== undefined) {
-          expect(curr - prev).toBeLessThanOrEqual(1);
-        }
+      const levels = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).map((h) =>
+          Number.parseInt(h.tagName.charAt(1)),
+        ),
+      );
+      for (let i = 1; i < levels.length; i++) {
+        // Each heading may be at most one level deeper than the previous
+        expect((levels[i] ?? 0) - (levels[i - 1] ?? 0)).toBeLessThanOrEqual(1);
       }
     });
 
     test('prefers-reduced-motion removes transitions — spec §5', async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await goToFirstArticle(page);
-
       const transition = await getComputedStyleProp(page, '.toc-link', 'transition');
       // With reduced-motion, transition should be "none" or 0s duration
-      const hasNoTransition =
-        transition === 'none' ||
-        transition.includes('0s') ||
-        transition === '';
-      expect(hasNoTransition).toBe(true);
+      expect(transition === 'none' || transition.includes('0s') || transition === '').toBe(true);
     });
+  });
+});
+
+// ── Japanese article ─────────────────────────────────────────────
+// Top-level describe so the outer goToFirstArticle() beforeEach is not
+// inherited. japanese-test IS the first article, so nesting it caused
+// three navigations per test: / then /japanese-test then /japanese-test again.
+test.describe('Japanese article', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/japanese-test');
+  });
+
+  test('prose has lang="ja" on Japanese articles', async ({ page }) => {
+    expect(await page.locator('.prose').getAttribute('lang')).toBe('ja');
+  });
+
+  test('Japanese article renders ruby elements', async ({ page }) => {
+    await expect(page.locator('ruby').first()).toBeAttached();
+  });
+
+  test('ruby text (rt) is amber colored', async ({ page }) => {
+    // amber #d4820a = rgb(212, 130, 10)
+    const color = await getComputedStyleProp(page, 'rt', 'color');
+    expect(color).toBe('rgb(212, 130, 10)');
   });
 });

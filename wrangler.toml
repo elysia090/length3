@@ -1,7 +1,12 @@
 name = "length3"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
-assets = { directory = "./dist" }
+
+# `assets` and `main` are intentionally omitted here.
+# `astro build` generates dist/server/wrangler.json with the correct paths:
+#   main  → dist/server/entry.mjs
+#   assets → dist/client/
+# Deploy with: wrangler deploy --config dist/server/wrangler.json
 
 [observability]
 enabled = true

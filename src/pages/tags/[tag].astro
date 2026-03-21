@@ -24,9 +24,7 @@ export const getStaticPaths = (async () => {
   }
 
   return [...tagMap.entries()].map(([tagSlug, tagPosts]) => {
-    const tagName = tagPosts[0]?.data.tags.find(
-      (t) => tagToSlug(t) === tagSlug,
-    ) ?? tagSlug;
+    const tagName = tagPosts[0]?.data.tags.find((t) => tagToSlug(t) === tagSlug) ?? tagSlug;
     return {
       params: { tag: tagSlug },
       props: { tagPosts, tagName },
@@ -43,14 +41,18 @@ const processed: ProcessedPost[] = tagPosts.map((entry) => ({
   excerpt: entry.data.description,
 }));
 
-processed.sort(
-  (a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publishDate.valueOf(),
-);
+processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publishDate.valueOf());
 ---
 
 <BaseLayout title={`${tagName} — length3`}>
   <Header />
-  <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: 'Tags', href: '/tags' }, { label: tagName }]} />
+  <Breadcrumb
+    segments={[
+      { label: 'Length³', href: '/' },
+      { label: 'Tags', href: '/tags' },
+      { label: tagName },
+    ]}
+  />
   <main class="tag-main">
     <header class="tag-header">
       <h1>{tagName}</h1>
@@ -75,9 +77,9 @@ processed.sort(
   }
 
   h1 {
-    font-family: var(--font-display);  /* spec §2: Fraunces */
+    font-family: var(--font-display); /* spec §2: Fraunces */
     font-size: 1.75rem;
-    font-weight: 300;                  /* spec §2 */
+    font-weight: 300; /* spec §2 */
     line-height: 1.25;
     margin-bottom: 0.25rem;
   }

@@ -1,5 +1,5 @@
-import { test } from '@playwright/test';
 import path from 'node:path';
+import { test } from '@playwright/test';
 
 const OUT = path.resolve('docs/screenshots');
 
