@@ -9,6 +9,8 @@
   overflow-wrap: anywhere;
   word-break: auto-phrase;
   text-wrap: pretty;
+  /* CJK–Latin auto-spacing (Chrome 123+, progressive enhancement) */
+  text-autospace: ideograph-alpha;
 }
 
 /* ─── Headings ───────────────────────────────────────────────── */
@@ -254,4 +256,28 @@ rt {
   color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 12px */
   margin-top: 0.5rem;   /* visual pause after lead paragraph */
   margin-bottom: 0;     /* cancel .prose p margin; header padding-bottom handles the gap */
+}
+
+/* ─── Japanese typography — spec §2 ─────────────────────────── */
+
+/* Japanese body: 0.02em letter-spacing + palt for punctuation width control.
+   Applies when the <article lang="ja"> attribute is set.
+   Latin text within a ja-article accepts the mild 0.02em without issue. */
+.prose[lang="ja"] {
+  letter-spacing: 0.02em;
+  font-feature-settings: 'palt';   /* proportional alternates: tighten 。、etc. */
+}
+
+/* Headings in Japanese articles: palt still useful for CJK fallback glyphs;
+   keep heading letter-spacing at -0.02em (Fraunces spec §2 unchanged). */
+.prose[lang="ja"] h2,
+.prose[lang="ja"] h3,
+.prose[lang="ja"] h4 {
+  font-feature-settings: 'palt';
+}
+
+/* Japanese quotation marks via CSS quotes property.
+   Enables correct <q> rendering; authors can also type 「」 directly. */
+:lang(ja) {
+  quotes: '\300C' '\300D' '\300E' '\300F';   /* 「」 primary, 『』 secondary */
 }
