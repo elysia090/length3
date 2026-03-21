@@ -18,7 +18,7 @@
   font-weight: 300;            /* spec §2 */
   line-height: 1.25;
   letter-spacing: -0.02em;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;         /* bumped from 0.75rem for stronger presence */
   font-feature-settings: 'palt';
 }
 
@@ -235,11 +235,11 @@ rt {
 /* Lead paragraph — spec §3: 1px left-border in amber */
 .article-header-lead {
   font-family: var(--font-display);
-  font-size: 1.05rem;    /* spec §2: Lead/Lede */
+  font-size: 1.0625rem;  /* bumped from 1.05rem (17px) for stronger presence */
   font-weight: 300;
   font-style: italic;
   line-height: 1.9;
-  color: var(--ink-2);
+  color: var(--ink);      /* upgraded from Ink-2: lead is prose, not metadata */
   border-left: 1px solid var(--amber);
   padding-left: 1.25rem;
   margin-bottom: 2rem;
@@ -248,5 +248,5 @@ rt {
 .article-reading-time {
   font-family: var(--font-mono);
   font-size: 0.75rem;   /* spec §2: UI label */
-  color: var(--ink-3);
+  color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 12px */
 }

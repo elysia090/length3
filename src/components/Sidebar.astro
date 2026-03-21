@@ -13,7 +13,7 @@
       aria-controls="search-modal"
     >
       <span class="search-icon" aria-hidden="true">Q</span>
-      <span class="search-placeholder">/ to search</span>
+      <span class="search-placeholder">Search articles…</span>
     </button>
   </div>
 </aside>
@@ -270,15 +270,15 @@
 
   .search-hint {
     font-family: var(--font-mono);
-    font-size: 0.7rem;   /* spec §4: 0.7rem */
-    color: var(--ink-3);
+    font-size: 0.75rem;   /* bumped from 0.7rem for readability */
+    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA */
   }
 
   .search-powered {
     margin-left: auto;
     font-family: var(--font-mono);
-    font-size: 0.7rem;
-    color: var(--ink-3);
+    font-size: 0.75rem;   /* bumped from 0.7rem for readability */
+    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA */
   }
 
   /* Pagefind result overrides — spec §4 */
