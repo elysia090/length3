@@ -21,8 +21,10 @@ test.describe('Article page', () => {
     });
 
     test('article has exactly one h1 — spec §6', async ({ page }) => {
-      const h1s = page.locator('h1');
-      await expect(h1s).toHaveCount(1);
+      // page.locator('h1') pierces open Shadow DOM (Astro dev toolbar has h1s
+      // inside its shadow root). Use page.evaluate to count only document h1s.
+      const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length);
+      expect(h1Count).toBe(1);
     });
 
     test('right column has no interactive content — spec §1', async ({ page }) => {
