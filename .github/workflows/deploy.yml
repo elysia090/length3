@@ -18,6 +18,7 @@ jobs:
   deploy:
     name: Deploy to Cloudflare Workers
     runs-on: ubuntu-latest
+    if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     environment:
       name: production
       url: https://length3.pages.dev
