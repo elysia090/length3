@@ -86,15 +86,13 @@ img {
 .article-list {
   grid-area: list;
   min-width: 0;
-  border-top: 1px solid var(--rule);
 }
 
 .index-sidebar {
   grid-area: side;
-  border-left: 1px solid var(--rule);
   padding-left: 2.5rem;
   padding-top: 0;
-  align-self: start;   /* sidebar border only spans its natural height */
+  align-self: start;
 }
 
 /* ─── Article Shell ──────────────────────────────────────────── */
