@@ -55,6 +55,8 @@ import '../../styles/code.css';
       <span class="status-item">Prettier ✓</span>
       <span class="status-sep" aria-hidden="true">·</span>
       <span class="status-item">Biome ✓</span>
+      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="status-item" id="status-count">0 chars</span>
       <span class="status-right">astro check: 0 errors</span>
     </div>
 
@@ -113,20 +115,25 @@ Start writing here.
       backgroundColor: '#181511',   /* --editor-bg */
       color: '#c8c4be',
     },
-    '.cm-content': { caretColor: '#d4820a' },
+    '.cm-content': {
+      caretColor: '#d4820a',
+      lineHeight: '1.75',        // breathing room for long-form writing
+      paddingTop: '24px',
+      paddingBottom: '80px',     // bottom padding so last line isn't flush against statusbar
+    },
     '.cm-cursor': { borderLeftColor: '#d4820a', borderLeftWidth: '2px' },
-    '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.025)' },
+    '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.03)' },
     '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a8070' },
     '.cm-gutters': {
       backgroundColor: '#181511',
       color: '#3a3630',
       border: 'none',
-      width: '40px',
+      width: '48px',
     },
-    '.cm-lineNumbers .cm-gutterElement': { paddingRight: '8px' },
+    '.cm-lineNumbers .cm-gutterElement': { paddingRight: '12px' },
     '.cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.2)' },
     '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.25)' },
-    '.cm-line': { paddingLeft: '8px' },
+    '.cm-line': { paddingLeft: '20px', paddingRight: '20px' },
   }, { dark: true });
 
   // ── Syntax highlight — spec §4 ────────────────────────────────
@@ -256,49 +263,183 @@ Start writing here.
     renderPreview(initialDoc);
   }
 
-  function renderPreview(text: string) {
-    if (!output) return;
-    // Extract frontmatter metadata
-    let title = '';
-    const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      const titleMatch = fmMatch[1].match(/^title:\s*(.+)$/m);
-      if (titleMatch) title = titleMatch[1].trim();
-    }
-    // Strip frontmatter
-    const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
-    // Naive markdown → HTML (dev preview only)
-    const lines = body.split('\n');
-    let prevBlank = false;
-    const bodyHtml = lines
-      .map((line) => {
-        if (line.startsWith('### ')) { prevBlank = false; return `<h3>${esc(line.slice(4))}</h3>`; }
-        if (line.startsWith('## ')) { prevBlank = false; return `<h2>${esc(line.slice(3))}</h2>`; }
-        if (line.startsWith('# ')) { prevBlank = false; return `<h1>${esc(line.slice(2))}</h1>`; }
-        if (line.startsWith('> ')) { prevBlank = false; return `<blockquote><p>${esc(line.slice(2))}</p></blockquote>`; }
-        if (line.trim() === '') {
-          if (prevBlank) return '';  // skip consecutive blank lines
-          prevBlank = true;
-          return '';  // paragraph breaks handled by <p> margin, not <br>
-        }
-        prevBlank = false;
-        const escaped = esc(line).replace(/`([^`]+)`/g, '<code>$1</code>');
-        return `<p>${escaped}</p>`;
-      })
-      .filter(Boolean)
-      .join('');
-    // Build article-header if title exists, matching article page structure
-    const headerHtml = title
-      ? `<header class="article-header"><h1>${esc(title)}</h1><hr class="article-header-hr"></header>`
-      : '';
-    output.innerHTML = headerHtml + bodyHtml;
+  // ── Markdown preview renderer ─────────────────────────────────
+
+  /** Escape HTML special characters to prevent XSS. */
+  function esc(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  function esc(s: string): string {
-    return s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+  /** Apply inline Markdown formatting to an already-HTML-escaped string. */
+  function inline(text: string): string {
+    return esc(text)
+      // bold-italic must come before bold and italic
+      .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+      .replace(/\*\*([^*\n]+)\*\*/g,     '<strong>$1</strong>')
+      .replace(/__([^_\n]+)__/g,          '<strong>$1</strong>')
+      .replace(/\*([^*\n]+)\*/g,          '<em>$1</em>')
+      .replace(/_([^_\n]+)_/g,            '<em>$1</em>')
+      .replace(/~~([^~\n]+)~~/g,          '<del>$1</del>')
+      .replace(/`([^`\n]+)`/g,            '<code>$1</code>')
+      // links — only allow safe URL prefixes
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\n]+|[#/][^)\n]*)\)/g, '<a href="$2">$1</a>');
+  }
+
+  /** Parse a pipe-table row into trimmed cell strings. */
+  function tableRow(row: string): string[] {
+    return row.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+  }
+
+  /** Convert Markdown body text to HTML. Handles the block elements writers use daily. */
+  function parseBlocks(text: string): string {
+    const lines = text.split('\n');
+    let html = '';
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i]!;
+
+      // ── Fenced code block `` ` `` `` ` `` `` ` ``lang … `` ` `` `` ` `` `` ` `` ──
+      const fenceMatch = line.match(/^```(\w*)$/);
+      if (fenceMatch) {
+        const lang = fenceMatch[1] ?? '';
+        const code: string[] = [];
+        i++;
+        while (i < lines.length && !lines[i]!.startsWith('```')) {
+          code.push(lines[i]!);
+          i++;
+        }
+        html += `<pre><code${lang ? ` class="language-${esc(lang)}"` : ''}>${esc(code.join('\n'))}</code></pre>`;
+        i++; // skip closing ```
+        continue;
+      }
+
+      // ── ATX heading ──
+      const hMatch = line.match(/^(#{1,6}) (.*)/);
+      if (hMatch) {
+        const lvl = hMatch[1]!.length;
+        html += `<h${lvl}>${inline(hMatch[2]!)}</h${lvl}>`;
+        i++;
+        continue;
+      }
+
+      // ── Horizontal rule (--- / *** / ___) ──
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+        html += '<hr>';
+        i++;
+        continue;
+      }
+
+      // ── Blockquote ──
+      if (line.startsWith('> ')) {
+        const bq: string[] = [];
+        while (i < lines.length && lines[i]!.startsWith('> ')) {
+          bq.push(lines[i]!.slice(2));
+          i++;
+        }
+        html += `<blockquote>${parseBlocks(bq.join('\n'))}</blockquote>`;
+        continue;
+      }
+
+      // ── Unordered list ──
+      if (/^[-*+] /.test(line)) {
+        html += '<ul>';
+        while (i < lines.length && /^[-*+] /.test(lines[i]!)) {
+          html += `<li>${inline(lines[i]!.replace(/^[-*+] /, ''))}</li>`;
+          i++;
+        }
+        html += '</ul>';
+        continue;
+      }
+
+      // ── Ordered list ──
+      if (/^\d+\. /.test(line)) {
+        html += '<ol>';
+        while (i < lines.length && /^\d+\. /.test(lines[i]!)) {
+          html += `<li>${inline(lines[i]!.replace(/^\d+\. /, ''))}</li>`;
+          i++;
+        }
+        html += '</ol>';
+        continue;
+      }
+
+      // ── Pipe table — requires separator row on next line ──
+      const nextLine = lines[i + 1] ?? '';
+      if (line.includes('|') && /^\|?[-:| ]+\|?$/.test(nextLine)) {
+        const headers = tableRow(line);
+        i += 2; // skip header + separator
+        html += `<table><thead><tr>${headers.map((c) => `<th>${inline(c)}</th>`).join('')}</tr></thead>`;
+        if (i < lines.length && lines[i]!.includes('|')) {
+          html += '<tbody>';
+          while (i < lines.length && lines[i]!.includes('|')) {
+            html += `<tr>${tableRow(lines[i]!).map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`;
+            i++;
+          }
+          html += '</tbody>';
+        }
+        html += '</table>';
+        continue;
+      }
+
+      // ── Blank line ──
+      if (line.trim() === '') {
+        i++;
+        continue;
+      }
+
+      // ── Paragraph — accumulate contiguous prose lines ──
+      const para: string[] = [];
+      while (
+        i < lines.length &&
+        lines[i]!.trim() !== '' &&
+        !/^#{1,6} /.test(lines[i]!) &&
+        !lines[i]!.startsWith('> ') &&
+        !/^[-*+] /.test(lines[i]!) &&
+        !/^\d+\. /.test(lines[i]!) &&
+        !/^```/.test(lines[i]!) &&
+        !/^(-{3,}|\*{3,}|_{3,})$/.test(lines[i]!.trim()) &&
+        !(lines[i]!.includes('|') && /^\|?[-:| ]+\|?$/.test(lines[i + 1] ?? ''))
+      ) {
+        para.push(lines[i]!);
+        i++;
+      }
+      if (para.length > 0) {
+        html += `<p>${para.map(inline).join('<br>')}</p>`;
+      }
+    }
+
+    return html;
+  }
+
+  function renderPreview(text: string) {
+    if (!output) return;
+
+    // Extract frontmatter
+    let title = '';
+    let lang = 'en';
+    const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      const fm = fmMatch[1]!;
+      const titleM = fm.match(/^title:\s*(.+)$/m);
+      if (titleM) title = titleM[1]!.trim().replace(/^['"]|['"]$/g, '');
+      const langM = fm.match(/^lang:\s*(.+)$/m);
+      if (langM) lang = langM[1]!.trim().replace(/^['"]|['"]$/g, '');
+    }
+
+    // Apply lang to preview so Japanese typography CSS takes effect
+    output.setAttribute('lang', lang);
+
+    const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
+
+    const headerHtml = title
+      ? `<header class="article-header"><h1>${inline(title)}</h1><hr class="article-header-hr"></header>`
+      : '';
+    output.innerHTML = headerHtml + parseBlocks(body);
+
+    // Update character count in status bar
+    const chars = body.replace(/\s/g, '').length;
+    const countEl = document.getElementById('status-count');
+    if (countEl) countEl.textContent = `${chars} chars`;
   }
 
   // ── Mobile tab switching — APG Tabs pattern ──────────────────
@@ -467,7 +608,7 @@ Start writing here.
 
   .editor-body :global(.cm-editor) {
     height: 100%;
-    font-size: 13px;
+    font-size: 14px;   /* bumped from 13px — comfortable for long-form writing */
   }
 
   .editor-body :global(.cm-scroller) {

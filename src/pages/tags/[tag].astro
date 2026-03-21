@@ -6,6 +6,7 @@ import type { GetStaticPaths } from 'astro';
 import type { ProcessedPost } from '../../types/blog';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ArticleCard from '../../components/ArticleCard.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
 import { toSlug, tagToSlug } from '../../lib/slugify';
@@ -50,9 +51,9 @@ processed.sort(
 
 <BaseLayout title={`${tagName} — length3`}>
   <Header />
+  <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: 'Tags', href: '/tags' }, { label: tagName }]} />
   <main class="tag-main">
     <header class="tag-header">
-      <p class="tag-breadcrumb"><a href="/tags">Tags</a> /</p>
       <h1>{tagName}</h1>
       <p class="tag-count">{processed.length} article{processed.length !== 1 ? 's' : ''}</p>
     </header>
@@ -65,27 +66,13 @@ processed.sort(
 
 <style>
   .tag-main {
-    max-width: 800px;
+    max-width: var(--measure);
     margin: 0 auto;
     padding: 2rem 1.5rem;
   }
 
   .tag-header {
     margin-bottom: 2rem;
-  }
-
-  .tag-breadcrumb {
-    font-size: 0.875rem;
-    color: var(--ink-2);
-    margin-bottom: 0.5rem;
-  }
-
-  .tag-breadcrumb a {
-    color: var(--amber);
-  }
-
-  .tag-breadcrumb a:hover {
-    text-decoration: underline;
   }
 
   h1 {

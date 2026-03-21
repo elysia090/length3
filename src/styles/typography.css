@@ -9,6 +9,8 @@
   overflow-wrap: anywhere;
   word-break: auto-phrase;
   text-wrap: pretty;
+  /* CJK–Latin auto-spacing (Chrome 123+, progressive enhancement) */
+  text-autospace: ideograph-alpha;
 }
 
 /* ─── Headings ───────────────────────────────────────────────── */
@@ -98,7 +100,7 @@
   border-radius: 0 4px 4px 0;
   padding: 16px 20px;
   overflow-x: auto;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .prose pre code {
@@ -115,7 +117,7 @@
 .prose blockquote {
   border-left: 2px solid var(--rule);
   padding: 0.5rem 0 0.5rem 1.5rem;
-  margin: 0 0 1.75rem;
+  margin: 0 0 1.5rem;
   font-style: italic;
   color: var(--ink-2);
 }
@@ -153,7 +155,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9375rem;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .prose th,
@@ -195,7 +197,7 @@ rt {
 
 /* ─── Article Header ─────────────────────────────────────────── */
 .article-header {
-  padding: 2rem 0 2.5rem;
+  padding: 2rem 0;
 }
 
 .article-header-meta {
@@ -224,7 +226,7 @@ rt {
 }
 
 .article-header h1 {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .article-header-hr {
@@ -232,7 +234,7 @@ rt {
   height: 2px;
   background: var(--amber);
   width: 3rem;
-  margin: 0 0 1.75rem;
+  margin: 0 0 1.5rem;
 }
 
 /* Lead paragraph — spec §3: 1px left-border in amber */
@@ -245,7 +247,7 @@ rt {
   color: var(--ink);      /* upgraded from Ink-2: lead is prose, not metadata */
   border-left: 1px solid var(--amber);
   padding-left: 1.25rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .article-reading-time {
@@ -253,4 +255,29 @@ rt {
   font-size: 0.75rem;   /* spec §2: UI label */
   color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 12px */
   margin-top: 0.5rem;   /* visual pause after lead paragraph */
+  margin-bottom: 0;     /* cancel .prose p margin; header padding-bottom handles the gap */
+}
+
+/* ─── Japanese typography — spec §2 ─────────────────────────── */
+
+/* Japanese body: 0.02em letter-spacing + palt for punctuation width control.
+   Applies when the <article lang="ja"> attribute is set.
+   Latin text within a ja-article accepts the mild 0.02em without issue. */
+.prose[lang="ja"] {
+  letter-spacing: 0.02em;
+  font-feature-settings: 'palt';   /* proportional alternates: tighten 。、etc. */
+}
+
+/* Headings in Japanese articles: palt still useful for CJK fallback glyphs;
+   keep heading letter-spacing at -0.02em (Fraunces spec §2 unchanged). */
+.prose[lang="ja"] h2,
+.prose[lang="ja"] h3,
+.prose[lang="ja"] h4 {
+  font-feature-settings: 'palt';
+}
+
+/* Japanese quotation marks via CSS quotes property.
+   Enables correct <q> rendering; authors can also type 「」 directly. */
+:lang(ja) {
+  quotes: '\300C' '\300D' '\300E' '\300F';   /* 「」 primary, 『』 secondary */
 }

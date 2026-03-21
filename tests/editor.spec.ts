@@ -130,6 +130,34 @@ test.describe('Editor page', () => {
     });
   });
 
+  // ── Char count in status bar ─────────────────────────────────────
+  test.describe('Char count', () => {
+    test('status bar shows char count element', async ({ page }) => {
+      await expect(page.locator('#status-count')).toBeAttached();
+    });
+
+    test('char count shows "chars" text', async ({ page }) => {
+      await page.waitForTimeout(500);
+      const text = await page.locator('#status-count').textContent();
+      expect(text).toMatch(/chars/);
+    });
+  });
+
+  // ── Preview rendering ─────────────────────────────────────────────
+  test.describe('Preview rendering', () => {
+    test('preview output renders markdown headings', async ({ page }) => {
+      await page.waitForTimeout(500);
+      // Default template has "## Introduction"
+      await expect(page.locator('#preview-output h2').first()).toBeAttached();
+    });
+
+    test('preview title matches frontmatter title', async ({ page }) => {
+      await page.waitForTimeout(500);
+      const titleEl = page.locator('#preview-output h1').first();
+      await expect(titleEl).toContainText('Untitled');
+    });
+  });
+
   // ── Mobile tab mode — spec §8 ────────────────────────────────────
   test.describe('Mobile (< 640px)', () => {
     test('editor root switches to single column below 640px — spec §8', async ({ page }) => {

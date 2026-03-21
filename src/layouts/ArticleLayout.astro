@@ -8,6 +8,7 @@ import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { formatDate } from '../lib/format-date';
+import { tagToSlug } from '../lib/slugify';
 import '../styles/code.css';
 
 interface Props {
@@ -34,11 +35,7 @@ const {
   slug,
 } = Astro.props;
 
-const dateStr = [
-  publishDate.getFullYear(),
-  String(publishDate.getMonth() + 1).padStart(2, '0'),
-  String(publishDate.getDate()).padStart(2, '0'),
-].join('.');
+const dateStr = formatDate(publishDate, lang);
 ---
 
 <BaseLayout title={title} description={description} lang={lang}>
@@ -70,7 +67,7 @@ const dateStr = [
           <div class="article-header-meta">
             <div class="article-header-tags">
               {tags.map((tag) => (
-                <a href={`/tags/${tag.toLowerCase()}`} class="article-header-tag">#{tag}</a>
+                <a href={`/tags/${tagToSlug(tag)}`} class="article-header-tag">#{tag}</a>
               ))}
             </div>
             {tags.length > 0 && <span aria-hidden="true">·</span>}
@@ -98,7 +95,7 @@ const dateStr = [
       </article>
 
       <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
-      <ArticleActions slug={slug} readingTime={readingTime} />
+      <ArticleActions readingTime={readingTime} />
     </div>
 
     <!-- Right column: intentionally empty — spec §1 -->
