@@ -1,10 +1,9 @@
 ---
 interface Props {
-  slug: string;
   readingTime: number;
 }
 
-const { slug: _slug, readingTime } = Astro.props;
+const { readingTime } = Astro.props;
 ---
 
 <div class="article-actions" data-reading-time={readingTime}>

@@ -16,8 +16,3 @@ export interface TocHeading {
   text: string;
 }
 
-export interface SiteStats {
-  totalPosts: number;
-  totalTags: number;
-  newestDate: Date;
-}
