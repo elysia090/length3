@@ -11,7 +11,10 @@ export function toSlug(id: string): string {
  * produce an empty string and all map to the same /tags/ route.
  */
 export function tagToSlug(tag: string): string {
-  return tag.toLowerCase().replace(/\s+/g, '-').replace(/[^\p{L}\p{N}-]/gu, '');
+  return tag
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}-]/gu, '');
 }
 
 /** Estimates reading time in minutes, accounting for CJK character density. */

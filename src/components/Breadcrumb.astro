@@ -13,16 +13,26 @@ const { segments } = Astro.props;
 
 <nav class="breadcrumb" aria-label="Breadcrumb">
   <ol>
-    {segments.map((seg, i) => (
-      <li>
-        {i > 0 && <span class="sep" aria-hidden="true">/</span>}
-        {seg.href ? (
-          <a href={seg.href} class="crumb">{seg.label}</a>
-        ) : (
-          <span class="crumb crumb-current" aria-current="page">{seg.label}</span>
-        )}
-      </li>
-    ))}
+    {
+      segments.map((seg, i) => (
+        <li>
+          {i > 0 && (
+            <span class="sep" aria-hidden="true">
+              /
+            </span>
+          )}
+          {seg.href ? (
+            <a href={seg.href} class="crumb">
+              {seg.label}
+            </a>
+          ) : (
+            <span class="crumb crumb-current" aria-current="page">
+              {seg.label}
+            </span>
+          )}
+        </li>
+      ))
+    }
   </ol>
 </nav>
 
@@ -33,13 +43,13 @@ const { segments } = Astro.props;
     color: var(--ink-2);
     max-width: 1200px;
     margin: 0 auto;
-    padding: 1rem 1.5rem 0;    /* bumped from 0.75rem for breathing room */
+    padding: 1rem 1.5rem 0; /* bumped from 0.75rem for breathing room */
   }
 
   .breadcrumb ol {
     display: flex;
     align-items: center;
-    gap: 0.5rem;                  /* 8px — grid aligned */
+    gap: 0.5rem; /* 8px — grid aligned */
     list-style: none;
     padding: 0;
     margin: 0;

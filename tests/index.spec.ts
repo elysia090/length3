@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { getCSSVar, getComputedStyleProp } from './helpers';
 
 test.describe('Index page', () => {
@@ -99,7 +99,7 @@ test.describe('Index page', () => {
     test('card date has letter-spacing — spec §4', async ({ page }) => {
       const ls = await getComputedStyleProp(page, '.card-date', 'letter-spacing');
       // 0.04em at 12px = 0.48px
-      expect(parseFloat(ls)).toBeGreaterThan(0);
+      expect(Number.parseFloat(ls)).toBeGreaterThan(0);
     });
 
     test('card tags use amber color — spec §4', async ({ page }) => {
@@ -197,7 +197,9 @@ test.describe('Index page', () => {
       // Tab through all focusable elements — should not leave the modal
       const modalId = await page.evaluate(() => {
         const modal = document.getElementById('search-modal');
-        const focusable = modal?.querySelectorAll('button, input, [href], [tabindex]:not([tabindex="-1"])');
+        const focusable = modal?.querySelectorAll(
+          'button, input, [href], [tabindex]:not([tabindex="-1"])',
+        );
         return focusable ? focusable.length : 0;
       });
       expect(modalId).toBeGreaterThan(0);

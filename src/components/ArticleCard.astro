@@ -16,12 +16,16 @@ const dateStr = formatDate(publishDate);
 <article class="article-card">
   <div class="card-meta">
     <time datetime={publishDate.toISOString()} class="card-date">{dateStr}</time>
-    {readingTime > 0 && (
-      <>
-        <span class="card-meta-sep" aria-hidden="true">—</span>
-        <span class="card-reading-time">{readingTime} min</span>
-      </>
-    )}
+    {
+      readingTime > 0 && (
+        <>
+          <span class="card-meta-sep" aria-hidden="true">
+            —
+          </span>
+          <span class="card-reading-time">{readingTime} min</span>
+        </>
+      )
+    }
   </div>
   <h2 class="card-title">
     <a href={`/${slug}`}>{title}</a>
@@ -31,7 +35,9 @@ const dateStr = formatDate(publishDate);
     tags.length > 0 && (
       <div class="card-tags" aria-label="tags">
         {tags.map((t) => (
-          <a href={`/tags/${tagToSlug(t)}`} class="card-tag">#{t}</a>
+          <a href={`/tags/${tagToSlug(t)}`} class="card-tag">
+            #{t}
+          </a>
         ))}
       </div>
     )
@@ -72,7 +78,7 @@ const dateStr = formatDate(publishDate);
   }
 
   .card-meta-sep {
-    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 12px */
+    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at 12px */
   }
 
   .card-reading-time {
@@ -82,18 +88,18 @@ const dateStr = formatDate(publishDate);
   /* Title — gravitational center, heaviest element */
   .card-title {
     font-family: var(--font-display);
-    font-size: 1.25rem;           /* spec §4: 20px */
-    font-weight: 400;             /* spec §4 */
-    line-height: 1.4;             /* spec §4 */
+    font-size: 1.25rem; /* spec §4: 20px */
+    font-weight: 400; /* spec §4 */
+    line-height: 1.4; /* spec §4 */
     letter-spacing: -0.015em;
-    margin-bottom: 8px;           /* 4px grid aligned */
+    margin-bottom: 8px; /* 4px grid aligned */
     text-wrap: balance;
   }
 
   .card-title a {
     color: var(--ink);
     transition: color 80ms ease;
-    cursor: default;   /* spec §4: color shift alone communicates interactivity */
+    cursor: default; /* spec §4: color shift alone communicates interactivity */
   }
 
   .card-title a:hover {
@@ -123,10 +129,12 @@ const dateStr = formatDate(publishDate);
     font-family: var(--font-mono);
     font-size: 0.75rem;
     color: var(--amber);
-    padding: 4px 8px;             /* 4px grid minimum */
+    padding: 4px 8px; /* 4px grid minimum */
     border: 1px solid var(--rule);
     border-radius: 2px;
-    transition: color 80ms ease, border-color 80ms ease;
+    transition:
+      color 80ms ease,
+      border-color 80ms ease;
   }
 
   .card-tag:hover,

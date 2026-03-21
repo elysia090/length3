@@ -6,7 +6,6 @@ import '../../styles/code.css';
 
 <BaseLayout title="Editor — Length³" description="Live MDX editor">
   <div class="editor-root">
-
     <!-- TOP BAR — spec §4: 40px, #201d19 bg -->
     <div class="editor-topbar">
       <div class="editor-topbar-left">
@@ -19,20 +18,39 @@ import '../../styles/code.css';
         <!-- spec §4: amber is not used on any button -->
         <button class="editor-btn editor-btn-discard" id="discard-btn">Discard</button>
         <button class="editor-btn editor-btn-preview" id="preview-btn">Preview</button>
-        <button class="editor-btn editor-btn-publish" id="publish-btn" aria-label="Publish article">Publish →</button>
+        <button class="editor-btn editor-btn-publish" id="publish-btn" aria-label="Publish article"
+          >Publish →</button
+        >
       </div>
     </div>
 
     <!-- Mobile tabs — APG Tabs pattern, visible < 640px -->
     <div class="editor-tabs" role="tablist" aria-label="Editor panels">
-      <button role="tab" aria-selected="true" aria-controls="editor-pane" id="tab-edit" class="editor-tab">Edit</button>
-      <button role="tab" aria-selected="false" aria-controls="preview-pane" id="tab-preview" class="editor-tab">Preview</button>
+      <button
+        role="tab"
+        aria-selected="true"
+        aria-controls="editor-pane"
+        id="tab-edit"
+        class="editor-tab">Edit</button
+      >
+      <button
+        role="tab"
+        aria-selected="false"
+        aria-controls="preview-pane"
+        id="tab-preview"
+        class="editor-tab">Preview</button
+      >
     </div>
 
     <!-- MAIN: editor + preview -->
     <div class="editor-main">
       <!-- LEFT: dark editor pane — spec §4 -->
-      <div class="editor-pane tab-active" id="editor-pane" role="tabpanel" aria-label="MDX source editor">
+      <div
+        class="editor-pane tab-active"
+        id="editor-pane"
+        role="tabpanel"
+        aria-label="MDX source editor"
+      >
         <div class="editor-body" id="editor-mount"></div>
       </div>
 
@@ -59,14 +77,13 @@ import '../../styles/code.css';
       <span class="status-item" id="status-count">0 chars</span>
       <span class="status-right">astro check: 0 errors</span>
     </div>
-
   </div>
 </BaseLayout>
 
 <script>
-  import { EditorView, basicSetup, type ViewUpdate } from 'codemirror';
+  import { EditorView, basicSetup } from 'codemirror';
   import { EditorState, RangeSetBuilder } from '@codemirror/state';
-  import { Decoration, type DecorationSet, ViewPlugin } from '@codemirror/view';
+  import { Decoration, type DecorationSet, type ViewUpdate, ViewPlugin } from '@codemirror/view';
   import { markdown } from '@codemirror/lang-markdown';
   import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
   import { tags } from '@lezer/highlight';
@@ -96,7 +113,9 @@ import '../../styles/code.css';
       btn.textContent = 'Published!';
       // Clear the dirty flag so beforeunload no longer warns after publishing
       docChanged = false;
-      setTimeout(() => { btn.textContent = 'Publish →'; }, 1500);
+      setTimeout(() => {
+        btn.textContent = 'Publish →';
+      }, 1500);
     }
   });
 
@@ -112,31 +131,34 @@ Start writing here.
 `;
 
   // ── Custom theme — spec §4 ────────────────────────────────────
-  const length3Theme = EditorView.theme({
-    '&': {
-      backgroundColor: '#181511',   /* --editor-bg */
-      color: '#c8c4be',
+  const length3Theme = EditorView.theme(
+    {
+      '&': {
+        backgroundColor: '#181511' /* --editor-bg */,
+        color: '#c8c4be',
+      },
+      '.cm-content': {
+        caretColor: '#d4820a',
+        lineHeight: '1.75', // breathing room for long-form writing
+        paddingTop: '24px',
+        paddingBottom: '80px', // bottom padding so last line isn't flush against statusbar
+      },
+      '.cm-cursor': { borderLeftColor: '#d4820a', borderLeftWidth: '2px' },
+      '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.03)' },
+      '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a8070' },
+      '.cm-gutters': {
+        backgroundColor: '#181511',
+        color: '#3a3630',
+        border: 'none',
+        width: '48px',
+      },
+      '.cm-lineNumbers .cm-gutterElement': { paddingRight: '12px' },
+      '.cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.2)' },
+      '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.25)' },
+      '.cm-line': { paddingLeft: '20px', paddingRight: '20px' },
     },
-    '.cm-content': {
-      caretColor: '#d4820a',
-      lineHeight: '1.75',        // breathing room for long-form writing
-      paddingTop: '24px',
-      paddingBottom: '80px',     // bottom padding so last line isn't flush against statusbar
-    },
-    '.cm-cursor': { borderLeftColor: '#d4820a', borderLeftWidth: '2px' },
-    '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.03)' },
-    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a8070' },
-    '.cm-gutters': {
-      backgroundColor: '#181511',
-      color: '#3a3630',
-      border: 'none',
-      width: '48px',
-    },
-    '.cm-lineNumbers .cm-gutterElement': { paddingRight: '12px' },
-    '.cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.2)' },
-    '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.25)' },
-    '.cm-line': { paddingLeft: '20px', paddingRight: '20px' },
-  }, { dark: true });
+    { dark: true },
+  );
 
   // ── Syntax highlight — spec §4 ────────────────────────────────
   const length3Highlight = HighlightStyle.define([
@@ -274,22 +296,28 @@ Start writing here.
 
   /** Apply inline Markdown formatting to an already-HTML-escaped string. */
   function inline(text: string): string {
-    return esc(text)
-      // bold-italic must come before bold and italic
-      .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
-      .replace(/\*\*([^*\n]+)\*\*/g,     '<strong>$1</strong>')
-      .replace(/__([^_\n]+)__/g,          '<strong>$1</strong>')
-      .replace(/\*([^*\n]+)\*/g,          '<em>$1</em>')
-      .replace(/_([^_\n]+)_/g,            '<em>$1</em>')
-      .replace(/~~([^~\n]+)~~/g,          '<del>$1</del>')
-      .replace(/`([^`\n]+)`/g,            '<code>$1</code>')
-      // links — only allow safe URL prefixes
-      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\n]+|[#/][^)\n]*)\)/g, '<a href="$2">$1</a>');
+    return (
+      esc(text)
+        // bold-italic must come before bold and italic
+        .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
+        .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+        .replace(/_([^_\n]+)_/g, '<em>$1</em>')
+        .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
+        .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+        // links — only allow safe URL prefixes
+        .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\n]+|[#/][^)\n]*)\)/g, '<a href="$2">$1</a>')
+    );
   }
 
   /** Parse a pipe-table row into trimmed cell strings. */
   function tableRow(row: string): string[] {
-    return row.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+    return row
+      .trim()
+      .replace(/^\||\|$/g, '')
+      .split('|')
+      .map((c) => c.trim());
   }
 
   /** Convert Markdown body text to HTML. Handles the block elements writers use daily. */
@@ -374,7 +402,9 @@ Start writing here.
         if (i < lines.length && lines[i]!.includes('|')) {
           html += '<tbody>';
           while (i < lines.length && lines[i]!.includes('|')) {
-            html += `<tr>${tableRow(lines[i]!).map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`;
+            html += `<tr>${tableRow(lines[i]!)
+              .map((c) => `<td>${inline(c)}</td>`)
+              .join('')}</tr>`;
             i++;
           }
           html += '</tbody>';
@@ -468,7 +498,10 @@ Start writing here.
       const idx = tabArr.indexOf(tab);
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         e.preventDefault();
-        const next = e.key === 'ArrowRight' ? tabArr[(idx + 1) % tabArr.length]! : tabArr[(idx - 1 + tabArr.length) % tabArr.length]!;
+        const next =
+          e.key === 'ArrowRight'
+            ? tabArr[(idx + 1) % tabArr.length]!
+            : tabArr[(idx - 1 + tabArr.length) % tabArr.length]!;
         next.focus();
         activateTab(next);
       }
@@ -480,7 +513,7 @@ Start writing here.
   /* ── Root: full viewport, 3 rows (topbar / main / statusbar) ── */
   .editor-root {
     display: grid;
-    grid-template-rows: 40px 1fr 24px;   /* spec §4 */
+    grid-template-rows: 40px 1fr 24px; /* spec §4 */
     height: 100dvh;
     overflow: hidden;
     background: var(--editor-bg);
@@ -492,7 +525,7 @@ Start writing here.
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
-    background: #201d19;   /* spec §4: slightly lighter than Editor-BG */
+    background: #201d19; /* spec §4: slightly lighter than Editor-BG */
     border-bottom: 1px solid #252118;
     flex-shrink: 0;
     height: 40px;
@@ -501,7 +534,7 @@ Start writing here.
   .editor-topbar-left {
     display: flex;
     align-items: center;
-    gap: 0.5rem;                  /* 8px — grid aligned */
+    gap: 0.5rem; /* 8px — grid aligned */
     font-family: var(--font-mono);
     font-size: 0.6875rem;
   }
@@ -520,11 +553,11 @@ Start writing here.
   }
 
   .editor-bc-sep {
-    color: #3a3630;   /* spec §4: Ink-3 dark equivalent */
+    color: #3a3630; /* spec §4: Ink-3 dark equivalent */
   }
 
   .editor-bc-file {
-    color: var(--ink-2);   /* upgraded from Ink-3 for readability on dark bg */
+    color: var(--ink-2); /* upgraded from Ink-3 for readability on dark bg */
   }
 
   .editor-topbar-actions {
@@ -537,7 +570,7 @@ Start writing here.
   .editor-btn {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    padding: 0.5rem 0.75rem;      /* WCAG 2.5.8: touch target */
+    padding: 0.5rem 0.75rem; /* WCAG 2.5.8: touch target */
     background: transparent;
     cursor: pointer;
     transition: color 80ms ease;
@@ -548,7 +581,7 @@ Start writing here.
      Tokens are interpreted for dark background readability */
   .editor-btn-discard {
     border: none;
-    color: #9a9690;   /* upgraded for WCAG AA contrast on dark bg */
+    color: #9a9690; /* upgraded for WCAG AA contrast on dark bg */
   }
 
   .editor-btn-discard:hover {
@@ -558,7 +591,7 @@ Start writing here.
   .editor-btn-preview {
     border: 1px solid #3a3630;
     border-radius: 2px;
-    color: #9a9690;   /* Ink-2 equivalent on dark: secondary */
+    color: #9a9690; /* Ink-2 equivalent on dark: secondary */
   }
 
   .editor-btn-preview:hover {
@@ -570,7 +603,7 @@ Start writing here.
   .editor-btn-publish {
     border: 1px solid #52504a;
     border-radius: 2px;
-    color: #e2ddd8;   /* Ink equivalent on dark: primary, most readable */
+    color: #e2ddd8; /* Ink equivalent on dark: primary, most readable */
   }
 
   .editor-btn-publish:hover {
@@ -590,7 +623,7 @@ Start writing here.
   /* ── Main: 50/50 split ── */
   .editor-main {
     display: grid;
-    grid-template-columns: 1fr 1fr;   /* spec §4: exactly 50/50 */
+    grid-template-columns: 1fr 1fr; /* spec §4: exactly 50/50 */
     overflow: hidden;
   }
 
@@ -598,7 +631,7 @@ Start writing here.
   .editor-pane {
     display: flex;
     flex-direction: column;
-    background: var(--editor-bg);   /* #181511 */
+    background: var(--editor-bg); /* #181511 */
     border-right: 1px solid #252118;
     overflow: hidden;
   }
@@ -610,7 +643,7 @@ Start writing here.
 
   .editor-body :global(.cm-editor) {
     height: 100%;
-    font-size: 14px;   /* bumped from 13px — comfortable for long-form writing */
+    font-size: 14px; /* bumped from 13px — comfortable for long-form writing */
   }
 
   .editor-body :global(.cm-scroller) {
@@ -619,9 +652,15 @@ Start writing here.
   }
 
   /* Frontmatter YAML decoration — spec §4: key=muted blue, value=muted green */
-  .editor-body :global(.cm-fm-delim) { color: #9a9690; }
-  .editor-body :global(.cm-fm-key) { color: #7a9ab8; }
-  .editor-body :global(.cm-fm-val) { color: #7ec49a; }
+  .editor-body :global(.cm-fm-delim) {
+    color: #9a9690;
+  }
+  .editor-body :global(.cm-fm-key) {
+    color: #7a9ab8;
+  }
+  .editor-body :global(.cm-fm-val) {
+    color: #7ec49a;
+  }
 
   /* ── Preview pane (light) — spec §4: BG, padding 40px 48px ── */
   .preview-pane {
@@ -634,7 +673,7 @@ Start writing here.
   .preview-body {
     flex: 1;
     overflow-y: auto;
-    padding: 40px 48px;   /* spec §4 */
+    padding: 40px 48px; /* spec §4 */
   }
 
   .preview-content {
@@ -642,7 +681,7 @@ Start writing here.
   }
 
   .preview-placeholder {
-    color: var(--ink-2);           /* upgraded from Ink-3 for WCAG AA */
+    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA */
     font-style: italic;
     font-size: 0.9375rem;
   }
@@ -653,16 +692,16 @@ Start writing here.
     align-items: center;
     gap: 0;
     padding: 0 16px;
-    background: #1a1714;   /* spec §4: slightly darker than Editor-BG */
+    background: #1a1714; /* spec §4: slightly darker than Editor-BG */
     height: 24px;
     flex-shrink: 0;
   }
 
   .status-item {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;  /* bumped from 0.65rem for readability */
-    color: #7a776f;        /* midpoint between Ink-3 and Ink-2 for dark bg legibility */
-    padding: 0 0.25rem;           /* 4px — grid aligned */
+    font-size: 0.6875rem; /* bumped from 0.65rem for readability */
+    color: #7a776f; /* midpoint between Ink-3 and Ink-2 for dark bg legibility */
+    padding: 0 0.25rem; /* 4px — grid aligned */
     letter-spacing: 0.02em;
   }
 
@@ -674,8 +713,8 @@ Start writing here.
 
   .status-right {
     font-family: var(--font-mono);
-    font-size: 0.6875rem;  /* bumped from 0.65rem for readability */
-    color: #7a776f;        /* midpoint between Ink-3 and Ink-2 for dark bg legibility */
+    font-size: 0.6875rem; /* bumped from 0.65rem for readability */
+    color: #7a776f; /* midpoint between Ink-3 and Ink-2 for dark bg legibility */
     margin-left: auto;
     letter-spacing: 0.02em;
   }
@@ -694,7 +733,9 @@ Start writing here.
     color: #9a9690;
     cursor: pointer;
     border-bottom: 2px solid transparent;
-    transition: color 80ms ease, border-color 80ms ease;
+    transition:
+      color 80ms ease,
+      border-color 80ms ease;
   }
 
   .editor-tab[aria-selected='true'] {

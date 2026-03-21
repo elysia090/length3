@@ -6,12 +6,7 @@ interface Props {
   lang?: 'en' | 'ja';
 }
 
-const {
-  title,
-  description = 'A technical blog.',
-  ogImage,
-  lang = 'en',
-} = Astro.props;
+const { title, description = 'A technical blog.', ogImage, lang = 'en' } = Astro.props;
 
 import '../styles/fonts.css';
 import '../styles/global.css';

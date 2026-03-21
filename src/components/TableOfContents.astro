@@ -129,7 +129,7 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
 <style>
   .toc {
-    transition: opacity 200ms ease;   /* spec §5: TOC disappearance 200ms */
+    transition: opacity 200ms ease; /* spec §5: TOC disappearance 200ms */
   }
 
   /* ── <details> / <summary> reset ── */
@@ -137,11 +137,11 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
      Reset list-item display and hide the native ▶ marker. */
   .toc-label {
     font-family: var(--font-mono);
-    font-size: 0.8rem;    /* bumped from 0.75rem to match TOC link size */
+    font-size: 0.8rem; /* bumped from 0.75rem to match TOC link size */
     letter-spacing: 0.14em;
-    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at small size */
+    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at small size */
     text-transform: uppercase;
-    margin-bottom: 16px;   /* spec §4 */
+    margin-bottom: 16px; /* spec §4 */
     display: block;
     list-style: none;
   }
@@ -166,7 +166,7 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
       cursor: pointer;
       display: flex;
       align-items: center;
-      min-height: 44px;   /* WCAG 2.5.8: touch target */
+      min-height: 44px; /* WCAG 2.5.8: touch target */
       margin-bottom: 0;
       padding: 0;
     }
@@ -215,7 +215,9 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
     font-size: 0.8rem;
     line-height: 1.5;
     border-left: 2px solid transparent;
-    transition: color 80ms ease, border-color 80ms ease;
+    transition:
+      color 80ms ease,
+      border-color 80ms ease;
   }
 
   .toc-link:hover,

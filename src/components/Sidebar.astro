@@ -40,7 +40,8 @@
       />
       <button class="search-esc-btn" id="search-close" aria-label="Close search">esc</button>
     </div>
-    <div id="pagefind-results" class="search-results" role="region" aria-label="Search results"></div>
+    <div id="pagefind-results" class="search-results" role="region" aria-label="Search results">
+    </div>
     <div class="search-footer" aria-hidden="true">
       <span class="search-hint">↑↓ navigate</span>
       <span class="search-hint">↵ open</span>
@@ -95,9 +96,7 @@
     if (e.key !== 'Tab') return;
 
     const focusable = Array.from(
-      modal.querySelectorAll<HTMLElement>(
-        'button, input, [href], [tabindex]:not([tabindex="-1"])',
-      ),
+      modal.querySelectorAll<HTMLElement>('button, input, [href], [tabindex]:not([tabindex="-1"])'),
     );
     if (focusable.length === 0) return;
     const first = focusable[0]!;
@@ -129,7 +128,12 @@
       return;
     }
     // Open on '/' when no input is focused and modal is hidden — spec §4
-    if (e.key === '/' && modal?.hidden && !(document.activeElement instanceof HTMLInputElement) && !(document.activeElement instanceof HTMLTextAreaElement)) {
+    if (
+      e.key === '/' &&
+      modal?.hidden &&
+      !(document.activeElement instanceof HTMLInputElement) &&
+      !(document.activeElement instanceof HTMLTextAreaElement)
+    ) {
       e.preventDefault();
       openSearch();
       return;
@@ -159,7 +163,9 @@
     font-size: 0.8125rem;
     color: var(--ink-2);
     text-align: left;
-    transition: border-color 80ms ease, color 80ms ease;
+    transition:
+      border-color 80ms ease,
+      color 80ms ease;
   }
 
   .search-underline-btn:hover {
@@ -168,7 +174,7 @@
   }
 
   .search-icon {
-    font-weight: 500;     /* reduced from 600 for less visual dominance */
+    font-weight: 500; /* reduced from 600 for less visual dominance */
     color: var(--amber);
     flex-shrink: 0;
   }
@@ -179,7 +185,7 @@
   .search-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(28, 26, 24, 0.6);   /* spec §4 */
+    background: rgba(28, 26, 24, 0.6); /* spec §4 */
     z-index: 500;
     display: flex;
     align-items: flex-start;
@@ -205,14 +211,14 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 12px 16px;   /* spec §4 */
+    padding: 12px 16px; /* spec §4 */
     border-bottom: 1px solid var(--rule);
   }
 
   .search-q {
     font-family: var(--font-mono);
     font-size: 1rem;
-    font-weight: 500;     /* reduced from 600 to match trigger style */
+    font-weight: 500; /* reduced from 600 to match trigger style */
     color: var(--amber);
     flex-shrink: 0;
   }
@@ -229,7 +235,7 @@
   }
 
   .search-field::placeholder {
-    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 14px */
+    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at 14px */
     font-family: var(--font-mono);
     font-size: 0.875rem;
   }
@@ -241,7 +247,7 @@
     border: 1px solid var(--rule);
     border-radius: 2px;
     background: var(--bg-2);
-    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 11px */
+    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at 11px */
     cursor: pointer;
     flex-shrink: 0;
     transition: color 80ms ease;
@@ -270,20 +276,20 @@
 
   .search-hint {
     font-family: var(--font-mono);
-    font-size: 0.75rem;   /* bumped from 0.7rem for readability */
-    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA */
+    font-size: 0.75rem; /* bumped from 0.7rem for readability */
+    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA */
   }
 
   .search-powered {
     margin-left: auto;
     font-family: var(--font-mono);
-    font-size: 0.75rem;   /* bumped from 0.7rem for readability */
-    color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA */
+    font-size: 0.75rem; /* bumped from 0.7rem for readability */
+    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA */
   }
 
   /* Pagefind result overrides — spec §4 */
   :global(.pagefind-ui__result) {
-    padding: 10px 16px;   /* spec §4 */
+    padding: 10px 16px; /* spec §4 */
     border-bottom: 1px solid var(--rule);
     border-left: 2px solid transparent;
   }

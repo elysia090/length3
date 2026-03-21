@@ -18,7 +18,8 @@ const { readingTime } = Astro.props;
   aria-valuemax={100}
   aria-valuenow={0}
   aria-label="Reading progress"
-></div>
+>
+</div>
 
 <div class="article-actions" data-reading-time={readingTime}>
   <div class="actions-group">
@@ -59,7 +60,9 @@ const { readingTime } = Astro.props;
     const el = document.querySelector<HTMLElement>(selector);
     if (!el) return;
     el.textContent = tempText;
-    setTimeout(() => { el.textContent = restoreText; }, ms);
+    setTimeout(() => {
+      el.textContent = restoreText;
+    }, ms);
   }
 
   // Copy link
@@ -129,14 +132,14 @@ const { readingTime } = Astro.props;
   .actions-group {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;                 /* 4px — grid aligned */
+    gap: 0.25rem; /* 4px — grid aligned */
   }
 
   .action-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 1rem 0;              /* WCAG 2.5.8: 44px touch target */
+    padding: 1rem 0; /* WCAG 2.5.8: 44px touch target */
     background: none;
     border: none;
     cursor: pointer;
@@ -165,7 +168,9 @@ const { readingTime } = Astro.props;
     font-weight: 600;
   }
 
-  .action-label { flex: 1; }
+  .action-label {
+    flex: 1;
+  }
 
   .action-arrow {
     color: var(--rule);
@@ -180,7 +185,7 @@ const { readingTime } = Astro.props;
 
   .stat-row {
     display: flex;
-    gap: 0.25rem;                 /* 4px — grid aligned */
+    gap: 0.25rem; /* 4px — grid aligned */
     font-family: var(--font-mono);
     font-size: 0.6875rem;
     color: var(--ink-2);
@@ -188,11 +193,13 @@ const { readingTime } = Astro.props;
   }
 
   .stat-pct {
-    font-size: 0.8125rem;  /* reduced from 0.875rem to match quiet design */
+    font-size: 0.8125rem; /* reduced from 0.875rem to match quiet design */
     color: var(--ink);
-    font-weight: 400;      /* reduced from 500 for proportional weight */
+    font-weight: 400; /* reduced from 500 for proportional weight */
     min-width: 2.5rem;
   }
 
-  .stat-detail { color: var(--ink-2); }  /* upgraded from Ink-3 for WCAG AA */
+  .stat-detail {
+    color: var(--ink-2);
+  } /* upgraded from Ink-3 for WCAG AA */
 </style>

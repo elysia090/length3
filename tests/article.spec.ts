@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { goToFirstArticle, getComputedStyleProp } from './helpers';
+import { expect, test } from '@playwright/test';
+import { getComputedStyleProp, goToFirstArticle } from './helpers';
 
 test.describe('Article page', () => {
   test.beforeEach(async ({ page }) => {
@@ -53,7 +53,9 @@ test.describe('Article page', () => {
       }
     });
 
-    test('TOC has border-left: 2px solid transparent on inactive links — spec §4', async ({ page }) => {
+    test('TOC has border-left: 2px solid transparent on inactive links — spec §4', async ({
+      page,
+    }) => {
       const borderWidth = await getComputedStyleProp(page, '.toc-link', 'border-left-width');
       expect(borderWidth).toBe('2px');
     });
@@ -64,7 +66,7 @@ test.describe('Article page', () => {
       const href = await firstLink.getAttribute('href');
       if (href) {
         const heading = page.locator(href);
-        if (await heading.count() > 0) {
+        if ((await heading.count()) > 0) {
           await heading.scrollIntoViewIfNeeded();
           // Wait for IntersectionObserver to fire
           await page.waitForTimeout(300);
@@ -74,7 +76,11 @@ test.describe('Article page', () => {
             const color = await getComputedStyleProp(page, '.toc-link.active', 'color');
             // amber #d4820a = rgb(212, 130, 10)
             expect(color).toBe('rgb(212, 130, 10)');
-            const borderColor = await getComputedStyleProp(page, '.toc-link.active', 'border-left-color');
+            const borderColor = await getComputedStyleProp(
+              page,
+              '.toc-link.active',
+              'border-left-color',
+            );
             expect(borderColor).toBe('rgb(212, 130, 10)');
           }
         }
@@ -127,7 +133,7 @@ test.describe('Article page', () => {
         const bar = document.getElementById('reading-progress') as HTMLElement | null;
         if (!bar) return 0;
         const style = bar.style.getPropertyValue('--progress');
-        return parseFloat(style) || 0;
+        return Number.parseFloat(style) || 0;
       });
       expect(width).toBeGreaterThan(0);
     });
@@ -163,7 +169,7 @@ test.describe('Article page', () => {
 
     test('body prose line-height is 1.95 (≈31.2px at 16px base) — spec §2', async ({ page }) => {
       const lh = await getComputedStyleProp(page, '.prose', 'line-height');
-      const lhNum = parseFloat(lh);
+      const lhNum = Number.parseFloat(lh);
       // 1.95 × 16 = 31.2px
       expect(lhNum).toBeCloseTo(31.2, 0);
     });
@@ -249,7 +255,7 @@ test.describe('Article page', () => {
     test('heading levels are not skipped — spec §6', async ({ page }) => {
       const headingLevels = await page.evaluate(() => {
         const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
-        return headings.map((h) => parseInt(h.tagName.charAt(1)));
+        return headings.map((h) => Number.parseInt(h.tagName.charAt(1)));
       });
       // Check no level is skipped (e.g., h1 → h3 without h2)
       for (let i = 1; i < headingLevels.length; i++) {
@@ -268,9 +274,7 @@ test.describe('Article page', () => {
       const transition = await getComputedStyleProp(page, '.toc-link', 'transition');
       // With reduced-motion, transition should be "none" or 0s duration
       const hasNoTransition =
-        transition === 'none' ||
-        transition.includes('0s') ||
-        transition === '';
+        transition === 'none' || transition.includes('0s') || transition === '';
       expect(hasNoTransition).toBe(true);
     });
   });
