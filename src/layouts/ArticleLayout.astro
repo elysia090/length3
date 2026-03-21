@@ -1,0 +1,104 @@
+---
+import type { TocHeading } from '../types/blog';
+import BaseLayout from './BaseLayout.astro';
+import TableOfContents from '../components/TableOfContents.astro';
+import ReadingProgress from '../components/ReadingProgress.astro';
+import ArticleActions from '../components/ArticleActions.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { formatDate } from '../lib/format-date';
+import '../styles/code.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  publishDate: Date;
+  updatedDate?: Date;
+  tags: string[];
+  readingTime: number;
+  headings: TocHeading[];
+  lang?: 'en' | 'ja';
+  slug: string;
+}
+
+const {
+  title,
+  description,
+  publishDate,
+  updatedDate,
+  tags,
+  readingTime,
+  headings,
+  lang = 'en',
+  slug,
+} = Astro.props;
+
+const dateStr = [
+  publishDate.getFullYear(),
+  String(publishDate.getMonth() + 1).padStart(2, '0'),
+  String(publishDate.getDate()).padStart(2, '0'),
+].join('.');
+---
+
+<BaseLayout title={title} description={description} lang={lang}>
+  <ReadingProgress />
+  <Header />
+
+  <Breadcrumb
+    segments={[
+      { label: 'Length³', href: '/' },
+      { label: 'articles', href: '/' },
+      { label: slug },
+    ]}
+  />
+
+  <div class="article-shell">
+    <!-- TOC -->
+    <aside class="toc-aside" aria-label="Table of contents">
+      <TableOfContents headings={headings} />
+    </aside>
+
+    <!-- Prose -->
+    <div class="prose-area">
+      <article class="prose" data-pagefind-body lang={lang}>
+        <header class="article-header">
+          <div class="article-header-meta">
+            <div class="article-header-tags">
+              {tags.map((tag) => (
+                <a href={`/tags/${tag.toLowerCase()}`} class="article-header-tag">#{tag}</a>
+              ))}
+            </div>
+            {tags.length > 0 && <span aria-hidden="true">·</span>}
+            <time datetime={publishDate.toISOString()} class="article-header-date">
+              {dateStr}
+            </time>
+            {updatedDate && (
+              <span class="article-header-date">
+                (upd. {formatDate(updatedDate, lang)})
+              </span>
+            )}
+          </div>
+
+          <h1>{title}</h1>
+          <hr class="article-header-hr" />
+
+          {description && (
+            <p class="article-header-lead">{description}</p>
+          )}
+
+          <p class="article-reading-time">{readingTime} min read</p>
+        </header>
+
+        <slot />
+      </article>
+    </div>
+
+    <!-- Actions -->
+    <aside class="actions-aside" aria-label="Utility actions">
+      <ArticleActions slug={slug} readingTime={readingTime} />
+    </aside>
+  </div>
+
+  <Footer />
+</BaseLayout>

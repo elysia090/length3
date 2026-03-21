@@ -1,0 +1,44 @@
+---
+export const prerender = true;
+
+import { getCollection, render } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import ArticleLayout from '../layouts/ArticleLayout.astro';
+import type { TocHeading } from '../types/blog';
+import { toSlug } from '../lib/slugify';
+import { estimateReadingTime } from '../lib/reading-time';
+
+export const getStaticPaths = (async () => {
+  const posts = await getCollection('blog', ({ data }) => !data.draft);
+  return posts.map((entry) => ({
+    params: { slug: toSlug(entry.id) },
+    props: { entry },
+  }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+
+const tocHeadings: TocHeading[] = headings.map((h) => ({
+  depth: h.depth,
+  slug: h.slug,
+  text: h.text,
+}));
+
+const slug = toSlug(entry.id);
+const readingTime = estimateReadingTime(entry.body ?? '');
+---
+
+<ArticleLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  publishDate={entry.data.publishDate}
+  updatedDate={entry.data.updatedDate}
+  tags={entry.data.tags}
+  readingTime={readingTime}
+  headings={tocHeadings}
+  lang={entry.data.lang}
+  slug={slug}
+>
+  <Content />
+</ArticleLayout>

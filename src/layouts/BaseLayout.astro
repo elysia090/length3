@@ -1,0 +1,35 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  lang?: 'en' | 'ja';
+}
+
+const {
+  title,
+  description = 'A technical blog.',
+  ogImage,
+  lang = 'en',
+} = Astro.props;
+
+import '../styles/global.css';
+import '../styles/typography.css';
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

@@ -1,0 +1,72 @@
+---
+// No props
+---
+
+<header class="site-header">
+  <div class="header-inner">
+    <a href="/" class="site-title" aria-label="Length³ home">
+      Length<sup>3</sup>
+    </a>
+    <nav class="header-nav" aria-label="Site navigation">
+      <a href="/">(Articles)</a>
+      <a href="/tags">(Tags)</a>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .site-header {
+    border-top: 2px solid var(--color-text);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 0.8rem 1.5rem;
+  }
+
+  .site-title {
+    font-family: var(--font-mono);
+    font-size: 0.9375rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--color-text);
+  }
+
+  .site-title sup {
+    font-size: 0.6em;
+    vertical-align: super;
+    line-height: 0;
+  }
+
+  .site-title:hover {
+    color: var(--color-accent);
+  }
+
+  .header-nav {
+    display: flex;
+    gap: 1.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-muted);
+  }
+
+  .header-nav a {
+    transition: color 0.1s;
+  }
+
+  .header-nav a:hover {
+    color: var(--color-text);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+</style>

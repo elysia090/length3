@@ -1,0 +1,28 @@
+---
+import { tagToSlug } from '../lib/slugify';
+
+interface Props {
+  tag: string;
+}
+
+const { tag } = Astro.props;
+---
+
+<a href={`/tags/${tagToSlug(tag)}`} class="tag-badge" rel="tag">{tag}</a>
+
+<style>
+  .tag-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 0.2em 0.55em;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    color: var(--color-muted);
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .tag-badge:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+</style>

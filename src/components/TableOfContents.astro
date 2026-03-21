@@ -1,0 +1,107 @@
+---
+import type { TocHeading } from '../types/blog';
+
+interface Props {
+  headings: TocHeading[];
+}
+
+const { headings } = Astro.props;
+const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+{
+  filtered.length > 0 && (
+    <nav class="toc" aria-label="Table of contents">
+      <p class="toc-label">CONTENTS</p>
+      <ol>
+        {filtered.map((h) => (
+          <li class={`toc-item toc-depth-${h.depth}`}>
+            <a href={`#${h.slug}`} class="toc-link" data-heading={h.slug}>
+              {h.text}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
+
+<script>
+  const links = document.querySelectorAll<HTMLAnchorElement>('.toc-link');
+  const headingEls = document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]');
+
+  if (links.length > 0 && headingEls.length > 0) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            for (const link of links) {
+              const isActive = link.getAttribute('href') === `#${entry.target.id}`;
+              link.classList.toggle('active', isActive);
+            }
+          }
+        }
+      },
+      { rootMargin: '0px 0px -55% 0px', threshold: 0 },
+    );
+    for (const el of headingEls) observer.observe(el);
+  }
+</script>
+
+<style>
+  .toc {
+    font-size: 0.8125rem;
+  }
+
+  .toc-label {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+    color: var(--color-muted);
+    margin-bottom: 0.875rem;
+  }
+
+  .toc ol {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .toc-item {
+    position: relative;
+  }
+
+  .toc-depth-3 {
+    padding-left: 1rem;
+  }
+
+  .toc-link {
+    display: block;
+    padding: 0.2rem 0 0.2rem 0.6rem;
+    color: var(--color-muted);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    transition: color 0.1s;
+    border-left: 2px solid transparent;
+  }
+
+  .toc-link:hover {
+    color: var(--color-text);
+    border-left-color: var(--color-border);
+  }
+
+  .toc-link.active {
+    color: var(--color-accent);
+    border-left-color: var(--color-accent);
+    font-weight: 500;
+  }
+
+  .toc-depth-3 .toc-link {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    opacity: 0.85;
+  }
+</style>

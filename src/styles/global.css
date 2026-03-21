@@ -1,0 +1,171 @@
+/* ─── Design Tokens ─────────────────────────────────────────── */
+:root {
+  /* Colors: ash-white × amber */
+  --color-bg:         #f2f0ec;
+  --color-surface:    #ebe8e3;
+  --color-text:       #1a1917;
+  --color-muted:      #6b6860;
+  --color-border:     #ccc9c2;
+  --color-accent:     #d97706;   /* amber — primary accent */
+  --color-accent-dim: #f59e0b;   /* lighter amber */
+  --color-tag:        #92400e;   /* dark amber for tag text */
+  --color-code-dark:  #18181b;   /* editor / code block bg */
+  --color-code-light: #eeece8;   /* inline code bg */
+
+  /* Typography */
+  --font-display: Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', 'Times New Roman', serif;
+  --font-sans:    system-ui, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  --font-mono:    ui-monospace, 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Layout */
+  --measure:          72ch;
+  --sidebar-width:    280px;
+  --toc-width:        200px;
+  --spacing-base:     1rem;
+}
+
+/* ─── Reset ──────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+  /* Subtle grain texture */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ─── Index Layout ───────────────────────────────────────────── */
+/* 3-column: [rotate-label | articles | sidebar] */
+.index-layout {
+  display: grid;
+  grid-template-columns: 36px 1fr var(--sidebar-width);
+  grid-template-areas: 'rot list side';
+  gap: 0 2.5rem;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.index-rotate-label {
+  grid-area: rot;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  color: var(--color-muted);
+  text-transform: lowercase;
+  align-self: start;
+  padding-top: 1rem;
+  user-select: none;
+}
+
+.article-list {
+  grid-area: list;
+  min-width: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.index-sidebar {
+  grid-area: side;
+  padding-top: 0;
+}
+
+/* ─── Article Shell ──────────────────────────────────────────── */
+/* 3-column: [toc | prose | actions] */
+.article-shell {
+  display: grid;
+  grid-template-columns: var(--toc-width) minmax(0, var(--measure)) 1fr;
+  grid-template-areas: 'toc prose act';
+  gap: 0 2.5rem;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 1.5rem 4rem;
+}
+
+.toc-aside {
+  grid-area: toc;
+  position: sticky;
+  top: 2rem;
+  align-self: start;
+  max-height: calc(100dvh - 4rem);
+  overflow-y: auto;
+  padding-top: 2rem;
+}
+
+.prose-area {
+  grid-area: prose;
+  min-width: 0;
+}
+
+.actions-aside {
+  grid-area: act;
+  position: sticky;
+  top: 2rem;
+  align-self: start;
+  padding-top: 2rem;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .index-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'list'
+      'side';
+  }
+  .index-rotate-label { display: none; }
+  .index-sidebar { border-top: 1px solid var(--color-border); padding-top: 2rem; }
+}
+
+@media (max-width: 800px) {
+  .article-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'toc'
+      'prose'
+      'act';
+  }
+  .toc-aside,
+  .actions-aside {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* ─── Utilities ──────────────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
