@@ -267,23 +267,15 @@ Start writing here.
     }
     // Strip frontmatter
     const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
-    // Naive markdown → HTML (dev preview only)
-    const lines = body.split('\n');
-    let prevBlank = false;
-    const bodyHtml = lines
+    // Naive markdown → HTML (dev preview only; blank lines become paragraph breaks via CSS margin)
+    const bodyHtml = body.split('\n')
       .map((line) => {
-        if (line.startsWith('### ')) { prevBlank = false; return `<h3>${esc(line.slice(4))}</h3>`; }
-        if (line.startsWith('## ')) { prevBlank = false; return `<h2>${esc(line.slice(3))}</h2>`; }
-        if (line.startsWith('# ')) { prevBlank = false; return `<h1>${esc(line.slice(2))}</h1>`; }
-        if (line.startsWith('> ')) { prevBlank = false; return `<blockquote><p>${esc(line.slice(2))}</p></blockquote>`; }
-        if (line.trim() === '') {
-          if (prevBlank) return '';  // skip consecutive blank lines
-          prevBlank = true;
-          return '';  // paragraph breaks handled by <p> margin, not <br>
-        }
-        prevBlank = false;
-        const escaped = esc(line).replace(/`([^`]+)`/g, '<code>$1</code>');
-        return `<p>${escaped}</p>`;
+        if (line.startsWith('### ')) return `<h3>${esc(line.slice(4))}</h3>`;
+        if (line.startsWith('## '))  return `<h2>${esc(line.slice(3))}</h2>`;
+        if (line.startsWith('# '))   return `<h1>${esc(line.slice(2))}</h1>`;
+        if (line.startsWith('> '))   return `<blockquote><p>${esc(line.slice(2))}</p></blockquote>`;
+        if (line.trim() === '')      return '';
+        return `<p>${esc(line).replace(/`([^`]+)`/g, '<code>$1</code>')}</p>`;
       })
       .filter(Boolean)
       .join('');
