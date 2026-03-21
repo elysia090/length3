@@ -17,6 +17,12 @@ importers:
       '@astrojs/mdx':
         specifier: ^5.0.2
         version: 5.0.2(astro@6.0.7(@types/node@25.5.0)(rollup@4.59.0)(typescript@5.9.3)(yaml@2.8.2))
+      '@codemirror/language':
+        specifier: ^6.12.2
+        version: 6.12.2
+      '@lezer/highlight':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0

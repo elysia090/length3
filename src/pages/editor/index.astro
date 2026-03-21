@@ -59,7 +59,8 @@ import '../../styles/code.css';
   import { EditorView, basicSetup } from 'codemirror';
   import { EditorState } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
-  import { oneDark } from '@codemirror/theme-one-dark';
+  import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+  import { tags } from '@lezer/highlight';
 
   const mount = document.getElementById('editor-mount');
   const output = document.getElementById('preview-output');
@@ -76,13 +77,78 @@ date: ${new Date().toISOString().slice(0, 10)}
 Start writing here.
 `;
 
+  // ── Custom theme — spec §4 ────────────────────────────────────
+  const length3Theme = EditorView.theme({
+    '&': {
+      backgroundColor: '#181511',   /* --editor-bg */
+      color: '#c8c4be',
+    },
+    '.cm-content': { caretColor: '#d4820a' },
+    '.cm-cursor': { borderLeftColor: '#d4820a', borderLeftWidth: '2px' },
+    '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.025)' },
+    '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a8070' },
+    '.cm-gutters': {
+      backgroundColor: '#181511',
+      color: '#3a3630',
+      border: 'none',
+      width: '40px',
+    },
+    '.cm-lineNumbers .cm-gutterElement': { paddingRight: '8px' },
+    '.cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.2)' },
+    '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.25)' },
+    '.cm-line': { paddingLeft: '8px' },
+  }, { dark: true });
+
+  // ── Syntax highlight — spec §4 ────────────────────────────────
+  const length3Highlight = HighlightStyle.define([
+    // Frontmatter delimiters (---)
+    { tag: tags.processingInstruction, color: '#9a9690' },
+    // YAML keys
+    { tag: tags.attributeName, color: '#7a9ab8' },
+    { tag: tags.propertyName, color: '#7a9ab8' },
+    // YAML values / strings
+    { tag: tags.string, color: '#7ec49a' },
+    { tag: tags.number, color: '#7ec49a' },
+    { tag: tags.bool, color: '#7ec49a' },
+    // Markdown H1
+    { tag: tags.heading1, color: '#e8a030', fontWeight: '500' },
+    // Markdown H2
+    { tag: tags.heading2, color: '#d4820a', fontWeight: '400' },
+    // Markdown H3–H6
+    { tag: tags.heading3, color: '#d4820a' },
+    { tag: tags.heading4, color: '#d4820a' },
+    // Code / keywords
+    { tag: tags.keyword, color: '#d4820a' },
+    { tag: tags.operator, color: '#d4820a' },
+    // Inline code content
+    { tag: tags.monospace, color: '#e8a030' },
+    // Function names
+    { tag: tags.function(tags.name), color: '#8bb8e8' },
+    { tag: tags.function(tags.variableName), color: '#8bb8e8' },
+    // Comments
+    { tag: tags.comment, color: '#3d3a34', fontStyle: 'italic' },
+    // Links / URLs
+    { tag: tags.url, color: '#7ec49a', textDecoration: 'underline' },
+    { tag: tags.link, color: '#7a9ab8' },
+    // Emphasis
+    { tag: tags.emphasis, fontStyle: 'italic', color: '#c8c4be' },
+    { tag: tags.strong, fontWeight: 'bold', color: '#c8c4be' },
+    // Default fallback
+    { tag: tags.name, color: '#c8c4be' },
+    { tag: tags.variableName, color: '#c8c4be' },
+    { tag: tags.content, color: '#c8c4be' },
+    { tag: tags.atom, color: '#7ec49a' },
+    { tag: tags.meta, color: '#9a9690' },
+  ]);
+
   if (mount && output) {
     const state = EditorState.create({
       doc: initialDoc,
       extensions: [
         basicSetup,
         markdown(),
-        oneDark,
+        length3Theme,
+        syntaxHighlighting(length3Highlight),
         EditorView.updateListener.of((update) => {
           if (update.selectionSet || update.docChanged) {
             const pos = update.state.selection.main.head;
@@ -197,9 +263,12 @@ Start writing here.
     transition: color 80ms ease;
   }
 
+  /* Dark-context button colors — spec §4 role hierarchy preserved:
+     Discard (least prominent) → Preview → Publish (most prominent)
+     Tokens are interpreted for dark background readability */
   .editor-btn-discard {
     border: none;
-    color: var(--ink-3);   /* spec §4: Ink-3, text only, no border */
+    color: #6b6860;   /* Ink-3 equivalent on dark: recessive */
   }
 
   .editor-btn-discard:hover {
@@ -207,25 +276,26 @@ Start writing here.
   }
 
   .editor-btn-preview {
-    border: 1px solid #3a3630;   /* spec §4: Rule border */
+    border: 1px solid #3a3630;
     border-radius: 2px;
-    color: var(--ink-2);
+    color: #9a9690;   /* Ink-2 equivalent on dark: secondary */
   }
 
   .editor-btn-preview:hover {
     border-color: #52504a;
-    color: #9a9690;
+    color: #c8c4be;
   }
 
+  /* spec §4: Publish — Ink text (primary/brightest), Rule border, NOT amber */
   .editor-btn-publish {
-    border: 1px solid #3a3630;   /* spec §4: Rule border, NOT amber */
+    border: 1px solid #52504a;
     border-radius: 2px;
-    color: var(--ink);
+    color: #e2ddd8;   /* Ink equivalent on dark: primary, most readable */
   }
 
   .editor-btn-publish:hover {
-    border-color: #52504a;
-    color: #9a9690;
+    border-color: #9a9690;
+    color: #f9f8f5;
   }
 
   /* ── Main: 50/50 split ── */

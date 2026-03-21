@@ -60,13 +60,15 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
     border-bottom: none;
   }
 
+  /* spec §4: "2行を縦に並べ、間に明示的なgapなし" */
   .card-date {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    padding-top: 0.2rem;
+    padding-top: 0.15rem;
     font-family: var(--font-mono);
     flex-shrink: 0;
+    line-height: 1.3;   /* tight — year and MM.DD read as one block */
   }
 
   /* spec §4: year — Ink-3, letter-spacing 0.06em */
@@ -76,7 +78,7 @@ const mmdd = `${String(publishDate.getMonth() + 1).padStart(2, '0')}.${String(pu
     color: var(--ink-3);
   }
 
-  /* spec §4: MM.DD — 0.8rem, Ink-2 */
+  /* spec §4: MM.DD — 0.8rem, Ink-2, letter-spacing 0.04em */
   .card-mmdd {
     font-size: 0.8rem;
     letter-spacing: 0.04em;
