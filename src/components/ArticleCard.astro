@@ -1,6 +1,6 @@
 ---
 import type { ProcessedPost } from '../lib/types';
-import { formatDate } from '../lib/utils';
+import { formatDate, tagToSlug } from '../lib/utils';
 
 interface Props {
   post: ProcessedPost;
@@ -31,7 +31,7 @@ const dateStr = formatDate(publishDate);
     tags.length > 0 && (
       <div class="card-tags" aria-label="tags">
         {tags.map((t) => (
-          <a href={`/tags/${t.toLowerCase()}`} class="card-tag">#{t}</a>
+          <a href={`/tags/${tagToSlug(t)}`} class="card-tag">#{t}</a>
         ))}
       </div>
     )

@@ -17,8 +17,7 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
           Mobile (< 720px):  JS removes `open` so it starts collapsed. */}
       <details class="toc-details" open>
         <summary class="toc-label">Contents</summary>
-        {/* spec §6: TOC <ul> carries aria-label="Table of Contents" */}
-        <ul aria-label="Table of Contents">
+        <ul>
           {filtered.map((h) => (
             <li class={`toc-item toc-depth-${h.depth}`}>
               <a href={`#${h.slug}`} class="toc-link" data-heading={h.slug}>
@@ -53,17 +52,29 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
     }
 
     let activeLink: HTMLAnchorElement | null = null;
+    const intersecting = new Set<string>();
+
     const sectionObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            const next = linkByHeadingId.get(entry.target.id) ?? null;
-            if (next !== activeLink) {
-              activeLink?.classList.remove('active');
-              next?.classList.add('active');
-              activeLink = next;
-            }
+            intersecting.add(entry.target.id);
+          } else {
+            intersecting.delete(entry.target.id);
           }
+        }
+        // Pick the topmost intersecting heading in document order
+        let next: HTMLAnchorElement | null = null;
+        for (const el of headingEls) {
+          if (intersecting.has(el.id)) {
+            next = linkByHeadingId.get(el.id) ?? null;
+            break;
+          }
+        }
+        if (next !== activeLink) {
+          activeLink?.classList.remove('active');
+          next?.classList.add('active');
+          activeLink = next;
         }
       },
       // -55%: heading must be in the top 45% of the viewport to be "active"

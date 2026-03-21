@@ -55,7 +55,13 @@ const { readingTime } = Astro.props;
     if (navigator.share) {
       navigator.share({ url: window.location.href, title: document.title }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        const label = document.querySelector('#share-btn .action-label');
+        if (label) {
+          label.textContent = 'Copied!';
+          setTimeout(() => { label.textContent = 'Share'; }, 1500);
+        }
+      }).catch(() => {});
     }
   });
 
