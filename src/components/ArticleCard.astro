@@ -98,7 +98,7 @@ const dateStr = formatDate(publishDate);
 
   .card-title a {
     color: var(--ink);
-    transition: color 80ms ease;
+    transition: color var(--transition-fast);
     cursor: default; /* spec §4: color shift alone communicates interactivity */
   }
 
@@ -133,8 +133,8 @@ const dateStr = formatDate(publishDate);
     border: 1px solid var(--rule);
     border-radius: 2px;
     transition:
-      color 80ms ease,
-      border-color 80ms ease;
+      color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .card-tag:hover,

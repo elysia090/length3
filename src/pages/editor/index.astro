@@ -269,7 +269,7 @@ Start writing here.
     padding: 0.5rem 0.75rem; /* WCAG 2.5.8: touch target */
     background: transparent;
     cursor: pointer;
-    transition: color 80ms ease;
+    transition: color var(--transition-fast);
   }
 
   /* Dark-context button colors — spec §4 role hierarchy preserved:
@@ -419,8 +419,8 @@ Start writing here.
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition:
-      color 80ms ease,
-      border-color 80ms ease;
+      color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .editor-tab[aria-selected='true'] {

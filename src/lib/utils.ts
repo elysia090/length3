@@ -1,3 +1,19 @@
+import type { BlogPost, ProcessedPost } from './types';
+
+/**
+ * Converts a raw blog collection entry into a ProcessedPost ready for
+ * rendering.  Centralised here so every page derives slug, readingTime and
+ * excerpt from the same logic.
+ */
+export function processPost(entry: BlogPost): ProcessedPost {
+  return {
+    entry,
+    slug: toSlug(entry.id),
+    readingTime: estimateReadingTime(entry.body ?? ''),
+    excerpt: entry.data.description,
+  };
+}
+
 /** Removes file extension from a Content Layer entry ID to produce a URL slug. */
 export function toSlug(id: string): string {
   return id.replace(/\.(mdx?|md)$/, '').toLowerCase();
