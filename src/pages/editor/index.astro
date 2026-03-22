@@ -82,16 +82,17 @@ import '../../styles/code.css';
 
 <script>
   import { EditorView, basicSetup } from 'codemirror';
-  import { EditorState, RangeSetBuilder } from '@codemirror/state';
-  import { Decoration, type DecorationSet, type ViewUpdate, ViewPlugin } from '@codemirror/view';
+  import { EditorState } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
-  import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-  import { tags } from '@lezer/highlight';
-  import { marked } from 'marked';
+  import { syntaxHighlighting } from '@codemirror/language';
+  import { length3Theme, length3Highlight } from '../../lib/editor/theme';
+  import { frontmatterPlugin } from '../../lib/editor/frontmatter-plugin';
+  import { renderPreview } from '../../lib/editor/preview';
 
   const mount = document.getElementById('editor-mount');
-  const output = document.getElementById('preview-output');
+  const output = document.getElementById('preview-output') as HTMLElement | null;
   const posEl = document.getElementById('status-pos');
+  const countEl = document.getElementById('status-count');
   let docChanged = false;
 
   // Nielsen H5: warn before leaving with unsaved changes
@@ -109,7 +110,7 @@ import '../../styles/code.css';
 
   // Nielsen H1: Publish feedback
   document.getElementById('publish-btn')?.addEventListener('click', () => {
-    const btn = document.getElementById('publish-btn');
+    const btn = document.getElementById('publish-btn') as HTMLButtonElement | null;
     if (btn) {
       btn.textContent = 'Published!';
       // Clear the dirty flag so beforeunload no longer warns after publishing
@@ -131,134 +132,6 @@ date: ${new Date().toISOString().slice(0, 10)}
 Start writing here.
 `;
 
-  // ── Custom theme — spec §4 ────────────────────────────────────
-  const length3Theme = EditorView.theme(
-    {
-      '&': {
-        backgroundColor: '#181511' /* --editor-bg */,
-        color: '#c8c4be',
-      },
-      '.cm-content': {
-        caretColor: '#d4820a',
-        lineHeight: '1.75', // breathing room for long-form writing
-        paddingTop: '24px',
-        paddingBottom: '80px', // bottom padding so last line isn't flush against statusbar
-      },
-      '.cm-cursor': { borderLeftColor: '#d4820a', borderLeftWidth: '2px' },
-      '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.03)' },
-      '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a8070' },
-      '.cm-gutters': {
-        backgroundColor: '#181511',
-        color: '#3a3630',
-        border: 'none',
-        width: '48px',
-      },
-      '.cm-lineNumbers .cm-gutterElement': { paddingRight: '12px' },
-      '.cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.2)' },
-      '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(212,130,10,0.25)' },
-      '.cm-line': { paddingLeft: '20px', paddingRight: '20px' },
-    },
-    { dark: true },
-  );
-
-  // ── Syntax highlight — spec §4 ────────────────────────────────
-  const length3Highlight = HighlightStyle.define([
-    // Frontmatter delimiters (---)
-    { tag: tags.processingInstruction, color: '#9a9690' },
-    // YAML keys
-    { tag: tags.attributeName, color: '#7a9ab8' },
-    { tag: tags.propertyName, color: '#7a9ab8' },
-    // YAML values / strings
-    { tag: tags.string, color: '#7ec49a' },
-    { tag: tags.number, color: '#7ec49a' },
-    { tag: tags.bool, color: '#7ec49a' },
-    // Markdown H1
-    { tag: tags.heading1, color: '#e8a030', fontWeight: '500' },
-    // Markdown H2
-    { tag: tags.heading2, color: '#d4820a', fontWeight: '400' },
-    // Markdown H3–H6
-    { tag: tags.heading3, color: '#d4820a' },
-    { tag: tags.heading4, color: '#d4820a' },
-    // Code / keywords
-    { tag: tags.keyword, color: '#d4820a' },
-    { tag: tags.operator, color: '#d4820a' },
-    // Inline code content
-    { tag: tags.monospace, color: '#e8a030' },
-    // Function names
-    { tag: tags.function(tags.name), color: '#8bb8e8' },
-    { tag: tags.function(tags.variableName), color: '#8bb8e8' },
-    // Comments
-    { tag: tags.comment, color: '#3d3a34', fontStyle: 'italic' },
-    // Links / URLs
-    { tag: tags.url, color: '#7ec49a', textDecoration: 'underline' },
-    { tag: tags.link, color: '#7a9ab8' },
-    // Emphasis
-    { tag: tags.emphasis, fontStyle: 'italic', color: '#c8c4be' },
-    { tag: tags.strong, fontWeight: 'bold', color: '#c8c4be' },
-    // Default fallback
-    { tag: tags.name, color: '#c8c4be' },
-    { tag: tags.variableName, color: '#c8c4be' },
-    { tag: tags.content, color: '#c8c4be' },
-    { tag: tags.atom, color: '#7ec49a' },
-    { tag: tags.meta, color: '#9a9690' },
-  ]);
-
-  // ── Frontmatter YAML decoration — colorize keys/values within --- blocks ──
-  const fmKeyMark = Decoration.mark({ class: 'cm-fm-key' });
-  const fmValMark = Decoration.mark({ class: 'cm-fm-val' });
-  const fmDelimMark = Decoration.mark({ class: 'cm-fm-delim' });
-
-  function buildFrontmatterDecos(view: EditorView): DecorationSet {
-    const builder = new RangeSetBuilder<Decoration>();
-    const doc = view.state.doc;
-    const text = doc.toString();
-    // Detect frontmatter: must start at line 1 with ---
-    if (!text.startsWith('---')) return builder.finish();
-    const endIdx = text.indexOf('\n---', 3);
-    if (endIdx === -1) return builder.finish();
-    const fmEnd = endIdx + 4; // include closing ---\n
-
-    for (let i = 1; i <= doc.lines; i++) {
-      const line = doc.line(i);
-      if (line.from >= fmEnd) break;
-      const lineText = line.text;
-
-      if (lineText.trim() === '---') {
-        // Delimiter line
-        builder.add(line.from, line.to, fmDelimMark);
-      } else {
-        // YAML key: value
-        const colonIdx = lineText.indexOf(':');
-        if (colonIdx > 0) {
-          builder.add(line.from, line.from + colonIdx, fmKeyMark);
-          const valStart = colonIdx + 1;
-          const valText = lineText.slice(valStart);
-          if (valText.trim().length > 0) {
-            // Find first non-space after colon
-            const trimOffset = valText.length - valText.trimStart().length;
-            builder.add(line.from + valStart + trimOffset, line.to, fmValMark);
-          }
-        }
-      }
-    }
-    return builder.finish();
-  }
-
-  const frontmatterPlugin = ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      constructor(view: EditorView) {
-        this.decorations = buildFrontmatterDecos(view);
-      }
-      update(update: ViewUpdate) {
-        if (update.docChanged || update.viewportChanged) {
-          this.decorations = buildFrontmatterDecos(update.view);
-        }
-      }
-    },
-    { decorations: (v) => v.decorations },
-  );
-
   if (mount && output) {
     const state = EditorState.create({
       doc: initialDoc,
@@ -277,48 +150,14 @@ Start writing here.
           }
           if (update.docChanged) {
             docChanged = true;
-            const text = update.state.doc.toString();
-            renderPreview(text);
+            renderPreview(update.state.doc.toString(), output, countEl);
           }
         }),
       ],
     });
 
     new EditorView({ state, parent: mount });
-    renderPreview(initialDoc);
-  }
-
-  // ── Markdown preview renderer ─────────────────────────────────
-
-  function renderPreview(text: string) {
-    if (!output) return;
-
-    // Extract frontmatter
-    let title = '';
-    let lang = 'en';
-    const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      const fm = fmMatch[1]!;
-      const titleM = fm.match(/^title:\s*(.+)$/m);
-      if (titleM) title = titleM[1]!.trim().replace(/^['"]|['"]$/g, '');
-      const langM = fm.match(/^lang:\s*(.+)$/m);
-      if (langM) lang = langM[1]!.trim().replace(/^['"]|['"]$/g, '');
-    }
-
-    // Apply lang to preview so Japanese typography CSS takes effect
-    output.setAttribute('lang', lang);
-
-    const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
-
-    const headerHtml = title
-      ? `<header class="article-header"><h1>${marked.parseInline(title) as string}</h1><hr class="article-header-hr"></header>`
-      : '';
-    output.innerHTML = headerHtml + marked.parse(body);
-
-    // Update character count in status bar
-    const chars = body.replace(/\s/g, '').length;
-    const countEl = document.getElementById('status-count');
-    if (countEl) countEl.textContent = `${chars} chars`;
+    renderPreview(initialDoc, output, countEl);
   }
 
   // ── Mobile tab switching — APG Tabs pattern ──────────────────

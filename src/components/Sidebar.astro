@@ -57,8 +57,11 @@
       const pagefindSrc = `${location.origin}/pagefind/pagefind-ui.js`;
       const { PagefindUI } = await import(/* @vite-ignore */ pagefindSrc);
       new PagefindUI({ element: '#pagefind-results', showImages: false, showSubResults: true });
-    } catch {
-      // dev mode: pagefind not built yet
+    } catch (err) {
+      // Pagefind index is only present after `astro build` — not in dev mode.
+      console.warn('[search] Pagefind unavailable:', err instanceof Error ? err.message : err);
+      const results = document.getElementById('pagefind-results');
+      if (results) results.innerHTML = '<p style="padding:1rem;font-size:0.875rem;color:var(--ink-2)">Search is only available in the built site.</p>';
     }
   }
 
