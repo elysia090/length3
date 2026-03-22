@@ -104,10 +104,9 @@ test.describe('Article page', () => {
   // ── Reading progress — spec §5 ───────────────────────────────────
   test.describe('Reading progress bar', () => {
     test('progress bar starts at 0% width', async ({ page }) => {
-      const width = await page.evaluate(() => {
-        const bar = document.getElementById('reading-progress');
-        return bar ? getComputedStyle(bar).width : '';
-      });
+      const width = await page
+        .locator('#reading-progress')
+        .evaluate((el) => getComputedStyle(el).width);
       expect(width).toBe('0px');
     });
 

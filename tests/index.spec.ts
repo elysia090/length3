@@ -70,11 +70,9 @@ test.describe('Index page', () => {
     });
 
     test('nav link hover has no text-decoration — spec §4', async ({ page }) => {
-      await page.locator('.header-nav a').first().hover();
-      const decoration = await page.evaluate(() => {
-        const el = document.querySelector('.header-nav a');
-        return el ? getComputedStyle(el).textDecorationLine : '';
-      });
+      const link = page.locator('.header-nav a').first();
+      await link.hover();
+      const decoration = await link.evaluate((el) => getComputedStyle(el).textDecorationLine);
       expect(decoration).toBe('none');
     });
   });
@@ -82,10 +80,10 @@ test.describe('Index page', () => {
   // ── Article Card — spec §4 ───────────────────────────────────────
   test.describe('Article card', () => {
     test('date column is 80px — spec §4', async ({ page }) => {
-      const width = await page.evaluate(() => {
-        const date = document.querySelector('.card-date');
-        return date ? (date as HTMLElement).offsetWidth : 0;
-      });
+      const width = await page
+        .locator('.card-date')
+        .first()
+        .evaluate((el) => (el as HTMLElement).offsetWidth);
       expect(width).toBe(80);
     });
 
@@ -120,19 +118,18 @@ test.describe('Index page', () => {
     });
 
     test('first card has no top padding — spec §4', async ({ page }) => {
-      const pt = await page.evaluate(() => {
-        const card = document.querySelector('.article-card');
-        return card ? getComputedStyle(card).paddingTop : '';
-      });
+      const pt = await page
+        .locator('.article-card')
+        .first()
+        .evaluate((el) => getComputedStyle(el).paddingTop);
       expect(pt).toBe('0px');
     });
 
     test('last card has no bottom border — spec §4', async ({ page }) => {
-      const border = await page.evaluate(() => {
-        const cards = document.querySelectorAll('.article-card');
-        const last = cards[cards.length - 1];
-        return last ? getComputedStyle(last).borderBottomWidth : '';
-      });
+      const border = await page
+        .locator('.article-card')
+        .last()
+        .evaluate((el) => getComputedStyle(el).borderBottomWidth);
       expect(border).toBe('0px');
     });
   });
@@ -215,10 +212,9 @@ test.describe('Index page', () => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.goto('/');
       await page.locator('#search-trigger').click();
-      const width = await page.evaluate(() => {
-        const card = document.querySelector('.search-card');
-        return card ? (card as HTMLElement).offsetWidth : 0;
-      });
+      const width = await page
+        .locator('.search-card')
+        .evaluate((el) => (el as HTMLElement).offsetWidth);
       expect(width).toBe(560);
     });
 

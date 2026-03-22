@@ -37,7 +37,7 @@ export async function gotoWithFonts(page: Page, url: string): Promise<void> {
       ]);
       // Force a style recalculation so text re-renders with the loaded fonts.
       document.body.style.visibility = 'hidden';
-      document.body.offsetHeight; // trigger reflow
+      void document.body.offsetHeight; // trigger reflow
       document.body.style.visibility = '';
     },
     [FRAUNCES_WOFF2, FRAUNCES_ITALIC_WOFF2] as [string, string],
