@@ -172,7 +172,7 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
     letter-spacing: 0.14em;
     color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at small size */
     text-transform: uppercase;
-    margin-bottom: 16px; /* spec §4 */
+    margin-bottom: 1rem;
     display: block;
     list-style: none;
   }
@@ -218,7 +218,7 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
     }
 
     .toc-details > ul {
-      margin-top: 8px;
+      margin-top: 0.5rem;
     }
   }
 
@@ -232,15 +232,13 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
     position: relative;
   }
 
-  /* spec §4: H3 sub-items margin-left 12px */
   .toc-depth-3 {
-    margin-left: 12px;
+    margin-left: 0.75rem;
   }
 
-  /* spec §4: padding 6px 0, padding-left 8px, border-left 2px transparent */
   .toc-link {
     display: block;
-    padding: 6px 0 6px 8px;
+    padding: 0.375rem 0 0.375rem 0.5rem;
     color: var(--ink-2);
     font-family: var(--font-mono);
     font-size: 0.8rem;

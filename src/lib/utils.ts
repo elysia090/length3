@@ -10,14 +10,14 @@ export const notDraft = (entry: BlogPost) => !entry.data.draft;
 /**
  * Converts a raw blog collection entry into a ProcessedPost ready for
  * rendering.  Centralised here so every page derives slug, readingTime and
- * excerpt from the same logic.
+ * description from the same logic.
  */
 export function processPost(entry: BlogPost): ProcessedPost {
   return {
     entry,
     slug: toSlug(entry.id),
     readingTime: estimateReadingTime(entry.body ?? ''),
-    excerpt: entry.data.description,
+    description: entry.data.description,
   };
 }
 

@@ -7,7 +7,7 @@ export interface ProcessedPost {
   entry: BlogPost;
   slug: string;
   readingTime: number;
-  excerpt: string;
+  description: string;
 }
 
 export interface TocHeading {

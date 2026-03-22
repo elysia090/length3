@@ -7,17 +7,15 @@ const blog = defineCollection({
     pattern: '**/*.{md,mdx}',
     base: './src/content/blog',
   }),
-  schema: ({ image }) =>
-    z.object({
-      title: z.string(),
-      description: z.string(),
-      publishDate: z.coerce.date(),
-      updatedDate: z.coerce.date().optional(),
-      tags: z.array(z.string()).default([]),
-      heroImage: image().optional(),
-      draft: z.boolean().default(false),
-      lang: z.enum(['en', 'ja']).default('en'),
-    }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    publishDate: z.coerce.date(),
+    updatedDate: z.coerce.date().optional(),
+    tags: z.array(z.string()).default([]),
+    draft: z.boolean().default(false),
+    lang: z.enum(['en', 'ja']).default('en'),
+  }),
 });
 
 export const collections = { blog };

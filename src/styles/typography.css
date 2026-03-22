@@ -85,7 +85,7 @@
 /* Inline code — spec §4 */
 .prose code {
   font-family: var(--font-mono);
-  font-size: 0.88em;            /* spec §2 */
+  font-size: 0.875em;           /* spec §2 */
   background: var(--bg-2);
   padding: 1px 5px;             /* spec §4: 1px 5px */
   border-radius: 3px;           /* spec §4 */
@@ -107,7 +107,7 @@
   background: none;
   border: none;
   padding: 0;
-  font-size: 0.84rem;          /* spec §4 */
+  font-size: 0.875rem;         /* spec §4 */
   color: var(--ink-2);
   line-height: 1.75;           /* spec §4 */
   border-radius: 0;
@@ -194,7 +194,7 @@ rt {
 }
 
 /* Lines containing ruby get extra line-height to prevent collision — spec §2 */
-:has(ruby) {
+.prose :has(ruby) {
   line-height: 2.4;
 }
 
@@ -266,14 +266,6 @@ rt {
 .prose[lang="ja"] {
   letter-spacing: 0.02em;
   font-feature-settings: 'palt';   /* proportional alternates: tighten 。、etc. */
-}
-
-/* Headings in Japanese articles: palt still useful for CJK fallback glyphs;
-   keep heading letter-spacing at -0.02em (Fraunces spec §2 unchanged). */
-.prose[lang="ja"] h2,
-.prose[lang="ja"] h3,
-.prose[lang="ja"] h4 {
-  font-feature-settings: 'palt';
 }
 
 /* Japanese quotation marks via CSS quotes property.
