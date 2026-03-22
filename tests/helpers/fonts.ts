@@ -19,7 +19,7 @@ import { FRAUNCES_ITALIC_WOFF2, FRAUNCES_WOFF2 } from '../../src/lib/fontConfig'
 export async function gotoWithFonts(page: Page, url: string): Promise<void> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.evaluate(
-    async ([woff2, italicWoff2]) => {
+    async ({ woff2, italicWoff2 }: { woff2: string; italicWoff2: string }) => {
       const faces = [
         new FontFace('Fraunces', `url(${woff2})`, { weight: '100 900', style: 'normal' }),
         new FontFace('Fraunces', `url(${italicWoff2})`, { weight: '100 900', style: 'italic' }),
@@ -40,6 +40,6 @@ export async function gotoWithFonts(page: Page, url: string): Promise<void> {
       void document.body.offsetHeight; // trigger reflow
       document.body.style.visibility = '';
     },
-    [FRAUNCES_WOFF2, FRAUNCES_ITALIC_WOFF2] as [string, string],
+    { woff2: FRAUNCES_WOFF2, italicWoff2: FRAUNCES_ITALIC_WOFF2 },
   );
 }

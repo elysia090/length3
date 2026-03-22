@@ -175,6 +175,54 @@ test.describe('Article page', () => {
     });
   });
 
+  // ── Article actions — spec §5 ────────────────────────────────────
+  test.describe('Article actions', () => {
+    test('copy link button is visible', async ({ page }) => {
+      await expect(page.locator('#copy-link-btn')).toBeVisible();
+    });
+
+    test('copy link button has accessible label', async ({ page }) => {
+      await expect(page.locator('#copy-link-btn')).toHaveAttribute(
+        'aria-label',
+        'Copy link to clipboard',
+      );
+    });
+
+    test('share button is visible', async ({ page }) => {
+      await expect(page.locator('#share-btn')).toBeVisible();
+    });
+
+    test('share button has accessible label', async ({ page }) => {
+      await expect(page.locator('#share-btn')).toHaveAttribute('aria-label', 'Share article');
+    });
+
+    test('reading stats show 0% at page top', async ({ page }) => {
+      const pct = await page.locator('#pct-read').textContent();
+      expect(pct).toBe('0%');
+    });
+
+    test('reading stats update on scroll', async ({ page }) => {
+      await page.evaluate(() => window.scrollBy(0, 500));
+      await page.waitForFunction(() => {
+        const el = document.getElementById('pct-read');
+        return el ? el.textContent !== '0%' : false;
+      });
+      const pct = await page.locator('#pct-read').textContent();
+      expect(pct).not.toBe('0%');
+    });
+
+    test('reading-stats region has aria-label', async ({ page }) => {
+      await expect(page.locator('.reading-stats')).toHaveAttribute(
+        'aria-label',
+        'Reading progress stats',
+      );
+    });
+
+    test('reading progress has progressbar role', async ({ page }) => {
+      await expect(page.locator('#reading-progress')).toHaveAttribute('role', 'progressbar');
+    });
+  });
+
   // ── Breadcrumb ───────────────────────────────────────────────────
   test.describe('Breadcrumb', () => {
     test('breadcrumb nav is present', async ({ page }) => {

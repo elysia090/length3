@@ -15,8 +15,9 @@
     "lint": "biome check . && prettier --check \"src/**/*.astro\"",
     "format": "biome format --write . && prettier --write \"src/**/*.astro\"",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test",
-    "test": "vitest run && playwright test",
+    "test:e2e": "playwright test --project=chromium",
+    "test": "vitest run && playwright test --project=chromium",
+    "screenshots": "playwright test --project=screenshots",
     "postbuild": "pagefind --site dist",
     "prepare": "husky"
   },
