@@ -1,21 +1,16 @@
 import { marked } from 'marked';
 
+export interface FrontmatterData {
+  title: string;
+  lang: string;
+  body: string;
+}
+
 /**
- * Renders MDX source into the live preview pane.
- *
- * Extracts `title` and `lang` from the YAML frontmatter, then renders
- * the body with marked.
- *
- * Note: marked is used for the live editor preview only.  Production
- * articles are rendered by Astro/MDX — custom MDX components such as
- * RubyText are not reflected here.  This intentional gap is acceptable
- * for a draft preview; the canonical render is always the build output.
+ * Extracts title, lang, and body from a Markdown/MDX document with YAML
+ * frontmatter.  Pure function — no DOM access.
  */
-export function renderPreview(
-  text: string,
-  output: HTMLElement,
-  countEl: HTMLElement | null,
-): void {
+export function parseFrontmatter(text: string): FrontmatterData {
   let title = '';
   let lang = 'en';
 
@@ -28,18 +23,26 @@ export function renderPreview(
     if (langM) lang = langM[1]!.trim().replace(/^['"]|['"]$/g, '');
   }
 
+  const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
+  return { title, lang, body };
+}
+
+/**
+ * Renders a parsed frontmatter body into the preview pane element.
+ *
+ * Note: marked is used for the live editor preview only.  Production
+ * articles are rendered by Astro/MDX — custom MDX components such as
+ * RubyText are not reflected here.  This intentional gap is acceptable
+ * for a draft preview; the canonical render is always the build output.
+ */
+export function renderPreview(text: string, output: HTMLElement): void {
+  const { title, lang, body } = parseFrontmatter(text);
+
   // Apply lang so Japanese typography CSS rules take effect in the preview.
   output.setAttribute('lang', lang);
-
-  const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
 
   const headerHtml = title
     ? `<header class="article-header"><h1>${marked.parseInline(title) as string}</h1><hr class="article-header-hr"></header>`
     : '';
-  output.innerHTML = headerHtml + marked.parse(body);
-
-  if (countEl) {
-    const chars = body.replace(/\s/g, '').length;
-    countEl.textContent = `${chars} chars`;
-  }
+  output.innerHTML = headerHtml + (marked.parse(body) as string);
 }

@@ -2,9 +2,19 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { Decoration, type DecorationSet, type ViewUpdate, ViewPlugin } from '@codemirror/view';
 import type { EditorView } from 'codemirror';
 
-const fmKeyMark = Decoration.mark({ class: 'cm-fm-key' });
-const fmValMark = Decoration.mark({ class: 'cm-fm-val' });
-const fmDelimMark = Decoration.mark({ class: 'cm-fm-delim' });
+/**
+ * CSS class names injected by the frontmatter decoration plugin.
+ * The corresponding styles live in src/styles/code.css — search for FM_CSS.
+ */
+export const FM_CSS = {
+  delim: 'cm-fm-delim',
+  key: 'cm-fm-key',
+  val: 'cm-fm-val',
+} as const;
+
+const fmKeyMark = Decoration.mark({ class: FM_CSS.key });
+const fmValMark = Decoration.mark({ class: FM_CSS.val });
+const fmDelimMark = Decoration.mark({ class: FM_CSS.delim });
 
 function buildFrontmatterDecos(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
@@ -40,7 +50,7 @@ function buildFrontmatterDecos(view: EditorView): DecorationSet {
 
 /**
  * ViewPlugin that decorates the YAML frontmatter block with distinct colours.
- * CSS classes cm-fm-delim / cm-fm-key / cm-fm-val are defined in editor/index.astro.
+ * Class names are defined in FM_CSS above; styles are in src/styles/code.css.
  */
 export const frontmatterPlugin = ViewPlugin.fromClass(
   class {

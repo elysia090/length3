@@ -13,3 +13,11 @@
 .cm-scroller {
   overflow: auto;
 }
+
+/* ── Frontmatter YAML decoration ─────────────────────────────────────────────
+ * Class names are defined in src/lib/editor/frontmatter-plugin.ts (FM_CSS).
+ * Colours match the Length³ editor dark palette (spec §4).
+ * ── */
+.cm-fm-delim { color: #9a9690; } /* delimiter (---): muted */
+.cm-fm-key   { color: #7a9ab8; } /* YAML key:   muted blue */
+.cm-fm-val   { color: #7ec49a; } /* YAML value: muted green */

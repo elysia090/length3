@@ -87,7 +87,7 @@ import '../../styles/code.css';
   import { syntaxHighlighting } from '@codemirror/language';
   import { length3Theme, length3Highlight } from '../../lib/editor/theme';
   import { frontmatterPlugin } from '../../lib/editor/frontmatter-plugin';
-  import { renderPreview } from '../../lib/editor/preview';
+  import { parseFrontmatter, renderPreview } from '../../lib/editor/preview';
 
   const mount = document.getElementById('editor-mount');
   const output = document.getElementById('preview-output') as HTMLElement | null;
@@ -108,17 +108,16 @@ import '../../styles/code.css';
     }
   });
 
-  // Nielsen H1: Publish feedback
-  document.getElementById('publish-btn')?.addEventListener('click', () => {
-    const btn = document.getElementById('publish-btn') as HTMLButtonElement | null;
-    if (btn) {
-      btn.textContent = 'Published!';
-      // Clear the dirty flag so beforeunload no longer warns after publishing
-      docChanged = false;
-      setTimeout(() => {
-        btn.textContent = 'Publish →';
-      }, 1500);
-    }
+  // Nielsen H1: Publish feedback — capture the reference once
+  const publishBtn = document.getElementById('publish-btn') as HTMLButtonElement | null;
+  publishBtn?.addEventListener('click', () => {
+    if (!publishBtn) return;
+    publishBtn.textContent = 'Published!';
+    // Clear the dirty flag so beforeunload no longer warns after publishing
+    docChanged = false;
+    setTimeout(() => {
+      publishBtn.textContent = 'Publish →';
+    }, 1500);
   });
 
   const initialDoc = `---
@@ -131,6 +130,12 @@ date: ${new Date().toISOString().slice(0, 10)}
 
 Start writing here.
 `;
+
+  function updateStatusCount(text: string) {
+    if (!countEl) return;
+    const { body } = parseFrontmatter(text);
+    countEl.textContent = `${body.replace(/\s/g, '').length} chars`;
+  }
 
   if (mount && output) {
     const state = EditorState.create({
@@ -150,30 +155,35 @@ Start writing here.
           }
           if (update.docChanged) {
             docChanged = true;
-            renderPreview(update.state.doc.toString(), output, countEl);
+            const text = update.state.doc.toString();
+            renderPreview(text, output);
+            updateStatusCount(text);
           }
         }),
       ],
     });
 
     new EditorView({ state, parent: mount });
-    renderPreview(initialDoc, output, countEl);
+    renderPreview(initialDoc, output);
+    updateStatusCount(initialDoc);
   }
 
   // ── Mobile tab switching — APG Tabs pattern ──────────────────
+  // Pane visibility is driven by aria-controls, not hardcoded IDs.
   const tabs = document.querySelectorAll<HTMLButtonElement>('.editor-tab');
-  const editorPane = document.getElementById('editor-pane');
-  const previewPane = document.getElementById('preview-pane');
+  const panes = [
+    document.getElementById('editor-pane'),
+    document.getElementById('preview-pane'),
+  ];
 
   function activateTab(tab: HTMLButtonElement) {
     for (const t of tabs) {
       t.setAttribute('aria-selected', String(t === tab));
       t.tabIndex = t === tab ? 0 : -1;
     }
-    if (editorPane && previewPane) {
-      const isEdit = tab.id === 'tab-edit';
-      editorPane.classList.toggle('tab-active', isEdit);
-      previewPane.classList.toggle('tab-active', !isEdit);
+    const targetId = tab.getAttribute('aria-controls');
+    for (const pane of panes) {
+      pane?.classList.toggle('tab-active', pane.id === targetId);
     }
   }
 
@@ -335,17 +345,6 @@ Start writing here.
   .editor-body :global(.cm-scroller) {
     overflow: auto;
     font-family: var(--font-mono);
-  }
-
-  /* Frontmatter YAML decoration — spec §4: key=muted blue, value=muted green */
-  .editor-body :global(.cm-fm-delim) {
-    color: #9a9690;
-  }
-  .editor-body :global(.cm-fm-key) {
-    color: #7a9ab8;
-  }
-  .editor-body :global(.cm-fm-val) {
-    color: #7ec49a;
   }
 
   /* ── Preview pane (light) — spec §4: BG, padding 40px 48px ── */
