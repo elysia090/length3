@@ -17,6 +17,13 @@
  *   Fraunces covers Latin, Latin Extended, and Cyrillic ranges.
  *   Limiting to U+0000-04FF prevents the browser from downloading
  *   this display font for pages that only render CJK content.
+ *
+ * Font loading is split across three layers by design:
+ *   1. This file   — @font-face source-of-truth for self-hosted fonts
+ *   2. BaseLayout  — <link rel="preload"> hint + async Google Fonts loader
+ *   3. tests/helpers/fonts.ts — programmatic FontFace to bypass font-display
+ *      in headless Playwright (font-display:optional never swaps in cold runs)
+ * When renaming or moving font files, update all three locations.
  */
 
 @font-face {

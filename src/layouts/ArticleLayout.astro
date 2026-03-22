@@ -7,7 +7,6 @@ import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { formatDate, tagToSlug } from '../lib/utils';
-import '../styles/code.css';
 
 interface Props {
   title: string;
@@ -77,7 +76,7 @@ const dateStr = formatDate(publishDate, lang);
           </div>
 
           <h1>{title}</h1>
-          <hr class="article-header-hr" />
+          <hr class="amber-rule article-header-hr" />
 
           {description && <p class="article-header-lead">{description}</p>}
 

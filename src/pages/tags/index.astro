@@ -5,9 +5,9 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
-import { tagToSlug } from '../../lib/utils';
+import { tagToSlug, notDraft } from '../../lib/utils';
 
-const posts = await getCollection('blog', ({ data }) => !data.draft);
+const posts = await getCollection('blog', notDraft);
 
 const tagCounts = new Map<string, number>();
 for (const post of posts) {
@@ -23,9 +23,11 @@ const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
   <Header />
   <main class="tags-main">
     <header class="tags-header">
-      <h1>Tags</h1>
-      <p class="tags-subtitle">{sortedTags.length} topics across {posts.length} articles</p>
-      <hr class="tags-hr" />
+      <h1 class="page-title">Tags</h1>
+      <p class="page-meta tags-subtitle">
+        {sortedTags.length} topics across {posts.length} articles
+      </p>
+      <hr class="amber-rule" />
     </header>
     <ul class="tag-grid">
       {
@@ -55,26 +57,11 @@ const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
   }
 
   h1 {
-    font-family: var(--font-display);
-    font-size: 1.75rem;
-    font-weight: 300;
-    line-height: 1.25;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.5rem; /* page-title base in global.css; only spacing is local */
   }
 
   .tags-subtitle {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--ink-2);
-    margin-bottom: 1.25rem;
-  }
-
-  .tags-hr {
-    border: none;
-    height: 2px;
-    background: var(--amber);
-    width: 3rem;
-    margin: 0;
+    margin-bottom: 1.25rem; /* page-meta base in global.css; only spacing is local */
   }
 
   .tag-grid {
@@ -97,8 +84,8 @@ const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
     font-size: 0.8125rem;
     color: var(--ink);
     transition:
-      border-color 80ms ease,
-      color 80ms ease;
+      border-color var(--transition-fast),
+      color var(--transition-fast);
   }
 
   .tag-card:hover,

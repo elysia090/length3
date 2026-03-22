@@ -20,6 +20,9 @@
   --measure:        680px;
   --sidebar-width:  280px;
   --toc-width:      200px;
+
+  /* Motion */
+  --transition-fast: 80ms ease; /* interactive micro-transitions site-wide */
 }
 
 /* ─── Reset ──────────────────────────────────────────────────── */
@@ -176,6 +179,33 @@ img {
   .index-layout {
     padding: 1.5rem 1rem 3rem;
   }
+}
+
+/* ─── Shared UI patterns ─────────────────────────────────────── */
+
+/* Amber decorative rule — 3 rem wide, 2 px tall accent line.
+   Used by article-header-hr (typography.css) and page headers in tags/. */
+.amber-rule {
+  border: none;
+  height: 2px;
+  background: var(--amber);
+  width: 3rem;
+}
+
+/* Page-level heading — matches .prose h1 typographic scale but without
+   the prose-specific margin so each call site sets its own spacing. */
+.page-title {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 300;
+  line-height: 1.25;
+}
+
+/* Secondary line below a page title — count / subtitle / metadata. */
+.page-meta {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--ink-2);
 }
 
 /* ─── Utilities ──────────────────────────────────────────────── */

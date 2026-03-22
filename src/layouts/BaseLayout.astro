@@ -24,6 +24,8 @@ import '../styles/typography.css';
       before CSS is parsed. Only the normal (non-italic) file is preloaded
       because italic is non-critical path on first render.
       crossorigin is required for fonts even when self-hosted (CORS fetch).
+      Font URL must stay in sync with the @font-face in src/styles/fonts.css
+      and the FontFace constructor in tests/helpers/fonts.ts.
     -->
     <link
       rel="preload"

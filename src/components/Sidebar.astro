@@ -57,8 +57,13 @@
       const pagefindSrc = `${location.origin}/pagefind/pagefind-ui.js`;
       const { PagefindUI } = await import(/* @vite-ignore */ pagefindSrc);
       new PagefindUI({ element: '#pagefind-results', showImages: false, showSubResults: true });
-    } catch {
-      // dev mode: pagefind not built yet
+    } catch (err) {
+      // Pagefind index is only present after `astro build` — not in dev mode.
+      console.warn('[search] Pagefind unavailable:', err instanceof Error ? err.message : err);
+      const results = document.getElementById('pagefind-results');
+      if (results)
+        results.innerHTML =
+          '<p class="search-unavailable">Search is only available in the built site.</p>';
     }
   }
 
@@ -125,8 +130,8 @@
     color: var(--ink-2);
     text-align: left;
     transition:
-      border-color 80ms ease,
-      color 80ms ease;
+      border-color var(--transition-fast),
+      color var(--transition-fast);
   }
 
   .search-underline-btn:hover {
@@ -222,7 +227,7 @@
     color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at 11px */
     cursor: pointer;
     flex-shrink: 0;
-    transition: color 80ms ease;
+    transition: color var(--transition-fast);
   }
 
   .search-esc-btn:hover {
@@ -257,6 +262,13 @@
     font-family: var(--font-mono);
     font-size: 0.75rem; /* bumped from 0.7rem for readability */
     color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA */
+  }
+
+  /* Search unavailable message — injected dynamically, so :global() is required */
+  :global(.search-unavailable) {
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: var(--ink-2);
   }
 
   /* Pagefind result overrides — spec §4 */

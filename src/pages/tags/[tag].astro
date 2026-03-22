@@ -9,10 +9,10 @@ import ArticleCard from '../../components/ArticleCard.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
-import { toSlug, tagToSlug, estimateReadingTime } from '../../lib/utils';
+import { tagToSlug, processPost, notDraft } from '../../lib/utils';
 
 export const getStaticPaths = (async () => {
-  const posts = await getCollection('blog', ({ data }) => !data.draft);
+  const posts = await getCollection('blog', notDraft);
   const tagMap = new Map<string, typeof posts>();
 
   for (const post of posts) {
@@ -34,12 +34,7 @@ export const getStaticPaths = (async () => {
 
 const { tagPosts, tagName } = Astro.props;
 
-const processed: ProcessedPost[] = tagPosts.map((entry) => ({
-  entry,
-  slug: toSlug(entry.id),
-  readingTime: estimateReadingTime(entry.body ?? ''),
-  excerpt: entry.data.description,
-}));
+const processed: ProcessedPost[] = tagPosts.map(processPost);
 
 processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publishDate.valueOf());
 ---
@@ -55,9 +50,11 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
   />
   <main class="tag-main">
     <header class="tag-header">
-      <h1>#{tagName}</h1>
-      <p class="tag-count">{processed.length} article{processed.length !== 1 ? 's' : ''}</p>
-      <hr class="tag-hr" />
+      <h1 class="page-title">#{tagName}</h1>
+      <p class="page-meta tag-count">
+        {processed.length} article{processed.length !== 1 ? 's' : ''}
+      </p>
+      <hr class="amber-rule" />
     </header>
     <section aria-label={`Articles tagged ${tagName}`}>
       {processed.map((p) => <ArticleCard post={p} />)}
@@ -78,26 +75,10 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
   }
 
   h1 {
-    font-family: var(--font-display);
-    font-size: 1.75rem;
-    font-weight: 300;
-    line-height: 1.25;
-    margin-bottom: 0.5rem;
-    color: var(--ink);
+    margin-bottom: 0.5rem; /* page-title base in global.css; only spacing is local */
   }
 
   .tag-count {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--ink-2);
-    margin-bottom: 1.25rem;
-  }
-
-  .tag-hr {
-    border: none;
-    height: 2px;
-    background: var(--amber);
-    width: 3rem;
-    margin: 0;
+    margin-bottom: 1.25rem; /* page-meta base in global.css; only spacing is local */
   }
 </style>
