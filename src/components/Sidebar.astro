@@ -61,7 +61,9 @@
       // Pagefind index is only present after `astro build` — not in dev mode.
       console.warn('[search] Pagefind unavailable:', err instanceof Error ? err.message : err);
       const results = document.getElementById('pagefind-results');
-      if (results) results.innerHTML = '<p class="search-unavailable">Search is only available in the built site.</p>';
+      if (results)
+        results.innerHTML =
+          '<p class="search-unavailable">Search is only available in the built site.</p>';
     }
   }
 

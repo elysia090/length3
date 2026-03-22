@@ -171,10 +171,7 @@ Start writing here.
   // ── Mobile tab switching — APG Tabs pattern ──────────────────
   // Pane visibility is driven by aria-controls, not hardcoded IDs.
   const tabs = document.querySelectorAll<HTMLButtonElement>('.editor-tab');
-  const panes = [
-    document.getElementById('editor-pane'),
-    document.getElementById('preview-pane'),
-  ];
+  const panes = [document.getElementById('editor-pane'), document.getElementById('preview-pane')];
 
   function activateTab(tab: HTMLButtonElement) {
     for (const t of tabs) {

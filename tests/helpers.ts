@@ -31,9 +31,9 @@ export async function getCSSVar(page: Page, varName: string): Promise<string> {
 export async function getCSSVarAsRgb(page: Page, varName: string): Promise<string> {
   return page.evaluate((name) => {
     const hex = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
+    const r = Number.parseInt(hex.slice(1, 3), 16);
+    const g = Number.parseInt(hex.slice(3, 5), 16);
+    const b = Number.parseInt(hex.slice(5, 7), 16);
     return `rgb(${r}, ${g}, ${b})`;
   }, varName);
 }

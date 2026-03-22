@@ -16,11 +16,11 @@ export function parseFrontmatter(text: string): FrontmatterData {
 
   const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
   if (fmMatch) {
-    const fm = fmMatch[1]!;
+    const fm = fmMatch[1] ?? '';
     const titleM = fm.match(/^title:\s*(.+)$/m);
-    if (titleM) title = titleM[1]!.trim().replace(/^['"]|['"]$/g, '');
+    if (titleM) title = titleM[1]?.trim().replace(/^['"]|['"]$/g, '') ?? '';
     const langM = fm.match(/^lang:\s*(.+)$/m);
-    if (langM) lang = langM[1]!.trim().replace(/^['"]|['"]$/g, '');
+    if (langM) lang = langM[1]?.trim().replace(/^['"]|['"]$/g, '') ?? 'en';
   }
 
   const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();

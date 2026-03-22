@@ -24,7 +24,9 @@ const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
   <main class="tags-main">
     <header class="tags-header">
       <h1 class="page-title">Tags</h1>
-      <p class="page-meta tags-subtitle">{sortedTags.length} topics across {posts.length} articles</p>
+      <p class="page-meta tags-subtitle">
+        {sortedTags.length} topics across {posts.length} articles
+      </p>
       <hr class="amber-rule" />
     </header>
     <ul class="tag-grid">

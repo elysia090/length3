@@ -1,6 +1,6 @@
-import { EditorView } from 'codemirror';
 import { HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import { EditorView } from 'codemirror';
 
 /** Amber design token — mirrors --amber: #d4820a in global.css.
  *  CSS variables can't be used inside EditorView.theme() JS strings. */

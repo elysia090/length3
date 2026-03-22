@@ -51,7 +51,9 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
   <main class="tag-main">
     <header class="tag-header">
       <h1 class="page-title">#{tagName}</h1>
-      <p class="page-meta tag-count">{processed.length} article{processed.length !== 1 ? 's' : ''}</p>
+      <p class="page-meta tag-count">
+        {processed.length} article{processed.length !== 1 ? 's' : ''}
+      </p>
       <hr class="amber-rule" />
     </header>
     <section aria-label={`Articles tagged ${tagName}`}>

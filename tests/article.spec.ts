@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { getComputedStyleProp, getCSSVarAsRgb, goToFirstArticle } from './helpers';
+import { getCSSVarAsRgb, getComputedStyleProp, goToFirstArticle } from './helpers';
 
 test.describe('Article page', () => {
   test.beforeEach(async ({ page }) => {
