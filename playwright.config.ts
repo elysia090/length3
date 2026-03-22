@@ -17,7 +17,22 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Fail Google Fonts DNS lookups immediately so the dynamically-added
+        // <link rel="stylesheet"> errors out fast instead of hanging through
+        // the proxy, which blocks the window `load` event in headless Chromium.
+        launchOptions: {
+          args: [
+            '--host-resolver-rules=MAP fonts.googleapis.com ~NOTFOUND, MAP fonts.gstatic.com ~NOTFOUND',
+          ],
+        },
+      },
+    },
+  ],
 
   webServer: {
     command: 'pnpm dev',
