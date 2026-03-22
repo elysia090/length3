@@ -6,7 +6,7 @@ import '../../styles/code.css';
 
 <BaseLayout title="Editor — Length³" description="Live MDX editor">
   <div class="editor-root" id="main-content">
-    <!-- TOP BAR — spec §4: 40px, #201d19 bg -->
+    <!-- TOP BAR — spec §4: 40px, var(--editor-topbar-bg) -->
     <div class="editor-topbar">
       <div class="editor-topbar-left">
         <!-- spec §4: Logo "L³" in amber -->
@@ -63,7 +63,7 @@ import '../../styles/code.css';
       </div>
     </div>
 
-    <!-- STATUS BAR — spec §4: 24px, #1a1714, amber never used here -->
+    <!-- STATUS BAR — spec §4: 24px, var(--editor-statusbar-bg), amber never used here -->
     <div class="editor-statusbar" aria-label="Editor status">
       <span class="status-item">UTF-8</span>
       <span class="status-sep" aria-hidden="true">·</span>
@@ -201,22 +201,22 @@ Start writing here.
   /* ── Root: full viewport, 3 rows (topbar / main / statusbar) ── */
   .editor-root {
     display: grid;
-    grid-template-rows: 40px 1fr 24px; /* spec §4 */
+    grid-template-rows: 2.5rem 1fr 1.5rem; /* spec §4: 40px topbar / main / 24px statusbar */
     height: 100dvh;
     overflow: hidden;
     background: var(--editor-bg);
   }
 
-  /* ── Top bar — spec §4: 40px, #201d19 ── */
+  /* ── Top bar — spec §4: 40px ── */
   .editor-topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
-    background: #201d19; /* spec §4: slightly lighter than Editor-BG */
-    border-bottom: 1px solid #252118;
+    padding: 0 1rem;
+    background: var(--editor-topbar-bg);
+    border-bottom: 1px solid var(--editor-border);
     flex-shrink: 0;
-    height: 40px;
+    height: 2.5rem;
   }
 
   .editor-topbar-left {
@@ -230,7 +230,7 @@ Start writing here.
   /* spec §4: L³ logo in amber */
   .editor-logo {
     color: var(--amber);
-    font-size: 0.78rem;
+    font-size: 0.8125rem;
     font-weight: 600;
   }
 
@@ -241,15 +241,13 @@ Start writing here.
   }
 
   .editor-bc-sep {
-    /* SC 1.4.3: was #3a3630 (1.59:1 on dark bg — invisible).
-       On dark #201d19, need LIGHT colors. #9a9690 gives 5.85:1. */
-    color: #9a9690;
+    /* SC 1.4.3: --editor-ink-2 gives 5.85:1 on --editor-topbar-bg */
+    color: var(--editor-ink-2);
   }
 
   .editor-bc-file {
-    /* SC 1.4.3: was var(--ink-2)/#52504a — a dark token designed for light bg,
-       giving only 2.1:1 on dark editor bg. #c8c4be gives ~10:1 on dark bg. */
-    color: #c8c4be;
+    /* SC 1.4.3: --editor-ink gives ~10:1 on --editor-topbar-bg */
+    color: var(--editor-ink);
   }
 
   .editor-topbar-actions {
@@ -268,28 +266,27 @@ Start writing here.
     transition: color var(--transition-fast);
   }
 
-  /* Dark-context button colors — spec §4 role hierarchy preserved:
-     Discard (least prominent) → Preview → Publish (most prominent)
-     Tokens are interpreted for dark background readability */
+  /* Dark-context button colors — spec §4 role hierarchy:
+     Discard (least prominent) → Publish (most prominent) */
   .editor-btn-discard {
     border: none;
-    color: #9a9690; /* upgraded for WCAG AA contrast on dark bg */
+    color: var(--editor-ink-2);
   }
 
   .editor-btn-discard:hover {
-    color: #c8c4be;
+    color: var(--editor-ink);
   }
 
-  /* spec §4: Publish — Ink text (primary/brightest), Rule border, NOT amber */
+  /* spec §4: Publish — brightest ink, subtle border, NOT amber */
   .editor-btn-publish {
-    border: 1px solid #52504a;
+    border: 1px solid var(--editor-btn-border);
     border-radius: 2px;
-    color: #e2ddd8; /* Ink equivalent on dark: primary, most readable */
+    color: var(--editor-ink-bright);
   }
 
   .editor-btn-publish:hover {
-    border-color: #9a9690;
-    color: #f9f8f5;
+    border-color: var(--editor-ink-2);
+    color: var(--bg);
   }
 
   .editor-btn:active {
@@ -312,8 +309,8 @@ Start writing here.
   .editor-pane {
     display: flex;
     flex-direction: column;
-    background: var(--editor-bg); /* #181511 */
-    border-right: 1px solid #252118;
+    background: var(--editor-bg);
+    border-right: 1px solid var(--editor-border);
     overflow: hidden;
   }
 
@@ -324,7 +321,7 @@ Start writing here.
 
   .editor-body :global(.cm-editor) {
     height: 100%;
-    font-size: 14px; /* bumped from 13px — comfortable for long-form writing */
+    font-size: 0.875rem; /* comfortable for long-form writing */
   }
 
   .editor-body :global(.cm-scroller) {
@@ -343,7 +340,7 @@ Start writing here.
   .preview-body {
     flex: 1;
     overflow-y: auto;
-    padding: 40px 48px; /* spec §4 */
+    padding: 2.5rem 3rem; /* spec §4 */
   }
 
   .preview-content {
@@ -356,29 +353,29 @@ Start writing here.
     font-size: 0.9375rem;
   }
 
-  /* ── Status bar — spec §4: 24px, #1a1714, amber never used ── */
+  /* ── Status bar — spec §4: 24px, amber never used ── */
   .editor-statusbar {
     display: flex;
     align-items: center;
     gap: 0;
-    padding: 0 16px;
-    background: #1a1714; /* spec §4: slightly darker than Editor-BG */
-    height: 24px;
+    padding: 0 1rem;
+    background: var(--editor-statusbar-bg);
+    height: 1.5rem;
     flex-shrink: 0;
   }
 
   .status-item {
     font-family: var(--font-mono);
-    font-size: 0.6875rem; /* bumped from 0.65rem for readability */
-    color: #7a776f; /* midpoint between Ink-3 and Ink-2 for dark bg legibility */
-    padding: 0 0.25rem; /* 4px — grid aligned */
+    font-size: 0.6875rem;
+    color: var(--editor-ink-3);
+    padding: 0 0.25rem;
     letter-spacing: 0.02em;
   }
 
   .status-sep {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    color: #3a3630;
+    color: var(--editor-sep);
   }
 
   /* ── Editor tabs — hidden on desktop, visible on mobile ── */
@@ -392,7 +389,7 @@ Start writing here.
     padding: 0.5rem 1rem;
     border: none;
     background: transparent;
-    color: #9a9690;
+    color: var(--editor-ink-2);
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition:
@@ -409,12 +406,12 @@ Start writing here.
   @media (max-width: 639px) {
     .editor-tabs {
       display: flex;
-      background: #201d19;
-      border-bottom: 1px solid #252118;
+      background: var(--editor-topbar-bg);
+      border-bottom: 1px solid var(--editor-border);
     }
 
     .editor-root {
-      grid-template-rows: 40px auto 1fr 24px;
+      grid-template-rows: 2.5rem auto 1fr 1.5rem;
     }
 
     .editor-main {

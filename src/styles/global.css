@@ -12,6 +12,26 @@
   --bg-2:       #f0ede8;   /* secondary surface: code, sidebar */
   --editor-bg:  #181511;   /* editor dark pane */
 
+  /* Editor dark-surface palette (spec §4)
+     Referenced by editor/index.astro and styles/code.css.
+     Also mirrored as JS constants in lib/editor/theme.ts because
+     CSS custom properties cannot be used inside CodeMirror JS theme strings. */
+  --editor-topbar-bg:    #201d19;  /* topbar / mobile tabs bg */
+  --editor-statusbar-bg: #1a1714;  /* statusbar bg */
+  --editor-border:       #252118;  /* pane dividers */
+  --editor-sep:          #3a3630;  /* muted decorative separator */
+  --editor-gutter-active:#8a8070;  /* active line gutter number */
+  --editor-ink-3:        #7a776f;  /* tertiary text (status items) */
+  --editor-ink-2:        #9a9690;  /* secondary text (discard btn, sep) */
+  --editor-ink:          #c8c4be;  /* primary text (filename, hover) */
+  --editor-ink-bright:   #e2ddd8;  /* brightest text (publish btn) */
+  --editor-btn-border:   #52504a;  /* publish button border */
+  --editor-comment:      #3d3a34;  /* syntax: comment (italic) */
+  /* Editor syntax highlight */
+  --editor-hl-key:       #7a9ab8;  /* YAML key: muted blue */
+  --editor-hl-val:       #7ec49a;  /* YAML value / strings: muted green */
+  --editor-hl-fn:        #8bb8e8;  /* function / variable names: muted sky */
+
   /* Typography */
   /* Display (headings): Japanese mincho fallbacks placed BEFORE Noto Sans JP so that
      CJK characters in headings render in serif/mincho rather than sans-serif.
@@ -24,9 +44,11 @@
   --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', monospace;
 
   /* Layout */
-  --measure:        680px;
-  --sidebar-width:  280px;
-  --toc-width:      200px;
+  --layout-max-width:    75rem;  /* 1200px — outer container cap */
+  --measure:             680px;
+  --sidebar-width:       280px;
+  --sidebar-width-narrow:15rem;  /* 240px — narrowed sidebar at 960–1199px */
+  --toc-width:           200px;
 
   /* Motion */
   --transition-fast: 80ms ease; /* interactive micro-transitions site-wide */
@@ -111,7 +133,7 @@ img {
   grid-template-columns: 1fr var(--sidebar-width);
   grid-template-areas: 'list side';
   gap: 0 2.5rem;
-  max-width: 1200px;
+  max-width: var(--layout-max-width);
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
 }
@@ -135,7 +157,7 @@ img {
   grid-template-columns: var(--toc-width) minmax(0, var(--measure)) 1fr;
   grid-template-areas: 'toc prose empty';
   gap: 0 2.5rem;
-  max-width: 1200px;
+  max-width: var(--layout-max-width);
   margin: 0 auto;
   padding: 0 1.5rem 4rem;
 }
@@ -143,9 +165,9 @@ img {
 .toc-aside {
   grid-area: toc;
   position: sticky;
-  top: 32px;
+  top: 2rem;
   align-self: start;
-  max-height: calc(100dvh - 64px);
+  max-height: calc(100dvh - 4rem);
   overflow-y: auto;
   padding-top: 2rem;
 }
@@ -160,7 +182,7 @@ img {
 /* 960–1199px: sidebar narrows to 240px; article right whitespace shrinks */
 @media (max-width: 1199px) and (min-width: 960px) {
   .index-layout {
-    grid-template-columns: 1fr 240px;
+    grid-template-columns: 1fr var(--sidebar-width-narrow);
   }
   .article-shell {
     grid-template-columns: var(--toc-width) minmax(0, var(--measure)) minmax(80px, 1fr);

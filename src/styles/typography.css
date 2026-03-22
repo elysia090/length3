@@ -37,7 +37,7 @@
 }
 
 .prose h2[id] {
-  scroll-margin-top: 32px;  /* spec §5 */
+  scroll-margin-top: 2rem;  /* spec §5 */
 }
 
 .prose h3 {
@@ -54,7 +54,7 @@
 }
 
 .prose h3[id] {
-  scroll-margin-top: 32px;  /* spec §5 */
+  scroll-margin-top: 2rem;  /* spec §5 */
 }
 
 .prose h4 {
@@ -98,7 +98,7 @@
   background: var(--bg-2);
   border-left: 2px solid var(--amber-lt);
   border-radius: 0 4px 4px 0;
-  padding: 16px 20px;
+  padding: 1rem 1.25rem;
   overflow-x: auto;
   margin-bottom: 1.5rem;
 }
