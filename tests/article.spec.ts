@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { getComputedStyleProp, getCSSVarAsRgb, goToFirstArticle } from './helpers';
+import { countH1, getComputedStyleProp, getCSSVarAsRgb, goToFirstArticle } from './helpers';
 
 test.describe('Article page', () => {
   test.beforeEach(async ({ page }) => {
@@ -21,10 +21,7 @@ test.describe('Article page', () => {
     });
 
     test('article has exactly one h1 — spec §6', async ({ page }) => {
-      // page.locator('h1') pierces open Shadow DOM (Astro dev toolbar has h1s
-      // inside its shadow root). Use page.evaluate to count only document h1s.
-      const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length);
-      expect(h1Count).toBe(1);
+      expect(await countH1(page)).toBe(1);
     });
 
     test('right column has no interactive content — spec §1', async ({ page }) => {

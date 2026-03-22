@@ -40,6 +40,11 @@ export function tagToSlug(tag: string): string {
     .replace(/[^\p{L}\p{N}-]/gu, '');
 }
 
+/** Returns the canonical URL path for a tag. Single source of truth for tag link generation. */
+export function getTagUrl(tag: string): string {
+  return `/tags/${tagToSlug(tag)}`;
+}
+
 /** Estimates reading time in minutes, accounting for CJK character density. */
 export function estimateReadingTime(text: string): number {
   const cjkChars = (text.match(/[\u3000-\u9FFF\uF900-\uFAFF]/g) ?? []).length;
@@ -51,7 +56,7 @@ export function estimateReadingTime(text: string): number {
   return Math.max(1, Math.ceil(minutes));
 }
 
-export function formatDate(date: Date, locale: 'en' | 'ja' = 'en'): string {
+export function formatDate(date: Date, locale: 'en' | 'ja'): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');

@@ -1,6 +1,6 @@
 ---
 import type { ProcessedPost } from '../lib/types';
-import { formatDate, tagToSlug } from '../lib/utils';
+import { formatDate, getTagUrl } from '../lib/utils';
 
 interface Props {
   post: ProcessedPost;
@@ -8,9 +8,9 @@ interface Props {
 
 const { post } = Astro.props;
 const { entry, slug, readingTime, excerpt } = post;
-const { title, publishDate, tags } = entry.data;
+const { title, publishDate, tags, lang } = entry.data;
 
-const dateStr = formatDate(publishDate);
+const dateStr = formatDate(publishDate, lang);
 ---
 
 <article class="article-card">
@@ -35,7 +35,7 @@ const dateStr = formatDate(publishDate);
     tags.length > 0 && (
       <div class="card-tags" aria-label="tags">
         {tags.map((t) => (
-          <a href={`/tags/${tagToSlug(t)}`} class="card-tag">
+          <a href={getTagUrl(t)} class="card-tag">
             #{t}
           </a>
         ))}

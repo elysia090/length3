@@ -11,6 +11,7 @@ const { title, description = 'A technical blog.', ogImage, lang = 'en' } = Astro
 import '../styles/fonts.css';
 import '../styles/global.css';
 import '../styles/typography.css';
+import { FRAUNCES_WOFF2 } from '../lib/fontConfig';
 ---
 
 <!doctype html>
@@ -24,16 +25,10 @@ import '../styles/typography.css';
       before CSS is parsed. Only the normal (non-italic) file is preloaded
       because italic is non-critical path on first render.
       crossorigin is required for fonts even when self-hosted (CORS fetch).
-      Font URL must stay in sync with the @font-face in src/styles/fonts.css
-      and the FontFace constructor in tests/helpers/fonts.ts.
+      Font path comes from src/lib/fontConfig.ts — single source of truth for JS/TS.
+      The @font-face declaration in src/styles/fonts.css must stay in sync.
     -->
-    <link
-      rel="preload"
-      href="/fonts/Fraunces-Variable.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
+    <link rel="preload" href={FRAUNCES_WOFF2} as="font" type="font/woff2" crossorigin />
     <!-- Noto Sans JP from Google Fonts — auto unicode-range subsetting for CJK.
          Loaded asynchronously via JS to avoid blocking page render/load event. -->
     <script is:inline>

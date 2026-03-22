@@ -1,6 +1,14 @@
 import type { Page } from '@playwright/test';
 
 /**
+ * Count <h1> elements in the document, intentionally using page.evaluate to
+ * avoid piercing the Astro dev toolbar's Shadow DOM (which contains its own h1s).
+ */
+export async function countH1(page: Page): Promise<number> {
+  return page.evaluate(() => document.querySelectorAll('h1').length);
+}
+
+/**
  * Navigate to the first article from the index page.
  * Returns the href of the article.
  */
