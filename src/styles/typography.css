@@ -142,6 +142,9 @@
 }
 
 /* ─── Horizontal rule ────────────────────────────────────────── */
+/* .prose hr can't receive the .amber-rule class (authored in markdown), so the
+   shared shape (border/height/background/width) is repeated here intentionally.
+   .article-header-hr uses class="amber-rule article-header-hr" and only needs margin. */
 .prose hr {
   border: none;
   height: 2px;
@@ -229,11 +232,8 @@ rt {
   margin-bottom: 1rem;
 }
 
+/* margin only — shape is provided by .amber-rule (global.css) */
 .article-header-hr {
-  border: none;
-  height: 2px;
-  background: var(--amber);
-  width: 3rem;
   margin: 0 0 1.5rem;
 }
 

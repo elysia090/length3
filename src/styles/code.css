@@ -1,14 +1,3 @@
-/* CodeMirror editor sizing */
-.cm-editor {
-  height: 100%;
-  font-family: var(--font-mono);
-  font-size: 14px;
-}
-
-.cm-scroller {
-  overflow: auto;
-}
-
 /* ── Frontmatter YAML decoration ─────────────────────────────────────────────
  * Class names are defined in src/lib/editor/frontmatter-plugin.ts (FM_CSS).
  * Colours match the Length³ editor dark palette (spec §4).

@@ -66,20 +66,27 @@ const { readingTime } = Astro.props;
   }
 
   // Copy link
-  document.getElementById('copy-link-btn')?.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(window.location.href);
-    flash('#copy-link-btn .action-label', 'Copied!', 'Copy link');
+  document.getElementById('copy-link-btn')?.addEventListener('click', () => {
+    navigator.clipboard
+      .writeText(window.location.href)
+      .then(() => flash('#copy-link-btn .action-label', 'Copied!', 'Copy link'))
+      .catch((err) => console.warn('[copy-link] clipboard write failed:', err));
   });
 
   // Share (native sheet when available, clipboard fallback otherwise)
   document.getElementById('share-btn')?.addEventListener('click', () => {
     if (navigator.share) {
-      navigator.share({ url: window.location.href, title: document.title }).catch(() => {});
+      // AbortError = user dismissed the share sheet; not a real error, suppress it.
+      navigator.share({ url: window.location.href, title: document.title }).catch((err) => {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          console.warn('[share] navigator.share failed:', err);
+        }
+      });
     } else {
       navigator.clipboard
         .writeText(window.location.href)
         .then(() => flash('#share-btn .action-label', 'Copied!', 'Share'))
-        .catch(() => {});
+        .catch((err) => console.warn('[share] clipboard fallback failed:', err));
     }
   });
 

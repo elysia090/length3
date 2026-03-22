@@ -2,6 +2,11 @@ import { EditorView } from 'codemirror';
 import { HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 
+/** Amber design token — mirrors --amber: #d4820a in global.css.
+ *  CSS variables can't be used inside EditorView.theme() JS strings. */
+const AMBER = '#d4820a';
+const AMBER_LT = '#e8a030'; /* --amber-lt */
+
 /** CodeMirror visual theme — matches the Length³ editor spec §4. */
 export const length3Theme = EditorView.theme(
   {
@@ -10,12 +15,12 @@ export const length3Theme = EditorView.theme(
       color: '#c8c4be',
     },
     '.cm-content': {
-      caretColor: '#d4820a',
+      caretColor: AMBER,
       lineHeight: '1.75',
       paddingTop: '24px',
       paddingBottom: '80px',
     },
-    '.cm-cursor': { borderLeftColor: '#d4820a', borderLeftWidth: '2px' },
+    '.cm-cursor': { borderLeftColor: AMBER, borderLeftWidth: '2px' },
     '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.03)' },
     '.cm-activeLineGutter': { backgroundColor: 'transparent', color: '#8a8070' },
     '.cm-gutters': {
@@ -44,14 +49,14 @@ export const length3Highlight = HighlightStyle.define([
   { tag: tags.number, color: '#7ec49a' },
   { tag: tags.bool, color: '#7ec49a' },
   // Markdown headings
-  { tag: tags.heading1, color: '#e8a030', fontWeight: '500' },
-  { tag: tags.heading2, color: '#d4820a', fontWeight: '400' },
-  { tag: tags.heading3, color: '#d4820a' },
-  { tag: tags.heading4, color: '#d4820a' },
+  { tag: tags.heading1, color: AMBER_LT, fontWeight: '500' },
+  { tag: tags.heading2, color: AMBER, fontWeight: '400' },
+  { tag: tags.heading3, color: AMBER },
+  { tag: tags.heading4, color: AMBER },
   // Code / keywords
-  { tag: tags.keyword, color: '#d4820a' },
-  { tag: tags.operator, color: '#d4820a' },
-  { tag: tags.monospace, color: '#e8a030' },
+  { tag: tags.keyword, color: AMBER },
+  { tag: tags.operator, color: AMBER },
+  { tag: tags.monospace, color: AMBER_LT },
   // Function names
   { tag: tags.function(tags.name), color: '#8bb8e8' },
   { tag: tags.function(tags.variableName), color: '#8bb8e8' },

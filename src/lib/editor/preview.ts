@@ -44,7 +44,7 @@ export function renderPreview(text: string, output: HTMLElement): void {
   // marked.parse / parseInline return string synchronously when no async
   // extensions are registered; String() coercion is safe for both overloads.
   const headerHtml = title
-    ? `<header class="article-header"><h1>${String(marked.parseInline(title))}</h1><hr class="article-header-hr"></header>`
+    ? `<header class="article-header"><h1>${String(marked.parseInline(title))}</h1><hr class="amber-rule article-header-hr"></header>`
     : '';
   output.innerHTML = headerHtml + String(marked.parse(body));
 }
