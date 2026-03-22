@@ -32,6 +32,23 @@ import '../styles/typography.css';
       type="font/woff2"
       crossorigin
     />
+    <!-- Noto Sans JP from Google Fonts — auto unicode-range subsetting for CJK.
+         Loaded asynchronously via JS to avoid blocking page render/load event. -->
+    <script is:inline>
+      (function () {
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href =
+          'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap';
+        document.head.appendChild(l);
+      })();
+    </script>
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     {ogImage && <meta property="og:image" content={ogImage} />}

@@ -55,8 +55,9 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
   />
   <main class="tag-main">
     <header class="tag-header">
-      <h1>{tagName}</h1>
+      <h1>#{tagName}</h1>
       <p class="tag-count">{processed.length} article{processed.length !== 1 ? 's' : ''}</p>
+      <hr class="tag-hr" />
     </header>
     <section aria-label={`Articles tagged ${tagName}`}>
       {processed.map((p) => <ArticleCard post={p} />)}
@@ -69,7 +70,7 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
   .tag-main {
     max-width: var(--measure);
     margin: 0 auto;
-    padding: 2rem 1.5rem;
+    padding: 2rem 1.5rem 4rem;
   }
 
   .tag-header {
@@ -77,15 +78,26 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
   }
 
   h1 {
-    font-family: var(--font-display); /* spec §2: Fraunces */
+    font-family: var(--font-display);
     font-size: 1.75rem;
-    font-weight: 300; /* spec §2 */
+    font-weight: 300;
     line-height: 1.25;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.5rem;
+    color: var(--ink);
   }
 
   .tag-count {
-    font-size: 0.9375rem;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
     color: var(--ink-2);
+    margin-bottom: 1.25rem;
+  }
+
+  .tag-hr {
+    border: none;
+    height: 2px;
+    background: var(--amber);
+    width: 3rem;
+    margin: 0;
   }
 </style>

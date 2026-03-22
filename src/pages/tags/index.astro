@@ -3,9 +3,9 @@ export const prerender = true;
 
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import TagBadge from '../../components/TagBadge.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
+import { tagToSlug } from '../../lib/utils';
 
 const posts = await getCollection('blog', ({ data }) => !data.draft);
 
@@ -22,13 +22,19 @@ const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
 <BaseLayout title="Tags — length3">
   <Header />
   <main class="tags-main">
-    <h1>Tags</h1>
+    <header class="tags-header">
+      <h1>Tags</h1>
+      <p class="tags-subtitle">{sortedTags.length} topics across {posts.length} articles</p>
+      <hr class="tags-hr" />
+    </header>
     <ul class="tag-grid">
       {
         sortedTags.map(([tag, count]) => (
           <li>
-            <TagBadge tag={tag} />
-            <span class="count">({count})</span>
+            <a href={`/tags/${tagToSlug(tag)}`} class="tag-card" rel="tag">
+              <span class="tag-name">#{tag}</span>
+              <span class="tag-count">{count}</span>
+            </a>
           </li>
         ))
       }
@@ -41,29 +47,89 @@ const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
   .tags-main {
     max-width: var(--measure);
     margin: 0 auto;
-    padding: 2rem 1.5rem;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  .tags-header {
+    margin-bottom: 2.5rem;
   }
 
   h1 {
-    font-family: var(--font-display); /* spec §2: Fraunces */
+    font-family: var(--font-display);
     font-size: 1.75rem;
-    font-weight: 300; /* spec §2 */
+    font-weight: 300;
     line-height: 1.25;
-    margin-bottom: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .tags-subtitle {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--ink-2);
+    margin-bottom: 1.25rem;
+  }
+
+  .tags-hr {
+    border: none;
+    height: 2px;
+    background: var(--amber);
+    width: 3rem;
+    margin: 0;
   }
 
   .tag-grid {
     list-style: none;
     padding: 0;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 0.75rem;
-    align-items: center;
   }
 
-  .count {
+  .tag-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    font-family: var(--font-mono);
     font-size: 0.8125rem;
+    color: var(--ink);
+    transition:
+      border-color 80ms ease,
+      color 80ms ease;
+  }
+
+  .tag-card:hover,
+  .tag-card:active {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  .tag-name {
+    color: inherit;
+  }
+
+  .tag-count {
+    font-size: 0.75rem;
     color: var(--ink-2);
-    margin-left: 0.25rem; /* 4px — grid aligned */
+    background: var(--bg-2);
+    padding: 2px 6px;
+    border-radius: 2px;
+    min-width: 1.5rem;
+    text-align: center;
+  }
+
+  @media (pointer: coarse) {
+    .tag-card {
+      min-height: 44px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .tag-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
