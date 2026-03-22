@@ -128,7 +128,7 @@ const dateStr = formatDate(publishDate, lang);
   .card-tag {
     font-family: var(--font-mono);
     font-size: 0.75rem;
-    color: var(--amber);
+    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
     padding: 0.25rem 0.5rem;
     border: 1px solid var(--rule);
     border-radius: 2px;
@@ -143,8 +143,8 @@ const dateStr = formatDate(publishDate, lang);
 
   .card-tag:hover,
   .card-tag:active {
-    color: var(--amber);
-    border-color: var(--amber);
+    color: var(--amber-text);
+    border-color: var(--amber-text);
   }
 
   @media (pointer: coarse) {

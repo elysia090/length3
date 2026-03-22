@@ -191,7 +191,7 @@ ruby {
 rt {
   font-family: var(--font-mono);   /* spec §2: JetBrains Mono */
   font-size: 0.65em;               /* raised from 0.52em: ~10px at 16px base, improves legibility */
-  color: var(--amber);
+  color: var(--amber-text);        /* SC 1.4.3: 4.73:1 on --bg */
 }
 
 /* Lines containing ruby get extra line-height to prevent collision — spec §2 */

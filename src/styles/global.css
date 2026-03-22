@@ -110,13 +110,14 @@ img {
 }
 .skip-link:focus {
   top: 0;
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--amber-text);
   outline-offset: 2px;
 }
 
 /* ─── Focus outline — spec §6 ────────────────────────────────── */
+/* --amber-text (#b45309) gives 4.73:1 on --bg: meets SC 1.4.11 non-text contrast (3:1) */
 :focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--amber-text);
   outline-offset: 3px;
 }
 
