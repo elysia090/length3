@@ -13,8 +13,14 @@
   --editor-bg:  #181511;   /* editor dark pane */
 
   /* Typography */
-  --font-display: 'Fraunces', Georgia, 'Noto Sans JP', 'Hiragino Mincho ProN', serif;
-  --font-sans:    'Noto Sans JP', system-ui, 'Hiragino Kaku Gothic ProN', sans-serif;
+  /* Display (headings): Japanese mincho fallbacks placed BEFORE Noto Sans JP so that
+     CJK characters in headings render in serif/mincho rather than sans-serif.
+     'Yu Mincho' covers Windows 8+; 'Hiragino Mincho ProN' covers macOS/iOS. */
+  --font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, 'Noto Sans JP', serif;
+  /* Sans: Japanese-specific fonts listed BEFORE system-ui so that CJK characters
+     render correctly when Noto Sans JP (Google Fonts) is unavailable.
+     'Yu Gothic UI' covers Windows 10+; 'Meiryo' covers Windows Vista+. */
+  --font-sans:    'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
   --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', monospace;
 
   /* Layout */
@@ -57,6 +63,28 @@ a {
 img {
   max-width: 100%;
   height: auto;
+}
+
+/* ─── Skip navigation link — SC 2.4.1 ──────────────────────────*/
+/* Visually hidden until focused; becomes visible for keyboard users */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--ink);
+  color: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  border-radius: 0 0 4px 4px;
+  z-index: 9999;
+  text-decoration: none;
+  transition: none; /* instant — no delay when keyboard user needs it */
+}
+.skip-link:focus {
+  top: 0;
+  outline: 2px solid var(--amber-text);
+  outline-offset: 2px;
 }
 
 /* ─── Focus outline — spec §6 ────────────────────────────────── */

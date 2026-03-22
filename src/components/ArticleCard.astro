@@ -13,7 +13,8 @@ const { title, publishDate, tags, lang } = entry.data;
 const dateStr = formatDate(publishDate, lang);
 ---
 
-<article class="article-card">
+<!-- SC 3.1.2: lang attr ensures AT uses correct phonetic rules for card language -->
+<article class="article-card" lang={lang}>
   <div class="card-meta">
     <time datetime={publishDate.toISOString()} class="card-date">{dateStr}</time>
     {

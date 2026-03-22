@@ -39,7 +39,7 @@ const processed: ProcessedPost[] = tagPosts.map(processPost);
 processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publishDate.valueOf());
 ---
 
-<BaseLayout title={`${tagName} — length3`}>
+<BaseLayout title={`${tagName} — Length³`}>
   <Header />
   <Breadcrumb
     segments={[
@@ -48,7 +48,7 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
       { label: tagName },
     ]}
   />
-  <main class="tag-main">
+  <main class="tag-main" id="main-content">
     <header class="tag-header">
       <h1 class="page-title">#{tagName}</h1>
       <p class="page-meta tag-count">

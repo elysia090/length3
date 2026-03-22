@@ -18,7 +18,7 @@ const processed: ProcessedPost[] = allPosts.map(processPost);
 
 <BaseLayout title="Length³" description="A technical blog.">
   <Header />
-  <main class="index-layout">
+  <main class="index-layout" id="main-content">
     <section class="article-list" aria-label="Articles">
       {processed.map((p) => <ArticleCard post={p} />)}
     </section>

@@ -17,7 +17,6 @@ interface Props {
   readingTime: number;
   headings: TocHeading[];
   lang?: 'en' | 'ja';
-  slug: string;
 }
 
 const {
@@ -29,7 +28,6 @@ const {
   readingTime,
   headings,
   lang = 'en',
-  slug,
 } = Astro.props;
 
 const dateStr = formatDate(publishDate, lang);
@@ -38,61 +36,65 @@ const dateStr = formatDate(publishDate, lang);
 <BaseLayout title={title} description={description} lang={lang}>
   <Header />
 
-  <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: slug }]} />
+  <!-- SC 2.4.1: id="main-content" is the skip-link target -->
+  <main id="main-content">
+    <!-- SC 2.4.6: breadcrumb uses article title (not URL slug) for a descriptive label -->
+    <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: title }]} />
 
-  <!--
+    <!--
     Article shell: TOC | prose | empty right column
     spec §1: "The right column is deliberately empty — no widgets, no actions, no metadata."
   -->
-  <div class="article-shell">
-    <!-- TOC — left column, sticky -->
-    <aside class="toc-aside" aria-label="Table of contents">
-      <TableOfContents headings={headings} />
-    </aside>
+    <div class="article-shell">
+      <!-- TOC — left column, sticky -->
+      <aside class="toc-aside" aria-label="Table of contents">
+        <TableOfContents headings={headings} />
+      </aside>
 
-    <!-- Prose — center column -->
-    <div class="prose-area">
-      <article class="prose" data-pagefind-body lang={lang}>
-        <header class="article-header">
-          <div class="article-header-meta">
-            <div class="article-header-tags">
+      <!-- Prose — center column -->
+      <div class="prose-area">
+        <article class="prose" data-pagefind-body lang={lang}>
+          <header class="article-header">
+            <div class="article-header-meta">
+              <div class="article-header-tags">
+                {
+                  tags.map((tag) => (
+                    <a href={getTagUrl(tag)} class="article-header-tag">
+                      #{tag}
+                    </a>
+                  ))
+                }
+              </div>
+              {tags.length > 0 && <span aria-hidden="true">·</span>}
+              <time datetime={publishDate.toISOString()} class="article-header-date">
+                {dateStr}
+              </time>
               {
-                tags.map((tag) => (
-                  <a href={getTagUrl(tag)} class="article-header-tag">
-                    #{tag}
-                  </a>
-                ))
+                updatedDate && (
+                  <span class="article-header-date">(upd. {formatDate(updatedDate, lang)})</span>
+                )
               }
             </div>
-            {tags.length > 0 && <span aria-hidden="true">·</span>}
-            <time datetime={publishDate.toISOString()} class="article-header-date">
-              {dateStr}
-            </time>
-            {
-              updatedDate && (
-                <span class="article-header-date">(upd. {formatDate(updatedDate, lang)})</span>
-              )
-            }
-          </div>
 
-          <h1>{title}</h1>
-          <hr class="amber-rule article-header-hr" />
+            <h1>{title}</h1>
+            <hr class="amber-rule article-header-hr" />
 
-          {description && <p class="article-header-lead">{description}</p>}
+            {description && <p class="article-header-lead">{description}</p>}
 
-          <p class="article-reading-time">{readingTime} min read</p>
-        </header>
+            <p class="article-reading-time">{readingTime} min read</p>
+          </header>
 
-        <slot />
-      </article>
+          <slot />
+        </article>
 
-      <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
-      <ArticleActions readingTime={readingTime} />
+        <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
+        <ArticleActions readingTime={readingTime} />
+      </div>
+
+      <!-- Right column: intentionally empty — spec §1 -->
+      <div class="article-empty-margin" aria-hidden="true"></div>
     </div>
-
-    <!-- Right column: intentionally empty — spec §1 -->
-    <div class="article-empty-margin" aria-hidden="true"></div>
-  </div>
+  </main>
 
   <Footer />
 </BaseLayout>
