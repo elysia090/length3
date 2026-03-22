@@ -19,15 +19,25 @@ const fmDelimMark = Decoration.mark({ class: FM_CSS.delim });
 function buildFrontmatterDecos(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const doc = view.state.doc;
-  const text = doc.toString();
-  if (!text.startsWith('---')) return builder.finish();
-  const endIdx = text.indexOf('\n---', 3);
-  if (endIdx === -1) return builder.finish();
-  const fmEnd = endIdx + 4; // include closing ---\n
+  // Need at least an opening and closing delimiter line.
+  if (doc.lines < 2) return builder.finish();
 
-  for (let i = 1; i <= doc.lines; i++) {
+  // Use the line API instead of doc.toString() so we never materialise the
+  // full document string.  CodeMirror's B-tree makes each doc.line() O(log n).
+  if (doc.line(1).text.trim() !== '---') return builder.finish();
+
+  // Scan forward for the closing delimiter.
+  let fmEndLineNum = -1;
+  for (let i = 2; i <= doc.lines; i++) {
+    if (doc.line(i).text.trim() === '---') {
+      fmEndLineNum = i;
+      break;
+    }
+  }
+  if (fmEndLineNum === -1) return builder.finish();
+
+  for (let i = 1; i <= fmEndLineNum; i++) {
     const line = doc.line(i);
-    if (line.from >= fmEnd) break;
     const lineText = line.text;
 
     if (lineText.trim() === '---') {

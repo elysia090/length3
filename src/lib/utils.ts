@@ -47,8 +47,12 @@ export function getTagUrl(tag: string): string {
 
 /** Estimates reading time in minutes, accounting for CJK character density. */
 export function estimateReadingTime(text: string): number {
-  const cjkChars = (text.match(/[\u3000-\u9FFF\uF900-\uFAFF]/g) ?? []).length;
-  const latinText = text.replace(/[\u3000-\u9FFF\uF900-\uFAFF]/g, '').trim();
+  // Single regex pass: strip CJK chars and count them via length delta.
+  // All code points in U+3000–U+9FFF and U+F900–U+FAFF are BMP (one UTF-16
+  // code unit each), so the length difference equals the char count exactly.
+  const noTrim = text.replace(/[\u3000-\u9FFF\uF900-\uFAFF]/g, '');
+  const cjkChars = text.length - noTrim.length;
+  const latinText = noTrim.trim();
   const latinWords = latinText ? latinText.split(/\s+/).filter(Boolean).length : 0;
 
   // CJK reading ~400 chars/min, Latin ~200 words/min

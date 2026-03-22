@@ -126,13 +126,17 @@ date: ${new Date().toISOString().slice(0, 10)}
 Start writing here.
 `;
 
-  function updateStatusCount(text: string) {
+  // body: already-extracted body text (no frontmatter), so we avoid a second
+  // parseFrontmatter() call inside updateStatusCount.
+  function updateStatusCount(body: string) {
     if (!countEl) return;
-    const { body } = parseFrontmatter(text);
     countEl.textContent = `${body.replace(/\s/g, '').length} chars`;
   }
 
   if (mount && output) {
+    // Timer handle for debouncing the expensive marked.parse render.
+    let previewTimer: ReturnType<typeof setTimeout> | undefined;
+
     const state = EditorState.create({
       doc: initialDoc,
       extensions: [
@@ -151,16 +155,26 @@ Start writing here.
           if (update.docChanged) {
             docChanged = true;
             const text = update.state.doc.toString();
-            renderPreview(text, output);
-            updateStatusCount(text);
+            // Parse frontmatter once per update cycle.
+            // parseFrontmatter is fast (~0.5 µs); update the status bar
+            // immediately so the char count never feels laggy.
+            const { body } = parseFrontmatter(text);
+            updateStatusCount(body);
+            // Debounce the expensive marked.parse call so that rapid typing
+            // (e.g. 10 keystrokes in 50 ms) triggers only one render instead
+            // of ten.
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(() => renderPreview(text, output), 50);
           }
         }),
       ],
     });
 
     new EditorView({ state, parent: mount });
+    // Initial render — synchronous on mount, no debounce needed.
+    const { body: initialBody } = parseFrontmatter(initialDoc);
     renderPreview(initialDoc, output);
-    updateStatusCount(initialDoc);
+    updateStatusCount(initialBody);
   }
 
   // ── Mobile tab switching — APG Tabs pattern ──────────────────
