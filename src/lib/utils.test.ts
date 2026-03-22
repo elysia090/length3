@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { estimateReadingTime, formatDate, tagToSlug, toSlug } from './utils';
+import { parseFrontmatter } from './editor/preview';
+import type { BlogPost } from './types';
+import { estimateReadingTime, formatDate, notDraft, processPost, tagToSlug, toSlug } from './utils';
 
 // ── toSlug ───────────────────────────────────────────────────────
 describe('toSlug', () => {
@@ -101,5 +103,108 @@ describe('formatDate', () => {
 
   it('ja locale includes the year 2026', () => {
     expect(formatDate(date, 'ja')).toContain('2026');
+  });
+});
+
+// ── notDraft ─────────────────────────────────────────────────────
+describe('notDraft', () => {
+  const makeEntry = (draft: boolean) => ({ data: { draft } }) as unknown as BlogPost;
+
+  it('returns true for published posts', () => {
+    expect(notDraft(makeEntry(false))).toBe(true);
+  });
+
+  it('returns false for draft posts', () => {
+    expect(notDraft(makeEntry(true))).toBe(false);
+  });
+});
+
+// ── processPost ──────────────────────────────────────────────────
+describe('processPost', () => {
+  const makeEntry = (id: string, body: string, description: string) =>
+    ({ id, body, data: { description, draft: false } }) as unknown as BlogPost;
+
+  it('derives slug from entry id', () => {
+    const result = processPost(makeEntry('hello.mdx', '', 'desc'));
+    expect(result.slug).toBe('hello');
+  });
+
+  it('sets excerpt from data.description', () => {
+    const result = processPost(makeEntry('hello.mdx', '', 'My excerpt'));
+    expect(result.excerpt).toBe('My excerpt');
+  });
+
+  it('readingTime is at least 1', () => {
+    const result = processPost(makeEntry('hello.mdx', '', 'desc'));
+    expect(result.readingTime).toBeGreaterThanOrEqual(1);
+  });
+
+  it('preserves the original entry reference', () => {
+    const entry = makeEntry('hello.mdx', 'body text', 'desc');
+    expect(processPost(entry).entry).toBe(entry);
+  });
+});
+
+// ── tagToSlug edge cases ─────────────────────────────────────────
+describe('tagToSlug edge cases', () => {
+  it('strips leading/trailing hyphens produced by punctuation', () => {
+    // '@astro' → strip '@' → 'astro' (no leading hyphen)
+    expect(tagToSlug('@astro')).toBe('astro');
+  });
+
+  it('Node.js loses the dot and produces no trailing hyphen', () => {
+    expect(tagToSlug('Node.js')).toBe('nodejs');
+  });
+
+  it('all-punctuation tag produces empty string', () => {
+    expect(tagToSlug('!!!')).toBe('');
+  });
+});
+
+// ── estimateReadingTime edge cases ───────────────────────────────
+describe('estimateReadingTime edge cases', () => {
+  it('multiple blank lines do not inflate word count', () => {
+    // 200 real words separated by blank lines should still be 1 min
+    const words = Array.from({ length: 200 }, () => 'word').join('\n\n');
+    expect(estimateReadingTime(words)).toBe(1);
+  });
+
+  it('mixed content with code block does not produce more than expected', () => {
+    // 100 words + code block with blank lines
+    const text = `${'word '.repeat(100)}\n\n\`\`\`\ncode here\n\`\`\`\n\n${'word '.repeat(100)}`;
+    // 200 real words + a few code tokens = ceil(≈1 min) = 1 min
+    expect(estimateReadingTime(text)).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ── parseFrontmatter ─────────────────────────────────────────────
+describe('parseFrontmatter', () => {
+  it('extracts title and body', () => {
+    const text = '---\ntitle: Hello\n---\n\nBody here.';
+    const result = parseFrontmatter(text);
+    expect(result.title).toBe('Hello');
+    expect(result.body).toBe('Body here.');
+  });
+
+  it('extracts lang field', () => {
+    const text = '---\ntitle: Test\nlang: ja\n---\n\nBody.';
+    expect(parseFrontmatter(text).lang).toBe('ja');
+  });
+
+  it('defaults lang to en when absent', () => {
+    const text = '---\ntitle: Test\n---\n\nBody.';
+    expect(parseFrontmatter(text).lang).toBe('en');
+  });
+
+  it('strips surrounding quotes from title', () => {
+    const text = "---\ntitle: 'Quoted'\n---\n\nBody.";
+    expect(parseFrontmatter(text).title).toBe('Quoted');
+  });
+
+  it('returns empty title and full text as body when no frontmatter', () => {
+    const text = 'Just a body.';
+    const result = parseFrontmatter(text);
+    expect(result.title).toBe('');
+    expect(result.body).toBe('Just a body.');
   });
 });

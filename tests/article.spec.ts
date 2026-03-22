@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { getCSSVarAsRgb, getComputedStyleProp, goToFirstArticle } from './helpers';
+import { getComputedStyleProp, getCSSVarAsRgb, goToFirstArticle } from './helpers';
 
 test.describe('Article page', () => {
   test.beforeEach(async ({ page }) => {
@@ -208,7 +208,7 @@ test.describe('Article page', () => {
     test('heading levels are not skipped — spec §6', async ({ page }) => {
       const levels = await page.evaluate(() =>
         Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).map((h) =>
-          Number.parseInt(h.tagName.charAt(1)),
+          Number.parseInt(h.tagName.charAt(1), 10),
         ),
       );
       for (let i = 1; i < levels.length; i++) {
