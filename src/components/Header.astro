@@ -1,5 +1,5 @@
 ---
-
+const { pathname } = Astro.url;
 ---
 
 <header class="site-header">
@@ -8,9 +8,9 @@
       Length<sup class="site-title-sup">3</sup>
     </a>
     <nav class="header-nav" aria-label="primary">
-      <a href="/">(Articles)</a>
-      <a href="/tags">(Tags)</a>
-      <a href="/about">(About)</a>
+      <a href="/" aria-current={pathname === '/' ? 'page' : undefined}>(Articles)</a>
+      <a href="/tags" aria-current={pathname.startsWith('/tags') ? 'page' : undefined}>(Tags)</a>
+      <a href="/about" aria-current={pathname === '/about' ? 'page' : undefined}>(About)</a>
     </nav>
   </div>
 </header>

@@ -17,7 +17,6 @@ import '../../styles/code.css';
       <div class="editor-topbar-actions">
         <!-- spec §4: amber is not used on any button -->
         <button class="editor-btn editor-btn-discard" id="discard-btn">Discard</button>
-        <button class="editor-btn editor-btn-preview" id="preview-btn">Preview</button>
         <button class="editor-btn editor-btn-publish" id="publish-btn" aria-label="Publish article"
           >Publish →</button
         >
@@ -70,12 +69,7 @@ import '../../styles/code.css';
       <span class="status-sep" aria-hidden="true">·</span>
       <span class="status-item" id="status-pos">Ln 1 · Col 1</span>
       <span class="status-sep" aria-hidden="true">·</span>
-      <span class="status-item">Prettier ✓</span>
-      <span class="status-sep" aria-hidden="true">·</span>
-      <span class="status-item">Biome ✓</span>
-      <span class="status-sep" aria-hidden="true">·</span>
       <span class="status-item" id="status-count">0 chars</span>
-      <span class="status-right">astro check: 0 errors</span>
     </div>
   </div>
 </BaseLayout>
@@ -108,10 +102,11 @@ import '../../styles/code.css';
     }
   });
 
-  // Nielsen H1: Publish feedback — capture the reference once
+  // Nielsen H1 + H3: Publish confirmation then feedback
   const publishBtn = document.getElementById('publish-btn') as HTMLButtonElement | null;
   publishBtn?.addEventListener('click', () => {
     if (!publishBtn) return;
+    if (!confirm('Publish this article?')) return;
     publishBtn.textContent = 'Published!';
     // Clear the dirty flag so beforeunload no longer warns after publishing
     docChanged = false;
@@ -278,17 +273,6 @@ Start writing here.
   }
 
   .editor-btn-discard:hover {
-    color: #c8c4be;
-  }
-
-  .editor-btn-preview {
-    border: 1px solid #3a3630;
-    border-radius: 2px;
-    color: #9a9690; /* Ink-2 equivalent on dark: secondary */
-  }
-
-  .editor-btn-preview:hover {
-    border-color: #52504a;
     color: #c8c4be;
   }
 
