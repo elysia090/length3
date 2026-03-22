@@ -1,8 +1,9 @@
 /* ─── Design Tokens ─────────────────────────────────────────── */
 :root {
   /* Colors — spec §3 */
-  --amber:      #d4820a;   /* single accent: tags, TOC active, links, ruby, cursor */
-  --amber-lt:   #e8a030;   /* code block left border */
+  --amber:      #d4820a;   /* decorative only: progress bar, hr, logo ³, borders — 2.83:1 on bg (non-text OK) */
+  --amber-text: #b45309;   /* text & UI indicators: links, tags, dates, TOC active, focus — 4.73:1 on bg (WCAG AA) */
+  --amber-lt:   #e8a030;   /* code block left border (decorative) */
   --ink:        #1c1a18;   /* primary text */
   --ink-2:      #52504a;   /* secondary text: descriptions, dates, meta */
   --ink-3:      #9a9690;   /* tertiary: labels, placeholders — large text only */
@@ -59,8 +60,9 @@ img {
 }
 
 /* ─── Focus outline — spec §6 ────────────────────────────────── */
+/* --amber-text (#b45309) gives 4.73:1 on --bg: meets SC 1.4.11 non-text contrast (3:1) */
 :focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--amber-text);
   outline-offset: 3px;
 }
 

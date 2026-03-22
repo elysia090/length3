@@ -35,7 +35,9 @@ const { readingTime } = Astro.props;
     </button>
   </div>
 
-  <div class="reading-stats" aria-live="polite" aria-label="Reading progress stats">
+  <!-- aria-live removed: role="progressbar" on #reading-progress already handles AT updates.
+       Polling aria-live on every scroll causes disruptive double-announcements (H1/Nielsen). -->
+  <div class="reading-stats" aria-label="Reading progress stats">
     <div class="stat-row">
       <span class="stat-pct" id="pct-read">0%</span>
       <span class="stat-detail">read</span>
@@ -129,7 +131,8 @@ const { readingTime } = Astro.props;
     height: 2px;
     width: var(--progress, 0%);
     background: var(--amber);
-    z-index: 200;
+    /* SC 2.4.11: lowered from 200 so it cannot obscure focus rings of interactive elements */
+    z-index: 10;
     transition: width 150ms linear;
     pointer-events: none;
   }

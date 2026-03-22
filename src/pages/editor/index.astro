@@ -241,11 +241,15 @@ Start writing here.
   }
 
   .editor-bc-sep {
-    color: #3a3630; /* spec §4: Ink-3 dark equivalent */
+    /* SC 1.4.3: was #3a3630 (1.59:1 on dark bg — invisible).
+       On dark #201d19, need LIGHT colors. #9a9690 gives 5.85:1. */
+    color: #9a9690;
   }
 
   .editor-bc-file {
-    color: var(--ink-2); /* upgraded from Ink-3 for readability on dark bg */
+    /* SC 1.4.3: was var(--ink-2)/#52504a — a dark token designed for light bg,
+       giving only 2.1:1 on dark editor bg. #c8c4be gives ~10:1 on dark bg. */
+    color: #c8c4be;
   }
 
   .editor-topbar-actions {

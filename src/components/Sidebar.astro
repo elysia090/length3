@@ -142,8 +142,8 @@
   }
 
   .search-icon {
-    font-weight: 500; /* reduced from 600 for less visual dominance */
-    color: var(--amber);
+    font-weight: 500;
+    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
     flex-shrink: 0;
   }
 
@@ -197,8 +197,8 @@
   .search-q {
     font-family: var(--font-mono);
     font-size: 1rem;
-    font-weight: 500; /* reduced from 600 to match trigger style */
-    color: var(--amber);
+    font-weight: 500;
+    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
     flex-shrink: 0;
   }
 
@@ -297,7 +297,7 @@
   }
   :global(.pagefind-ui__result:focus-within),
   :global(.pagefind-ui__result[aria-selected='true']) {
-    border-left-color: var(--amber);
+    border-left-color: var(--amber-text); /* SC 1.4.11: UI state indicator needs 3:1 */
     background: var(--bg-2);
   }
   :global(.pagefind-ui__result-title) {
@@ -312,7 +312,7 @@
   }
   :global(mark) {
     background: none;
-    color: var(--amber);
+    color: var(--amber-text); /* SC 1.4.3: search highlight text needs 4.5:1 */
     font-style: italic;
   }
 </style>

@@ -71,7 +71,7 @@
 }
 
 .prose a {
-  color: var(--amber);
+  color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -138,7 +138,7 @@
 }
 
 .prose ul > li::marker {
-  color: var(--amber);
+  color: var(--amber-text); /* SC 1.4.11: UI marker needs 3:1; --amber-text gives 4.73:1 */
 }
 
 /* ─── Horizontal rule ────────────────────────────────────────── */
@@ -189,8 +189,8 @@ ruby {
 
 rt {
   font-family: var(--font-mono);   /* spec §2: JetBrains Mono */
-  font-size: 0.52em;               /* spec §2 */
-  color: var(--amber);             /* spec §2: amber, not muted */
+  font-size: 0.65em;               /* raised from 0.52em: ~10px at 16px base, improves legibility */
+  color: var(--amber-text);        /* SC 1.4.3: 4.73:1 on --bg */
 }
 
 /* Lines containing ruby get extra line-height to prevent collision — spec §2 */
@@ -221,7 +221,7 @@ rt {
 }
 
 .article-header-tag {
-  color: var(--amber);   /* spec §3: tags use amber */
+  color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
 }
 
 .article-header-date {

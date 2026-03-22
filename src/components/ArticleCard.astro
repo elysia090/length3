@@ -72,7 +72,7 @@ const dateStr = formatDate(publishDate, lang);
 
   .card-date {
     letter-spacing: 0.04em;
-    color: var(--amber);
+    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
     width: 80px;
     flex-shrink: 0;
   }
@@ -127,10 +127,14 @@ const dateStr = formatDate(publishDate, lang);
   .card-tag {
     font-family: var(--font-mono);
     font-size: 0.75rem;
-    color: var(--amber);
-    padding: 4px 8px; /* 4px grid minimum */
+    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
+    padding: 4px 8px;
     border: 1px solid var(--rule);
     border-radius: 2px;
+    /* SC 2.5.8: minimum target size 24×24px for all pointer types */
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
     transition:
       color var(--transition-fast),
       border-color var(--transition-fast);
@@ -138,15 +142,13 @@ const dateStr = formatDate(publishDate, lang);
 
   .card-tag:hover,
   .card-tag:active {
-    color: var(--amber);
-    border-color: var(--amber);
+    color: var(--amber-text);
+    border-color: var(--amber-text);
   }
 
   @media (pointer: coarse) {
     .card-tag {
-      min-height: 44px;
-      display: inline-flex;
-      align-items: center;
+      min-height: 44px; /* WCAG 2.5.8: larger target on touch */
     }
   }
 </style>
