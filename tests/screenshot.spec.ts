@@ -40,8 +40,33 @@ async function gotoWithFonts(page: import('@playwright/test').Page, url: string)
       }),
     );
     // Wait for Google Fonts (Noto Sans JP) with a cap so CI never stalls.
+    //
+    // document.fonts.ready does NOT wait for font-display:swap fonts — it
+    // resolves as soon as there are no blocking font loads, which means Noto
+    // Sans JP (swap) is skipped entirely.  Instead we:
+    //   1. Wait for the dynamically-injected Google Fonts <link> to finish
+    //      loading its CSS (which registers the @font-face rules).
+    //   2. Explicitly call document.fonts.load() for each weight used in the
+    //      design, which triggers the actual download and resolves only when
+    //      the glyphs are ready.
     await Promise.race([
-      document.fonts.ready,
+      (async () => {
+        const gfLink = document.querySelector(
+          'link[href*="fonts.googleapis.com"]',
+        ) as HTMLLinkElement | null;
+        if (gfLink && !gfLink.sheet) {
+          await new Promise<void>((resolve) => {
+            gfLink.addEventListener('load', () => resolve());
+            gfLink.addEventListener('error', () => resolve()); // don't block on error
+          });
+        }
+        await Promise.all([
+          document.fonts.load('300 1em "Noto Sans JP"'),
+          document.fonts.load('400 1em "Noto Sans JP"'),
+          document.fonts.load('500 1em "Noto Sans JP"'),
+          document.fonts.load('700 1em "Noto Sans JP"'),
+        ]);
+      })(),
       new Promise<void>((resolve) => setTimeout(resolve, 3000)),
     ]);
     // Force a style recalculation so text re-renders with the loaded fonts.
