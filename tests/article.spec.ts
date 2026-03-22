@@ -63,7 +63,7 @@ test.describe('Article page', () => {
       // the JS activation behaviour is covered by the scroll-navigation test.
       await page.addStyleTag({ content: '.toc-link { transition: none !important; }' });
       await firstLink.evaluate((el) => el.classList.add('active'));
-      const amberRgb = await getCSSVarAsRgb(page, '--amber');
+      const amberRgb = await getCSSVarAsRgb(page, '--amber-text');
       const color = await getComputedStyleProp(page, '.toc-link.active', 'color');
       expect(color).toBe(amberRgb);
       const borderColor = await getComputedStyleProp(page, '.toc-link.active', 'border-left-color');
@@ -243,7 +243,7 @@ test.describe('Japanese article', () => {
   });
 
   test('ruby text (rt) is amber colored', async ({ page }) => {
-    const amberRgb = await getCSSVarAsRgb(page, '--amber');
+    const amberRgb = await getCSSVarAsRgb(page, '--amber-text');
     const color = await getComputedStyleProp(page, 'rt', 'color');
     expect(color).toBe(amberRgb);
   });

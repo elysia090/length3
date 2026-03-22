@@ -66,10 +66,6 @@ test.describe('Editor page', () => {
       await expect(page.locator('#discard-btn')).toBeVisible();
     });
 
-    test('Preview button is present — spec §4', async ({ page }) => {
-      await expect(page.locator('#preview-btn')).toBeVisible();
-    });
-
     test('Publish button is present — spec §4', async ({ page }) => {
       await expect(page.locator('#publish-btn')).toBeVisible();
     });

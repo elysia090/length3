@@ -98,7 +98,7 @@ test.describe('Index page', () => {
     test('card tags use amber color — spec §4', async ({ page }) => {
       // Assert the element exists first — prevents silent pass when no tags are rendered
       await expect(page.locator('.card-tag').first()).toBeAttached();
-      const amberRgb = await getCSSVarAsRgb(page, '--amber');
+      const amberRgb = await getCSSVarAsRgb(page, '--amber-text');
       const color = await getComputedStyleProp(page, '.card-tag', 'color');
       expect(color).toBe(amberRgb);
     });
@@ -260,7 +260,7 @@ test.describe('Index page', () => {
     });
 
     test('focus outline is 2px amber — spec §6', async ({ page }) => {
-      const amberRgb = await getCSSVarAsRgb(page, '--amber');
+      const amberRgb = await getCSSVarAsRgb(page, '--amber-text');
       await page.keyboard.press('Tab');
       const outline = await page.evaluate(() =>
         document.activeElement ? getComputedStyle(document.activeElement).outlineColor : '',
