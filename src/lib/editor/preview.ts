@@ -6,6 +6,11 @@ export interface FrontmatterData {
   body: string;
 }
 
+/** Strips surrounding single/double quotes from a YAML scalar value. */
+function stripYamlQuotes(value: string): string {
+  return value.trim().replace(/^['"]|['"]$/g, '');
+}
+
 /**
  * Extracts title, lang, and body from a Markdown/MDX document with YAML
  * frontmatter.  Pure function — no DOM access.
@@ -18,9 +23,9 @@ export function parseFrontmatter(text: string): FrontmatterData {
   if (fmMatch) {
     const fm = fmMatch[1] ?? '';
     const titleM = fm.match(/^title:\s*(.+)$/m);
-    if (titleM) title = titleM[1]?.trim().replace(/^['"]|['"]$/g, '') ?? '';
+    if (titleM) title = stripYamlQuotes(titleM[1] ?? '');
     const langM = fm.match(/^lang:\s*(.+)$/m);
-    if (langM) lang = langM[1]?.trim().replace(/^['"]|['"]$/g, '') ?? 'en';
+    if (langM) lang = stripYamlQuotes(langM[1] ?? '') || 'en';
   }
 
   const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();

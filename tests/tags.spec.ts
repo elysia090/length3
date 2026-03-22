@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { countH1 } from './helpers';
 
 test.describe('Tags index page', () => {
   test.beforeEach(async ({ page }) => {
@@ -6,9 +7,7 @@ test.describe('Tags index page', () => {
   });
 
   test('has a single h1 reading "Tags"', async ({ page }) => {
-    // Use page.evaluate to avoid piercing Astro dev toolbar Shadow DOM
-    const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length);
-    expect(h1Count).toBe(1);
+    expect(await countH1(page)).toBe(1);
     await expect(page.locator('main h1')).toContainText('Tags');
   });
 
@@ -43,9 +42,7 @@ test.describe('Tag detail page', () => {
   });
 
   test('has a single h1 with the tag name', async ({ page }) => {
-    // Use page.evaluate to avoid piercing Astro dev toolbar Shadow DOM
-    const h1Count = await page.evaluate(() => document.querySelectorAll('h1').length);
-    expect(h1Count).toBe(1);
+    expect(await countH1(page)).toBe(1);
     await expect(page.locator('main h1')).toBeVisible();
   });
 

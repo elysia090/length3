@@ -3,7 +3,8 @@ import { tags } from '@lezer/highlight';
 import { EditorView } from 'codemirror';
 
 /** Amber design token — mirrors --amber: #d4820a in global.css.
- *  CSS variables can't be used inside EditorView.theme() JS strings. */
+ *  CSS variables can't be used inside EditorView.theme() JS strings.
+ *  Keep in sync with global.css if the design token changes. */
 const AMBER = '#d4820a';
 const AMBER_LT = '#e8a030'; /* --amber-lt */
 

@@ -5,7 +5,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
-import { tagToSlug, notDraft } from '../../lib/utils';
+import { getTagUrl, notDraft } from '../../lib/utils';
 
 const posts = await getCollection('blog', notDraft);
 
@@ -33,7 +33,7 @@ const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
       {
         sortedTags.map(([tag, count]) => (
           <li>
-            <a href={`/tags/${tagToSlug(tag)}`} class="tag-card" rel="tag">
+            <a href={getTagUrl(tag)} class="tag-card" rel="tag">
               <span class="tag-name">#{tag}</span>
               <span class="tag-count">{count}</span>
             </a>

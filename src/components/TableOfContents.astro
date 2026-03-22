@@ -103,18 +103,25 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
       sentinel.setAttribute('aria-hidden', 'true');
       articleBody.appendChild(sentinel);
 
+      // Guard: don't respond to the initial IntersectionObserver callback that
+      // fires synchronously on observe() — only act after the user has scrolled.
+      // Without this, hash-navigation page loads (e.g. #section-3) can trigger
+      // the fade immediately before the reader has seen anything.
+      let userHasScrolled = false;
+      window.addEventListener(
+        'scroll',
+        () => {
+          userHasScrolled = true;
+        },
+        { once: true, passive: true },
+      );
+
       const fadeObserver = new IntersectionObserver(
         ([entry]) => {
-          if (entry && !entry.isIntersecting && entry.boundingClientRect.top < 0) {
-            // Sentinel has scrolled above the viewport — article is done
-            tocNav.style.opacity = '0';
-            tocNav.style.pointerEvents = 'none';
-            tocNav.style.visibility = 'hidden';
-          } else {
-            tocNav.style.opacity = '';
-            tocNav.style.pointerEvents = '';
-            tocNav.style.visibility = '';
-          }
+          if (!userHasScrolled) return;
+          // Sentinel scrolled above viewport → article body is done
+          const past = Boolean(entry && !entry.isIntersecting && entry.boundingClientRect.top < 0);
+          tocNav.classList.toggle('toc--hidden', past);
         },
         { threshold: 0 },
       );
@@ -139,6 +146,13 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
 <style>
   .toc {
     transition: opacity 200ms ease; /* spec §5: TOC disappearance 200ms */
+  }
+
+  /* Applied by JS when the reader scrolls past the end of the article body */
+  .toc--hidden {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
   }
 
   /* ── <details> / <summary> reset ── */

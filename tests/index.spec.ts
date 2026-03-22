@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { getCSSVar, getCSSVarAsRgb, getComputedStyleProp } from './helpers';
+import { getComputedStyleProp, getCSSVar, getCSSVarAsRgb } from './helpers';
 
 test.describe('Index page', () => {
   test.beforeEach(async ({ page }) => {
