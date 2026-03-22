@@ -17,6 +17,11 @@ import '../../styles/code.css';
       <div class="editor-topbar-actions">
         <!-- spec §4: amber is not used on any button -->
         <button class="editor-btn editor-btn-discard" id="discard-btn">Discard</button>
+        <button
+          class="editor-btn editor-btn-preview"
+          id="preview-btn"
+          aria-label="Focus preview pane">Preview</button
+        >
         <button class="editor-btn editor-btn-publish" id="publish-btn" aria-label="Publish article"
           >Publish →</button
         >
@@ -99,6 +104,15 @@ import '../../styles/code.css';
     if (docChanged && !confirm('Discard all changes?')) {
       e.preventDefault();
       e.stopPropagation();
+    }
+  });
+
+  // Preview button — focus the preview pane for keyboard navigation
+  document.getElementById('preview-btn')?.addEventListener('click', () => {
+    const preview = document.getElementById('preview-pane');
+    if (preview) {
+      preview.setAttribute('tabindex', '-1');
+      preview.focus();
     }
   });
 
@@ -276,6 +290,16 @@ Start writing here.
   }
 
   .editor-btn-discard:hover {
+    color: var(--editor-ink);
+  }
+
+  /* spec §4: Preview — same weight as Discard */
+  .editor-btn-preview {
+    border: none;
+    color: var(--editor-ink-2);
+  }
+
+  .editor-btn-preview:hover {
     color: var(--editor-ink);
   }
 
