@@ -186,10 +186,12 @@ Start writing here.
       const idx = tabArr.indexOf(tab);
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         e.preventDefault();
-        const next =
+        const nextIdx =
           e.key === 'ArrowRight'
-            ? tabArr[(idx + 1) % tabArr.length]!
-            : tabArr[(idx - 1 + tabArr.length) % tabArr.length]!;
+            ? (idx + 1) % tabArr.length
+            : (idx - 1 + tabArr.length) % tabArr.length;
+        const next = tabArr[nextIdx];
+        if (!next) return;
         next.focus();
         activateTab(next);
       }

@@ -21,7 +21,8 @@
       },
       "style": {
         "useImportType": "error",
-        "noParameterAssign": "error"
+        "noParameterAssign": "error",
+        "noNonNullAssertion": "error"
       },
       "suspicious": {
         "noExplicitAny": "error"
