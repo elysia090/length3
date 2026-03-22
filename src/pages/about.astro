@@ -1,0 +1,40 @@
+---
+export const prerender = true;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout title="About — Length³" description="About Length³">
+  <Header />
+  <main class="about-main" id="main-content">
+    <header class="about-header">
+      <h1 class="page-title">About</h1>
+      <hr class="amber-rule about-rule" />
+    </header>
+    <div class="about-body prose">
+      <p>
+        <strong>Length³</strong> is a technical blog focused on depth over breadth. Each article aims
+        to be worth the time it takes to read.
+      </p>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+  .about-main {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  .about-header {
+    margin-bottom: 2rem;
+  }
+
+  .about-rule {
+    margin-top: 1.25rem;
+  }
+</style>

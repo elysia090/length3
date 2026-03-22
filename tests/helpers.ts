@@ -55,11 +55,11 @@ export async function getComputedStyleProp(
   property: string,
 ): Promise<string> {
   return page.evaluate(
-    ([sel, prop]) => {
+    ({ sel, prop }: { sel: string; prop: string }) => {
       const el = document.querySelector(sel);
       if (!el) return '';
       return getComputedStyle(el).getPropertyValue(prop).trim();
     },
-    [selector, property] as [string, string],
+    { sel: selector, prop: property },
   );
 }

@@ -129,9 +129,9 @@ describe('processPost', () => {
     expect(result.slug).toBe('hello');
   });
 
-  it('sets excerpt from data.description', () => {
+  it('sets description from data.description', () => {
     const result = processPost(makeEntry('hello.mdx', '', 'My excerpt'));
-    expect(result.excerpt).toBe('My excerpt');
+    expect(result.description).toBe('My excerpt');
   });
 
   it('readingTime is at least 1', () => {

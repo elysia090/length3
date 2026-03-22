@@ -15,9 +15,11 @@
     "lint": "biome check . && prettier --check \"src/**/*.astro\"",
     "format": "biome format --write . && prettier --write \"src/**/*.astro\"",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test",
-    "test": "vitest run && playwright test",
-    "postbuild": "pagefind --site dist"
+    "test:e2e": "playwright test --project=chromium",
+    "test": "vitest run && playwright test --project=chromium",
+    "screenshots": "playwright test --project=screenshots",
+    "postbuild": "pagefind --site dist",
+    "prepare": "husky"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.3",
@@ -38,11 +40,25 @@
     "@biomejs/biome": "^2.4.8",
     "@playwright/test": "1.56.0",
     "@types/node": "^25.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "pagefind": "^1.4.0",
     "prettier": "^3.8.1",
     "prettier-plugin-astro": "^0.14.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0",
     "wrangler": "^4.76.0"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "biome check --write",
+      "biome format --write"
+    ],
+    "src/**/*.astro": [
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   }
 }

@@ -63,7 +63,7 @@ test.describe('Article page', () => {
       // the JS activation behaviour is covered by the scroll-navigation test.
       await page.addStyleTag({ content: '.toc-link { transition: none !important; }' });
       await firstLink.evaluate((el) => el.classList.add('active'));
-      const amberRgb = await getCSSVarAsRgb(page, '--amber');
+      const amberRgb = await getCSSVarAsRgb(page, '--amber-text');
       const color = await getComputedStyleProp(page, '.toc-link.active', 'color');
       expect(color).toBe(amberRgb);
       const borderColor = await getComputedStyleProp(page, '.toc-link.active', 'border-left-color');
@@ -104,10 +104,9 @@ test.describe('Article page', () => {
   // ── Reading progress — spec §5 ───────────────────────────────────
   test.describe('Reading progress bar', () => {
     test('progress bar starts at 0% width', async ({ page }) => {
-      const width = await page.evaluate(() => {
-        const bar = document.getElementById('reading-progress');
-        return bar ? getComputedStyle(bar).width : '';
-      });
+      const width = await page
+        .locator('#reading-progress')
+        .evaluate((el) => getComputedStyle(el).width);
       expect(width).toBe('0px');
     });
 
@@ -173,6 +172,54 @@ test.describe('Article page', () => {
     test('code block left border is 2px — spec §4', async ({ page }) => {
       const bw = await getComputedStyleProp(page, '.prose pre', 'border-left-width');
       expect(bw).toBe('2px');
+    });
+  });
+
+  // ── Article actions — spec §5 ────────────────────────────────────
+  test.describe('Article actions', () => {
+    test('copy link button is visible', async ({ page }) => {
+      await expect(page.locator('#copy-link-btn')).toBeVisible();
+    });
+
+    test('copy link button has accessible label', async ({ page }) => {
+      await expect(page.locator('#copy-link-btn')).toHaveAttribute(
+        'aria-label',
+        'Copy link to clipboard',
+      );
+    });
+
+    test('share button is visible', async ({ page }) => {
+      await expect(page.locator('#share-btn')).toBeVisible();
+    });
+
+    test('share button has accessible label', async ({ page }) => {
+      await expect(page.locator('#share-btn')).toHaveAttribute('aria-label', 'Share article');
+    });
+
+    test('reading stats show 0% at page top', async ({ page }) => {
+      const pct = await page.locator('#pct-read').textContent();
+      expect(pct).toBe('0%');
+    });
+
+    test('reading stats update on scroll', async ({ page }) => {
+      await page.evaluate(() => window.scrollBy(0, 500));
+      await page.waitForFunction(() => {
+        const el = document.getElementById('pct-read');
+        return el ? el.textContent !== '0%' : false;
+      });
+      const pct = await page.locator('#pct-read').textContent();
+      expect(pct).not.toBe('0%');
+    });
+
+    test('reading-stats region has aria-label', async ({ page }) => {
+      await expect(page.locator('.reading-stats')).toHaveAttribute(
+        'aria-label',
+        'Reading progress stats',
+      );
+    });
+
+    test('reading progress has progressbar role', async ({ page }) => {
+      await expect(page.locator('#reading-progress')).toHaveAttribute('role', 'progressbar');
     });
   });
 
@@ -243,7 +290,7 @@ test.describe('Japanese article', () => {
   });
 
   test('ruby text (rt) is amber colored', async ({ page }) => {
-    const amberRgb = await getCSSVarAsRgb(page, '--amber');
+    const amberRgb = await getCSSVarAsRgb(page, '--amber-text');
     const color = await getComputedStyleProp(page, 'rt', 'color');
     expect(color).toBe(amberRgb);
   });

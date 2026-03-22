@@ -35,7 +35,9 @@ const { readingTime } = Astro.props;
     </button>
   </div>
 
-  <div class="reading-stats" aria-live="polite" aria-label="Reading progress stats">
+  <!-- aria-live removed: role="progressbar" on #reading-progress already handles AT updates.
+       Polling aria-live on every scroll causes disruptive double-announcements (H1/Nielsen). -->
+  <div class="reading-stats" aria-label="Reading progress stats">
     <div class="stat-row">
       <span class="stat-pct" id="pct-read">0%</span>
       <span class="stat-detail">read</span>
@@ -70,7 +72,10 @@ const { readingTime } = Astro.props;
     navigator.clipboard
       .writeText(window.location.href)
       .then(() => flash('#copy-link-btn .action-label', 'Copied!', 'Copy link'))
-      .catch((err) => console.warn('[copy-link] clipboard write failed:', err));
+      .catch((err) => {
+        console.warn('[copy-link] clipboard write failed:', err);
+        flash('#copy-link-btn .action-label', 'Failed', 'Copy link');
+      });
   });
 
   // Share (native sheet when available, clipboard fallback otherwise)
@@ -80,13 +85,17 @@ const { readingTime } = Astro.props;
       navigator.share({ url: window.location.href, title: document.title }).catch((err) => {
         if (err instanceof Error && err.name !== 'AbortError') {
           console.warn('[share] navigator.share failed:', err);
+          flash('#share-btn .action-label', 'Failed', 'Share');
         }
       });
     } else {
       navigator.clipboard
         .writeText(window.location.href)
         .then(() => flash('#share-btn .action-label', 'Copied!', 'Share'))
-        .catch((err) => console.warn('[share] clipboard fallback failed:', err));
+        .catch((err) => {
+          console.warn('[share] clipboard fallback failed:', err);
+          flash('#share-btn .action-label', 'Failed', 'Share');
+        });
     }
   });
 
@@ -122,7 +131,8 @@ const { readingTime } = Astro.props;
     height: 2px;
     width: var(--progress, 0%);
     background: var(--amber);
-    z-index: 200;
+    /* SC 2.4.11: lowered from 200 so it cannot obscure focus rings of interactive elements */
+    z-index: 10;
     transition: width 150ms linear;
     pointer-events: none;
   }
@@ -146,7 +156,7 @@ const { readingTime } = Astro.props;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 1rem 0; /* WCAG 2.5.8: 44px touch target */
+    padding: 1rem 0; /* WCAG 2.5.8: 2×1rem padding + line-height ≥ 2.75rem total */
     background: none;
     border: none;
     cursor: pointer;
@@ -194,7 +204,7 @@ const { readingTime } = Astro.props;
     display: flex;
     gap: 0.25rem; /* 4px — grid aligned */
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--font-ui-xs);
     color: var(--ink-2);
     align-items: baseline;
   }

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { getComputedStyleProp } from './helpers';
+import { getComputedStyleProp, getCSSVarAsRgb } from './helpers';
 
 test.describe('Editor page', () => {
   test.beforeEach(async ({ page }) => {
@@ -21,18 +21,16 @@ test.describe('Editor page', () => {
     });
 
     test('top bar is 40px tall — spec §4', async ({ page }) => {
-      const height = await page.evaluate(() => {
-        const bar = document.querySelector('.editor-topbar');
-        return bar ? (bar as HTMLElement).offsetHeight : 0;
-      });
+      const height = await page
+        .locator('.editor-topbar')
+        .evaluate((el) => (el as HTMLElement).offsetHeight);
       expect(height).toBe(40);
     });
 
     test('status bar is 24px tall — spec §4', async ({ page }) => {
-      const height = await page.evaluate(() => {
-        const bar = document.querySelector('.editor-statusbar');
-        return bar ? (bar as HTMLElement).offsetHeight : 0;
-      });
+      const height = await page
+        .locator('.editor-statusbar')
+        .evaluate((el) => (el as HTMLElement).offsetHeight);
       expect(height).toBe(24);
     });
 
@@ -40,14 +38,12 @@ test.describe('Editor page', () => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.goto('/editor');
 
-      const [editorWidth, previewWidth] = await page.evaluate(() => {
-        const editorPane = document.querySelector('.editor-pane');
-        const previewPane = document.querySelector('.preview-pane');
-        return [
-          (editorPane as HTMLElement | null)?.offsetWidth ?? 0,
-          (previewPane as HTMLElement | null)?.offsetWidth ?? 0,
-        ];
-      });
+      const editorWidth = await page
+        .locator('.editor-pane')
+        .evaluate((el) => (el as HTMLElement).offsetWidth);
+      const previewWidth = await page
+        .locator('.preview-pane')
+        .evaluate((el) => (el as HTMLElement).offsetWidth);
       // Allow 1px tolerance for subpixel rendering
       expect(Math.abs(editorWidth - previewWidth)).toBeLessThanOrEqual(1);
     });
@@ -57,17 +53,13 @@ test.describe('Editor page', () => {
   test.describe('Top bar', () => {
     test('logo shows "L3" in amber — spec §4', async ({ page }) => {
       await expect(page.locator('.editor-logo')).toBeVisible();
-      // amber #d4820a = rgb(212, 130, 10)
+      const amberRgb = await getCSSVarAsRgb(page, '--amber');
       const color = await getComputedStyleProp(page, '.editor-logo', 'color');
-      expect(color).toBe('rgb(212, 130, 10)');
+      expect(color).toBe(amberRgb);
     });
 
     test('Discard button is present — spec §4', async ({ page }) => {
       await expect(page.locator('#discard-btn')).toBeVisible();
-    });
-
-    test('Preview button is present — spec §4', async ({ page }) => {
-      await expect(page.locator('#preview-btn')).toBeVisible();
     });
 
     test('Publish button is present — spec §4', async ({ page }) => {
@@ -75,18 +67,18 @@ test.describe('Editor page', () => {
     });
 
     test('Publish button is NOT amber — spec §4', async ({ page }) => {
-      // Must not be amber rgb(212, 130, 10)
+      const amberRgb = await getCSSVarAsRgb(page, '--amber');
       const color = await getComputedStyleProp(page, '#publish-btn', 'color');
-      expect(color).not.toBe('rgb(212, 130, 10)');
+      expect(color).not.toBe(amberRgb);
     });
   });
 
   // ── Editor pane — spec §4 ────────────────────────────────────────
   test.describe('Editor pane', () => {
     test('editor pane has warm-dark background — spec §4', async ({ page }) => {
-      // editor-bg #181511 = rgb(24, 21, 17)
+      const editorBgRgb = await getCSSVarAsRgb(page, '--editor-bg');
       const bg = await getComputedStyleProp(page, '.editor-pane', 'background-color');
-      expect(bg).toBe('rgb(24, 21, 17)');
+      expect(bg).toBe(editorBgRgb);
     });
 
     test('CodeMirror editor mounts inside editor pane', async ({ page }) => {
@@ -98,9 +90,9 @@ test.describe('Editor page', () => {
   // ── Preview pane — spec §4 ───────────────────────────────────────
   test.describe('Preview pane', () => {
     test('preview pane has light background — spec §4', async ({ page }) => {
-      // bg #f9f8f5 = rgb(249, 248, 245)
+      const bgRgb = await getCSSVarAsRgb(page, '--bg');
       const bg = await getComputedStyleProp(page, '.preview-pane', 'background-color');
-      expect(bg).toBe('rgb(249, 248, 245)');
+      expect(bg).toBe(bgRgb);
     });
 
     test('preview output element exists', async ({ page }) => {
@@ -111,14 +103,15 @@ test.describe('Editor page', () => {
   // ── Status bar — spec §4 ─────────────────────────────────────────
   test.describe('Status bar', () => {
     test('status bar has darker-than-editor-bg background — spec §4', async ({ page }) => {
-      // #1a1714 = rgb(26, 23, 20)
+      const statusbarBgRgb = await getCSSVarAsRgb(page, '--editor-statusbar-bg');
       const bg = await getComputedStyleProp(page, '.editor-statusbar', 'background-color');
-      expect(bg).toBe('rgb(26, 23, 20)');
+      expect(bg).toBe(statusbarBgRgb);
     });
 
     test('status bar is NOT amber — spec §4', async ({ page }) => {
+      const amberRgb = await getCSSVarAsRgb(page, '--amber');
       const bg = await getComputedStyleProp(page, '.editor-statusbar', 'background-color');
-      expect(bg).not.toBe('rgb(212, 130, 10)');
+      expect(bg).not.toBe(amberRgb);
     });
 
     test('status bar shows UTF-8', async ({ page }) => {

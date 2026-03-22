@@ -33,7 +33,7 @@ import { FRAUNCES_WOFF2 } from '../lib/fontConfig';
          Loaded asynchronously via JS to avoid blocking page render/load event. -->
     <script is:inline>
       (function () {
-        var l = document.createElement('link');
+        const l = document.createElement('link');
         l.rel = 'stylesheet';
         l.href =
           'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap';
@@ -55,6 +55,8 @@ import { FRAUNCES_WOFF2 } from '../lib/fontConfig';
     <meta property="og:url" content={Astro.url.href} />
   </head>
   <body>
+    <!-- SC 2.4.1: skip link — first focusable element, targets #main-content on each page -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <slot />
   </body>
 </html>
