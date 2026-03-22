@@ -156,7 +156,7 @@ const { readingTime } = Astro.props;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 1rem 0; /* WCAG 2.5.8: 2.75rem touch target */
+    padding: 1rem 0; /* WCAG 2.5.8: 2×1rem padding + line-height ≥ 2.75rem total */
     background: none;
     border: none;
     cursor: pointer;
@@ -204,7 +204,7 @@ const { readingTime } = Astro.props;
     display: flex;
     gap: 0.25rem; /* 4px — grid aligned */
     font-family: var(--font-mono);
-    font-size: 0.6875rem;
+    font-size: var(--font-ui-xs);
     color: var(--ink-2);
     align-items: baseline;
   }

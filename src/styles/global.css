@@ -33,10 +33,11 @@
   --editor-hl-fn:        #8bb8e8;  /* function / variable names: muted sky */
 
   /* Surfaces & shadows */
-  --overlay-bg:  rgba(28, 26, 24, 0.6);          /* modal/dialog scrim — --ink at ~60% */
-  --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15); /* floating card elevation */
+  --overlay-bg:  rgba(28, 26, 24, 0.6);              /* modal/dialog scrim — --ink at ~60% */
+  --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);  /* floating card elevation */
 
-  /* Typography */
+  /* Typography — font-size scale */
+  --font-ui-xs: 0.6875rem;   /* 11px — smallest UI text: status bars, shortcuts, editor labels */
   /* Display (headings): Japanese mincho fallbacks placed BEFORE Noto Sans JP so that
      CJK characters in headings render in serif/mincho rather than sans-serif.
      'Yu Mincho' covers Windows 8+; 'Hiragino Mincho ProN' covers macOS/iOS. */
