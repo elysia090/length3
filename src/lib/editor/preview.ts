@@ -41,8 +41,10 @@ export function renderPreview(text: string, output: HTMLElement): void {
   // Apply lang so Japanese typography CSS rules take effect in the preview.
   output.setAttribute('lang', lang);
 
+  // marked.parse / parseInline return string synchronously when no async
+  // extensions are registered; String() coercion is safe for both overloads.
   const headerHtml = title
-    ? `<header class="article-header"><h1>${marked.parseInline(title) as string}</h1><hr class="article-header-hr"></header>`
+    ? `<header class="article-header"><h1>${String(marked.parseInline(title))}</h1><hr class="article-header-hr"></header>`
     : '';
-  output.innerHTML = headerHtml + (marked.parse(body) as string);
+  output.innerHTML = headerHtml + String(marked.parse(body));
 }

@@ -22,6 +22,23 @@ export async function getCSSVar(page: Page, varName: string): Promise<string> {
 }
 
 /**
+ * Read a CSS custom property hex value and return it as the rgb() string that
+ * browsers emit from getComputedStyle.  Use this instead of hardcoding
+ * 'rgb(R, G, B)' literals so that tests stay valid when design tokens change.
+ *
+ * Assumes the token value is a 6-digit hex color (#rrggbb).
+ */
+export async function getCSSVarAsRgb(page: Page, varName: string): Promise<string> {
+  return page.evaluate((name) => {
+    const hex = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgb(${r}, ${g}, ${b})`;
+  }, varName);
+}
+
+/**
  * Get the computed style property of a selector.
  */
 export async function getComputedStyleProp(

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { getComputedStyleProp, goToFirstArticle } from './helpers';
+import { getComputedStyleProp, getCSSVarAsRgb, goToFirstArticle } from './helpers';
 
 test.describe('Article page', () => {
   test.beforeEach(async ({ page }) => {
@@ -66,11 +66,11 @@ test.describe('Article page', () => {
       // the JS activation behaviour is covered by the scroll-navigation test.
       await page.addStyleTag({ content: '.toc-link { transition: none !important; }' });
       await firstLink.evaluate((el) => el.classList.add('active'));
-      // amber #d4820a = rgb(212, 130, 10)
+      const amberRgb = await getCSSVarAsRgb(page, '--amber');
       const color = await getComputedStyleProp(page, '.toc-link.active', 'color');
-      expect(color).toBe('rgb(212, 130, 10)');
+      expect(color).toBe(amberRgb);
       const borderColor = await getComputedStyleProp(page, '.toc-link.active', 'border-left-color');
-      expect(borderColor).toBe('rgb(212, 130, 10)');
+      expect(borderColor).toBe(amberRgb);
     });
 
     test('H3 TOC items have margin-left: 12px — spec §4', async ({ page }) => {
@@ -125,9 +125,9 @@ test.describe('Article page', () => {
     });
 
     test('progress bar is amber colored', async ({ page }) => {
-      // amber #d4820a = rgb(212, 130, 10)
+      const amberRgb = await getCSSVarAsRgb(page, '--amber');
       const color = await getComputedStyleProp(page, '#reading-progress', 'background-color');
-      expect(color).toBe('rgb(212, 130, 10)');
+      expect(color).toBe(amberRgb);
     });
 
     test('progress bar is 2px tall', async ({ page }) => {
@@ -162,15 +162,15 @@ test.describe('Article page', () => {
     });
 
     test('code blocks use light background — spec §4', async ({ page }) => {
-      // bg-2 #f0ede8 = rgb(240, 237, 232)
+      const bg2Rgb = await getCSSVarAsRgb(page, '--bg-2');
       const bgColor = await getComputedStyleProp(page, '.prose pre', 'background-color');
-      expect(bgColor).toBe('rgb(240, 237, 232)');
+      expect(bgColor).toBe(bg2Rgb);
     });
 
     test('code blocks have amber-lt left border — spec §4', async ({ page }) => {
-      // amber-lt #e8a030 = rgb(232, 160, 48)
+      const amberLtRgb = await getCSSVarAsRgb(page, '--amber-lt');
       const borderColor = await getComputedStyleProp(page, '.prose pre', 'border-left-color');
-      expect(borderColor).toBe('rgb(232, 160, 48)');
+      expect(borderColor).toBe(amberLtRgb);
     });
 
     test('code block left border is 2px — spec §4', async ({ page }) => {
@@ -246,8 +246,8 @@ test.describe('Japanese article', () => {
   });
 
   test('ruby text (rt) is amber colored', async ({ page }) => {
-    // amber #d4820a = rgb(212, 130, 10)
+    const amberRgb = await getCSSVarAsRgb(page, '--amber');
     const color = await getComputedStyleProp(page, 'rt', 'color');
-    expect(color).toBe('rgb(212, 130, 10)');
+    expect(color).toBe(amberRgb);
   });
 });

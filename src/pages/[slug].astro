@@ -4,10 +4,10 @@ export const prerender = true;
 import { getCollection, render } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
-import { toSlug, estimateReadingTime } from '../lib/utils';
+import { toSlug, processPost, notDraft } from '../lib/utils';
 
 export const getStaticPaths = (async () => {
-  const posts = await getCollection('blog', ({ data }) => !data.draft);
+  const posts = await getCollection('blog', notDraft);
   return posts.map((entry) => ({
     params: { slug: toSlug(entry.id) },
     props: { entry },
@@ -17,8 +17,7 @@ export const getStaticPaths = (async () => {
 const { entry } = Astro.props;
 const { Content, headings } = await render(entry);
 
-const slug = toSlug(entry.id);
-const readingTime = estimateReadingTime(entry.body ?? '');
+const { slug, readingTime } = processPost(entry);
 ---
 
 <ArticleLayout

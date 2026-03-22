@@ -1,6 +1,13 @@
 import type { BlogPost, ProcessedPost } from './types';
 
 /**
+ * Collection filter: excludes draft posts.
+ * Pass directly to getCollection('blog', notDraft) to avoid repeating the
+ * inline predicate on every page.
+ */
+export const notDraft = (entry: BlogPost) => !entry.data.draft;
+
+/**
  * Converts a raw blog collection entry into a ProcessedPost ready for
  * rendering.  Centralised here so every page derives slug, readingTime and
  * excerpt from the same logic.
