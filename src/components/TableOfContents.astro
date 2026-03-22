@@ -197,7 +197,7 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
       cursor: pointer;
       display: flex;
       align-items: center;
-      min-height: 44px; /* WCAG 2.5.8: touch target */
+      min-height: 2.75rem; /* WCAG 2.5.8: touch target */
       margin-bottom: 0;
       padding: 0;
     }
@@ -257,7 +257,7 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
   @media (pointer: coarse) {
     .toc-link {
-      min-height: 44px;
+      min-height: 2.75rem;
       display: flex;
       align-items: center;
     }

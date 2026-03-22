@@ -63,6 +63,7 @@
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
   color: var(--ink-2);
+  text-wrap: balance;
 }
 
 /* ─── Text ───────────────────────────────────────────────────── */

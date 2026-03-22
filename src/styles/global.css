@@ -32,6 +32,10 @@
   --editor-hl-val:       #7ec49a;  /* YAML value / strings: muted green */
   --editor-hl-fn:        #8bb8e8;  /* function / variable names: muted sky */
 
+  /* Surfaces & shadows */
+  --overlay-bg:  rgba(28, 26, 24, 0.6);          /* modal/dialog scrim — --ink at ~60% */
+  --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15); /* floating card elevation */
+
   /* Typography */
   /* Display (headings): Japanese mincho fallbacks placed BEFORE Noto Sans JP so that
      CJK characters in headings render in serif/mincho rather than sans-serif.

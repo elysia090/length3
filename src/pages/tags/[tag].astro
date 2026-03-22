@@ -18,8 +18,12 @@ export const getStaticPaths = (async () => {
   for (const post of posts) {
     for (const tag of post.data.tags) {
       const slug = tagToSlug(tag);
-      if (!tagMap.has(slug)) tagMap.set(slug, []);
-      tagMap.get(slug)!.push(post);
+      let bucket = tagMap.get(slug);
+      if (!bucket) {
+        bucket = [];
+        tagMap.set(slug, bucket);
+      }
+      bucket.push(post);
     }
   }
 

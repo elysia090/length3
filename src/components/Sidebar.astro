@@ -173,24 +173,23 @@
   }
 
   .search-overlay::backdrop {
-    background: rgba(28, 26, 24, 0.6); /* spec §4 */
+    background: var(--overlay-bg);
   }
 
-  /* spec §4: 560px wide, border-radius 6px */
   .search-card {
-    width: min(560px, calc(100vw - 2rem));
+    width: min(35rem, calc(100vw - 2rem));
     background: var(--bg);
     border: 1px solid var(--rule);
-    border-radius: 6px;
+    border-radius: 0.375rem;
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-card);
   }
 
   .search-input-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 12px 16px; /* spec §4 */
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--rule);
   }
 
@@ -248,7 +247,7 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.5rem 16px;
+    padding: 0.5rem 1rem;
     border-top: 1px solid var(--rule);
     background: var(--bg-2);
   }
@@ -288,7 +287,7 @@
 
   /* Pagefind result overrides — spec §4 */
   :global(.pagefind-ui__result) {
-    padding: 10px 16px; /* spec §4 */
+    padding: 0.625rem 1rem;
     border-bottom: 1px solid var(--rule);
     border-left: 2px solid transparent;
   }
@@ -302,7 +301,7 @@
   }
   :global(.pagefind-ui__result-title) {
     font-family: var(--font-display);
-    font-size: 0.95rem;
+    font-size: 0.9375rem;
     color: var(--ink);
   }
   :global(.pagefind-ui__result-excerpt) {

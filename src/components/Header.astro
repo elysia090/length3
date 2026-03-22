@@ -25,14 +25,14 @@ const { pathname } = Astro.url;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-width: 1200px;
+    max-width: var(--layout-max-width);
     margin: 0 auto;
-    padding: 20px 1.5rem; /* spec §4: 20px top and bottom */
+    padding: 1.25rem 1.5rem;
   }
 
   .site-title {
     font-family: var(--font-mono);
-    font-size: 0.88rem; /* spec §4 */
+    font-size: 0.875rem;
     font-weight: 400;
     color: var(--ink);
   }
