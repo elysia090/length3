@@ -1,4 +1,4 @@
-import type { BlogPost, ProcessedPost } from './types';
+import type { BlogPost, ProcessedPost, TagIndex } from './types';
 
 /**
  * Collection filter: excludes draft posts.
@@ -80,6 +80,29 @@ export function estimateReadingTime(text: string): number {
   // CJK reading ~400 chars/min, Latin ~200 words/min
   const minutes = cjkChars / 400 + latinWords / 200;
   return Math.max(1, Math.ceil(minutes));
+}
+
+/**
+ * Groups posts by tag slug into a TagIndex.
+ * Single source of truth for tag aggregation — shared by the tag cloud page
+ * and the per-tag listing page so the logic cannot diverge.
+ */
+export function buildTagIndex(posts: BlogPost[]): TagIndex {
+  const bySlug = new Map<string, BlogPost[]>();
+  const names = new Map<string, string>();
+  for (const post of posts) {
+    for (const tag of post.data.tags) {
+      const slug = tagToSlug(tag);
+      if (!names.has(slug)) names.set(slug, tag);
+      let bucket = bySlug.get(slug);
+      if (!bucket) {
+        bucket = [];
+        bySlug.set(slug, bucket);
+      }
+      bucket.push(post);
+    }
+  }
+  return { bySlug, names };
 }
 
 export function formatDate(date: Date, locale: 'en' | 'ja'): string {

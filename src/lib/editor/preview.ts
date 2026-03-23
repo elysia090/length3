@@ -8,30 +8,39 @@ export interface FrontmatterData {
 
 /** Strips surrounding single/double quotes from a YAML scalar value. */
 function stripYamlQuotes(value: string): string {
-  return value.trim().replace(/^['"]|['"]$/g, '');
+  return value.replace(/^['"]|['"]$/g, '');
 }
 
 /**
  * Extracts title, lang, and body from a Markdown/MDX document with YAML
  * frontmatter.  Pure function — no DOM access.
+ *
+ * Fields are parsed in a single line pass so adding a new editor-visible
+ * field costs one `if` branch, not a new regex + conditional block.
  */
 export function parseFrontmatter(text: string): FrontmatterData {
-  let title = '';
-  let lang = 'en';
-
   const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
-  if (fmMatch) {
-    const fm = fmMatch[1] ?? '';
-    const titleM = fm.match(/^title:\s*(.+)$/m);
-    if (titleM) title = stripYamlQuotes(titleM[1] ?? '');
-    const langM = fm.match(/^lang:\s*(.+)$/m);
-    if (langM) lang = stripYamlQuotes(langM[1] ?? '') || 'en';
+  if (!fmMatch) {
+    return { title: '', lang: 'en', body: text.trim() };
   }
 
-  // Slice from the end of the matched block rather than running a second
-  // regex over the full text; .trim() handles the trailing newline after ---.
-  const body = fmMatch ? text.slice(fmMatch[0].length).trim() : text.trim();
-  return { title, lang, body };
+  let title = '';
+  let lang = 'en';
+  for (const line of (fmMatch[1] ?? '').split('\n')) {
+    const colon = line.indexOf(':');
+    if (colon <= 0) continue;
+    const key = line.slice(0, colon).trim();
+    const val = stripYamlQuotes(line.slice(colon + 1).trim());
+    if (key === 'title') title = val;
+    else if (key === 'lang') lang = val || 'en';
+  }
+
+  return {
+    title,
+    lang,
+    // Slice avoids a second full-document regex replace pass.
+    body: text.slice(fmMatch[0].length).trim(),
+  };
 }
 
 /**
