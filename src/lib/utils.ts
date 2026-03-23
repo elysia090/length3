@@ -1,5 +1,8 @@
 import type { BlogPost, ProcessedPost } from './types';
 
+// Hoisted so the regex is compiled once per module load, not per call.
+const CJK_RE = /[\u3000-\u9FFF\uF900-\uFAFF]/g;
+
 /**
  * Collection filter: excludes draft posts.
  * Pass directly to getCollection('blog', notDraft) to avoid repeating the
@@ -23,7 +26,7 @@ export function processPost(entry: BlogPost): ProcessedPost {
 
 /** Removes file extension from a Content Layer entry ID to produce a URL slug. */
 export function toSlug(id: string): string {
-  return id.replace(/\.(mdx?|md)$/, '').toLowerCase();
+  return id.replace(/\.mdx?$/, '').toLowerCase();
 }
 
 /** Converts a tag string to a URL-safe slug.
@@ -50,7 +53,7 @@ export function estimateReadingTime(text: string): number {
   // Single regex pass: strip CJK chars and count them via length delta.
   // All code points in U+3000–U+9FFF and U+F900–U+FAFF are BMP (one UTF-16
   // code unit each), so the length difference equals the char count exactly.
-  const noTrim = text.replace(/[\u3000-\u9FFF\uF900-\uFAFF]/g, '');
+  const noTrim = text.replace(CJK_RE, '');
   const cjkChars = text.length - noTrim.length;
   const latinText = noTrim.trim();
   const latinWords = latinText ? latinText.split(/\s+/).filter(Boolean).length : 0;

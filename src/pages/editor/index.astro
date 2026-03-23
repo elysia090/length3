@@ -105,7 +105,6 @@ import '../../styles/code.css';
   // Nielsen H1 + H3: Publish confirmation then feedback
   const publishBtn = document.getElementById('publish-btn') as HTMLButtonElement | null;
   publishBtn?.addEventListener('click', () => {
-    if (!publishBtn) return;
     if (!confirm('Publish this article?')) return;
     publishBtn.textContent = 'Published!';
     // Clear the dirty flag so beforeunload no longer warns after publishing
@@ -181,6 +180,8 @@ Start writing here.
   // Pane visibility is driven by aria-controls, not hardcoded IDs.
   const tabs = document.querySelectorAll<HTMLButtonElement>('.editor-tab');
   const panes = [document.getElementById('editor-pane'), document.getElementById('preview-pane')];
+  // Computed once — NodeList order is stable and tabs never change at runtime.
+  const tabArr = [...tabs];
 
   function activateTab(tab: HTMLButtonElement) {
     for (const t of tabs) {
@@ -193,10 +194,9 @@ Start writing here.
     }
   }
 
-  for (const tab of tabs) {
+  for (const tab of tabArr) {
     tab.addEventListener('click', () => activateTab(tab));
     tab.addEventListener('keydown', (e) => {
-      const tabArr = [...tabs];
       const idx = tabArr.indexOf(tab);
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         e.preventDefault();

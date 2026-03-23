@@ -14,10 +14,14 @@ import { tagToSlug, processPost, notDraft } from '../../lib/utils';
 export const getStaticPaths = (async () => {
   const posts = await getCollection('blog', notDraft);
   const tagMap = new Map<string, typeof posts>();
+  // Tracks the first-seen display name for each slug so canonical casing is
+  // determined once here, not by querying into arbitrary post data later.
+  const tagNames = new Map<string, string>();
 
   for (const post of posts) {
     for (const tag of post.data.tags) {
       const slug = tagToSlug(tag);
+      if (!tagNames.has(slug)) tagNames.set(slug, tag);
       let bucket = tagMap.get(slug);
       if (!bucket) {
         bucket = [];
@@ -27,13 +31,10 @@ export const getStaticPaths = (async () => {
     }
   }
 
-  return [...tagMap.entries()].map(([tagSlug, tagPosts]) => {
-    const tagName = tagPosts[0]?.data.tags.find((t) => tagToSlug(t) === tagSlug) ?? tagSlug;
-    return {
-      params: { tag: tagSlug },
-      props: { tagPosts, tagName },
-    };
-  });
+  return [...tagMap.entries()].map(([tagSlug, tagPosts]) => ({
+    params: { tag: tagSlug },
+    props: { tagPosts, tagName: tagNames.get(tagSlug) ?? tagSlug },
+  }));
 }) satisfies GetStaticPaths;
 
 const { tagPosts, tagName } = Astro.props;

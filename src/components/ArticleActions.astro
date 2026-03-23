@@ -55,7 +55,7 @@ const { readingTime } = Astro.props;
 
 <script>
   const container = document.querySelector<HTMLElement>('.article-actions');
-  const rt = Number(container?.dataset['readingTime'] ?? '5');
+  const rt = Number(container?.dataset.readingTime) || 5;
 
   /** Temporarily swap an element's text, then restore it after `ms` milliseconds. */
   function flash(selector: string, tempText: string, restoreText: string, ms = 1500) {
@@ -118,7 +118,19 @@ const { readingTime } = Astro.props;
     }
   }
 
-  window.addEventListener('scroll', updateStats, { passive: true });
+  // rAF throttle: coalesce multiple scroll events per frame into one DOM write.
+  let rafId: number | undefined;
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (rafId !== undefined) return;
+      rafId = requestAnimationFrame(() => {
+        updateStats();
+        rafId = undefined;
+      });
+    },
+    { passive: true },
+  );
   updateStats();
 </script>
 
