@@ -11,15 +11,25 @@
  *   3. renderPreview        – called after the 50ms debounce window; dominates
  *      the editor's per-keystroke cost when typing settles.
  *   4. tagToSlug            – called once per tag per page render.
+ *   5. buildTagIndex        – called once per tag page at build time; cost
+ *      scales with posts × tags-per-post.
  *
- * Sizes reflect realistic blog-post content (short ≈ 500 chars,
- * medium ≈ 5 000 chars, long ≈ 20 000 chars).
+ * Latin fixture sizes (chars / words):
+ *   short  ≈   495 chars /   76 words   (LOREM × 4)
+ *   medium ≈ 4 463 chars /  684 words   (LOREM × 36)
+ *   long   ≈ 17 855 chars / 2 736 words  (LOREM × 144)
+ *
+ * Mixed fixtures interleave CJK_CHUNK (25 chars) + LOREM (124 chars) per unit:
+ *   short  ≈   446 chars   (× 3)
+ *   medium ≈ 3 277 chars   (× 22)
+ *   long   ≈ 13 409 chars  (× 90)
  */
 import { bench, describe } from 'vitest';
 import { parseFrontmatter, renderPreview } from './editor/preview';
-import { estimateReadingTime, tagToSlug } from './utils';
+import type { BlogPost } from './types';
+import { buildTagIndex, estimateReadingTime, tagToSlug } from './utils';
 
-// ── Fixtures ─────────────────────────────────────────────────────────────────
+// ── Text fixtures ─────────────────────────────────────────────────────────────
 
 const LOREM =
   'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
@@ -27,18 +37,15 @@ const LOREM =
 
 const CJK_CHUNK = '日本語のテキストサンプル。技術的なブログ記事の例。';
 
-/** Latin-only text at three scales. */
-const latinShort = LOREM.repeat(4).trim(); // ~500 chars, ~80 words
-const latinMedium = LOREM.repeat(36).trim(); // ~5 000 chars, ~800 words
-const latinLong = LOREM.repeat(144).trim(); // ~20 000 chars, ~3 200 words
+const latinShort = LOREM.repeat(4).trim(); // 495 chars, 76 words
+const latinMedium = LOREM.repeat(36).trim(); // 4 463 chars, 684 words
+const latinLong = LOREM.repeat(144).trim(); // 17 855 chars, 2 736 words
 
-/** Mixed CJK + Latin text at three scales. */
-const mixedShort = (CJK_CHUNK + LOREM).repeat(3).trim();
-const mixedMedium = (CJK_CHUNK + LOREM).repeat(22).trim();
-const mixedLong = (CJK_CHUNK + LOREM).repeat(90).trim();
+const mixedShort = (CJK_CHUNK + LOREM).repeat(3).trim(); // 446 chars
+const mixedMedium = (CJK_CHUNK + LOREM).repeat(22).trim(); // 3 277 chars
+const mixedLong = (CJK_CHUNK + LOREM).repeat(90).trim(); // 13 409 chars
 
-/** Pure CJK text. */
-const cjkMedium = CJK_CHUNK.repeat(40).trim(); // ~1 000 CJK chars
+const cjkMedium = CJK_CHUNK.repeat(40).trim(); // 1 000 CJK chars
 
 const FRONTMATTER_SHORT = `---
 title: Short Post
@@ -59,18 +66,46 @@ description: A deep-dive into measuring and optimising the critical render path.
 
 ${latinLong}`;
 
+// ── buildTagIndex fixtures ────────────────────────────────────────────────────
+// Only data.tags is accessed by buildTagIndex, so the mock can be minimal.
+
+const makePost = (tags: string[]) => ({ data: { tags } }) as unknown as BlogPost;
+
+const SMALL_POSTS = Array.from({ length: 20 }, (_, i) =>
+  makePost(['astro', 'typescript', i % 2 === 0 ? 'performance' : 'design']),
+);
+
+const LARGE_POSTS = Array.from({ length: 200 }, (_, i) =>
+  makePost(['astro', `topic-${i % 20}`, 'typescript', 'performance', 'web']),
+);
+
+// ── renderPreview mock ────────────────────────────────────────────────────────
+// Minimal HTMLElement surface used by renderPreview (setAttribute + innerHTML).
+// _htmlSink accumulates string lengths so V8 cannot prove the innerHTML write
+// is dead and eliminate the marked.parse call upstream (DCE prevention).
+// Accumulation (+=) also satisfies noUnusedVariables since the variable is both
+// read and written.
+
+let _htmlSink = 0;
+const previewOutput = {
+  setAttribute(_attr: string, _value: string) {},
+  set innerHTML(v: string) {
+    _htmlSink += v.length;
+  },
+} as unknown as HTMLElement;
+
 // ── estimateReadingTime ───────────────────────────────────────────────────────
 
 describe('estimateReadingTime', () => {
-  bench('Latin short (~80 words)', () => {
+  bench('Latin short (~76 words)', () => {
     estimateReadingTime(latinShort);
   });
 
-  bench('Latin medium (~800 words)', () => {
+  bench('Latin medium (~684 words)', () => {
     estimateReadingTime(latinMedium);
   });
 
-  bench('Latin long (~3 200 words)', () => {
+  bench('Latin long (~2 736 words)', () => {
     estimateReadingTime(latinLong);
   });
 
@@ -78,15 +113,15 @@ describe('estimateReadingTime', () => {
     estimateReadingTime(cjkMedium);
   });
 
-  bench('Mixed short', () => {
+  bench('Mixed short (~446 chars)', () => {
     estimateReadingTime(mixedShort);
   });
 
-  bench('Mixed medium', () => {
+  bench('Mixed medium (~3 277 chars)', () => {
     estimateReadingTime(mixedMedium);
   });
 
-  bench('Mixed long', () => {
+  bench('Mixed long (~13 409 chars)', () => {
     estimateReadingTime(mixedLong);
   });
 });
@@ -94,15 +129,15 @@ describe('estimateReadingTime', () => {
 // ── parseFrontmatter ──────────────────────────────────────────────────────────
 
 describe('parseFrontmatter', () => {
-  bench('short post', () => {
+  bench('4-field FM + short body', () => {
     parseFrontmatter(FRONTMATTER_SHORT);
   });
 
-  bench('long post', () => {
+  bench('5-field FM + long body', () => {
     parseFrontmatter(FRONTMATTER_LONG);
   });
 
-  bench('no frontmatter (plain body)', () => {
+  bench('no frontmatter — early return', () => {
     parseFrontmatter(latinMedium);
   });
 });
@@ -110,7 +145,7 @@ describe('parseFrontmatter', () => {
 // ── tagToSlug ─────────────────────────────────────────────────────────────────
 
 describe('tagToSlug', () => {
-  bench('ASCII tag', () => {
+  bench('Latin tag', () => {
     tagToSlug('TypeScript');
   });
 
@@ -118,37 +153,28 @@ describe('tagToSlug', () => {
     tagToSlug('機械学習');
   });
 
-  bench('mixed ASCII+CJK', () => {
+  bench('mixed Latin+CJK', () => {
     tagToSlug('AI 機械学習');
+  });
+});
+
+// ── buildTagIndex ─────────────────────────────────────────────────────────────
+
+describe('buildTagIndex', () => {
+  bench('20 posts × 3 tags', () => {
+    buildTagIndex(SMALL_POSTS);
+  });
+
+  bench('200 posts × 5 tags', () => {
+    buildTagIndex(LARGE_POSTS);
   });
 });
 
 // ── renderPreview ─────────────────────────────────────────────────────────────
 // renderPreview is the debounced half of the editor's per-keystroke path.
 // It calls marked.parse(body) — an external library — so we can only
-// characterise the cost, not eliminate it.  Benchmark here so regressions
+// characterise the cost, not eliminate it.  Benchmarked here so regressions
 // in our wrapper code are visible.
-
-const previewOutput = (() => {
-  // jsdom / happy-dom not available in bench context; mock the minimal
-  // HTMLElement surface area renderPreview uses (setAttribute, innerHTML).
-  let _lang = '';
-  let _html = '';
-  return {
-    setAttribute(_: string, v: string) {
-      _lang = v;
-    },
-    set innerHTML(v: string) {
-      _html = v;
-    },
-    get lang() {
-      return _lang;
-    },
-    get html() {
-      return _html;
-    },
-  } as unknown as HTMLElement;
-})();
 
 describe('renderPreview', () => {
   const shortParsed = parseFrontmatter(FRONTMATTER_SHORT);
