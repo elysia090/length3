@@ -1,50 +1,200 @@
 ---
-title: 日本語タイポグラフィのテスト
-description: ルビ注釈、禁則処理、約物の間隔調整など、日本語組版機能の動作確認用記事。
+title: ウェブにおける日本語タイポグラフィ
+description: ルビ・禁則処理・約物間隔・CJK–Latin 混在など、ブラウザが提供する日本語組版機能を実装面から解説する。
 publishDate: 2026-03-21
-tags: [typography, japanese]
+updatedDate: 2026-03-23
+tags: [typography, japanese, css, web]
 draft: false
 lang: ja
 ---
 
 import RubyText from '../../components/RubyText.astro';
 
+ウェブにおける日本語の読み心地は、フォントの選定だけでは決まらない。
+文字間隔・行送り・禁則処理・約物の余白—それぞれが組み合わさって、読者がテキストをストレスなく受け取れるかどうかが決まる。
+このブログがどのように実装しているかを、CSS・OpenType・HTML の観点から整理する。
+
+## フォント選定とフォールバック設計
+
+### 欧文見出しと和文の共存
+
+見出しには可変フォント [Fraunces](https://github.com/undercasetype/Fraunces) を採用している。
+`optical-size` 軸を持つ光学式サイズ対応フォントで、小サイズではコントラストを抑え、大サイズでは抜き文字の輪郭が鮮明になる。
+
+欧文フォントは CJK コードポイントをカバーしないため、見出し用の `--font-display` スタックは日本語フォントを明示的に列挙する:
+
+```css
+--font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho',
+                Georgia, 'Noto Sans JP', serif;
+```
+
+`Hiragino Mincho ProN`（macOS・iOS）と `Yu Mincho`（Windows）を優先することで、プラットフォームネイティブの明朝体が使える環境では和欧混植の縦比率が近づく。
+Linux・Android 環境ではこれらが不在のため `Noto Sans JP` にフォールバックする。
+
+### 本文フォントスタック
+
+```css
+--font-sans: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN',
+             'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
+```
+
+`Noto Sans JP` を先頭に置くことで、Google Fonts からロードできる環境では常に日本語最適化グリフが使われる。
+`system-ui` より前に日本語フォントを列挙しているのは、`system-ui` がプラットフォームの UI フォントを指し、CJK グリフを持たない場合があるためだ。
+
+### グリフ選択と `font-variant-east-asian`
+
+CJK 統合漢字（U+4E00–U+9FFF）は、日本語・繁体字中国語・簡体字中国語で同一コードポイントでも字形が異なる場合がある。
+たとえば「直」「骨」「角」などは日中台でストロークが微妙に違う。
+
+`lang="ja"` を `<html>` 要素に設定するだけでは不十分なケースがある。
+`Noto Sans JP` のロード完了前（FOUT 期間）に `system-ui` や `sans-serif` へフォールバックした場合、Linux では簡体字中国語フォント（`Noto Sans CJK SC` 等）が選ばれることがある。
+
+これを防ぐのが `font-variant-east-asian: traditional` だ:
+
+```css
+:lang(ja) {
+  font-variant-east-asian: traditional;
+}
+```
+
+`traditional` は日本語・繁体字中国語の字形を要求し、簡体字（Simplified Chinese）の字形選択を抑制する。
+`lang="ja"` と組み合わせることで、フォールバック時もブラウザへの字形ヒントが維持される。
+
 ## ルビ注釈
 
-<RubyText base="東京" reading="とうきょう" />は日本の首都です。
-<RubyText base="情報処理" reading="じょうほうしょり" />の分野では、<RubyText base="自然言語処理" reading="しぜんげんごしょり" />が注目されています。
+<RubyText base="情報処理" reading="じょうほうしょり" />・<RubyText base="自然言語処理" reading="しぜんげんごしょり" />・<RubyText base="機械学習" reading="きかいがくしゅう" />—これらの専門用語はルビがあると読みやすくなる。
 
-## 禁則処理
+`<ruby>` 要素は HTML の標準機能だが、CSSとの組み合わせで読みやすさが変わる。
 
-行末に句読点が来ないように調整されます。「この文章は、行末での句読点の配置を確認するためのサンプルです。適切な禁則処理が行われているかテストします。」
+```css
+ruby {
+  ruby-align: center;
+  ruby-position: over;
+}
 
-## 約物と字間
+rt {
+  font-family: var(--font-mono);
+  font-size: 0.65em;
+  color: var(--amber-text);
+}
 
-`font-feature-settings: 'palt'` により、句点（。）や読点（、）の前後の余白が調整されます。日本語テキストでは、このプロポーショナル・オルタナティブが読みやすさを向上させます。
+/* ルビを含む行は行間を広げてルビとの衝突を防ぐ */
+.prose :has(ruby) {
+  line-height: 2.4;
+}
+```
+
+`ruby-position: over` は横書きでは読みがな位置を漢字の上に固定する（`under` にすると下に回る）。
+`:has(ruby)` セレクターでルビを含む段落だけ行間を広げることで、前後の段落と行間がそろわなくなる問題を局所的に解決している。
+
+`<rp>` 要素はルビ非対応環境（一部スクリーンリーダー、旧ブラウザ）で括弧を表示するフォールバック:
+
+```html
+<ruby>情報処理<rp>(</rp><rt>じょうほうしょり</rt><rp>)</rp></ruby>
+```
+
+## 禁則処理と自動改行
+
+### `line-break: strict`
+
+日本語の行末・行頭には置けない文字（禁則文字）がある。
+句読点「。」「、」は行頭に来てはいけない。小書き仮名「っぁぃぅぇぉ」も同様だ。
+
+```css
+.prose {
+  line-break: strict;
+}
+```
+
+`strict` はより多くの禁則ルールを適用する（`loose` は一部を緩める）。
+句読点の直前で折り返しが起きず、読者の視線が自然に流れる。
+
+### `word-break: auto-phrase`
+
+Chrome 119 から実装が始まった新しい値で、日本語テキストを形態素解析に基づいて自然な単位で改行する（実験的機能）:
+
+```css
+.prose {
+  word-break: auto-phrase;
+}
+```
+
+通常、日本語は単語の途中でも改行されるが、`auto-phrase` を使うと意味のあるまとまりで折り返される。
+プログレッシブエンハンスメントとして適用しており、非対応ブラウザでは通常の挙動にフォールバックする。
+
+### `text-wrap: pretty`
+
+```css
+.prose {
+  text-wrap: pretty;
+}
+```
+
+最後の行が孤立した1語（Orphan）になることを避け、複数行にわたる見出し・段落の折り返し位置を調整する。
+見出しには `text-wrap: balance` も使用しており、こちらは全行の長さをできるだけ均等にする。
+
+## 約物の間隔と `palt`
+
+句点（。）・読点（、）・括弧（「」）などの約物は、全角幅で設計されているがその前後に大きな空白が生まれやすい。
+`font-feature-settings: 'palt'` を適用すると、フォントが持つプロポーショナル代替グリフ（Proportional Alternates）に切り替わり、約物前後の余白が詰まる:
+
+```css
+.prose[lang="ja"] {
+  letter-spacing: 0.02em;
+  font-feature-settings: 'palt';
+}
+```
+
+`letter-spacing: 0.02em` との組み合わせは微妙なバランスが必要で、過度な字間は逆に読みにくくなる。
+Noto Sans JP では `0.02em` 程度が和欧混植でも自然に見える値だ。
 
 ## CJK–Latin 混在テキスト
 
-`text-autospace: ideograph-alpha` プロパティは、漢字とlatinテキストの間に自動的なスペースを挿入します。例えば、AstroとTypeScriptを使ったブログシステムの構築において、日本語と英語が混在する文章は自然な読み心地になります。
+AstroやTypeScriptのような固有名詞が日本語文中に登場するのは自然なことだ。このとき、日本語と Latin 文字の間にわずかなスペースがあると読みやすい。
+
+```css
+.prose {
+  text-autospace: ideograph-alpha;
+}
+```
+
+`text-autospace: ideograph-alpha` は漢字・仮名と Latin 文字の間に thin space（U+2009 相当）を自動挿入する。
+Chrome 123 以降で対応しており、これも非対応ブラウザへのプログレッシブエンハンスメントとして機能する。
 
 ## 引用符
 
-`quotes: '「' '」'` プロパティにより、CSSの `<q>` 要素が日本語の引用符を使用します。
+CSS の `quotes` プロパティで `<q>` 要素が日本語の引用符を使うように設定している:
 
-<q>この引用は日本語の鉤括弧で囲まれます。</q>
-
-入れ子の引用: <q>外側の引用の中に<q>内側の引用</q>があります。</q>
-
-## コードブロック
-
-```typescript
-// 日本語コメントを含むTypeScriptコード
-const greeting: string = 'こんにちは、world!';
-const chars = greeting.length;  // 文字数: 10
-console.log(`文字数: ${chars}`);
+```css
+:lang(ja) {
+  quotes: '\300C' '\300D' '\300E' '\300F';
+}
 ```
 
-## 長文のテスト
+<q>この引用文は自動的に鉤括弧で囲まれる。</q>
 
-日本語の長い段落をテストします。Astro 6は、コンテンツ駆動型のウェブサイト構築に特化したフレームワークで、MDXコンテンツコレクションとTypeScriptの厳格な型チェックをサポートしています。Cloudflare Workersへのデプロイにより、エッジネイティブな高速配信が実現されます。
+入れ子の引用: <q>外側の引用の中に<q>内側の二重鉤括弧</q>がある。</q>
 
-このブログは、読者を第一に考えた設計になっています。余計なUI要素を排除し、タイポグラフィと余白だけで情報の階層を表現します。日本語と英語が混在するテクニカルブログとして、両言語のタイポグラフィ品質を同時に保つことを目標としています。
+`\300C`（`「`）・`\300D`（`」`）が一次引用、`\300E`（`『`）・`\300F`（`』`）が二次引用に対応する。
+
+## 実装の優先順位
+
+| 機能 | CSS プロパティ | 対応状況 |
+|---|---|---|
+| 禁則処理 | `line-break: strict` | 全モダンブラウザ |
+| 約物プロポーショナル | `font-feature-settings: 'palt'` | Noto Sans JP 対応 |
+| 日本語グリフ選択 | `font-variant-east-asian: traditional` | モダンブラウザ |
+| 引用符 | `quotes: '「' '」'` | 全モダンブラウザ |
+| 自動スペース | `text-autospace: ideograph-alpha` | Chrome 123+ |
+| 自然改行 | `word-break: auto-phrase` | Chrome 119+ |
+| 読み仮名 | `<ruby>` + `ruby-position: over` | 全モダンブラウザ |
+
+「全モダンブラウザ」対応の機能はベースラインとして必ず適用し、Chrome 限定の新機能はプログレッシブエンハンスメントとして追加する設計にしている。
+スタイルシートに `@supports` ガードを書かなくても、非対応ブラウザでは単純に未適用になる。
+
+## おわりに
+
+日本語タイポグラフィは「フォントを入れれば終わり」ではない。
+`font-variant-east-asian` で字形を指定し、`line-break: strict` で禁則を守り、`palt` で約物を詰め、`text-autospace` で和欧の間を整える—これらが重なってはじめて、日本語テキストが自然に読める状態になる。
+
+多くは CSS 1〜2 行で実装できる。コストは低く、効果は大きい。
