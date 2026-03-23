@@ -270,7 +270,14 @@ rt {
 }
 
 /* Japanese quotation marks via CSS quotes property.
-   Enables correct <q> rendering; authors can also type 「」 directly. */
+   Enables correct <q> rendering; authors can also type 「」 directly.
+   font-variant-east-asian: traditional instructs the browser to prefer Japanese
+   glyph variants over Simplified Chinese when the font supports multiple CJK
+   variant sets (e.g. system-ui fallbacks, Noto Sans CJK).  This is the primary
+   CSS signal that prevents Chinese glyph selection during the FOUT period before
+   Noto Sans JP finishes loading, and on Linux/Android where the system CJK font
+   may default to a Simplified-Chinese variant. */
 :lang(ja) {
   quotes: '\300C' '\300D' '\300E' '\300F';   /* 「」 primary, 『』 secondary */
+  font-variant-east-asian: traditional;       /* Japanese glyph variants, not Simplified Chinese */
 }
