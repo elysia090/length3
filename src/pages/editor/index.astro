@@ -9,17 +9,32 @@ import '../../styles/code.css';
     <!-- TOP BAR — spec §4: 40px, var(--editor-topbar-bg) -->
     <div class="editor-topbar">
       <div class="editor-topbar-left">
-        <!-- spec §4: Logo "L³" in amber -->
-        <span class="editor-logo">L<sup>³</sup></span>
-        <span class="editor-bc-sep">articles /</span>
+        <!-- Breadcrumb: L³ / blog / filename -->
+        <a href="/" class="editor-logo" aria-label="Length³ home">L<sup>³</sup></a>
+        <span class="editor-bc-sep" aria-hidden="true">/</span>
+        <a href="/" class="editor-bc-link">blog</a>
+        <span class="editor-bc-sep" aria-hidden="true">/</span>
         <span class="editor-bc-file" id="editor-filename">untitled.mdx</span>
+        <!-- New article button -->
+        <button
+          class="editor-btn editor-btn-new"
+          id="new-article-btn"
+          aria-label="New article"
+          title="New article"
+        >+</button>
       </div>
       <div class="editor-topbar-actions">
-        <!-- spec §4: amber is not used on any button -->
-        <button class="editor-btn editor-btn-discard" id="discard-btn">Discard</button>
-        <button class="editor-btn editor-btn-publish" id="publish-btn" aria-label="Publish article"
-          >Publish →</button
-        >
+        <!-- Preview button: replaces Discard; cycles 10:0 → 5:5 → 0:10 split -->
+        <button
+          class="editor-btn editor-btn-preview"
+          id="preview-btn"
+          aria-label="Toggle preview layout"
+        >Preview</button>
+        <button
+          class="editor-btn editor-btn-publish"
+          id="publish-btn"
+          aria-label="Publish article"
+        >Publish →</button>
       </div>
     </div>
 
@@ -41,9 +56,9 @@ import '../../styles/code.css';
       >
     </div>
 
-    <!-- MAIN: editor + preview -->
-    <div class="editor-main">
-      <!-- LEFT: dark editor pane — spec §4 -->
+    <!-- MAIN: editor + resizer + preview -->
+    <div class="editor-main" id="editor-main">
+      <!-- LEFT: dark editor pane -->
       <div
         class="editor-pane tab-active"
         id="editor-pane"
@@ -53,23 +68,47 @@ import '../../styles/code.css';
         <div class="editor-body" id="editor-mount"></div>
       </div>
 
-      <!-- RIGHT: light preview pane — spec §4 -->
+      <!-- RESIZER: draggable divider -->
+      <div
+        class="editor-resizer"
+        id="editor-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Drag to resize editor and preview"
+        tabindex="0"
+      ></div>
+
+      <!-- RIGHT: live preview pane, mirrors ArticleLayout -->
       <div class="preview-pane" id="preview-pane" role="tabpanel" aria-label="Live preview">
-        <div class="preview-body">
-          <div class="preview-content prose" id="preview-output">
-            <p class="preview-placeholder">Start writing MDX…</p>
+        <div class="preview-inner" id="preview-inner">
+          <!-- TOC aside — sticky within preview scroll container -->
+          <aside class="preview-toc-aside" id="preview-toc-aside" aria-label="Table of contents">
+            <nav class="toc preview-toc" aria-label="Table of contents">
+              <details class="toc-details" open>
+                <summary class="toc-label">Contents</summary>
+                <ul id="preview-toc-list"></ul>
+              </details>
+            </nav>
+          </aside>
+          <!-- Article body column -->
+          <div class="preview-article-col">
+            <div class="preview-content prose" id="preview-output">
+              <p class="preview-placeholder">Start writing MDX…</p>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- STATUS BAR — spec §4: 24px, var(--editor-statusbar-bg), amber never used here -->
+    <!-- STATUS BAR — spec §4: 24px -->
     <div class="editor-statusbar" aria-label="Editor status">
       <span class="status-item">UTF-8</span>
       <span class="status-sep" aria-hidden="true">·</span>
       <span class="status-item" id="status-pos">Ln 1 · Col 1</span>
       <span class="status-sep" aria-hidden="true">·</span>
       <span class="status-item" id="status-count">0 chars</span>
+      <span class="status-sep" aria-hidden="true">·</span>
+      <span class="status-item status-lint" id="status-lint">✓</span>
     </div>
   </div>
 </BaseLayout>
@@ -79,41 +118,27 @@ import '../../styles/code.css';
   import { EditorState } from '@codemirror/state';
   import { markdown } from '@codemirror/lang-markdown';
   import { syntaxHighlighting } from '@codemirror/language';
+  import { linter, lintGutter } from '@codemirror/lint';
+  import type { Diagnostic } from '@codemirror/lint';
   import { length3Theme, length3Highlight } from '../../lib/editor/theme';
   import { frontmatterPlugin } from '../../lib/editor/frontmatter-plugin';
   import { parseFrontmatter, renderPreview } from '../../lib/editor/preview';
+  import type { PreviewHeading } from '../../lib/editor/preview';
 
+  // ── Element refs ─────────────────────────────────────────────
   const mount = document.getElementById('editor-mount');
   const output = document.getElementById('preview-output') as HTMLElement | null;
   const posEl = document.getElementById('status-pos');
   const countEl = document.getElementById('status-count');
+  const lintEl = document.getElementById('status-lint') as HTMLElement | null;
   let docChanged = false;
 
-  // Nielsen H5: warn before leaving with unsaved changes
+  // ── Warn before leaving with unsaved changes ─────────────────
   window.addEventListener('beforeunload', (e) => {
     if (docChanged) e.preventDefault();
   });
 
-  // Nielsen H3: Discard confirmation
-  document.getElementById('discard-btn')?.addEventListener('click', (e) => {
-    if (docChanged && !confirm('Discard all changes?')) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  });
-
-  // Nielsen H1 + H3: Publish confirmation then feedback
-  const publishBtn = document.getElementById('publish-btn') as HTMLButtonElement | null;
-  publishBtn?.addEventListener('click', () => {
-    if (!confirm('Publish this article?')) return;
-    publishBtn.textContent = 'Published!';
-    // Clear the dirty flag so beforeunload no longer warns after publishing
-    docChanged = false;
-    setTimeout(() => {
-      publishBtn.textContent = 'Publish →';
-    }, 1500);
-  });
-
+  // ── Initial document ─────────────────────────────────────────
   const initialDoc = `---
 title: Untitled
 tags: []
@@ -125,16 +150,288 @@ date: ${new Date().toISOString().slice(0, 10)}
 Start writing here.
 `;
 
-  // body: already-extracted body text (no frontmatter), so we avoid a second
-  // parseFrontmatter() call inside updateStatusCount.
-  function updateStatusCount(body: string) {
-    if (!countEl) return;
-    countEl.textContent = `${body.replace(/\s/g, '').length} chars`;
+  // ── Split mode management ─────────────────────────────────────
+  // Cycle: editor-only (10:0) → split (5:5) → preview-only (0:10)
+  type SplitMode = 'editor' | 'split' | 'preview';
+  const SPLIT_MODES: SplitMode[] = ['editor', 'split', 'preview'];
+  // Labels describe the action when clicked (shows current state icon + next hint)
+  const SPLIT_LABELS: Record<SplitMode, string> = {
+    editor: 'Split',    // currently editor-only → click to split
+    split: 'Preview',   // currently split → click for full preview
+    preview: 'Edit',    // currently preview-only → click for editor
+  };
+  let splitIdx = 1; // default: 5:5 split
+
+  function setSplitMode(mode: SplitMode) {
+    splitIdx = SPLIT_MODES.indexOf(mode);
+    const main = document.getElementById('editor-main');
+    const editorPane = document.getElementById('editor-pane');
+    const previewPane = document.getElementById('preview-pane');
+    const resizer = document.getElementById('editor-resizer');
+    const previewBtn = document.getElementById('preview-btn') as HTMLButtonElement | null;
+
+    // Clear any drag-set inline style
+    if (main) main.style.removeProperty('grid-template-columns');
+
+    if (editorPane) editorPane.style.display = mode === 'preview' ? 'none' : '';
+    if (previewPane) previewPane.style.display = mode === 'editor' ? 'none' : '';
+    if (resizer) resizer.style.display = mode === 'split' ? '' : 'none';
+    if (previewBtn) previewBtn.textContent = SPLIT_LABELS[mode];
   }
 
+  document.getElementById('preview-btn')?.addEventListener('click', () => {
+    const nextIdx = (splitIdx + 1) % SPLIT_MODES.length;
+    const nextMode = SPLIT_MODES[nextIdx];
+    if (nextMode) setSplitMode(nextMode);
+  });
+
+  // ── Drag-resize ───────────────────────────────────────────────
+  const resizerEl = document.getElementById('editor-resizer') as HTMLElement | null;
+  const editorMainEl = document.getElementById('editor-main') as HTMLElement | null;
+
+  if (resizerEl && editorMainEl) {
+    resizerEl.addEventListener('pointerdown', (e) => {
+      resizerEl.classList.add('resizing');
+      resizerEl.setPointerCapture(e.pointerId);
+
+      const startX = e.clientX;
+      const mainWidth = editorMainEl.getBoundingClientRect().width;
+      const editorPane = document.getElementById('editor-pane');
+      const editorStartWidth = editorPane?.getBoundingClientRect().width ?? mainWidth / 2;
+      const resizerWidth = 4;
+      const availWidth = mainWidth - resizerWidth;
+
+      const onMove = (ev: PointerEvent) => {
+        const delta = ev.clientX - startX;
+        const newEditorWidth = Math.max(50, Math.min(availWidth - 50, editorStartWidth + delta));
+        const newPreviewWidth = availWidth - newEditorWidth;
+        editorMainEl.style.gridTemplateColumns =
+          `${newEditorWidth}px ${resizerWidth}px ${newPreviewWidth}px`;
+        // Ensure both panes are visible while dragging
+        const ep = document.getElementById('editor-pane');
+        const pp = document.getElementById('preview-pane');
+        if (ep) ep.style.display = '';
+        if (pp) pp.style.display = '';
+        if (resizerEl) resizerEl.style.display = '';
+      };
+
+      const onUp = () => {
+        resizerEl.classList.remove('resizing');
+        resizerEl.removeEventListener('pointermove', onMove);
+        resizerEl.removeEventListener('pointerup', onUp);
+        splitIdx = 1; // treat as custom split
+        const previewBtn = document.getElementById('preview-btn') as HTMLButtonElement | null;
+        if (previewBtn) previewBtn.textContent = 'Preview';
+      };
+
+      resizerEl.addEventListener('pointermove', onMove);
+      resizerEl.addEventListener('pointerup', onUp);
+      e.preventDefault();
+    });
+
+    // Keyboard resize: arrow keys adjust split by 5%
+    resizerEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const mainRect = editorMainEl.getBoundingClientRect();
+      const ep = document.getElementById('editor-pane');
+      const epWidth = ep?.getBoundingClientRect().width ?? mainRect.width / 2;
+      const resizerWidth = 4;
+      const availWidth = mainRect.width - resizerWidth;
+      const step = availWidth * 0.05;
+      const delta = e.key === 'ArrowRight' ? step : -step;
+      const newEditorWidth = Math.max(50, Math.min(availWidth - 50, epWidth + delta));
+      const newPreviewWidth = availWidth - newEditorWidth;
+      editorMainEl.style.gridTemplateColumns =
+        `${newEditorWidth}px ${resizerWidth}px ${newPreviewWidth}px`;
+      const pp = document.getElementById('preview-pane');
+      if (ep) ep.style.display = '';
+      if (pp) pp.style.display = '';
+    });
+  }
+
+  // ── Preview TOC generation ────────────────────────────────────
+  let tocObserver: IntersectionObserver | null = null;
+
+  function updatePreviewToc(headings: PreviewHeading[]) {
+    const tocList = document.getElementById('preview-toc-list');
+    const tocAside = document.getElementById('preview-toc-aside') as HTMLElement | null;
+    if (!tocList || !tocAside) return;
+
+    if (headings.length === 0) {
+      tocAside.style.display = 'none';
+      return;
+    }
+    tocAside.style.removeProperty('display');
+
+    tocList.innerHTML = headings
+      .map(
+        (h) =>
+          `<li class="toc-item toc-depth-${h.depth}"><a href="#${h.id}" class="toc-link">${h.text}</a></li>`,
+      )
+      .join('');
+
+    // Click-to-scroll within preview scroll container
+    const previewInner = document.getElementById('preview-inner');
+    for (const link of tocList.querySelectorAll<HTMLAnchorElement>('.toc-link')) {
+      link.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const id = link.getAttribute('href')?.slice(1);
+        if (!id || !previewInner) return;
+        const target = document.getElementById(id);
+        if (!target) return;
+        const containerTop = previewInner.getBoundingClientRect().top;
+        const targetTop = target.getBoundingClientRect().top;
+        previewInner.scrollBy({ top: targetTop - containerTop - 32, behavior: 'smooth' });
+      });
+    }
+
+    // Active section tracking
+    setupTocObserver();
+  }
+
+  function setupTocObserver() {
+    tocObserver?.disconnect();
+    const previewInner = document.getElementById('preview-inner');
+    const previewOutput = document.getElementById('preview-output');
+    if (!previewInner || !previewOutput) return;
+
+    const headingEls = Array.from(
+      previewOutput.querySelectorAll<HTMLElement>('h2[id], h3[id]'),
+    );
+    if (headingEls.length === 0) return;
+
+    const tocList = document.getElementById('preview-toc-list');
+    const linkMap = new Map<string, HTMLAnchorElement>();
+    for (const link of tocList?.querySelectorAll<HTMLAnchorElement>('.toc-link') ?? []) {
+      const id = link.getAttribute('href')?.slice(1);
+      if (id) linkMap.set(id, link);
+    }
+
+    const intersecting = new Set<string>();
+    let activeLink: HTMLAnchorElement | null = null;
+
+    tocObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) intersecting.add(entry.target.id);
+          else intersecting.delete(entry.target.id);
+        }
+        let next: HTMLAnchorElement | null = null;
+        for (const el of headingEls) {
+          if (intersecting.has(el.id)) {
+            next = linkMap.get(el.id) ?? null;
+            break;
+          }
+        }
+        if (next !== activeLink) {
+          activeLink?.classList.remove('active');
+          next?.classList.add('active');
+          activeLink = next;
+          // Scroll active TOC link into view within the TOC aside (追従)
+          next?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      },
+      { root: previewInner, rootMargin: '0px 0px -55% 0px', threshold: 0 },
+    );
+
+    for (const el of headingEls) tocObserver.observe(el);
+  }
+
+  // ── Quick lint check (status bar) ────────────────────────────
+  function quickLintCount(text: string): number {
+    if (!text.startsWith('---')) return 1;
+    const fmEnd = text.indexOf('\n---', 3);
+    if (fmEnd === -1) return 1;
+    const fm = text.slice(4, fmEnd);
+    let count = 0;
+    if (!fm.includes('title:')) count++;
+    if (!fm.includes('date:')) count++;
+    return count;
+  }
+
+  // ── CodeMirror MDX frontmatter linter ────────────────────────
+  function mdxLintFn(view: EditorView): Diagnostic[] {
+    const text = view.state.doc.toString();
+    const diags: Diagnostic[] = [];
+
+    if (!text.startsWith('---')) {
+      diags.push({
+        from: 0,
+        to: Math.min(text.length, 1),
+        severity: 'warning',
+        message: 'Document should start with YAML frontmatter (---)',
+      });
+      return diags;
+    }
+
+    const fmEnd = text.indexOf('\n---', 3);
+    if (fmEnd === -1) {
+      diags.push({
+        from: 0,
+        to: 3,
+        severity: 'error',
+        message: 'Unclosed frontmatter block — add a closing ---',
+      });
+      return diags;
+    }
+
+    const fm = text.slice(4, fmEnd);
+    const fmFrom = 4;
+    const fmTo = fmEnd;
+
+    if (!fm.includes('title:')) {
+      diags.push({
+        from: fmFrom,
+        to: fmTo,
+        severity: 'warning',
+        message: 'Missing required field: title',
+      });
+    }
+    if (!fm.includes('date:')) {
+      diags.push({
+        from: fmFrom,
+        to: fmTo,
+        severity: 'info',
+        message: 'Missing field: date (recommended for blog posts)',
+      });
+    }
+
+    return diags;
+  }
+
+  // ── Filename from title ───────────────────────────────────────
+  function updateFilename(title: string) {
+    const fileEl = document.getElementById('editor-filename');
+    if (!fileEl) return;
+    const slug =
+      title
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\u3040-\u9fff-]/g, '')
+        .replace(/^-+|-+$/g, '') || 'untitled';
+    fileEl.textContent = `${slug}.mdx`;
+  }
+
+  function updateStatusCount(body: string) {
+    if (countEl) countEl.textContent = `${body.replace(/\s/g, '').length} chars`;
+  }
+
+  // ── Publish ───────────────────────────────────────────────────
+  const publishBtn = document.getElementById('publish-btn') as HTMLButtonElement | null;
+  publishBtn?.addEventListener('click', () => {
+    if (!confirm('Publish this article?')) return;
+    if (publishBtn) publishBtn.textContent = 'Published!';
+    docChanged = false;
+    setTimeout(() => {
+      if (publishBtn) publishBtn.textContent = 'Publish →';
+    }, 1500);
+  });
+
+  // ── CodeMirror setup ──────────────────────────────────────────
   if (mount && output) {
-    // Timer handle for debouncing the expensive marked.parse render.
     let previewTimer: ReturnType<typeof setTimeout> | undefined;
+    let lintStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
     const state = EditorState.create({
       doc: initialDoc,
@@ -144,6 +441,8 @@ Start writing here.
         length3Theme,
         syntaxHighlighting(length3Highlight),
         frontmatterPlugin,
+        linter(mdxLintFn, { delay: 400 }),
+        lintGutter(),
         EditorView.updateListener.of((update) => {
           if (update.selectionSet || update.docChanged) {
             const pos = update.state.selection.main.head;
@@ -153,33 +452,53 @@ Start writing here.
           }
           if (update.docChanged) {
             docChanged = true;
-            // Parse frontmatter once and share the result between the
-            // immediate status-bar update and the debounced preview render,
-            // so parseFrontmatter is never called twice per change event.
             const parsed = parseFrontmatter(update.state.doc.toString());
             updateStatusCount(parsed.body);
-            // Debounce the expensive marked.parse call so that rapid typing
-            // (e.g. 10 keystrokes in 50 ms) triggers only one render instead
-            // of ten.
+            updateFilename(parsed.title);
+
+            // Lint status bar (debounced to match linter delay)
+            clearTimeout(lintStatusTimer);
+            lintStatusTimer = setTimeout(() => {
+              const count = quickLintCount(update.state.doc.toString());
+              if (lintEl) {
+                lintEl.textContent = count === 0 ? '✓' : `⚠ ${count}`;
+                lintEl.classList.toggle('status-lint--warn', count > 0);
+              }
+            }, 400);
+
+            // Debounce the expensive marked.parse + DOM update
             clearTimeout(previewTimer);
-            previewTimer = setTimeout(() => renderPreview(parsed, output), 50);
+            previewTimer = setTimeout(() => {
+              const headings = renderPreview(parsed, output);
+              updatePreviewToc(headings);
+            }, 50);
           }
         }),
       ],
     });
 
-    new EditorView({ state, parent: mount });
-    // Initial render — synchronous on mount, no debounce needed.
+    const view = new EditorView({ state, parent: mount });
+
+    // Initial render — synchronous on mount
     const initialParsed = parseFrontmatter(initialDoc);
-    renderPreview(initialParsed, output);
+    const initialHeadings = renderPreview(initialParsed, output);
+    updatePreviewToc(initialHeadings);
     updateStatusCount(initialParsed.body);
+    updateFilename(initialParsed.title);
+
+    // New article: reset editor content
+    document.getElementById('new-article-btn')?.addEventListener('click', () => {
+      if (docChanged && !confirm('Discard current changes and create a new article?')) return;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: initialDoc },
+      });
+      docChanged = false;
+    });
   }
 
-  // ── Mobile tab switching — APG Tabs pattern ──────────────────
-  // Pane visibility is driven by aria-controls, not hardcoded IDs.
+  // ── Mobile tab switching — APG Tabs pattern ───────────────────
   const tabs = document.querySelectorAll<HTMLButtonElement>('.editor-tab');
   const panes = [document.getElementById('editor-pane'), document.getElementById('preview-pane')];
-  // Computed once — NodeList order is stable and tabs never change at runtime.
   const tabArr = [...tabs];
 
   function activateTab(tab: HTMLButtonElement) {
@@ -216,13 +535,13 @@ Start writing here.
   /* ── Root: full viewport, 3 rows (topbar / main / statusbar) ── */
   .editor-root {
     display: grid;
-    grid-template-rows: 2.5rem 1fr 1.5rem; /* spec §4: 40px topbar / main / 24px statusbar */
+    grid-template-rows: 2.5rem 1fr 1.5rem;
     height: 100dvh;
     overflow: hidden;
     background: var(--editor-bg);
   }
 
-  /* ── Top bar — spec §4: 40px ── */
+  /* ── Top bar ── */
   .editor-topbar {
     display: flex;
     align-items: center;
@@ -237,16 +556,19 @@ Start writing here.
   .editor-topbar-left {
     display: flex;
     align-items: center;
-    gap: 0.5rem; /* 8px — grid aligned */
+    gap: 0.5rem;
     font-family: var(--font-mono);
     font-size: var(--font-ui-xs);
+    min-width: 0;
   }
 
-  /* spec §4: L³ logo in amber */
+  /* spec §4: L³ logo in amber, now a link */
   .editor-logo {
     color: var(--amber);
     font-size: 0.8125rem;
     font-weight: 600;
+    text-decoration: none;
+    flex-shrink: 0;
   }
 
   .editor-logo sup {
@@ -255,44 +577,75 @@ Start writing here.
     line-height: 0;
   }
 
+  .editor-logo:hover {
+    opacity: 0.8;
+  }
+
   .editor-bc-sep {
-    /* SC 1.4.3: --editor-ink-2 gives 5.85:1 on --editor-topbar-bg */
     color: var(--editor-ink-2);
+    flex-shrink: 0;
+  }
+
+  /* blog link in breadcrumb */
+  .editor-bc-link {
+    color: var(--editor-ink-2);
+    text-decoration: none;
+    flex-shrink: 0;
+    transition: color var(--transition-fast);
+  }
+
+  .editor-bc-link:hover {
+    color: var(--editor-ink);
   }
 
   .editor-bc-file {
-    /* SC 1.4.3: --editor-ink gives ~10:1 on --editor-topbar-bg */
     color: var(--editor-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
   }
 
   .editor-topbar-actions {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-shrink: 0;
   }
 
-  /* spec §4: amber not on any button */
   .editor-btn {
     font-family: var(--font-mono);
     font-size: var(--font-ui-xs);
-    padding: 0.5rem 0.75rem; /* WCAG 2.5.8: touch target */
+    padding: 0.5rem 0.75rem;
     background: transparent;
     cursor: pointer;
     transition: color var(--transition-fast);
   }
 
-  /* Dark-context button colors — spec §4 role hierarchy:
-     Discard (least prominent) → Publish (most prominent) */
-  .editor-btn-discard {
+  /* + New article button — compact, ghost */
+  .editor-btn-new {
+    border: none;
+    color: var(--editor-ink-2);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .editor-btn-new:hover {
+    color: var(--editor-ink);
+  }
+
+  /* Preview button (replaced Discard) — ghost */
+  .editor-btn-preview {
     border: none;
     color: var(--editor-ink-2);
   }
 
-  .editor-btn-discard:hover {
+  .editor-btn-preview:hover {
     color: var(--editor-ink);
   }
 
-  /* spec §4: Publish — brightest ink, subtle border, NOT amber */
+  /* Publish button — brightest, bordered */
   .editor-btn-publish {
     border: 1px solid var(--editor-btn-border);
     border-radius: 2px;
@@ -313,20 +666,20 @@ Start writing here.
     cursor: default;
   }
 
-  /* ── Main: 50/50 split ── */
+  /* ── Main: 50/50 split with resizer ── */
   .editor-main {
     display: grid;
-    grid-template-columns: 1fr 1fr; /* spec §4: exactly 50/50 */
+    grid-template-columns: 1fr 4px 1fr;
     overflow: hidden;
   }
 
-  /* ── Editor pane (dark) — spec §4 ── */
+  /* ── Editor pane (dark) ── */
   .editor-pane {
     display: flex;
     flex-direction: column;
     background: var(--editor-bg);
-    border-right: 1px solid var(--editor-border);
     overflow: hidden;
+    min-width: 0;
   }
 
   .editor-body {
@@ -336,7 +689,7 @@ Start writing here.
 
   .editor-body :global(.cm-editor) {
     height: 100%;
-    font-size: 0.875rem; /* comfortable for long-form writing */
+    font-size: 0.875rem;
   }
 
   .editor-body :global(.cm-scroller) {
@@ -344,18 +697,69 @@ Start writing here.
     font-family: var(--font-mono);
   }
 
-  /* ── Preview pane (light) — spec §4: BG, padding 40px 48px ── */
+  /* ── Drag resizer ── */
+  .editor-resizer {
+    width: 4px;
+    background: var(--editor-border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background var(--transition-fast);
+    touch-action: none;
+    user-select: none;
+    /* ensure it's not transparent to pointer events */
+    position: relative;
+    z-index: 1;
+  }
+
+  .editor-resizer::after {
+    /* Wider invisible hit area for easier grabbing */
+    content: '';
+    position: absolute;
+    inset: 0 -4px;
+  }
+
+  .editor-resizer:hover,
+  .editor-resizer.resizing,
+  .editor-resizer:focus-visible {
+    background: var(--editor-gutter-active);
+    outline: none;
+  }
+
+  /* ── Preview pane (light, mirrors ArticleLayout) ── */
   .preview-pane {
     display: flex;
     flex-direction: column;
     background: var(--bg);
     overflow: hidden;
+    min-width: 0;
+    /* container query so TOC can hide when pane is narrow */
+    container-type: inline-size;
+    container-name: preview-pane;
   }
 
-  .preview-body {
+  /* Inner grid: TOC column | article column — mirrors .article-shell */
+  .preview-inner {
     flex: 1;
+    display: grid;
+    grid-template-columns: var(--toc-width, 200px) minmax(0, 1fr);
     overflow-y: auto;
-    padding: 2.5rem 3rem; /* spec §4 */
+    overflow-x: hidden;
+  }
+
+  /* TOC aside — sticky within preview scroll container */
+  .preview-toc-aside {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100dvh;
+    overflow-y: auto;
+    padding: 2rem 0.75rem 2rem 1.25rem;
+  }
+
+  /* Article body column */
+  .preview-article-col {
+    min-width: 0;
+    padding: 2rem 3rem 4rem;
   }
 
   .preview-content {
@@ -363,12 +767,84 @@ Start writing here.
   }
 
   .preview-placeholder {
-    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA */
+    color: var(--ink-2);
     font-style: italic;
     font-size: 0.9375rem;
   }
 
-  /* ── Status bar — spec §4: 24px, amber never used ── */
+  /* ── Preview TOC styles (reuse global toc classes) ── */
+  .preview-toc .toc-label {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.14em;
+    color: var(--ink-2);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    display: block;
+    list-style: none;
+    pointer-events: none;
+    cursor: default;
+  }
+
+  .preview-toc .toc-label::marker,
+  .preview-toc .toc-label::-webkit-details-marker {
+    display: none;
+  }
+
+  .preview-toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .preview-toc .toc-item {
+    position: relative;
+  }
+
+  .preview-toc .toc-depth-3 {
+    margin-left: 0.75rem;
+  }
+
+  .preview-toc .toc-link {
+    display: block;
+    padding: 0.375rem 0 0.375rem 0.5rem;
+    color: var(--ink-2);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    border-left: 2px solid transparent;
+    transition:
+      color var(--transition-fast),
+      border-color var(--transition-fast);
+    text-decoration: none;
+  }
+
+  .preview-toc .toc-link:hover {
+    color: var(--ink);
+    border-left-color: var(--rule);
+  }
+
+  .preview-toc .toc-link.active {
+    color: var(--amber-text);
+    border-left-color: var(--amber-text);
+  }
+
+  .preview-toc .toc-depth-3 .toc-link {
+    font-size: 0.75rem;
+  }
+
+  /* Hide TOC aside when preview pane is narrow (container query) */
+  @container preview-pane (max-width: 480px) {
+    .preview-toc-aside {
+      display: none;
+    }
+
+    .preview-inner {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ── Status bar ── */
   .editor-statusbar {
     display: flex;
     align-items: center;
@@ -393,7 +869,11 @@ Start writing here.
     color: var(--editor-sep);
   }
 
-  /* ── Editor tabs — hidden on desktop, visible on mobile ── */
+  .status-lint--warn {
+    color: var(--amber-text);
+  }
+
+  /* ── Mobile tabs — visible < 640px ── */
   .editor-tabs {
     display: none;
   }
@@ -417,7 +897,7 @@ Start writing here.
     border-bottom-color: var(--amber);
   }
 
-  /* ── Mobile: tab mode below 640px — spec §8 ── */
+  /* ── Mobile: tab mode below 640px ── */
   @media (max-width: 639px) {
     .editor-tabs {
       display: flex;
@@ -432,6 +912,12 @@ Start writing here.
     .editor-main {
       grid-template-columns: 1fr;
       grid-template-rows: 1fr;
+    }
+
+    /* Hide resizer and Preview cycle button on mobile */
+    .editor-resizer,
+    .editor-btn-preview {
+      display: none;
     }
 
     .editor-pane {
