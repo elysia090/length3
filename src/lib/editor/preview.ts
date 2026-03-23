@@ -8,40 +8,53 @@ export interface FrontmatterData {
 
 /** Strips surrounding single/double quotes from a YAML scalar value. */
 function stripYamlQuotes(value: string): string {
-  return value.trim().replace(/^['"]|['"]$/g, '');
+  return value.replace(/^['"]|['"]$/g, '');
 }
 
 /**
  * Extracts title, lang, and body from a Markdown/MDX document with YAML
  * frontmatter.  Pure function — no DOM access.
+ *
+ * Fields are parsed in a single line pass so adding a new editor-visible
+ * field costs one `if` branch, not a new regex + conditional block.
  */
 export function parseFrontmatter(text: string): FrontmatterData {
-  let title = '';
-  let lang = 'en';
-
   const fmMatch = text.match(/^---\n([\s\S]*?)\n---/);
-  if (fmMatch) {
-    const fm = fmMatch[1] ?? '';
-    const titleM = fm.match(/^title:\s*(.+)$/m);
-    if (titleM) title = stripYamlQuotes(titleM[1] ?? '');
-    const langM = fm.match(/^lang:\s*(.+)$/m);
-    if (langM) lang = stripYamlQuotes(langM[1] ?? '') || 'en';
+  if (!fmMatch) {
+    return { title: '', lang: 'en', body: text.trim() };
   }
 
-  const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
-  return { title, lang, body };
+  let title = '';
+  let lang = 'en';
+  for (const line of (fmMatch[1] ?? '').split('\n')) {
+    const colon = line.indexOf(':');
+    if (colon <= 0) continue;
+    const key = line.slice(0, colon).trim();
+    const val = stripYamlQuotes(line.slice(colon + 1).trim());
+    if (key === 'title') title = val;
+    else if (key === 'lang') lang = val || 'en';
+  }
+
+  return {
+    title,
+    lang,
+    // Slice avoids a second full-document regex replace pass.
+    body: text.slice(fmMatch[0].length).trim(),
+  };
 }
 
 /**
- * Renders a parsed frontmatter body into the preview pane element.
+ * Renders a pre-parsed frontmatter result into the preview pane element.
+ * Accepts FrontmatterData so the caller can share the single parseFrontmatter
+ * call used for the status bar, avoiding a second parse per update cycle.
  *
  * Note: marked is used for the live editor preview only.  Production
  * articles are rendered by Astro/MDX — custom MDX components such as
  * RubyText are not reflected here.  This intentional gap is acceptable
  * for a draft preview; the canonical render is always the build output.
  */
-export function renderPreview(text: string, output: HTMLElement): void {
-  const { title, lang, body } = parseFrontmatter(text);
+export function renderPreview(parsed: FrontmatterData, output: HTMLElement): void {
+  const { title, lang, body } = parsed;
 
   // Apply lang so Japanese typography CSS rules take effect in the preview.
   output.setAttribute('lang', lang);

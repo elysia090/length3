@@ -105,7 +105,6 @@ import '../../styles/code.css';
   // Nielsen H1 + H3: Publish confirmation then feedback
   const publishBtn = document.getElementById('publish-btn') as HTMLButtonElement | null;
   publishBtn?.addEventListener('click', () => {
-    if (!publishBtn) return;
     if (!confirm('Publish this article?')) return;
     publishBtn.textContent = 'Published!';
     // Clear the dirty flag so beforeunload no longer warns after publishing
@@ -126,13 +125,17 @@ date: ${new Date().toISOString().slice(0, 10)}
 Start writing here.
 `;
 
-  function updateStatusCount(text: string) {
+  // body: already-extracted body text (no frontmatter), so we avoid a second
+  // parseFrontmatter() call inside updateStatusCount.
+  function updateStatusCount(body: string) {
     if (!countEl) return;
-    const { body } = parseFrontmatter(text);
     countEl.textContent = `${body.replace(/\s/g, '').length} chars`;
   }
 
   if (mount && output) {
+    // Timer handle for debouncing the expensive marked.parse render.
+    let previewTimer: ReturnType<typeof setTimeout> | undefined;
+
     const state = EditorState.create({
       doc: initialDoc,
       extensions: [
@@ -150,23 +153,34 @@ Start writing here.
           }
           if (update.docChanged) {
             docChanged = true;
-            const text = update.state.doc.toString();
-            renderPreview(text, output);
-            updateStatusCount(text);
+            // Parse frontmatter once and share the result between the
+            // immediate status-bar update and the debounced preview render,
+            // so parseFrontmatter is never called twice per change event.
+            const parsed = parseFrontmatter(update.state.doc.toString());
+            updateStatusCount(parsed.body);
+            // Debounce the expensive marked.parse call so that rapid typing
+            // (e.g. 10 keystrokes in 50 ms) triggers only one render instead
+            // of ten.
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(() => renderPreview(parsed, output), 50);
           }
         }),
       ],
     });
 
     new EditorView({ state, parent: mount });
-    renderPreview(initialDoc, output);
-    updateStatusCount(initialDoc);
+    // Initial render — synchronous on mount, no debounce needed.
+    const initialParsed = parseFrontmatter(initialDoc);
+    renderPreview(initialParsed, output);
+    updateStatusCount(initialParsed.body);
   }
 
   // ── Mobile tab switching — APG Tabs pattern ──────────────────
   // Pane visibility is driven by aria-controls, not hardcoded IDs.
   const tabs = document.querySelectorAll<HTMLButtonElement>('.editor-tab');
   const panes = [document.getElementById('editor-pane'), document.getElementById('preview-pane')];
+  // Computed once — NodeList order is stable and tabs never change at runtime.
+  const tabArr = [...tabs];
 
   function activateTab(tab: HTMLButtonElement) {
     for (const t of tabs) {
@@ -179,10 +193,9 @@ Start writing here.
     }
   }
 
-  for (const tab of tabs) {
+  for (const tab of tabArr) {
     tab.addEventListener('click', () => activateTab(tab));
     tab.addEventListener('keydown', (e) => {
-      const tabArr = [...tabs];
       const idx = tabArr.indexOf(tab);
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         e.preventDefault();
