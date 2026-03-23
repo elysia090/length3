@@ -23,11 +23,11 @@ test('index', async ({ page }) => {
   await page.screenshot({ path: `${OUT}/index.png`, fullPage: true });
 });
 
-test('article', async ({ page }) => {
+test('getting-started', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await gotoWithFonts(page, '/getting-started');
   await expect(page.locator('.prose')).toBeVisible();
-  await page.screenshot({ path: `${OUT}/article.png`, fullPage: true });
+  await page.screenshot({ path: `${OUT}/getting-started.png`, fullPage: true });
 });
 
 test('tags', async ({ page }) => {
@@ -51,9 +51,9 @@ test('editor-mobile', async ({ page }) => {
   await page.screenshot({ path: `${OUT}/editor-mobile.png`, fullPage: true });
 });
 
-test('japanese-article', async ({ page }) => {
+test('japanese-test', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await gotoWithFonts(page, '/japanese-test');
   await expect(page.locator('.prose')).toBeVisible();
-  await page.screenshot({ path: `${OUT}/japanese-article.png`, fullPage: true });
+  await page.screenshot({ path: `${OUT}/japanese-test.png`, fullPage: true });
 });
