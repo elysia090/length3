@@ -56,7 +56,9 @@ export function estimateReadingTime(text: string): number {
   const noTrim = text.replace(CJK_RE, '');
   const cjkChars = text.length - noTrim.length;
   const latinText = noTrim.trim();
-  const latinWords = latinText ? latinText.split(/\s+/).filter(Boolean).length : 0;
+  // No filter(Boolean) needed: latinText is pre-trimmed and /\s+/ never
+  // produces empty tokens from a non-empty trimmed string.
+  const latinWords = latinText ? latinText.split(/\s+/).length : 0;
 
   // CJK reading ~400 chars/min, Latin ~200 words/min
   const minutes = cjkChars / 400 + latinWords / 200;

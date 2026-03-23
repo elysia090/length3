@@ -153,17 +153,16 @@ Start writing here.
           }
           if (update.docChanged) {
             docChanged = true;
-            const text = update.state.doc.toString();
-            // Parse frontmatter once per update cycle.
-            // parseFrontmatter is fast (~0.5 µs); update the status bar
-            // immediately so the char count never feels laggy.
-            const { body } = parseFrontmatter(text);
-            updateStatusCount(body);
+            // Parse frontmatter once and share the result between the
+            // immediate status-bar update and the debounced preview render,
+            // so parseFrontmatter is never called twice per change event.
+            const parsed = parseFrontmatter(update.state.doc.toString());
+            updateStatusCount(parsed.body);
             // Debounce the expensive marked.parse call so that rapid typing
             // (e.g. 10 keystrokes in 50 ms) triggers only one render instead
             // of ten.
             clearTimeout(previewTimer);
-            previewTimer = setTimeout(() => renderPreview(text, output), 50);
+            previewTimer = setTimeout(() => renderPreview(parsed, output), 50);
           }
         }),
       ],
@@ -171,9 +170,9 @@ Start writing here.
 
     new EditorView({ state, parent: mount });
     // Initial render — synchronous on mount, no debounce needed.
-    const { body: initialBody } = parseFrontmatter(initialDoc);
-    renderPreview(initialDoc, output);
-    updateStatusCount(initialBody);
+    const initialParsed = parseFrontmatter(initialDoc);
+    renderPreview(initialParsed, output);
+    updateStatusCount(initialParsed.body);
   }
 
   // ── Mobile tab switching — APG Tabs pattern ──────────────────

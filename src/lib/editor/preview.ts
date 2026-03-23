@@ -28,20 +28,24 @@ export function parseFrontmatter(text: string): FrontmatterData {
     if (langM) lang = stripYamlQuotes(langM[1] ?? '') || 'en';
   }
 
-  const body = text.replace(/^---[\s\S]*?---\n?/, '').trim();
+  // Slice from the end of the matched block rather than running a second
+  // regex over the full text; .trim() handles the trailing newline after ---.
+  const body = fmMatch ? text.slice(fmMatch[0].length).trim() : text.trim();
   return { title, lang, body };
 }
 
 /**
- * Renders a parsed frontmatter body into the preview pane element.
+ * Renders a pre-parsed frontmatter result into the preview pane element.
+ * Accepts FrontmatterData so the caller can share the single parseFrontmatter
+ * call used for the status bar, avoiding a second parse per update cycle.
  *
  * Note: marked is used for the live editor preview only.  Production
  * articles are rendered by Astro/MDX — custom MDX components such as
  * RubyText are not reflected here.  This intentional gap is acceptable
  * for a draft preview; the canonical render is always the build output.
  */
-export function renderPreview(text: string, output: HTMLElement): void {
-  const { title, lang, body } = parseFrontmatter(text);
+export function renderPreview(parsed: FrontmatterData, output: HTMLElement): void {
+  const { title, lang, body } = parsed;
 
   // Apply lang so Japanese typography CSS rules take effect in the preview.
   output.setAttribute('lang', lang);
