@@ -1,8 +1,5 @@
 import type { BlogPost, ProcessedPost } from './types';
 
-// Hoisted so the regex is compiled once per module load, not per call.
-const CJK_RE = /[\u3000-\u9FFF\uF900-\uFAFF]/g;
-
 /**
  * Collection filter: excludes draft posts.
  * Pass directly to getCollection('blog', notDraft) to avoid repeating the
@@ -50,15 +47,35 @@ export function getTagUrl(tag: string): string {
 
 /** Estimates reading time in minutes, accounting for CJK character density. */
 export function estimateReadingTime(text: string): number {
-  // Single regex pass: strip CJK chars and count them via length delta.
-  // All code points in U+3000–U+9FFF and U+F900–U+FAFF are BMP (one UTF-16
-  // code unit each), so the length difference equals the char count exactly.
-  const noTrim = text.replace(CJK_RE, '');
-  const cjkChars = text.length - noTrim.length;
-  const latinText = noTrim.trim();
-  // No filter(Boolean) needed: latinText is pre-trimmed and /\s+/ never
-  // produces empty tokens from a non-empty trimmed string.
-  const latinWords = latinText ? latinText.split(/\s+/).length : 0;
+  // Single-pass character scan: count CJK chars and Latin word starts together.
+  // Replaces the three-step replace→trim→split pipeline, which allocated an
+  // intermediate string, a trimmed string, and an array of N word strings per
+  // call.  A JIT-compiled charCodeAt loop is faster for long posts and O(1)
+  // in space.
+  //
+  // CJK ranges match the previous /[\u3000-\u9FFF\uF900-\uFAFF]/ regex exactly:
+  //   U+3000–U+9FFF  CJK symbols, unified ideographs, katakana, hiragana …
+  //   U+F900–U+FAFF  CJK compatibility ideographs
+  let cjkChars = 0;
+  let latinWords = 0;
+  let inLatinWord = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if ((c >= 0x3000 && c <= 0x9fff) || (c >= 0xf900 && c <= 0xfaff)) {
+      cjkChars++;
+      inLatinWord = false; // CJK is a word boundary for adjacent Latin tokens
+    } else if (c > 32) {
+      // Non-whitespace, non-CJK: a Latin/ASCII character
+      if (!inLatinWord) {
+        latinWords++;
+        inLatinWord = true;
+      }
+    } else {
+      // Whitespace — code ≤ 32 covers space (32), tab (9), newline (10), CR (13)
+      inLatinWord = false;
+    }
+  }
 
   // CJK reading ~400 chars/min, Latin ~200 words/min
   const minutes = cjkChars / 400 + latinWords / 200;

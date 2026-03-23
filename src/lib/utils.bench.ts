@@ -6,15 +6,17 @@
  * Measures performance of:
  *   1. estimateReadingTime  – called for every post at build time and on every
  *      processPost() invocation in index/tag pages.
- *   2. parseFrontmatter     – called on every editor keystroke (renderPreview +
- *      updateStatusCount).
- *   3. tagToSlug            – called once per tag per page render.
+ *   2. parseFrontmatter     – called on every editor keystroke (shared result
+ *      drives updateStatusCount immediately and renderPreview after debounce).
+ *   3. renderPreview        – called after the 50ms debounce window; dominates
+ *      the editor's per-keystroke cost when typing settles.
+ *   4. tagToSlug            – called once per tag per page render.
  *
  * Sizes reflect realistic blog-post content (short ≈ 500 chars,
  * medium ≈ 5 000 chars, long ≈ 20 000 chars).
  */
 import { bench, describe } from 'vitest';
-import { parseFrontmatter } from './editor/preview';
+import { parseFrontmatter, renderPreview } from './editor/preview';
 import { estimateReadingTime, tagToSlug } from './utils';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -118,5 +120,45 @@ describe('tagToSlug', () => {
 
   bench('mixed ASCII+CJK', () => {
     tagToSlug('AI 機械学習');
+  });
+});
+
+// ── renderPreview ─────────────────────────────────────────────────────────────
+// renderPreview is the debounced half of the editor's per-keystroke path.
+// It calls marked.parse(body) — an external library — so we can only
+// characterise the cost, not eliminate it.  Benchmark here so regressions
+// in our wrapper code are visible.
+
+const previewOutput = (() => {
+  // jsdom / happy-dom not available in bench context; mock the minimal
+  // HTMLElement surface area renderPreview uses (setAttribute, innerHTML).
+  let _lang = '';
+  let _html = '';
+  return {
+    setAttribute(_: string, v: string) {
+      _lang = v;
+    },
+    set innerHTML(v: string) {
+      _html = v;
+    },
+    get lang() {
+      return _lang;
+    },
+    get html() {
+      return _html;
+    },
+  } as unknown as HTMLElement;
+})();
+
+describe('renderPreview', () => {
+  const shortParsed = parseFrontmatter(FRONTMATTER_SHORT);
+  const longParsed = parseFrontmatter(FRONTMATTER_LONG);
+
+  bench('short post', () => {
+    renderPreview(shortParsed, previewOutput);
+  });
+
+  bench('long post', () => {
+    renderPreview(longParsed, previewOutput);
   });
 });
