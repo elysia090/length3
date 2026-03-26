@@ -55,17 +55,20 @@ const dateStr = formatDate(publishDate, lang);
       <div class="prose-area">
         <article class="prose" data-pagefind-body lang={lang}>
           <header class="article-header">
-            <div class="article-header-meta">
-              <div class="article-header-tags">
-                {
-                  tags.map((tag) => (
-                    <a href={getTagUrl(tag)} class="article-header-tag">
-                      #{tag}
-                    </a>
-                  ))
-                }
-              </div>
-              {tags.length > 0 && <span aria-hidden="true">·</span>}
+            {
+              tags.length > 0 && (
+                <ul class="article-header-tags tag-pill-list" aria-label="Tags">
+                  {tags.map((tag) => (
+                    <li>
+                      <a href={getTagUrl(tag)} class="article-header-tag tag-pill">
+                        #{tag}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )
+            }
+            <div class="article-header-dates">
               <time datetime={publishDate.toISOString()} class="article-header-date">
                 {dateStr}
               </time>

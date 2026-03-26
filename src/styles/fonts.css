@@ -19,9 +19,8 @@
  *   this display font for pages that only render CJK content.
  *
  * Fraunces is fully self-hosted from /public/fonts/.
- * BaseLayout preloads the upright WOFF2 file, and tests/helpers/fonts.ts
- * explicitly loads it in headless browser runs where font-display: optional
- * would otherwise keep the fallback face.
+ * tests/helpers/fonts.ts explicitly loads it in headless browser runs where
+ * font-display: optional would otherwise keep the fallback face.
  * When renaming or moving the Fraunces files, update all related paths.
  */
 

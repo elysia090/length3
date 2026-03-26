@@ -22,7 +22,9 @@ import Footer from '../components/Footer.astro';
   .not-found {
     max-width: var(--measure);
     margin: 0 auto;
-    padding: 4rem 1.5rem 6rem;
+    padding-block: 4rem 6rem;
+    padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
+      max(var(--page-gutter), env(safe-area-inset-right));
   }
 
   .not-found-code {

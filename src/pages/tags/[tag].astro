@@ -29,13 +29,7 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
 
 <BaseLayout title={`${tagName} — Length³`}>
   <Header />
-  <Breadcrumb
-    segments={[
-      { label: 'Length³', href: '/' },
-      { label: 'Tags', href: '/tags' },
-      { label: tagName },
-    ]}
-  />
+  <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: tagName }]} />
   <main class="tag-main" id="main-content">
     <header class="tag-header">
       <h1 class="page-title">#{tagName}</h1>
@@ -55,7 +49,9 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
   .tag-main {
     max-width: var(--measure);
     margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+    padding-block: 2rem 4rem;
+    padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
+      max(var(--page-gutter), env(safe-area-inset-right));
   }
 
   .tag-header {

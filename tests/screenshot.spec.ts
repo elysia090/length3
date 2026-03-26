@@ -7,8 +7,12 @@
  * It is excluded from the default `chromium` project so that regular
  * `pnpm test` runs do not regenerate screenshots on every invocation.
  *
- * Each test asserts that key content is visible before capturing,
- * so a broken page cannot produce a silently-passing screenshot.
+ * Each test asserts that key content is visible before capturing, so a broken
+ * page cannot produce a silently-passing screenshot.
+ *
+ * These captures are documentation assets, not visual regression baselines.
+ * Long-form article pages intentionally use viewport screenshots instead of
+ * full-page output so the resulting images stay legible in docs.
  */
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
@@ -27,33 +31,12 @@ test('getting-started', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await gotoWithFonts(page, '/getting-started');
   await expect(page.locator('.prose')).toBeVisible();
-  await page.screenshot({ path: `${OUT}/getting-started.png`, fullPage: true });
-});
-
-test('tags', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await gotoWithFonts(page, '/tags');
-  await expect(page.locator('.tag-grid')).toBeVisible();
-  await page.screenshot({ path: `${OUT}/tags.png`, fullPage: true });
-});
-
-test('editor', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await gotoWithFonts(page, '/editor');
-  await expect(page.locator('.editor-root')).toBeVisible();
-  await page.screenshot({ path: `${OUT}/editor.png`, fullPage: true });
-});
-
-test('editor-mobile', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await gotoWithFonts(page, '/editor');
-  await expect(page.locator('.editor-root')).toBeVisible();
-  await page.screenshot({ path: `${OUT}/editor-mobile.png`, fullPage: true });
+  await page.screenshot({ path: `${OUT}/getting-started.png` });
 });
 
 test('japanese-test', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await gotoWithFonts(page, '/japanese-test');
   await expect(page.locator('.prose')).toBeVisible();
-  await page.screenshot({ path: `${OUT}/japanese-test.png`, fullPage: true });
+  await page.screenshot({ path: `${OUT}/japanese-test.png` });
 });

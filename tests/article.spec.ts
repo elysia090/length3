@@ -18,6 +18,11 @@ test.describe('Article page', () => {
     test('table of contents is visible', async ({ page }) => {
       await expect(page.locator('.toc')).toBeVisible();
     });
+
+    test('article header keeps tags and dates in separate groups', async ({ page }) => {
+      await expect(page.locator('.article-header-tags')).toBeVisible();
+      await expect(page.locator('.article-header-dates')).toBeVisible();
+    });
   });
 
   test.describe('Table of contents', () => {
@@ -31,10 +36,13 @@ test.describe('Article page', () => {
       await expect(firstLink).toHaveAttribute('href', /^#/);
     });
 
-    test('clicking a toc link updates the URL hash', async ({ page }) => {
+    test('clicking a toc link updates the URL hash and moves focus to the heading', async ({
+      page,
+    }) => {
       const firstLink = page.locator('.toc-link').first();
       const href = await firstLink.getAttribute('href');
       expect(href).toMatch(/^#/);
+      if (!href) throw new Error('Expected the first TOC link to target a heading');
 
       await firstLink.click();
       await page.waitForFunction(
@@ -42,6 +50,13 @@ test.describe('Article page', () => {
         href,
       );
       await expect.poll(() => decodeURIComponent(new URL(page.url()).hash)).toBe(href);
+      await expect(page.locator(href)).toBeFocused();
+    });
+
+    test('toc is hidden on mobile viewports', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.reload();
+      await expect(page.locator('.toc-aside')).toBeHidden();
     });
   });
 

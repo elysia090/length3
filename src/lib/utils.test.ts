@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { parseFrontmatter } from './editor/preview';
 import type { BlogPost } from './types';
 import { estimateReadingTime, formatDate, notDraft, processPost, tagToSlug, toSlug } from './utils';
 
@@ -174,37 +173,5 @@ describe('estimateReadingTime edge cases', () => {
     const text = `${'word '.repeat(100)}\n\n\`\`\`\ncode here\n\`\`\`\n\n${'word '.repeat(100)}`;
     // 200 real words + a few code tokens = ceil(≈1 min) = 1 min
     expect(estimateReadingTime(text)).toBeGreaterThanOrEqual(1);
-  });
-});
-
-// ── parseFrontmatter ─────────────────────────────────────────────
-describe('parseFrontmatter', () => {
-  it('extracts title and body', () => {
-    const text = '---\ntitle: Hello\n---\n\nBody here.';
-    const result = parseFrontmatter(text);
-    expect(result.title).toBe('Hello');
-    expect(result.body).toBe('Body here.');
-  });
-
-  it('extracts lang field', () => {
-    const text = '---\ntitle: Test\nlang: ja\n---\n\nBody.';
-    expect(parseFrontmatter(text).lang).toBe('ja');
-  });
-
-  it('defaults lang to en when absent', () => {
-    const text = '---\ntitle: Test\n---\n\nBody.';
-    expect(parseFrontmatter(text).lang).toBe('en');
-  });
-
-  it('strips surrounding quotes from title', () => {
-    const text = "---\ntitle: 'Quoted'\n---\n\nBody.";
-    expect(parseFrontmatter(text).title).toBe('Quoted');
-  });
-
-  it('returns empty title and full text as body when no frontmatter', () => {
-    const text = 'Just a body.';
-    const result = parseFrontmatter(text);
-    expect(result.title).toBe('');
-    expect(result.body).toBe('Just a body.');
   });
 });

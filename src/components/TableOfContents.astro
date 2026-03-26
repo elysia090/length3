@@ -12,52 +12,29 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
 {
   filtered.length > 0 && (
     <nav class="toc" aria-label="Table of Contents">
-      {/* spec §8: <details> wraps the TOC.
-          Desktop (≥ 720px): starts open, summary acts as a static label.
-          Mobile (< 720px):  JS removes `open` so it starts collapsed. */}
-      <details class="toc-details" open>
-        <summary class="toc-label">Contents</summary>
-        <ul>
-          {filtered.map((h) => (
-            <li class={`toc-item toc-depth-${h.depth}`}>
-              <a href={`#${h.slug}`} class="toc-link" data-heading={h.slug}>
-                {h.text}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </details>
+      <p class="toc-label">Contents</p>
+      <ul>
+        {filtered.map((h) => (
+          <li class={`toc-item toc-depth-${h.depth}`}>
+            <a href={`#${h.slug}`} class="toc-link" data-heading={h.slug}>
+              {h.text}
+            </a>
+          </li>
+        ))}
+      </ul>
     </nav>
   )
 }
 
 <script>
   const tocNav = document.querySelector<HTMLElement>('.toc');
-  const tocDetails = document.querySelector<HTMLDetailsElement>('.toc-details');
   const links = document.querySelectorAll<HTMLAnchorElement>('.toc-link');
   const headingEls = document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]');
 
-  // spec §8: collapse TOC on mobile (< 720px) — starts open in SSR/desktop
-  // Use matchMedia so the state updates on resize/orientation change
-  const mobileQuery = window.matchMedia('(max-width: 719px)');
-  const tocSummary = tocDetails?.querySelector<HTMLElement>('.toc-label');
-
-  function syncTocOpen(mobile: boolean) {
-    if (!tocDetails) return;
-    if (mobile) {
-      tocDetails.removeAttribute('open');
-      // Restore keyboard access on mobile: summary is an interactive toggle
-      tocSummary?.removeAttribute('tabindex');
-    } else {
-      tocDetails.setAttribute('open', '');
-      // SC 2.1.1: on desktop the summary is a visual label only (pointer-events: none in CSS).
-      // Remove it from the tab order so keyboard users cannot accidentally collapse the TOC
-      // with no way to reopen it (JS only watches viewport resize, not user keypress).
-      tocSummary?.setAttribute('tabindex', '-1');
-    }
+  function focusHeadingTarget(target: HTMLElement) {
+    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
   }
-  syncTocOpen(mobileQuery.matches);
-  mobileQuery.addEventListener('change', (e) => syncTocOpen(e.matches));
 
   // ── Active section tracking ──────────────────────────────────
   if (links.length > 0 && headingEls.length > 0) {
@@ -145,7 +122,11 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
       const target = document.querySelector<HTMLElement>(href);
       if (!target) return;
       e.preventDefault();
-      target.scrollIntoView({ behavior: 'smooth' });
+      const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth';
+      target.scrollIntoView({ behavior });
+      focusHeadingTarget(target);
       history.pushState(null, '', href);
     });
   }
@@ -163,63 +144,14 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
     visibility: hidden;
   }
 
-  /* ── <details> / <summary> reset ── */
-  /* <summary> replaces the old <p class="toc-label">.
-     Reset list-item display and hide the native ▶ marker. */
   .toc-label {
     font-family: var(--font-mono);
-    font-size: 0.8rem; /* bumped from 0.75rem to match TOC link size */
+    font-size: 0.8rem;
     letter-spacing: 0.14em;
-    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at small size */
+    color: var(--ink-2);
     text-transform: uppercase;
     margin-bottom: 1rem;
     display: block;
-    list-style: none;
-  }
-
-  /* Remove the native disclosure triangle in all browsers */
-  .toc-label::marker,
-  .toc-label::-webkit-details-marker {
-    display: none;
-  }
-
-  /* Desktop (≥ 720px): summary is a visual label, not an interactive toggle */
-  @media (min-width: 720px) {
-    .toc-label {
-      pointer-events: none;
-      cursor: default;
-    }
-  }
-
-  /* Mobile (≤ 719px): summary is a collapsible toggle — spec §8 */
-  @media (max-width: 719px) {
-    .toc-label {
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      min-height: 2.75rem; /* WCAG 2.5.8: touch target */
-      margin-bottom: 0;
-      padding: 0;
-    }
-
-    /* Chevron indicator */
-    .toc-label::after {
-      content: '↓';
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      color: var(--ink-2); /* SC 1.4.11: was ink-3 (2.78:1), ink-2 gives 7.73:1 on --bg */
-      margin-left: auto;
-      transition: transform var(--transition-fast);
-      display: block;
-    }
-
-    .toc-details[open] > .toc-label::after {
-      transform: rotate(180deg);
-    }
-
-    .toc-details > ul {
-      margin-top: 0.5rem;
-    }
   }
 
   .toc ul {

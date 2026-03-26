@@ -84,8 +84,8 @@ export function estimateReadingTime(text: string): number {
 
 /**
  * Groups posts by tag slug into a TagIndex.
- * Single source of truth for tag aggregation — shared by the tag cloud page
- * and the per-tag listing page so the logic cannot diverge.
+ * Single source of truth for tag aggregation — shared by the home topics
+ * directory and the per-tag listing page so the logic cannot diverge.
  */
 export function buildTagIndex(posts: BlogPost[]): TagIndex {
   const bySlug = new Map<string, BlogPost[]>();

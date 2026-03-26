@@ -43,13 +43,19 @@ const { segments } = Astro.props;
     color: var(--ink-2);
     max-width: var(--layout-max-width);
     margin: 0 auto;
-    padding: 1rem 1.5rem 0; /* bumped from 0.75rem for breathing room */
+    padding-top: 0.75rem;
+    padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
+      max(var(--page-gutter), env(safe-area-inset-right));
+    text-align: center;
   }
 
   .breadcrumb ol {
     display: flex;
     align-items: center;
     gap: 0.5rem; /* 8px — grid aligned */
+    justify-content: center;
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
     list-style: none;
     padding: 0;
     margin: 0;
@@ -71,5 +77,16 @@ const { segments } = Astro.props;
 
   .crumb-current {
     color: var(--ink);
+  }
+
+  @media (min-width: 40rem) {
+    .breadcrumb {
+      padding-top: 1rem;
+      text-align: left;
+    }
+
+    .breadcrumb ol {
+      justify-content: flex-start;
+    }
   }
 </style>

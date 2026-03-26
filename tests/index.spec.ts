@@ -21,10 +21,17 @@ test.describe('Index page', () => {
       await expect(page.locator('.sidebar')).toBeVisible();
     });
 
-    test('sidebar is hidden below 840px', async ({ page }) => {
+    test('discovery rail stacks below the article list below 840px', async ({ page }) => {
       await page.setViewportSize({ width: 820, height: 900 });
       await page.goto('/');
-      await expect(page.locator('.index-sidebar')).toBeHidden();
+      await expect(page.locator('.index-sidebar')).toBeVisible();
+      const [articleBox, sidebarBox] = await Promise.all([
+        page.locator('.article-list').boundingBox(),
+        page.locator('.index-sidebar').boundingBox(),
+      ]);
+      expect(articleBox?.y).not.toBeNull();
+      expect(sidebarBox?.y).not.toBeNull();
+      expect((sidebarBox?.y ?? 0) > (articleBox?.y ?? 0)).toBe(true);
     });
   });
 
@@ -33,12 +40,16 @@ test.describe('Index page', () => {
       await expect(page.locator('.header-nav')).toHaveAttribute('aria-label', 'primary');
     });
 
-    test('primary navigation links to articles, tags, and about', async ({ page }) => {
+    test('primary navigation links to articles and about', async ({ page }) => {
       const links = page.locator('.header-nav a');
-      await expect(links).toHaveCount(3);
+      await expect(links).toHaveCount(2);
       await expect(links.nth(0)).toContainText('Articles');
-      await expect(links.nth(1)).toContainText('Tags');
-      await expect(links.nth(2)).toContainText('About');
+      await expect(links.nth(1)).toContainText('About');
+    });
+
+    test('topics directory is visible in the sidebar', async ({ page }) => {
+      await expect(page.locator('.sidebar-topics')).toBeVisible();
+      await expect(page.locator('.sidebar-topic-card').first()).toBeVisible();
     });
   });
 
@@ -77,6 +88,9 @@ test.describe('Index page', () => {
     }) => {
       await openSearchModal(page);
       await expect(page.locator('.search-unavailable')).toContainText(
+        'Run pnpm build and pnpm preview to test it locally.',
+      );
+      await expect(page.locator('#search-status')).toContainText(
         'Run pnpm build and pnpm preview to test it locally.',
       );
     });

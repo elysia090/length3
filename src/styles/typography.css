@@ -204,25 +204,19 @@ rt {
   padding: 2rem 0;
 }
 
-.article-header-meta {
+.article-header-tags {
+  margin: 0 0 0.75rem;
+}
+
+.article-header-dates {
   display: flex;
-  align-items: center;
-  gap: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;   /* spec §2: 12px */
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-2);
   margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-}
-
-.article-header-tags {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.article-header-tag {
-  color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
 }
 
 .article-header-date {
@@ -271,13 +265,9 @@ rt {
 
 /* Japanese quotation marks via CSS quotes property.
    Enables correct <q> rendering; authors can also type 「」 directly.
-   font-variant-east-asian: traditional instructs the browser to prefer Japanese
-   glyph variants over Simplified Chinese when the font supports multiple CJK
-   variant sets (e.g. system-ui fallbacks, Noto Sans CJK).  This is the primary
-   CSS signal that prevents Chinese glyph selection during the FOUT period before
-   Noto Sans JP finishes loading, and on Linux/Android where the system CJK font
-   may default to a Simplified-Chinese variant. */
+   Glyph selection is left to the `lang="ja"` attribute plus the JP-first font
+   stacks in global.css. `font-variant-east-asian: traditional` is intentionally
+   avoided because it can skew Han glyph selection away from Japanese forms. */
 :lang(ja) {
   quotes: '\300C' '\300D' '\300E' '\300F';   /* 「」 primary, 『』 secondary */
-  font-variant-east-asian: traditional;       /* Japanese glyph variants, not Simplified Chinese */
 }

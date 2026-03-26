@@ -21,13 +21,13 @@ export async function goToFirstArticle(page: Page): Promise<string> {
 }
 
 /**
- * Navigate to the first tag detail page from the tags index.
+ * Navigate to the first tag detail page from the index topics directory.
  * Returns the href of the tag detail page.
  */
 export async function goToFirstTagDetail(page: Page): Promise<string> {
-  await page.goto('/tags');
-  const href = await page.locator('.tag-card').first().getAttribute('href');
-  if (!href) throw new Error('No tag found on tags index');
+  await page.goto('/');
+  const href = await page.locator('.sidebar-topic-card').first().getAttribute('href');
+  if (!href) throw new Error('No topic found on index page');
   await page.goto(href);
   return href;
 }

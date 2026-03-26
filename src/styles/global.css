@@ -10,34 +10,12 @@
   --rule:       #dedad5;   /* dividers only */
   --bg:         #f9f8f5;   /* page background */
   --bg-2:       #f0ede8;   /* secondary surface: code, sidebar */
-  --editor-bg:  #181511;   /* editor dark pane */
-
-  /* Editor dark-surface palette (spec §4)
-     Referenced by editor/index.astro and styles/code.css.
-     Also mirrored as JS constants in lib/editor/theme.ts because
-     CSS custom properties cannot be used inside CodeMirror JS theme strings. */
-  --editor-topbar-bg:    #201d19;  /* topbar / mobile tabs bg */
-  --editor-statusbar-bg: #1a1714;  /* statusbar bg */
-  --editor-border:       #252118;  /* pane dividers */
-  --editor-sep:          #3a3630;  /* muted decorative separator */
-  --editor-gutter-active:#8a8070;  /* active line gutter number */
-  --editor-ink-3:        #7a776f;  /* tertiary text (status items) */
-  --editor-ink-2:        #9a9690;  /* secondary text (discard btn, sep) */
-  --editor-ink:          #c8c4be;  /* primary text (filename, hover) */
-  --editor-ink-bright:   #e2ddd8;  /* brightest text (publish btn) */
-  --editor-btn-border:   #52504a;  /* publish button border */
-  --editor-comment:      #3d3a34;  /* syntax: comment (italic) */
-  /* Editor syntax highlight */
-  --editor-hl-key:       #7a9ab8;  /* YAML key: muted blue */
-  --editor-hl-val:       #7ec49a;  /* YAML value / strings: muted green */
-  --editor-hl-fn:        #8bb8e8;  /* function / variable names: muted sky */
-
   /* Surfaces & shadows */
   --overlay-bg:  rgba(28, 26, 24, 0.6);              /* modal/dialog scrim — --ink at ~60% */
   --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);  /* floating card elevation */
 
   /* Typography — font-size scale */
-  --font-ui-xs: 0.6875rem;   /* 11px — smallest UI text: status bars, shortcuts, editor labels */
+  --font-ui-xs: 0.6875rem;   /* 11px — smallest UI text: shortcuts and compact UI labels */
   /* Display (headings): Japanese mincho fallbacks placed BEFORE Noto Sans JP so that
      CJK characters in headings render in serif/mincho rather than sans-serif.
      'Yu Mincho' covers Windows 8+; 'Hiragino Mincho ProN' covers macOS/iOS. */
@@ -46,14 +24,17 @@
      render correctly when Noto Sans JP (Google Fonts) is unavailable.
      'Yu Gothic UI' covers Windows 10+; 'Meiryo' covers Windows Vista+. */
   --font-sans:    'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', monospace;
+  /* Mono: keep Latin UI in a monospace face, but add CJK fallbacks so Japanese
+     breadcrumbs, TOC items, and status text do not render as tofu. */
+  --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', monospace;
 
   /* Layout */
   --layout-max-width:    75rem;  /* 1200px — outer container cap */
-  --measure:             680px;
-  --sidebar-width:       280px;
-  --sidebar-width-narrow:15rem;  /* 240px — narrowed sidebar at 960–1199px */
-  --toc-width:           200px;
+  --measure:             42.5rem;
+  --sidebar-width:       17.5rem;
+  --toc-width:           12.5rem;
+  --layout-gap:          clamp(2rem, 4vw, 2.5rem);
+  --page-gutter:         clamp(1.25rem, 4vw, 1.5rem);
 
   /* Motion */
   --transition-fast: 80ms ease; /* interactive micro-transitions site-wide */
@@ -69,7 +50,7 @@
 
 html {
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 100%;
   color: var(--ink);
   background-color: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -103,12 +84,12 @@ img {
   color: var(--bg);
   font-family: var(--font-mono);
   font-size: 0.8125rem;
-  border-radius: 0 0 4px 4px;
+  border-radius: 0 0 0.25rem 0.25rem;
   z-index: 9999;
   text-decoration: none;
   transition: none; /* instant — no delay when keyboard user needs it */
 }
-.skip-link:focus {
+.skip-link:focus-visible {
   top: 0;
   outline: 2px solid var(--amber-text);
   outline-offset: 2px;
@@ -132,15 +113,20 @@ img {
 }
 
 /* ─── Index Layout ───────────────────────────────────────────── */
-/* 2-column: [articles | sidebar] — spec §1 */
+/* Mobile-first: article list first, discovery tools follow underneath. */
 .index-layout {
   display: grid;
-  grid-template-columns: 1fr var(--sidebar-width);
-  grid-template-areas: 'list side';
-  gap: 0 2.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'list'
+    'side';
+  gap: 0;
   max-width: var(--layout-max-width);
   margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
+  padding-block: 1.5rem 3rem;
+  padding-inline:
+    max(var(--page-gutter), env(safe-area-inset-left))
+    max(var(--page-gutter), env(safe-area-inset-right));
 }
 
 .article-list {
@@ -150,31 +136,31 @@ img {
 
 .index-sidebar {
   grid-area: side;
-  padding-left: 2.5rem;
+  padding-left: 0;
   padding-top: 0;
+  margin-top: var(--layout-gap);
+  border-top: 1px solid var(--rule);
   align-self: start;
+  min-width: 0;
 }
 
 /* ─── Article Shell ──────────────────────────────────────────── */
-/* 3-column: [toc | prose | empty] — spec §1 */
+/* Mobile-first: prose only. Desktop enhancements add TOC and empty margin. */
 .article-shell {
   display: grid;
-  grid-template-columns: var(--toc-width) minmax(0, var(--measure)) 1fr;
-  grid-template-areas: 'toc prose empty';
-  gap: 0 2.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'prose';
+  gap: 0;
   max-width: var(--layout-max-width);
   margin: 0 auto;
-  padding: 0 1.5rem 4rem;
+  padding-block: 0 3rem;
+  padding-inline:
+    max(var(--page-gutter), env(safe-area-inset-left))
+    max(var(--page-gutter), env(safe-area-inset-right));
 }
 
 .toc-aside {
-  grid-area: toc;
-  position: sticky;
-  top: 2rem;
-  align-self: start;
-  max-height: calc(100dvh - 4rem);
-  overflow-y: auto;
-  padding-top: 2rem;
+  display: none;
 }
 
 .prose-area {
@@ -182,59 +168,55 @@ img {
   min-width: 0;
 }
 
+/* Hide the deliberate empty right margin until the viewport can afford it. */
+.article-empty-margin {
+  display: none;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────── */
 
-/* 960–1199px: sidebar narrows to 240px; article right whitespace shrinks */
-@media (max-width: 1199px) and (min-width: 960px) {
-  .index-layout {
-    grid-template-columns: 1fr var(--sidebar-width-narrow);
-  }
+@media (min-width: 45rem) {
   .article-shell {
-    grid-template-columns: var(--toc-width) minmax(0, var(--measure)) minmax(80px, 1fr);
-  }
-}
-
-/* 720–959px: index single-column; article TOC+prose only (no right whitespace) */
-@media (max-width: 959px) and (min-width: 720px) {
-  .article-shell {
-    grid-template-columns: var(--toc-width) minmax(0, var(--measure));
+    grid-template-columns: minmax(10rem, var(--toc-width)) minmax(0, 1fr);
     grid-template-areas: 'toc prose';
+    gap: 0 var(--layout-gap);
+    padding-bottom: 4rem;
+  }
+
+  .toc-aside {
+    display: block;
+    grid-area: toc;
+    position: sticky;
+    top: 2rem;
+    align-self: start;
+    max-height: calc(100dvh - 4rem);
+    overflow-y: auto;
+    padding-top: 2rem;
   }
 }
 
-/* Below 840px: index sidebar disappears — spec §1 */
-@media (max-width: 840px) {
+@media (min-width: 52.5rem) {
   .index-layout {
-    grid-template-columns: 1fr;
-    grid-template-areas: 'list';
+    grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
+    grid-template-areas: 'list side';
+    gap: 0 var(--layout-gap);
+    padding-block: 2rem 4rem;
   }
   .index-sidebar {
-    display: none;
+    padding-left: var(--layout-gap);
+    margin-top: 0;
+    border-top: none;
   }
 }
 
-/* 640–719px: single column; TOC collapses to <details> at article top */
-@media (max-width: 719px) {
+@media (min-width: 60rem) {
   .article-shell {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      'toc'
-      'prose';
+    grid-template-columns: var(--toc-width) minmax(0, var(--measure)) minmax(0, 1fr);
+    grid-template-areas: 'toc prose empty';
   }
-  .toc-aside {
-    position: static;
-    max-height: none;
-    padding-top: 1rem;
-  }
-}
 
-/* Below 640px: full single column */
-@media (max-width: 639px) {
-  .article-shell {
-    padding: 0 1rem 3rem;
-  }
-  .index-layout {
-    padding: 1.5rem 1rem 3rem;
+  .article-empty-margin {
+    display: block;
   }
 }
 
@@ -244,7 +226,7 @@ img {
    Used by article-header-hr (typography.css) and page headers in tags/. */
 .amber-rule {
   border: none;
-  height: 2px;
+  height: 0.125rem;
   background: var(--amber);
   width: 3rem;
 }
@@ -262,7 +244,45 @@ img {
 .page-meta {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-2);
+}
+
+.tag-pill-list {
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.125rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--amber-text);
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.tag-pill:hover,
+.tag-pill:active {
+  color: var(--amber-text);
+  border-color: var(--amber-text);
+}
+
+@media (pointer: coarse) {
+  .tag-pill {
+    min-height: 2.75rem;
+  }
 }
 
 /* ─── Utilities ──────────────────────────────────────────────── */

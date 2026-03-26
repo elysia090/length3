@@ -1,6 +1,8 @@
 /// <reference types="node" />
 import { defineConfig, devices } from '@playwright/test';
 
+const isScreenshotMode = process.env['SCREENSHOT_MODE'] === '1';
+const baseURL = isScreenshotMode ? 'http://localhost:4322' : 'http://localhost:4321';
 const chromiumLaunchArgs = [
   // Fail Google Fonts DNS lookups immediately in headless runs. The site links
   // Google Fonts declaratively in <head>, but some proxied CI environments can
@@ -19,7 +21,7 @@ export default defineConfig({
   reporter: process.env['CI'] ? [['github'], ['html']] : [['html']],
 
   use: {
-    baseURL: 'http://localhost:4321',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -47,8 +49,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:4321',
+    command: isScreenshotMode ? 'pnpm preview --port 4322' : 'pnpm dev',
+    url: baseURL,
     reuseExistingServer: !process.env['CI'],
   },
 });

@@ -11,7 +11,6 @@ const { title, description = 'A technical blog.', ogImage, lang = 'en' } = Astro
 import '../styles/fonts.css';
 import '../styles/global.css';
 import '../styles/typography.css';
-import { FRAUNCES_WOFF2 } from '../lib/fontConfig';
 ---
 
 <!doctype html>
@@ -20,15 +19,7 @@ import { FRAUNCES_WOFF2 } from '../lib/fontConfig';
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <!--
-      Preload the upright variable font so the browser can start fetching it
-      before CSS is parsed. Only the normal (non-italic) file is preloaded
-      because italic is non-critical path on first render.
-      crossorigin is required for fonts even when self-hosted (CORS fetch).
-      Font path comes from src/lib/fontConfig.ts — single source of truth for JS/TS.
-      The @font-face declaration in src/styles/fonts.css must stay in sync.
-    -->
-    <link rel="preload" href={FRAUNCES_WOFF2} as="font" type="font/woff2" crossorigin />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <!-- Noto Sans JP remains hosted by Google Fonts, but is loaded declaratively so
          connections can warm early and typography is stable on first paint. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

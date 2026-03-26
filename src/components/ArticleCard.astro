@@ -34,13 +34,15 @@ const dateStr = formatDate(publishDate, lang);
   {description && <p class="card-excerpt">{description}</p>}
   {
     tags.length > 0 && (
-      <div class="card-tags" aria-label="tags">
+      <ul class="card-tags tag-pill-list" aria-label="Tags">
         {tags.map((t) => (
-          <a href={getTagUrl(t)} class="card-tag">
-            #{t}
-          </a>
+          <li>
+            <a href={getTagUrl(t)} class="card-tag tag-pill">
+              #{t}
+            </a>
+          </li>
         ))}
-      </div>
+      </ul>
     )
   }
 </article>
@@ -64,9 +66,11 @@ const dateStr = formatDate(publishDate, lang);
   .card-meta {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.5rem;
     font-family: var(--font-mono);
     font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
     color: var(--ink-2);
     margin-bottom: 0.25rem;
   }
@@ -74,7 +78,8 @@ const dateStr = formatDate(publishDate, lang);
   .card-date {
     letter-spacing: 0.04em;
     color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
-    width: 5rem;
+    min-width: 10ch;
+    white-space: nowrap;
     flex-shrink: 0;
   }
 
@@ -120,36 +125,6 @@ const dateStr = formatDate(publishDate, lang);
 
   /* Tags — bottom of card, bordered pills */
   .card-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .card-tag {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--rule);
-    border-radius: 2px;
-    /* SC 2.5.8: minimum target size 24×24px for all pointer types */
-    min-height: 1.5rem;
-    display: inline-flex;
-    align-items: center;
-    transition:
-      color var(--transition-fast),
-      border-color var(--transition-fast);
-  }
-
-  .card-tag:hover,
-  .card-tag:active {
-    color: var(--amber-text);
-    border-color: var(--amber-text);
-  }
-
-  @media (pointer: coarse) {
-    .card-tag {
-      min-height: 2.75rem; /* WCAG 2.5.8: larger target on touch */
-    }
+    margin: 0;
   }
 </style>
