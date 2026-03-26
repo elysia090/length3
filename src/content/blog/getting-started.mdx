@@ -188,6 +188,10 @@ The article body is annotated `data-pagefind-body` in `ArticleLayout.astro`:
 
 This scopes indexing to article content, excluding header, footer, and sidebar noise.
 
+Because the site ships both English and Japanese articles, the modal merges the `en` and `ja`
+Pagefind indexes at runtime and normalizes Japanese queries with `Intl.Segmenter`, keeping
+cross-language search fully static with no Worker-side search service.
+
 ## Typography
 
 ### Fraunces Variable Font
@@ -264,10 +268,11 @@ This guarantees that no unformatted code reaches the repository without interrup
 | Suite      | Tool       | Scope                                                                          |
 | ---------- | ---------- | ------------------------------------------------------------------------------ |
 | Unit       | Vitest 4   | `estimateReadingTime`, canonical tag routing, `TagResolver`, `formatDate`      |
-| End-to-end | Playwright | Article rendering, dev search fallback, built-search behaviour, tag navigation |
+| End-to-end | Playwright | Route smoke, search modal bootstrap, tag navigation |
 
 Vitest shares the Vite config and runs in `node` environment, which means TypeScript compilation is handled by the same pipeline as the main build.
 Playwright is kept as a smoke suite against the dev server, while browser interaction logic is covered in Vitest with `jsdom`.
+During `astro dev`, Pagefind search reuses the last built index from `dist/client/pagefind`, so run `pnpm build` after content changes when you need fresh search results.
 
 ## Deployment
 

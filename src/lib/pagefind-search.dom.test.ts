@@ -1,14 +1,18 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildMergedPagefindIndexes,
   createPagefindSearchController,
+  normalizePagefindSearchTerm,
+  type PagefindSearchControllerOptions,
+  type PagefindSearchResult,
   type PagefindUIConstructor,
-  type SearchBootstrapDeps,
   searchErrorMessage,
   searchUnavailableMessage,
 } from './pagefind-search';
 
 function createSearchDom() {
+  document.documentElement.lang = 'en';
   document.body.innerHTML = `
     <div id="pagefind-ui"></div>
     <p id="search-status"></p>
@@ -20,34 +24,33 @@ function createSearchDom() {
   };
 }
 
-function createDeps(overrides: Partial<SearchBootstrapDeps> = {}): SearchBootstrapDeps {
+function createOptions(
+  overrides: Partial<PagefindSearchControllerOptions> = {},
+): PagefindSearchControllerOptions {
   return {
-    forceBootstrap: false,
+    browserWindow: window,
     getPagefindUI: () => null,
     importPagefind: async () => {},
-    isDev: false,
     isPagefindAvailable: async () => true,
     logError: vi.fn(),
+    mount: document.getElementById('pagefind-ui') as HTMLElement,
+    mountSelector: '#pagefind-ui',
     nextFrame: async () => {},
     pagefindSrc: 'https://example.test/pagefind/pagefind-ui.js',
+    status: document.getElementById('search-status') as HTMLElement,
     ...overrides,
   };
 }
 
 describe('createPagefindSearchController', () => {
-  it('renders the dev unavailable state without attempting bootstrap', async () => {
+  it('renders the unavailable state when the Pagefind asset probe fails', async () => {
     const { mount, status } = createSearchDom();
-    const isPagefindAvailable = vi.fn(async () => true);
+    const isPagefindAvailable = vi.fn(async () => false);
     const controller = createPagefindSearchController(
-      {
-        mount,
-        mountSelector: '#pagefind-ui',
-        status,
-      },
-      createDeps({
-        forceBootstrap: false,
-        isDev: true,
+      createOptions({
         isPagefindAvailable,
+        mount,
+        status,
       }),
     );
 
@@ -55,7 +58,7 @@ describe('createPagefindSearchController', () => {
       kind: 'unavailable',
       message: searchUnavailableMessage,
     });
-    expect(isPagefindAvailable).not.toHaveBeenCalled();
+    expect(isPagefindAvailable).toHaveBeenCalledTimes(1);
     expect(mount.textContent).toContain(searchUnavailableMessage);
     expect(status.textContent).toBe(searchUnavailableMessage);
   });
@@ -64,16 +67,13 @@ describe('createPagefindSearchController', () => {
     const { mount, status } = createSearchDom();
     const logError = vi.fn();
     const controller = createPagefindSearchController(
-      {
-        mount,
-        mountSelector: '#pagefind-ui',
-        status,
-      },
-      createDeps({
+      createOptions({
         importPagefind: async () => {
           throw new Error('import failed');
         },
         logError,
+        mount,
+        status,
       }),
     );
 
@@ -90,14 +90,11 @@ describe('createPagefindSearchController', () => {
     const { mount, status } = createSearchDom();
     const logError = vi.fn();
     const controller = createPagefindSearchController(
-      {
-        mount,
-        mountSelector: '#pagefind-ui',
-        status,
-      },
-      createDeps({
+      createOptions({
         getPagefindUI: () => null,
         logError,
+        mount,
+        status,
       }),
     );
 
@@ -110,7 +107,7 @@ describe('createPagefindSearchController', () => {
 
   it('decorates the generated search input and reports result count', async () => {
     const { mount, status } = createSearchDom();
-    const PagefindUI = vi.fn(function PagefindUI(this: unknown) {
+    const PagefindUIMock = vi.fn(function PagefindUI(this: unknown) {
       mount.innerHTML = `
         <input class="pagefind-ui__search-input" />
         <ol class="pagefind-ui__results">
@@ -118,24 +115,28 @@ describe('createPagefindSearchController', () => {
           <li class="pagefind-ui__result"></li>
         </ol>
       `;
-    }) as unknown as PagefindUIConstructor;
+    });
+    const PagefindUI = PagefindUIMock as unknown as PagefindUIConstructor;
     const controller = createPagefindSearchController(
-      {
-        mount,
-        mountSelector: '#pagefind-ui',
-        status,
-      },
-      createDeps({
+      createOptions({
         getPagefindUI: () => PagefindUI,
+        mount,
+        status,
       }),
     );
 
     await expect(controller.open()).resolves.toEqual({ kind: 'ready' });
 
     const input = mount.querySelector('input');
-    expect(PagefindUI).toHaveBeenCalledWith(
+    expect(PagefindUIMock).toHaveBeenCalledWith(
       expect.objectContaining({
         element: '#pagefind-ui',
+        mergeIndex: buildMergedPagefindIndexes(
+          'https://example.test/pagefind/pagefind-ui.js',
+          'en',
+        ),
+        processTerm: normalizePagefindSearchTerm,
+        processResult: expect.any(Function),
       }),
     );
     expect(input).not.toBeNull();
@@ -144,6 +145,25 @@ describe('createPagefindSearchController', () => {
     expect(input?.getAttribute('placeholder')).toBe('Search articles…');
     expect(document.activeElement).toBe(input);
     expect(status.textContent).toBe('2 search results available.');
+
+    const [pagefindOptions] = PagefindUIMock.mock.calls[0] as unknown as [
+      {
+        processTerm?: (term: string) => string;
+        processResult?: (result: PagefindSearchResult) => PagefindSearchResult;
+      },
+    ];
+    const processTerm = pagefindOptions.processTerm;
+    const processResult = pagefindOptions.processResult;
+    expect(processTerm?.('日本語タイポグラフィ')).toBe('日本語 タイポグラフィ');
+    expect(
+      processResult?.({
+        meta: { url: '/tags/astro.html' },
+        url: '/getting-started.html',
+      }),
+    ).toEqual({
+      meta: { url: '/tags/astro' },
+      url: '/getting-started',
+    });
   });
 
   it('allows retrying after a failed bootstrap', async () => {
@@ -153,18 +173,15 @@ describe('createPagefindSearchController', () => {
       mount.innerHTML = '<input class="pagefind-ui__search-input" />';
     }) as unknown as PagefindUIConstructor;
     const controller = createPagefindSearchController(
-      {
-        mount,
-        mountSelector: '#pagefind-ui',
-        status,
-      },
-      createDeps({
+      createOptions({
         getPagefindUI: () => PagefindUI,
         importPagefind: async () => {
           if (shouldFail) {
             throw new Error('temporary failure');
           }
         },
+        mount,
+        status,
       }),
     );
 
