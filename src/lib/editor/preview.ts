@@ -106,10 +106,7 @@ export function renderPreview(parsed: FrontmatterData, output: HTMLElement): Pre
       ? `<div class="article-header-tags">${tags.map((t) => `<a class="article-header-tag">#${t}</a>`).join('')}</div><span aria-hidden="true">·</span>`
       : '';
   const dateHtml = date ? `<time class="article-header-date">${date}</time>` : '';
-  const metaHtml =
-    tagsHtml || dateHtml
-      ? `<div class="article-header-meta">${tagsHtml}${dateHtml}</div>`
-      : '';
+  const metaHtml = tagsHtml || dateHtml ? `<div class="article-header-meta">${tagsHtml}${dateHtml}</div>` : '';
   const leadHtml = description
     ? `<p class="article-header-lead">${String(marked.parseInline(description))}</p>`
     : '';
