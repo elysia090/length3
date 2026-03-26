@@ -1,9 +1,9 @@
 ---
-title: "length3: A Technical Blog Built on Astro 6 and Cloudflare Workers"
+title: 'length3: A Technical Blog Built on Astro 6 and Cloudflare Workers'
 description: A deep dive into how this blog is built — Astro 6, MDX content collections, Pagefind search, and Japanese typography, all deployed at the edge.
 publishDate: 2026-03-20
 updatedDate: 2026-03-23
-tags: [astro, cloudflare, mdx, typescript, pagefind, typography]
+tags: [astro, cloudflare, mdx, typescript, 'TypeScript / JS', pagefind, typography]
 draft: false
 lang: en
 ---
@@ -17,11 +17,11 @@ This article documents the full stack — from content pipeline to edge deployme
 
 The stack has three layers:
 
-| Layer | Technology |
-|---|---|
+| Layer     | Technology                                   |
+| --------- | -------------------------------------------- |
 | Framework | Astro 6 (static output + Cloudflare adapter) |
-| Content | MDX + Content Layer API (Zod-validated) |
-| Runtime | Cloudflare Workers (edge-native) |
+| Content   | MDX + Content Layer API (Zod-validated)      |
+| Runtime   | Cloudflare Workers (edge-native)             |
 
 The blog is statically generated at build time (`output: 'static'`).
 Static pages, fonts, and the Pagefind index are served as Cloudflare Pages assets at the edge.
@@ -62,15 +62,15 @@ const allPosts = await getCollection('blog', notDraft);
 
 ### Frontmatter Fields
 
-| Field | Type | Purpose |
-|---|---|---|
-| `title` | `string` | Required. Article heading and `<title>` |
-| `description` | `string` | Required. Lead paragraph and meta description |
-| `publishDate` | `YYYY-MM-DD` | Required. Shown in article header and sort order |
-| `updatedDate` | `YYYY-MM-DD` | Optional. Shown as "(upd. …)" next to publish date |
-| `tags` | `string[]` | Routed to `/tags/[slug]`, CJK-safe slugification |
-| `draft` | `boolean` | Defaults `false`. `true` hides the post from all listings |
-| `lang` | `'en' \| 'ja'` | Controls date format and `lang` attribute |
+| Field         | Type           | Purpose                                                   |
+| ------------- | -------------- | --------------------------------------------------------- |
+| `title`       | `string`       | Required. Article heading and `<title>`                   |
+| `description` | `string`       | Required. Lead paragraph and meta description             |
+| `publishDate` | `YYYY-MM-DD`   | Required. Shown in article header and sort order          |
+| `updatedDate` | `YYYY-MM-DD`   | Optional. Shown as "(upd. …)" next to publish date        |
+| `tags`        | `string[]`     | Routed to `/tags/[slug]`, CJK-safe slugification          |
+| `draft`       | `boolean`      | Defaults `false`. `true` hides the post from all listings |
+| `lang`        | `'en' \| 'ja'` | Controls date format and `lang` attribute                 |
 
 ### MDX and Component Imports
 
@@ -85,6 +85,7 @@ interface Props {
 }
 const { base, reading } = Astro.props;
 ---
+
 <ruby>{base}<rp>(</rp><rt>{reading}</rt><rp>)</rp></ruby>
 ```
 
@@ -93,7 +94,8 @@ In an article you write:
 ```mdx
 import RubyText from '../../components/RubyText.astro';
 
-<RubyText base="東京" reading="とうきょう" />は日本の首都です。
+<RubyText base="東京" reading="とうきょう" />
+は日本の首都です。
 ```
 
 Which renders as: <RubyText base="東京" reading="とうきょう" />は日本の首都です。
@@ -125,25 +127,12 @@ The `TableOfContents` component extracts `h2` and `h3` headings from the MDX ren
 
 ### Reading Time
 
-Reading time is estimated with a CJK-aware single-pass algorithm:
+Reading time is estimated with a CJK-aware regex-based algorithm:
 
 ```typescript
 export function estimateReadingTime(text: string): number {
-  let cjkChars = 0;
-  let latinWords = 0;
-  let inLatinWord = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i);
-    if ((c >= 0x3000 && c <= 0x9fff) || (c >= 0xf900 && c <= 0xfaff)) {
-      cjkChars++;
-      inLatinWord = false;
-    } else if (c > 32) {
-      if (!inLatinWord) { latinWords++; inLatinWord = true; }
-    } else {
-      inLatinWord = false;
-    }
-  }
+  const cjkChars = text.match(/[\u3000-\u9FFF\uF900-\uFAFF]/gu)?.length ?? 0;
+  const latinWords = text.replace(/[\u3000-\u9FFF\uF900-\uFAFF]/gu, ' ').match(/\S+/g)?.length ?? 0;
 
   // CJK reading ~400 chars/min, Latin ~200 words/min
   const minutes = cjkChars / 400 + latinWords / 200;
@@ -151,40 +140,33 @@ export function estimateReadingTime(text: string): number {
 }
 ```
 
-A three-step `replace → trim → split` pipeline allocates an intermediate string, a trimmed string, and a word array on every call.
-The `charCodeAt` loop does the same work in O(1) space and is measurably faster for long posts.
+The implementation keeps the rules simple: CJK characters are counted directly, non-CJK tokens are counted with a whitespace split, and the result is rounded up to a minimum of one minute.
 
 ## Tag System
 
-Tags are URL-slugified with Unicode property escapes so CJK tags survive the transformation:
+Tags are normalized into canonical slugs so CJK tags survive the transformation and punctuation-heavy names stay routable:
 
 ```typescript
-export function tagToSlug(tag: string): string {
+export function canonicalizeTagSlug(tag: string): string {
   return tag
+    .normalize('NFKC')
+    .trim()
     .toLowerCase()
     .replace(/\s+/g, '-')
-    .replace(/[^\p{L}\p{N}-]/gu, '');  // \p{L}\p{N} requires the `u` flag
+    .replace(/[^\p{L}\p{N}-]/gu, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 ```
 
-Without the `u` flag, `\w` only covers `[A-Za-z0-9_]` — a tag like `機械学習` would collapse to an empty string and every CJK tag would map to the same `/tags/` route.
-The `u` flag enables Unicode property escapes, so `機械学習` → `機械学習` (preserved) and `TypeScript` → `typescript`.
+Unicode property escapes keep `機械学習` intact, while punctuation cleanup and hyphen collapsing make names like `TypeScript / JS` converge to a stable canonical route.
 
 Tag archive pages are generated at `/tags/[tag]` via `getStaticPaths`.
-The `buildTagIndex` utility centralises aggregation so the topic directory on the home page and the per-tag listing page share identical logic:
+The `buildTagRoutes` utility centralises aggregation so the topic directory and per-tag listing pages share the same routing model:
 
 ```typescript
-export function buildTagIndex(posts: BlogPost[]): TagIndex {
-  const bySlug = new Map<string, BlogPost[]>();
-  const names  = new Map<string, string>();
-  for (const post of posts) {
-    for (const tag of post.data.tags) {
-      const slug = tagToSlug(tag);
-      if (!names.has(slug)) names.set(slug, tag);  // preserve original casing
-      // ...
-    }
-  }
-  return { bySlug, names };
+export function buildTagRoutes(posts: BlogPost[]): TagRoute[] {
+  // Canonical slugs are collision-safe and deterministic.
 }
 ```
 
@@ -201,7 +183,7 @@ The build pipeline:
 The article body is annotated `data-pagefind-body` in `ArticleLayout.astro`:
 
 ```astro
-<article class="prose" data-pagefind-body lang={lang}>
+<article class="prose" data-pagefind-body lang={lang}></article>
 ```
 
 This scopes indexing to article content, excluding header, footer, and sidebar noise.
@@ -216,19 +198,18 @@ The font files (`Fraunces-Variable.woff2`, `Fraunces-Italic-Variable.woff2`) are
 ### Font Stack
 
 ```css
---font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho',
-                Georgia, 'Noto Sans JP', serif;
+--font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, 'Noto Sans JP', serif;
 
---font-sans:    'Noto Sans JP', 'Hiragino Kaku Gothic ProN',
-                'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
+--font-sans:
+  'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
 
---font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code',
-                'Cascadia Code', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN',
-                'Yu Gothic UI', 'Meiryo', monospace;
+--font-mono:
+  'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', 'Noto Sans JP',
+  'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', monospace;
 ```
 
-Japanese mincho fallbacks are placed *before* `Georgia` in the display stack so that CJK characters in headings render in a matching serif/mincho style.
-Japanese sans-serif fonts are listed *before* `system-ui` so that CJK body text renders correctly when Noto Sans JP is unavailable.
+Japanese mincho fallbacks are placed _before_ `Georgia` in the display stack so that CJK characters in headings render in a matching serif/mincho style.
+Japanese sans-serif fonts are listed _before_ `system-ui` so that CJK body text still resolves cleanly on machines that only have local Japanese fonts installed.
 
 ### Japanese Typography Features
 
@@ -257,12 +238,12 @@ All content collection types flow from `CollectionEntry<'blog'>` through `Proces
 
 Linting and formatting use two tools with complementary scopes:
 
-| Tool | Target |
-|---|---|
-| [Biome](https://biomejs.dev/) | `*.ts`, `*.tsx` — lint + format |
-| [Prettier](https://prettier.io/) + `prettier-plugin-astro` | `*.astro` — format only |
+| Tool                                                       | Target                          |
+| ---------------------------------------------------------- | ------------------------------- |
+| [Biome](https://biomejs.dev/)                              | `*.ts`, `*.tsx` — lint + format |
+| [Prettier](https://prettier.io/) + `prettier-plugin-astro` | `*.astro` — format only         |
 
-Biome is significantly faster than ESLint + Prettier for TypeScript files and catches common issues (unused imports, unsafe assignments) at near-zero latency.
+Biome keeps TypeScript linting and formatting in one tool, while Prettier handles Astro templates.
 
 ### Husky Pre-commit Hooks
 
@@ -280,13 +261,13 @@ This guarantees that no unformatted code reaches the repository without interrup
 
 ### Testing
 
-| Suite | Tool | Scope |
-|---|---|---|
-| Unit | Vitest 4 | `estimateReadingTime`, `tagToSlug`, `buildTagIndex`, `formatDate` |
-| End-to-end | Playwright | Article rendering, search modal behaviour, tag navigation |
+| Suite      | Tool       | Scope                                                                          |
+| ---------- | ---------- | ------------------------------------------------------------------------------ |
+| Unit       | Vitest 4   | `estimateReadingTime`, canonical tag routing, `TagResolver`, `formatDate`      |
+| End-to-end | Playwright | Article rendering, dev search fallback, built-search behaviour, tag navigation |
 
 Vitest shares the Vite config and runs in `node` environment, which means TypeScript compilation is handled by the same pipeline as the main build.
-Playwright runs against a locally built `dist/` directory with the `chromium` project.
+Playwright is kept as a smoke suite against the dev server, while browser interaction logic is covered in Vitest with `jsdom`.
 
 ## Deployment
 

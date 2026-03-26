@@ -3,42 +3,45 @@ export const prerender = true;
 
 import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
-import type { ProcessedPost } from '../../lib/types';
+import type { ProcessedPost, TagRoute } from '../../lib/types';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ArticleCard from '../../components/ArticleCard.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
-import { processPost, notDraft, buildTagIndex } from '../../lib/utils';
+import { buildTagResolver, processPost, notDraft } from '../../lib/utils';
+
+const allPosts = await getCollection('blog', notDraft);
+const tagResolver = buildTagResolver(allPosts);
 
 export const getStaticPaths = (async () => {
   const posts = await getCollection('blog', notDraft);
-  const { bySlug, names } = buildTagIndex(posts);
-  return [...bySlug.entries()].map(([tagSlug, tagPosts]) => ({
-    params: { tag: tagSlug },
-    props: { tagPosts, tagName: names.get(tagSlug) ?? tagSlug },
-  }));
+  return buildTagResolver(posts)
+    .routes()
+    .map((route) => ({
+      params: { tag: route.canonicalSlug },
+      props: { route },
+    }));
 }) satisfies GetStaticPaths;
 
-const { tagPosts, tagName } = Astro.props;
-
-const processed: ProcessedPost[] = tagPosts.map(processPost);
+const { route } = Astro.props as { route: TagRoute };
+const processed: ProcessedPost[] = route.posts.map((post) => processPost(post, tagResolver));
 
 processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publishDate.valueOf());
 ---
 
-<BaseLayout title={`${tagName} — Length³`}>
+<BaseLayout title={`${route.name} — Length³`}>
   <Header />
-  <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: tagName }]} />
+  <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: route.name }]} />
   <main class="tag-main" id="main-content">
     <header class="tag-header">
-      <h1 class="page-title">#{tagName}</h1>
+      <h1 class="page-title">#{route.name}</h1>
       <p class="page-meta tag-count">
         {processed.length} article{processed.length !== 1 ? 's' : ''}
       </p>
       <hr class="amber-rule" />
     </header>
-    <section aria-label={`Articles tagged ${tagName}`}>
+    <section aria-label={`Articles tagged ${route.name}`}>
       {processed.map((p) => <ArticleCard post={p} />)}
     </section>
   </main>

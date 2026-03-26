@@ -1,14 +1,14 @@
 ---
 import type { ProcessedPost } from '../lib/types';
-import { formatDate, getTagUrl } from '../lib/utils';
+import { formatDate } from '../lib/utils';
 
 interface Props {
   post: ProcessedPost;
 }
 
 const { post } = Astro.props;
-const { entry, slug, readingTime, description } = post;
-const { title, publishDate, tags, lang } = entry.data;
+const { entry, slug, readingTime, description, tags: tagLinks } = post;
+const { title, publishDate, lang } = entry.data;
 
 const dateStr = formatDate(publishDate, lang);
 ---
@@ -33,12 +33,12 @@ const dateStr = formatDate(publishDate, lang);
   </h2>
   {description && <p class="card-excerpt">{description}</p>}
   {
-    tags.length > 0 && (
+    tagLinks.length > 0 && (
       <ul class="card-tags tag-pill-list" aria-label="Tags">
-        {tags.map((t) => (
+        {tagLinks.map((tag) => (
           <li>
-            <a href={getTagUrl(t)} class="card-tag tag-pill">
-              #{t}
+            <a href={tag.href} class="card-tag tag-pill">
+              #{tag.name}
             </a>
           </li>
         ))}

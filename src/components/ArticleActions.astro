@@ -55,107 +55,70 @@ const { readingTime } = Astro.props;
 </div>
 
 <script>
+  import { createArticleActionsController } from '../lib/article-actions';
+
   const container = document.querySelector<HTMLElement>('.article-actions');
-  const statusEl = document.getElementById('article-action-status');
-  const rt = Number(container?.dataset.readingTime) || 5;
+  const status = document.getElementById('article-action-status');
+  const copyButton = document.getElementById('copy-link-btn') as HTMLButtonElement | null;
+  const shareButton = document.getElementById('share-btn') as HTMLButtonElement | null;
+  const percentRead = document.getElementById('pct-read');
+  const minutesLeft = document.getElementById('min-left');
+  const progressBar = document.getElementById('reading-progress');
+  const copyLabel = copyButton?.querySelector<HTMLElement>('.action-label') ?? null;
+  const shareLabel = shareButton?.querySelector<HTMLElement>('.action-label') ?? null;
 
-  /** Temporarily swap an element's text, then restore it after `ms` milliseconds. */
-  function flash(selector: string, tempText: string, restoreText: string, ms = 1500) {
-    const el = document.querySelector<HTMLElement>(selector);
-    if (!el) return;
-    el.textContent = tempText;
-    setTimeout(() => {
-      el.textContent = restoreText;
-    }, ms);
+  if (
+    container &&
+    status &&
+    copyButton &&
+    shareButton &&
+    copyLabel &&
+    shareLabel &&
+    percentRead &&
+    minutesLeft &&
+    progressBar
+  ) {
+    createArticleActionsController(
+      {
+        elements: {
+          copyButton,
+          copyLabel,
+          minutesLeft,
+          percentRead,
+          progressBar,
+          shareButton,
+          shareLabel,
+          status,
+        },
+        readingTime: Number(container.dataset.readingTime) || 5,
+      },
+      {
+        addScrollListener: (listener) => {
+          window.addEventListener('scroll', listener, { passive: true });
+          return () => window.removeEventListener('scroll', listener);
+        },
+        clipboardWriteText: (text) => {
+          const writeText = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+          return writeText
+            ? writeText(text)
+            : Promise.reject(new Error('Clipboard API unavailable.'));
+        },
+        getDocumentTitle: () => document.title,
+        getLocationHref: () => window.location.href,
+        getScrollMetrics: () => ({
+          scrollHeight: document.body.scrollHeight,
+          scrollY: window.scrollY,
+          viewportHeight: window.innerHeight,
+        }),
+        requestFrame: (callback) => window.requestAnimationFrame(() => callback()),
+        setTimeout: (callback, ms) => window.setTimeout(callback, ms),
+        share: navigator.share
+          ? (data) => navigator.share!({ title: data.title, url: data.url })
+          : null,
+        warn: (scope, error) => console.warn(`[${scope}]`, error),
+      },
+    );
   }
-
-  function announce(message: string) {
-    if (!statusEl) return;
-    statusEl.textContent = '';
-    requestAnimationFrame(() => {
-      if (statusEl) statusEl.textContent = message;
-    });
-  }
-
-  // Copy link
-  document.getElementById('copy-link-btn')?.addEventListener('click', () => {
-    navigator.clipboard
-      .writeText(window.location.href)
-      .then(() => {
-        flash('#copy-link-btn .action-label', 'Copied!', 'Copy link');
-        announce('Link copied to clipboard.');
-      })
-      .catch((err) => {
-        console.warn('[copy-link] clipboard write failed:', err);
-        flash('#copy-link-btn .action-label', 'Failed', 'Copy link');
-        announce('Could not copy the link. Copy the URL from the address bar.');
-      });
-  });
-
-  // Share (native sheet when available, clipboard fallback otherwise)
-  document.getElementById('share-btn')?.addEventListener('click', () => {
-    if (navigator.share) {
-      // AbortError = user dismissed the share sheet; not a real error, suppress it.
-      navigator
-        .share({ url: window.location.href, title: document.title })
-        .then(() => {
-          announce('Share dialog completed.');
-        })
-        .catch((err) => {
-          if (err instanceof Error && err.name !== 'AbortError') {
-            console.warn('[share] navigator.share failed:', err);
-            flash('#share-btn .action-label', 'Failed', 'Share');
-            announce('Could not share the article. Try copying the URL instead.');
-          }
-        });
-    } else {
-      navigator.clipboard
-        .writeText(window.location.href)
-        .then(() => {
-          flash('#share-btn .action-label', 'Copied!', 'Share');
-          announce('Link copied to clipboard.');
-        })
-        .catch((err) => {
-          console.warn('[share] clipboard fallback failed:', err);
-          flash('#share-btn .action-label', 'Failed', 'Share');
-          announce('Could not share the article. Try copying the URL instead.');
-        });
-    }
-  });
-
-  // Reading progress stats + bar
-  function updateStats() {
-    const scrolled = window.scrollY;
-    const total = document.body.scrollHeight - window.innerHeight;
-    const pct = total > 0 ? Math.min(100, Math.round((scrolled / total) * 100)) : 0;
-    const minsLeft = Math.max(0, Math.round(rt * (1 - pct / 100)));
-
-    const pctEl = document.getElementById('pct-read');
-    const minEl = document.getElementById('min-left');
-    if (pctEl) pctEl.textContent = `${pct}%`;
-    if (minEl) minEl.textContent = minsLeft > 0 ? `~${minsLeft} min` : '< 1 min';
-
-    const bar = document.getElementById('reading-progress');
-    if (bar) {
-      bar.style.setProperty('--progress', `${pct}%`);
-      bar.setAttribute('aria-valuenow', String(pct));
-    }
-  }
-
-  // rAF throttle: coalesce multiple scroll events per frame into one DOM write.
-  let rafId: number | undefined;
-  window.addEventListener(
-    'scroll',
-    () => {
-      if (rafId !== undefined) return;
-      rafId = requestAnimationFrame(() => {
-        updateStats();
-        rafId = undefined;
-      });
-    },
-    { passive: true },
-  );
-  updateStats();
 </script>
 
 <style>

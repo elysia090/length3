@@ -1,4 +1,4 @@
-import type { BlogPost, ProcessedPost, TagIndex } from './types';
+import type { BlogPost, ProcessedPost, TagResolver, TagRoute } from './types';
 
 /**
  * Collection filter: excludes draft posts.
@@ -7,102 +7,135 @@ import type { BlogPost, ProcessedPost, TagIndex } from './types';
  */
 export const notDraft = (entry: BlogPost) => !entry.data.draft;
 
-/**
- * Converts a raw blog collection entry into a ProcessedPost ready for
- * rendering.  Centralised here so every page derives slug, readingTime and
- * description from the same logic.
- */
-export function processPost(entry: BlogPost): ProcessedPost {
-  return {
-    entry,
-    slug: toSlug(entry.id),
-    readingTime: estimateReadingTime(entry.body ?? ''),
-    description: entry.data.description,
-  };
-}
-
 /** Removes file extension from a Content Layer entry ID to produce a URL slug. */
 export function toSlug(id: string): string {
   return id.replace(/\.mdx?$/, '').toLowerCase();
 }
 
-/** Converts a tag string to a URL-safe slug.
- *
- * Uses Unicode property escapes (\p{L}\p{N}, requires the `u` flag) so that
- * CJK tags like "機械学習" are preserved rather than stripped to "".
- * Without the `u` flag, \w only covers [A-Za-z0-9_] — pure kanji tags would
- * produce an empty string and all map to the same /tags/ route.
- */
-export function tagToSlug(tag: string): string {
-  return tag
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^\p{L}\p{N}-]/gu, '');
+function hashText(value: string): string {
+  let hash = 0x811c9dc5;
+  const bytes = new TextEncoder().encode(value);
+
+  for (const byte of bytes) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+
+  return hash.toString(16).padStart(8, '0');
 }
 
-/** Returns the canonical URL path for a tag. Single source of truth for tag link generation. */
-export function getTagUrl(tag: string): string {
-  return `/tags/${tagToSlug(tag)}`;
+/** Canonical slug for tag routes. */
+export function canonicalizeTagSlug(tag: string): string {
+  const normalized = tag.normalize('NFKC').trim().toLowerCase();
+  const base = normalized
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}-]/gu, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return base || `tag-${hashText(normalized || tag)}`;
+}
+
+/** Returns the canonical URL path for a tag slug. */
+export function getTagUrl(slug: string): string {
+  return `/tags/${slug}`;
+}
+
+/**
+ * Builds the canonical tag routing model from the full post collection.
+ * Canonical slugs are collision-safe and deterministic.
+ */
+export function buildTagRoutes(posts: BlogPost[]): TagRoute[] {
+  const postsByName = new Map<string, BlogPost[]>();
+
+  for (const post of posts) {
+    for (const tag of new Set(post.data.tags)) {
+      let taggedPosts = postsByName.get(tag);
+      if (!taggedPosts) {
+        taggedPosts = [];
+        postsByName.set(tag, taggedPosts);
+      }
+      taggedPosts.push(post);
+    }
+  }
+
+  const names = [...postsByName.keys()].sort();
+  const namesByBase = new Map<string, string[]>();
+
+  for (const name of names) {
+    const base = canonicalizeTagSlug(name);
+    let bucket = namesByBase.get(base);
+    if (!bucket) {
+      bucket = [];
+      namesByBase.set(base, bucket);
+    }
+    bucket.push(name);
+  }
+
+  return names
+    .map((name) => {
+      const base = canonicalizeTagSlug(name);
+      const collisions = namesByBase.get(base) ?? [name];
+
+      return {
+        name,
+        canonicalSlug: collisions.length > 1 ? `${base}-${hashText(name)}` : base,
+        posts: postsByName.get(name) ?? [],
+      };
+    })
+    .sort((a, b) => a.canonicalSlug.localeCompare(b.canonicalSlug) || a.name.localeCompare(b.name));
+}
+
+export function buildTagResolver(posts: BlogPost[]): TagResolver {
+  const routes = buildTagRoutes(posts);
+  const linksByName = new Map(
+    routes.map((route) => [
+      route.name,
+      {
+        href: getTagUrl(route.canonicalSlug),
+        name: route.name,
+      },
+    ]),
+  );
+
+  return {
+    linkFor(name) {
+      const link = linksByName.get(name);
+      if (!link) {
+        throw new Error(`Unknown tag "${name}".`);
+      }
+      return link;
+    },
+    routes() {
+      return routes;
+    },
+  };
+}
+
+/**
+ * Converts a raw blog collection entry into a ProcessedPost ready for
+ * rendering. Centralised here so every page derives slugs, reading time, and
+ * tag links from the same logic.
+ */
+export function processPost(entry: BlogPost, tagResolver: TagResolver): ProcessedPost {
+  const tagNames = entry.data.tags ?? [];
+
+  return {
+    entry,
+    slug: toSlug(entry.id),
+    readingTime: estimateReadingTime(entry.body ?? ''),
+    description: entry.data.description,
+    tags: tagNames.map((name) => tagResolver.linkFor(name)),
+  };
 }
 
 /** Estimates reading time in minutes, accounting for CJK character density. */
 export function estimateReadingTime(text: string): number {
-  // Single-pass character scan: count CJK chars and Latin word starts together.
-  // Replaces the three-step replace→trim→split pipeline, which allocated an
-  // intermediate string, a trimmed string, and an array of N word strings per
-  // call.  A JIT-compiled charCodeAt loop is faster for long posts and O(1)
-  // in space.
-  //
-  // CJK ranges match the previous /[\u3000-\u9FFF\uF900-\uFAFF]/ regex exactly:
-  //   U+3000–U+9FFF  CJK symbols, unified ideographs, katakana, hiragana …
-  //   U+F900–U+FAFF  CJK compatibility ideographs
-  let cjkChars = 0;
-  let latinWords = 0;
-  let inLatinWord = false;
+  const cjkChars = text.match(/[\u3000-\u9FFF\uF900-\uFAFF]/gu)?.length ?? 0;
+  const latinWords = text.replace(/[\u3000-\u9FFF\uF900-\uFAFF]/gu, ' ').match(/\S+/g)?.length ?? 0;
 
-  for (let i = 0; i < text.length; i++) {
-    const c = text.charCodeAt(i);
-    if ((c >= 0x3000 && c <= 0x9fff) || (c >= 0xf900 && c <= 0xfaff)) {
-      cjkChars++;
-      inLatinWord = false; // CJK is a word boundary for adjacent Latin tokens
-    } else if (c > 32) {
-      // Non-whitespace, non-CJK: a Latin/ASCII character
-      if (!inLatinWord) {
-        latinWords++;
-        inLatinWord = true;
-      }
-    } else {
-      // Whitespace — code ≤ 32 covers space (32), tab (9), newline (10), CR (13)
-      inLatinWord = false;
-    }
-  }
-
-  // CJK reading ~400 chars/min, Latin ~200 words/min
   const minutes = cjkChars / 400 + latinWords / 200;
   return Math.max(1, Math.ceil(minutes));
-}
-
-/**
- * Groups posts by tag slug into a TagIndex.
- * Single source of truth for tag aggregation — shared by the home topics
- * directory and the per-tag listing page so the logic cannot diverge.
- */
-export function buildTagIndex(posts: BlogPost[]): TagIndex {
-  const bySlug = new Map<string, BlogPost[]>();
-  const names = new Map<string, string>();
-  for (const post of posts) {
-    for (const tag of post.data.tags) {
-      const slug = tagToSlug(tag);
-      if (!names.has(slug)) names.set(slug, tag);
-      let bucket = bySlug.get(slug);
-      if (!bucket) {
-        bucket = [];
-        bySlug.set(slug, bucket);
-      }
-      bucket.push(post);
-    }
-  }
-  return { bySlug, names };
 }
 
 export function formatDate(date: Date, locale: 'en' | 'ja'): string {

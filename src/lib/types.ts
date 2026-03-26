@@ -3,11 +3,28 @@ import type { CollectionEntry } from 'astro:content';
 export type BlogPost = CollectionEntry<'blog'>;
 export type BlogPostData = BlogPost['data'];
 
+export interface TagLink {
+  href: string;
+  name: string;
+}
+
+export interface TagRoute {
+  canonicalSlug: string;
+  name: string;
+  posts: BlogPost[];
+}
+
+export interface TagResolver {
+  linkFor(name: string): TagLink;
+  routes(): readonly TagRoute[];
+}
+
 export interface ProcessedPost {
   entry: BlogPost;
   slug: string;
   readingTime: number;
   description: string;
+  tags: TagLink[];
 }
 
 export interface TocHeading {
@@ -16,10 +33,7 @@ export interface TocHeading {
   text: string;
 }
 
-/** Return type of buildTagIndex — centralised tag aggregation result. */
-export interface TagIndex {
-  /** slug → posts in that tag, in collection order */
-  bySlug: Map<string, BlogPost[]>;
-  /** slug → first-seen display name (preserves original casing) */
-  names: Map<string, string>;
-}
+export type SearchBootstrapResult =
+  | { kind: 'ready' }
+  | { kind: 'unavailable'; message: string }
+  | { kind: 'error'; message: string };
