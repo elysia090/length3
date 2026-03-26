@@ -86,23 +86,23 @@ describe('estimateReadingTime', () => {
 
 // ── formatDate ───────────────────────────────────────────────────
 describe('formatDate', () => {
-  // Use a fixed UTC midnight so local-timezone offsets do not shift the date
-  const date = new Date('2026-03-20T12:00:00Z');
+  const dateOnlyValue = new Date('2026-03-20');
+  const explicitUtcValue = new Date('2026-03-20T18:30:00Z');
 
-  it('defaults to en locale (YYYY-MM-DD)', () => {
-    expect(formatDate(date, 'en')).toMatch(/^2026-\d{2}-\d{2}$/);
+  it('formats date-only values in UTC for en locale', () => {
+    expect(formatDate(dateOnlyValue, 'en')).toBe('2026-03-20');
   });
 
-  it('en locale includes the year 2026', () => {
-    expect(formatDate(date, 'en')).toContain('2026');
+  it('formats date-only values in UTC for ja locale', () => {
+    expect(formatDate(dateOnlyValue, 'ja')).toBe('2026/03/20');
   });
 
-  it('ja locale uses YYYY/MM/DD format', () => {
-    expect(formatDate(date, 'ja')).toMatch(/2026\/\d{2}\/\d{2}/);
+  it('keeps explicit UTC timestamps stable for en locale', () => {
+    expect(formatDate(explicitUtcValue, 'en')).toBe('2026-03-20');
   });
 
-  it('ja locale includes the year 2026', () => {
-    expect(formatDate(date, 'ja')).toContain('2026');
+  it('keeps explicit UTC timestamps stable for ja locale', () => {
+    expect(formatDate(explicitUtcValue, 'ja')).toBe('2026/03/20');
   });
 });
 

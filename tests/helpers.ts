@@ -21,45 +21,20 @@ export async function goToFirstArticle(page: Page): Promise<string> {
 }
 
 /**
- * Read a CSS custom property value from the document root.
+ * Navigate to the first tag detail page from the tags index.
+ * Returns the href of the tag detail page.
  */
-export async function getCSSVar(page: Page, varName: string): Promise<string> {
-  return page.evaluate((name) => {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  }, varName);
+export async function goToFirstTagDetail(page: Page): Promise<string> {
+  await page.goto('/tags');
+  const href = await page.locator('.tag-card').first().getAttribute('href');
+  if (!href) throw new Error('No tag found on tags index');
+  await page.goto(href);
+  return href;
 }
 
 /**
- * Read a CSS custom property hex value and return it as the rgb() string that
- * browsers emit from getComputedStyle.  Use this instead of hardcoding
- * 'rgb(R, G, B)' literals so that tests stay valid when design tokens change.
- *
- * Assumes the token value is a 6-digit hex color (#rrggbb).
+ * Open the search dialog from the index page.
  */
-export async function getCSSVarAsRgb(page: Page, varName: string): Promise<string> {
-  return page.evaluate((name) => {
-    const hex = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    const r = Number.parseInt(hex.slice(1, 3), 16);
-    const g = Number.parseInt(hex.slice(3, 5), 16);
-    const b = Number.parseInt(hex.slice(5, 7), 16);
-    return `rgb(${r}, ${g}, ${b})`;
-  }, varName);
-}
-
-/**
- * Get the computed style property of a selector.
- */
-export async function getComputedStyleProp(
-  page: Page,
-  selector: string,
-  property: string,
-): Promise<string> {
-  return page.evaluate(
-    ({ sel, prop }: { sel: string; prop: string }) => {
-      const el = document.querySelector(sel);
-      if (!el) return '';
-      return getComputedStyle(el).getPropertyValue(prop).trim();
-    },
-    { sel: selector, prop: property },
-  );
+export async function openSearchModal(page: Page): Promise<void> {
+  await page.locator('#search-trigger').click();
 }

@@ -34,6 +34,7 @@ const { readingTime } = Astro.props;
       <span class="action-arrow" aria-hidden="true">&rsaquo;</span>
     </button>
   </div>
+  <p id="article-action-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
 
   <!-- aria-live removed: role="progressbar" on #reading-progress already handles AT updates.
        Polling aria-live on every scroll causes disruptive double-announcements (H1/Nielsen). -->
@@ -55,6 +56,7 @@ const { readingTime } = Astro.props;
 
 <script>
   const container = document.querySelector<HTMLElement>('.article-actions');
+  const statusEl = document.getElementById('article-action-status');
   const rt = Number(container?.dataset.readingTime) || 5;
 
   /** Temporarily swap an element's text, then restore it after `ms` milliseconds. */
@@ -67,14 +69,26 @@ const { readingTime } = Astro.props;
     }, ms);
   }
 
+  function announce(message: string) {
+    if (!statusEl) return;
+    statusEl.textContent = '';
+    requestAnimationFrame(() => {
+      if (statusEl) statusEl.textContent = message;
+    });
+  }
+
   // Copy link
   document.getElementById('copy-link-btn')?.addEventListener('click', () => {
     navigator.clipboard
       .writeText(window.location.href)
-      .then(() => flash('#copy-link-btn .action-label', 'Copied!', 'Copy link'))
+      .then(() => {
+        flash('#copy-link-btn .action-label', 'Copied!', 'Copy link');
+        announce('Link copied to clipboard.');
+      })
       .catch((err) => {
         console.warn('[copy-link] clipboard write failed:', err);
         flash('#copy-link-btn .action-label', 'Failed', 'Copy link');
+        announce('Could not copy the link. Copy the URL from the address bar.');
       });
   });
 
@@ -82,19 +96,29 @@ const { readingTime } = Astro.props;
   document.getElementById('share-btn')?.addEventListener('click', () => {
     if (navigator.share) {
       // AbortError = user dismissed the share sheet; not a real error, suppress it.
-      navigator.share({ url: window.location.href, title: document.title }).catch((err) => {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          console.warn('[share] navigator.share failed:', err);
-          flash('#share-btn .action-label', 'Failed', 'Share');
-        }
-      });
+      navigator
+        .share({ url: window.location.href, title: document.title })
+        .then(() => {
+          announce('Share dialog completed.');
+        })
+        .catch((err) => {
+          if (err instanceof Error && err.name !== 'AbortError') {
+            console.warn('[share] navigator.share failed:', err);
+            flash('#share-btn .action-label', 'Failed', 'Share');
+            announce('Could not share the article. Try copying the URL instead.');
+          }
+        });
     } else {
       navigator.clipboard
         .writeText(window.location.href)
-        .then(() => flash('#share-btn .action-label', 'Copied!', 'Share'))
+        .then(() => {
+          flash('#share-btn .action-label', 'Copied!', 'Share');
+          announce('Link copied to clipboard.');
+        })
         .catch((err) => {
           console.warn('[share] clipboard fallback failed:', err);
           flash('#share-btn .action-label', 'Failed', 'Share');
+          announce('Could not share the article. Try copying the URL instead.');
         });
     }
   });

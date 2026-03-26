@@ -1,229 +1,134 @@
 import { expect, test } from '@playwright/test';
-import { countH1, getComputedStyleProp, getCSSVarAsRgb, goToFirstArticle } from './helpers';
+import { countH1, goToFirstArticle } from './helpers';
 
 test.describe('Article page', () => {
   test.beforeEach(async ({ page }) => {
     await goToFirstArticle(page);
   });
 
-  // ── Layout — spec §1 ────────────────────────────────────────────
   test.describe('Layout', () => {
     test('prose content is rendered', async ({ page }) => {
       await expect(page.locator('[data-pagefind-body]')).toBeVisible();
     });
 
-    test('reading progress bar is mounted in DOM', async ({ page }) => {
-      await expect(page.locator('#reading-progress')).toBeAttached();
-    });
-
-    test('TOC is visible', async ({ page }) => {
-      await expect(page.locator('.toc')).toBeVisible();
-    });
-
-    test('article has exactly one h1 — spec §6', async ({ page }) => {
+    test('article has exactly one h1', async ({ page }) => {
       expect(await countH1(page)).toBe(1);
     });
 
-    test('right column has no interactive content — spec §1', async ({ page }) => {
-      // The spec says right column is "deliberately empty". Verify no actions-aside
-      // alongside the prose (it should be at end of prose, not in a separate column)
-      await expect(page.locator('.actions-aside')).not.toBeAttached();
-      // Article actions exist, but are inside prose-area (not a sidebar)
-      await expect(page.locator('.prose-area .article-actions')).toBeAttached();
+    test('table of contents is visible', async ({ page }) => {
+      await expect(page.locator('.toc')).toBeVisible();
     });
   });
 
-  // ── TOC — spec §4 ───────────────────────────────────────────────
-  test.describe('Table of Contents', () => {
-    test('TOC nav has aria-label="Table of Contents" — spec §6', async ({ page }) => {
+  test.describe('Table of contents', () => {
+    test('toc nav has an accessible label', async ({ page }) => {
       await expect(page.locator('.toc')).toHaveAttribute('aria-label', 'Table of Contents');
     });
 
-    test('TOC links point to headings with # anchors', async ({ page }) => {
-      // Assert the first link exists before reading its attribute — prevents silent pass
+    test('toc links target article headings', async ({ page }) => {
       const firstLink = page.locator('.toc-link').first();
       await expect(firstLink).toBeAttached();
-      const href = await firstLink.getAttribute('href');
-      expect(href).toMatch(/^#/);
+      await expect(firstLink).toHaveAttribute('href', /^#/);
     });
 
-    test('TOC has border-left: 2px solid transparent on inactive links — spec §4', async ({
-      page,
-    }) => {
-      const borderWidth = await getComputedStyleProp(page, '.toc-link', 'border-left-width');
-      expect(borderWidth).toBe('2px');
-    });
-
-    test('TOC active link gets amber border and color — spec §4', async ({ page }) => {
+    test('clicking a toc link updates the URL hash', async ({ page }) => {
       const firstLink = page.locator('.toc-link').first();
-      await expect(firstLink).toBeAttached();
-      // Disable the 80ms CSS transition so the class change is instant and
-      // getComputedStyle reads the final value (not a mid-transition frame).
-      // IntersectionObserver timing is non-deterministic in headless browsers;
-      // the JS activation behaviour is covered by the scroll-navigation test.
-      await page.addStyleTag({ content: '.toc-link { transition: none !important; }' });
-      await firstLink.evaluate((el) => el.classList.add('active'));
-      const amberRgb = await getCSSVarAsRgb(page, '--amber-text');
-      const color = await getComputedStyleProp(page, '.toc-link.active', 'color');
-      expect(color).toBe(amberRgb);
-      const borderColor = await getComputedStyleProp(page, '.toc-link.active', 'border-left-color');
-      expect(borderColor).toBe(amberRgb);
-    });
-
-    test('H3 TOC items have margin-left: 12px — spec §4', async ({ page }) => {
-      // getting-started has an H3 heading ("### Tooling"); navigate there explicitly
-      await page.goto('/getting-started');
-      const h3Item = page.locator('.toc-depth-3').first();
-      await expect(h3Item).toBeAttached();
-      const ml = await getComputedStyleProp(page, '.toc-depth-3', 'margin-left');
-      expect(ml).toBe('12px');
-    });
-
-    test('clicking TOC link navigates to heading (smooth scroll)', async ({ page }) => {
-      const firstLink = page.locator('.toc-link').first();
-      await expect(firstLink).toBeAttached();
       const href = await firstLink.getAttribute('href');
       expect(href).toMatch(/^#/);
 
       await firstLink.click();
-      // Poll until the URL hash matches — avoids a fixed timeout for smooth scroll
       await page.waitForFunction(
         (expected) => decodeURIComponent(window.location.hash) === expected,
         href,
       );
-      const hash = await page.evaluate(() => decodeURIComponent(window.location.hash));
-      expect(hash).toBe(href);
-    });
-
-    test('headings have scroll-margin-top: 32px — spec §5', async ({ page }) => {
-      const smt = await getComputedStyleProp(page, 'h2[id]', 'scroll-margin-top');
-      expect(smt).toBe('32px');
+      await expect.poll(() => decodeURIComponent(new URL(page.url()).hash)).toBe(href);
     });
   });
 
-  // ── Reading progress — spec §5 ───────────────────────────────────
-  test.describe('Reading progress bar', () => {
-    test('progress bar starts at 0% width', async ({ page }) => {
-      const width = await page
-        .locator('#reading-progress')
-        .evaluate((el) => getComputedStyle(el).width);
-      expect(width).toBe('0px');
-    });
-
-    test('progress bar width increases on scroll', async ({ page }) => {
+  test.describe('Reading progress', () => {
+    test('reading percent updates on scroll', async ({ page }) => {
+      await expect(page.locator('#pct-read')).toHaveText('0%');
       await page.evaluate(() => window.scrollBy(0, 500));
-      // Poll until --progress is set, rather than sleeping for a fixed duration
-      const progress = await page.waitForFunction(() => {
-        const bar = document.getElementById('reading-progress');
-        return bar ? Number.parseFloat(bar.style.getPropertyValue('--progress')) : 0;
-      });
-      expect(await progress.jsonValue()).toBeGreaterThan(0);
+      await expect(page.locator('#pct-read')).not.toHaveText('0%');
     });
 
-    test('progress bar is amber colored', async ({ page }) => {
-      const amberRgb = await getCSSVarAsRgb(page, '--amber');
-      const color = await getComputedStyleProp(page, '#reading-progress', 'background-color');
-      expect(color).toBe(amberRgb);
-    });
-
-    test('progress bar is 2px tall', async ({ page }) => {
-      const height = await getComputedStyleProp(page, '#reading-progress', 'height');
-      expect(height).toBe('2px');
+    test('progressbar aria-valuenow updates on scroll', async ({ page }) => {
+      await expect(page.locator('#reading-progress')).toHaveAttribute('aria-valuenow', '0');
+      await page.evaluate(() => window.scrollBy(0, 500));
+      await expect
+        .poll(async () =>
+          Number(await page.locator('#reading-progress').getAttribute('aria-valuenow')),
+        )
+        .toBeGreaterThan(0);
     });
   });
 
-  // ── Typography — spec §2 ─────────────────────────────────────────
-  test.describe('Typography', () => {
-    test('article h1 uses Fraunces — spec §2', async ({ page }) => {
-      const ff = await getComputedStyleProp(page, '.prose h1', 'font-family');
-      expect(ff.toLowerCase()).toContain('fraunces');
-    });
-
-    test('article h2 uses Fraunces — spec §2', async ({ page }) => {
-      const ff = await getComputedStyleProp(page, '.prose h2', 'font-family');
-      expect(ff.toLowerCase()).toContain('fraunces');
-    });
-
-    test('body prose font-size is 16px — spec §2', async ({ page }) => {
-      const fs = await getComputedStyleProp(page, '.prose', 'font-size');
-      expect(fs).toBe('16px');
-    });
-
-    test('body prose line-height is 1.95 (approx 31.2px at 16px base) — spec §2', async ({
-      page,
-    }) => {
-      const lh = await getComputedStyleProp(page, '.prose', 'line-height');
-      // 1.95 x 16 = 31.2px
-      expect(Number.parseFloat(lh)).toBeCloseTo(31.2, 0);
-    });
-
-    test('code blocks use light background — spec §4', async ({ page }) => {
-      const bg2Rgb = await getCSSVarAsRgb(page, '--bg-2');
-      const bgColor = await getComputedStyleProp(page, '.prose pre', 'background-color');
-      expect(bgColor).toBe(bg2Rgb);
-    });
-
-    test('code blocks have amber-lt left border — spec §4', async ({ page }) => {
-      const amberLtRgb = await getCSSVarAsRgb(page, '--amber-lt');
-      const borderColor = await getComputedStyleProp(page, '.prose pre', 'border-left-color');
-      expect(borderColor).toBe(amberLtRgb);
-    });
-
-    test('code block left border is 2px — spec §4', async ({ page }) => {
-      const bw = await getComputedStyleProp(page, '.prose pre', 'border-left-width');
-      expect(bw).toBe('2px');
-    });
-  });
-
-  // ── Article actions — spec §5 ────────────────────────────────────
   test.describe('Article actions', () => {
-    test('copy link button is visible', async ({ page }) => {
-      await expect(page.locator('#copy-link-btn')).toBeVisible();
-    });
-
-    test('copy link button has accessible label', async ({ page }) => {
+    test('copy and share buttons are visible with accessible labels', async ({ page }) => {
       await expect(page.locator('#copy-link-btn')).toHaveAttribute(
         'aria-label',
         'Copy link to clipboard',
       );
-    });
-
-    test('share button is visible', async ({ page }) => {
-      await expect(page.locator('#share-btn')).toBeVisible();
-    });
-
-    test('share button has accessible label', async ({ page }) => {
       await expect(page.locator('#share-btn')).toHaveAttribute('aria-label', 'Share article');
     });
 
-    test('reading stats show 0% at page top', async ({ page }) => {
-      const pct = await page.locator('#pct-read').textContent();
-      expect(pct).toBe('0%');
-    });
-
-    test('reading stats update on scroll', async ({ page }) => {
-      await page.evaluate(() => window.scrollBy(0, 500));
-      await page.waitForFunction(() => {
-        const el = document.getElementById('pct-read');
-        return el ? el.textContent !== '0%' : false;
+    test('copy success announces the clipboard update', async ({ page }) => {
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: () => Promise.resolve() },
+        });
       });
-      const pct = await page.locator('#pct-read').textContent();
-      expect(pct).not.toBe('0%');
+
+      await page.locator('#copy-link-btn').click();
+      await expect(page.locator('#article-action-status')).toHaveText('Link copied to clipboard.');
     });
 
-    test('reading-stats region has aria-label', async ({ page }) => {
-      await expect(page.locator('.reading-stats')).toHaveAttribute(
-        'aria-label',
-        'Reading progress stats',
+    test('copy failure announces a recovery path', async ({ page }) => {
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: () => Promise.reject(new Error('copy failure')) },
+        });
+      });
+
+      await page.locator('#copy-link-btn').click();
+      await expect(page.locator('#article-action-status')).toHaveText(
+        'Could not copy the link. Copy the URL from the address bar.',
       );
     });
 
-    test('reading progress has progressbar role', async ({ page }) => {
-      await expect(page.locator('#reading-progress')).toHaveAttribute('role', 'progressbar');
+    test('share fallback announces clipboard success', async ({ page }) => {
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, 'share', {
+          configurable: true,
+          value: undefined,
+        });
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: () => Promise.resolve() },
+        });
+      });
+
+      await page.locator('#share-btn').click();
+      await expect(page.locator('#article-action-status')).toHaveText('Link copied to clipboard.');
+    });
+
+    test('share failure announces the recovery path', async ({ page }) => {
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, 'share', {
+          configurable: true,
+          value: () => Promise.reject(new Error('share failure')),
+        });
+      });
+
+      await page.locator('#share-btn').click();
+      await expect(page.locator('#article-action-status')).toHaveText(
+        'Could not share the article. Try copying the URL instead.',
+      );
     });
   });
 
-  // ── Breadcrumb ───────────────────────────────────────────────────
   test.describe('Breadcrumb', () => {
     test('breadcrumb nav is present', async ({ page }) => {
       await expect(page.locator('.breadcrumb')).toBeVisible();
@@ -233,65 +138,40 @@ test.describe('Article page', () => {
       await expect(page.locator('.breadcrumb a').first()).toBeVisible();
     });
 
-    test('breadcrumb current item has aria-current="page"', async ({ page }) => {
+    test('breadcrumb marks the current item as the current page', async ({ page }) => {
       await expect(page.locator('.breadcrumb [aria-current="page"]')).toBeVisible();
     });
   });
 
-  // ── Accessibility — spec §6 ──────────────────────────────────────
   test.describe('Accessibility', () => {
-    test('primary nav has aria-label="primary" — spec §6', async ({ page }) => {
+    test('primary navigation is exposed to assistive technology', async ({ page }) => {
       await expect(page.locator('nav[aria-label="primary"]')).toBeVisible();
     });
 
-    test('TOC nav has aria-label — spec §6', async ({ page }) => {
-      const label = await page.locator('.toc').getAttribute('aria-label');
-      expect(label).toBeTruthy();
-    });
-
-    test('heading levels are not skipped — spec §6', async ({ page }) => {
+    test('heading levels are not skipped', async ({ page }) => {
       const levels = await page.evaluate(() =>
-        Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).map((h) =>
-          Number.parseInt(h.tagName.charAt(1), 10),
+        Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6')).map((heading) =>
+          Number.parseInt(heading.tagName.charAt(1), 10),
         ),
       );
+
       for (let i = 1; i < levels.length; i++) {
-        // Each heading may be at most one level deeper than the previous
         expect((levels[i] ?? 0) - (levels[i - 1] ?? 0)).toBeLessThanOrEqual(1);
       }
-    });
-
-    test('prefers-reduced-motion removes transitions — spec §5', async ({ page }) => {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      await goToFirstArticle(page);
-      await expect(page.locator('.toc-link').first()).toBeAttached();
-      const transition = await getComputedStyleProp(page, '.toc-link', 'transition');
-      // With reduced-motion, transition should be "none" or 0s duration
-      expect(transition === 'none' || transition.includes('0s')).toBe(true);
     });
   });
 });
 
-// ── Japanese article ─────────────────────────────────────────────
-// Top-level describe so the outer goToFirstArticle() beforeEach is not
-// inherited. japanese-test IS the first article, so nesting it caused
-// three navigations per test: / then /japanese-test then /japanese-test again.
 test.describe('Japanese article', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/japanese-test');
   });
 
   test('prose has lang="ja" on Japanese articles', async ({ page }) => {
-    expect(await page.locator('.prose').getAttribute('lang')).toBe('ja');
+    await expect(page.locator('.prose')).toHaveAttribute('lang', 'ja');
   });
 
   test('Japanese article renders ruby elements', async ({ page }) => {
     await expect(page.locator('ruby').first()).toBeAttached();
-  });
-
-  test('ruby text (rt) is amber colored', async ({ page }) => {
-    const amberRgb = await getCSSVarAsRgb(page, '--amber-text');
-    const color = await getComputedStyleProp(page, 'rt', 'color');
-    expect(color).toBe(amberRgb);
   });
 });

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { countH1 } from './helpers';
+import { countH1, goToFirstTagDetail } from './helpers';
 
 test.describe('Tags index page', () => {
   test.beforeEach(async ({ page }) => {
@@ -19,9 +19,14 @@ test.describe('Tags index page', () => {
     await expect(page.locator('.tag-count').first()).toBeVisible();
   });
 
-  test('tag links navigate to tag detail page', async ({ page }) => {
-    const href = await page.locator('.tag-card').first().getAttribute('href');
-    expect(href).toMatch(/^\/tags\//);
+  test('clicking a tag card opens a tag detail page', async ({ page }) => {
+    const firstTag = page.locator('.tag-card').first();
+    const href = await firstTag.getAttribute('href');
+    expect(href).toBeTruthy();
+
+    await firstTag.click();
+    await expect(page).toHaveURL(/\/tags\/[^/]+$/);
+    await expect(page.locator('main h1')).toBeVisible();
   });
 
   test('header is present', async ({ page }) => {
@@ -35,10 +40,7 @@ test.describe('Tags index page', () => {
 
 test.describe('Tag detail page', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate via the tags index to get a real tag slug
-    await page.goto('/tags');
-    const tagHref = (await page.locator('.tag-card').first().getAttribute('href')) ?? '/tags/meta';
-    await page.goto(tagHref);
+    await goToFirstTagDetail(page);
   });
 
   test('has a single h1 with the tag name', async ({ page }) => {

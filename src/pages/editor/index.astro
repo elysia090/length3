@@ -28,6 +28,7 @@ import '../../styles/code.css';
       <button
         role="tab"
         aria-selected="true"
+        tabindex="0"
         aria-controls="editor-pane"
         id="tab-edit"
         class="editor-tab">Edit</button
@@ -35,6 +36,7 @@ import '../../styles/code.css';
       <button
         role="tab"
         aria-selected="false"
+        tabindex="-1"
         aria-controls="preview-pane"
         id="tab-preview"
         class="editor-tab">Preview</button
@@ -48,13 +50,13 @@ import '../../styles/code.css';
         class="editor-pane tab-active"
         id="editor-pane"
         role="tabpanel"
-        aria-label="MDX source editor"
+        aria-labelledby="tab-edit"
       >
         <div class="editor-body" id="editor-mount"></div>
       </div>
 
       <!-- RIGHT: light preview pane — spec §4 -->
-      <div class="preview-pane" id="preview-pane" role="tabpanel" aria-label="Live preview">
+      <div class="preview-pane" id="preview-pane" role="tabpanel" aria-labelledby="tab-preview">
         <div class="preview-body">
           <div class="preview-content prose" id="preview-output">
             <p class="preview-placeholder">Start writing MDX…</p>
@@ -71,6 +73,7 @@ import '../../styles/code.css';
       <span class="status-sep" aria-hidden="true">·</span>
       <span class="status-item" id="status-count">0 chars</span>
     </div>
+    <p id="editor-status-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></p>
   </div>
 </BaseLayout>
 
@@ -87,7 +90,16 @@ import '../../styles/code.css';
   const output = document.getElementById('preview-output') as HTMLElement | null;
   const posEl = document.getElementById('status-pos');
   const countEl = document.getElementById('status-count');
+  const announcementEl = document.getElementById('editor-status-announcement');
   let docChanged = false;
+
+  function announce(message: string) {
+    if (!announcementEl) return;
+    announcementEl.textContent = '';
+    requestAnimationFrame(() => {
+      if (announcementEl) announcementEl.textContent = message;
+    });
+  }
 
   // Nielsen H5: warn before leaving with unsaved changes
   window.addEventListener('beforeunload', (e) => {
@@ -109,6 +121,7 @@ import '../../styles/code.css';
     publishBtn.textContent = 'Published!';
     // Clear the dirty flag so beforeunload no longer warns after publishing
     docChanged = false;
+    announce('Article published.');
     setTimeout(() => {
       publishBtn.textContent = 'Publish →';
     }, 1500);
@@ -181,8 +194,42 @@ Start writing here.
   const panes = [document.getElementById('editor-pane'), document.getElementById('preview-pane')];
   // Computed once — NodeList order is stable and tabs never change at runtime.
   const tabArr = [...tabs];
+  const previewTab = document.getElementById('tab-preview') as HTMLButtonElement | null;
+  const editTab = document.getElementById('tab-edit') as HTMLButtonElement | null;
 
-  function activateTab(tab: HTMLButtonElement) {
+  function panelFromLocation(): 'edit' | 'preview' {
+    const panel = new URLSearchParams(window.location.search).get('panel');
+    return panel === 'preview' ? 'preview' : 'edit';
+  }
+
+  function tabForPanel(panel: 'edit' | 'preview'): HTMLButtonElement | null {
+    return panel === 'preview' ? previewTab : editTab;
+  }
+
+  function syncPanelUrl(panel: 'edit' | 'preview', replace = false) {
+    const url = new URL(window.location.href);
+    if (panel === 'preview') {
+      url.searchParams.set('panel', 'preview');
+    } else {
+      url.searchParams.delete('panel');
+    }
+
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next === current) return;
+
+    if (replace) {
+      history.replaceState(null, '', next);
+    } else {
+      history.pushState(null, '', next);
+    }
+  }
+
+  function activateTab(
+    tab: HTMLButtonElement,
+    options: { updateUrl?: boolean; replaceUrl?: boolean } = {},
+  ) {
+    const { updateUrl = true, replaceUrl = false } = options;
     for (const t of tabs) {
       t.setAttribute('aria-selected', String(t === tab));
       t.tabIndex = t === tab ? 0 : -1;
@@ -190,6 +237,9 @@ Start writing here.
     const targetId = tab.getAttribute('aria-controls');
     for (const pane of panes) {
       pane?.classList.toggle('tab-active', pane.id === targetId);
+    }
+    if (updateUrl) {
+      syncPanelUrl(tab === previewTab ? 'preview' : 'edit', replaceUrl);
     }
   }
 
@@ -210,6 +260,18 @@ Start writing here.
       }
     });
   }
+
+  const initialTab = tabForPanel(panelFromLocation());
+  if (initialTab) {
+    activateTab(initialTab, { replaceUrl: true });
+  }
+
+  window.addEventListener('popstate', () => {
+    const nextTab = tabForPanel(panelFromLocation());
+    if (nextTab) {
+      activateTab(nextTab, { updateUrl: false });
+    }
+  });
 </script>
 
 <style>

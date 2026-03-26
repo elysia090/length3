@@ -45,10 +45,25 @@ pnpm preview    # serve the built output locally
 ```sh
 pnpm lint       # biome + prettier
 pnpm check      # astro type check
-pnpm test       # playwright e2e (starts dev server automatically)
+pnpm test:unit  # pure logic/unit tests
+pnpm test:e2e   # playwright behavior tests
+pnpm test       # unit + playwright behavior tests
 ```
 
-All three must pass before opening a PR. CI enforces the same checks.
+Use `pnpm test` for the combined test pass, or run `pnpm test:unit` and
+`pnpm test:e2e` separately while iterating. CI enforces the same bar.
+
+## Test responsibilities
+
+- `pnpm check`: Astro/TypeScript contracts and template diagnostics
+- `pnpm test:unit`: pure logic and formatting behavior that do not need a browser
+- `pnpm test:e2e`: user flows, keyboard behavior, accessible names/landmarks, and visible state changes
+- `pnpm screenshots`: documentation captures only
+
+Keep normal Playwright tests narrow. Do not add assertions for colors, spacing,
+fonts, design tokens, performance scores, SEO checks, or other computed styles
+there. Those belong in dedicated tooling such as Lighthouse, visual review, or
+static analysis instead of browser E2E.
 
 ## Fonts
 

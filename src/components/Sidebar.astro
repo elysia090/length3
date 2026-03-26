@@ -28,7 +28,8 @@
         id="pagefind-input"
         type="search"
         class="search-field"
-        placeholder="Search articles..."
+        name="search"
+        placeholder="Search articles…"
         autocomplete="off"
         aria-label="Search articles"
       />
@@ -65,7 +66,7 @@
       console.warn('[search] Pagefind unavailable:', err instanceof Error ? err.message : err);
       if (results)
         results.innerHTML =
-          '<p class="search-unavailable">Search is only available in the built site.</p>';
+          '<p class="search-unavailable">Search is available in the built site. Run pnpm build and pnpm preview to test it locally.</p>';
     }
   }
 
@@ -165,6 +166,7 @@
     align-items: flex-start;
     justify-content: center;
     padding-top: 12vh;
+    overscroll-behavior: contain;
   }
 
   /* Override UA display:none only when open */
@@ -239,6 +241,7 @@
     min-height: 3rem;
     max-height: 60vh;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 0.5rem 0;
   }
 

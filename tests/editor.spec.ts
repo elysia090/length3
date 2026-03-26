@@ -1,167 +1,175 @@
-import { expect, test } from '@playwright/test';
-import { getComputedStyleProp, getCSSVarAsRgb } from './helpers';
+import { expect, type Page, test } from '@playwright/test';
+
+async function focusEditor(page: Page): Promise<void> {
+  await page.locator('.cm-content').click();
+}
+
+async function appendToEditor(page: Page, text: string): Promise<void> {
+  await focusEditor(page);
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(text);
+}
 
 test.describe('Editor page', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/editor');
   });
 
-  // ── Structure — spec §1 ──────────────────────────────────────────
   test.describe('Structure', () => {
-    test('editor root is visible', async ({ page }) => {
+    test('editor, preview, and status regions are visible', async ({ page }) => {
       await expect(page.locator('.editor-root')).toBeVisible();
-    });
-
-    test('editor pane (dark) is present', async ({ page }) => {
       await expect(page.locator('.editor-pane')).toBeVisible();
-    });
-
-    test('preview pane (light) is present', async ({ page }) => {
       await expect(page.locator('.preview-pane')).toBeVisible();
+      await expect(page.locator('.editor-statusbar')).toBeVisible();
     });
 
-    test('top bar is 40px tall — spec §4', async ({ page }) => {
-      const height = await page
-        .locator('.editor-topbar')
-        .evaluate((el) => (el as HTMLElement).offsetHeight);
-      expect(height).toBe(40);
-    });
-
-    test('status bar is 24px tall — spec §4', async ({ page }) => {
-      const height = await page
-        .locator('.editor-statusbar')
-        .evaluate((el) => (el as HTMLElement).offsetHeight);
-      expect(height).toBe(24);
-    });
-
-    test('split is 50/50 on wide viewport — spec §4', async ({ page }) => {
-      await page.setViewportSize({ width: 1280, height: 900 });
-      await page.goto('/editor');
-
-      const editorWidth = await page
-        .locator('.editor-pane')
-        .evaluate((el) => (el as HTMLElement).offsetWidth);
-      const previewWidth = await page
-        .locator('.preview-pane')
-        .evaluate((el) => (el as HTMLElement).offsetWidth);
-      // Allow 1px tolerance for subpixel rendering
-      expect(Math.abs(editorWidth - previewWidth)).toBeLessThanOrEqual(1);
-    });
-  });
-
-  // ── Top bar — spec §4 ────────────────────────────────────────────
-  test.describe('Top bar', () => {
-    test('logo shows "L3" in amber — spec §4', async ({ page }) => {
-      await expect(page.locator('.editor-logo')).toBeVisible();
-      const amberRgb = await getCSSVarAsRgb(page, '--amber');
-      const color = await getComputedStyleProp(page, '.editor-logo', 'color');
-      expect(color).toBe(amberRgb);
-    });
-
-    test('Discard button is present — spec §4', async ({ page }) => {
-      await expect(page.locator('#discard-btn')).toBeVisible();
-    });
-
-    test('Publish button is present — spec §4', async ({ page }) => {
-      await expect(page.locator('#publish-btn')).toBeVisible();
-    });
-
-    test('Publish button is NOT amber — spec §4', async ({ page }) => {
-      const amberRgb = await getCSSVarAsRgb(page, '--amber');
-      const color = await getComputedStyleProp(page, '#publish-btn', 'color');
-      expect(color).not.toBe(amberRgb);
-    });
-  });
-
-  // ── Editor pane — spec §4 ────────────────────────────────────────
-  test.describe('Editor pane', () => {
-    test('editor pane has warm-dark background — spec §4', async ({ page }) => {
-      const editorBgRgb = await getCSSVarAsRgb(page, '--editor-bg');
-      const bg = await getComputedStyleProp(page, '.editor-pane', 'background-color');
-      expect(bg).toBe(editorBgRgb);
-    });
-
-    test('CodeMirror editor mounts inside editor pane', async ({ page }) => {
-      // toBeAttached() retries automatically — no fixed timeout needed
+    test('CodeMirror mounts inside the editor pane', async ({ page }) => {
       await expect(page.locator('.editor-pane .cm-editor')).toBeAttached();
     });
-  });
 
-  // ── Preview pane — spec §4 ───────────────────────────────────────
-  test.describe('Preview pane', () => {
-    test('preview pane has light background — spec §4', async ({ page }) => {
-      const bgRgb = await getCSSVarAsRgb(page, '--bg');
-      const bg = await getComputedStyleProp(page, '.preview-pane', 'background-color');
-      expect(bg).toBe(bgRgb);
-    });
-
-    test('preview output element exists', async ({ page }) => {
-      await expect(page.locator('#preview-output')).toBeAttached();
+    test('mobile tab panels are labelled by their controlling tabs', async ({ page }) => {
+      await expect(page.locator('#editor-pane')).toHaveAttribute('aria-labelledby', 'tab-edit');
+      await expect(page.locator('#preview-pane')).toHaveAttribute('aria-labelledby', 'tab-preview');
     });
   });
 
-  // ── Status bar — spec §4 ─────────────────────────────────────────
-  test.describe('Status bar', () => {
-    test('status bar has darker-than-editor-bg background — spec §4', async ({ page }) => {
-      const statusbarBgRgb = await getCSSVarAsRgb(page, '--editor-statusbar-bg');
-      const bg = await getComputedStyleProp(page, '.editor-statusbar', 'background-color');
-      expect(bg).toBe(statusbarBgRgb);
-    });
-
-    test('status bar is NOT amber — spec §4', async ({ page }) => {
-      const amberRgb = await getCSSVarAsRgb(page, '--amber');
-      const bg = await getComputedStyleProp(page, '.editor-statusbar', 'background-color');
-      expect(bg).not.toBe(amberRgb);
-    });
-
-    test('status bar shows UTF-8', async ({ page }) => {
-      await expect(page.locator('.editor-statusbar')).toContainText('UTF-8');
-    });
-
-    test('status bar shows line/col position', async ({ page }) => {
-      await expect(page.locator('#status-pos')).toContainText('Ln');
-      await expect(page.locator('#status-pos')).toContainText('Col');
-    });
-  });
-
-  // ── Char count in status bar ─────────────────────────────────────
-  test.describe('Char count', () => {
-    test('status bar shows char count element', async ({ page }) => {
-      await expect(page.locator('#status-count')).toBeAttached();
-    });
-
-    test('char count shows "chars" text', async ({ page }) => {
-      // toContainText retries automatically until the text appears
-      await expect(page.locator('#status-count')).toContainText('chars');
-    });
-  });
-
-  // ── Preview rendering ─────────────────────────────────────────────
   test.describe('Preview rendering', () => {
-    test('preview output renders markdown headings', async ({ page }) => {
-      // toBeAttached() retries — no fixed timeout needed
-      await expect(page.locator('#preview-output h2').first()).toBeAttached();
+    test('initial preview renders the frontmatter title', async ({ page }) => {
+      await expect(page.locator('#preview-output h1')).toHaveText('Untitled');
     });
 
-    test('preview title matches frontmatter title', async ({ page }) => {
-      await expect(page.locator('#preview-output h1').first()).toContainText('Untitled');
+    test('initial preview renders markdown headings', async ({ page }) => {
+      await expect(page.locator('#preview-output h2').first()).toContainText('Introduction');
     });
   });
 
-  // ── Mobile tab mode — spec §8 ────────────────────────────────────
-  test.describe('Mobile (< 640px)', () => {
-    test('editor root switches to single column below 640px — spec §8', async ({ page }) => {
+  test.describe('Editor interactions', () => {
+    test('typing updates the preview and character count', async ({ page }) => {
+      const initialCount = (await page.locator('#status-count').textContent()) ?? '';
+
+      await appendToEditor(page, '\n## Added heading\n');
+
+      await expect(page.locator('#preview-output h2', { hasText: 'Added heading' })).toBeVisible();
+      await expect(page.locator('#status-count')).not.toHaveText(initialCount);
+    });
+
+    test('moving the cursor updates line and column status', async ({ page }) => {
+      await focusEditor(page);
+      const initialPos = (await page.locator('#status-pos').textContent()) ?? '';
+
+      await page.keyboard.press('Control+End');
+
+      await expect(page.locator('#status-pos')).not.toHaveText(initialPos);
+      await expect(page.locator('#status-pos')).toHaveText(/Ln \d+ · Col \d+/);
+    });
+
+    test('discard prompts for confirmation when the document is dirty', async ({ page }) => {
+      await appendToEditor(page, '\ndiscard-check\n');
+
+      let dialogMessage = '';
+      page.once('dialog', async (dialog) => {
+        dialogMessage = dialog.message();
+        await dialog.dismiss();
+      });
+
+      await page.locator('#discard-btn').click();
+
+      await expect.poll(() => dialogMessage).toBe('Discard all changes?');
+      await expect(page.locator('.cm-content')).toContainText('discard-check');
+    });
+
+    test('publish confirmation can be cancelled without announcing success', async ({ page }) => {
+      let dialogMessage = '';
+      page.once('dialog', async (dialog) => {
+        dialogMessage = dialog.message();
+        await dialog.dismiss();
+      });
+
+      await page.locator('#publish-btn').click();
+
+      await expect.poll(() => dialogMessage).toBe('Publish this article?');
+      await expect(page.locator('#publish-btn')).toHaveText('Publish →');
+      await expect(page.locator('#editor-status-announcement')).toHaveText('');
+    });
+
+    test('publish success updates the live status announcement', async ({ page }) => {
+      let dialogMessage = '';
+      page.once('dialog', async (dialog) => {
+        dialogMessage = dialog.message();
+        await dialog.accept();
+      });
+
+      await page.locator('#publish-btn').click();
+
+      await expect.poll(() => dialogMessage).toBe('Publish this article?');
+      await expect(page.locator('#publish-btn')).toHaveText('Published!');
+      await expect(page.locator('#editor-status-announcement')).toHaveText('Article published.');
+    });
+  });
+
+  test.describe('Mobile tabs', () => {
+    test('preview query param opens the preview panel on mobile', async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto('/editor?panel=preview');
+
+      await expect(page.locator('#tab-preview')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#preview-pane')).toHaveClass(/tab-active/);
+      await expect(page).toHaveURL(/\/editor\?panel=preview$/);
+    });
+
+    test('clicking tabs updates the active panel and URL', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto('/editor');
 
-      await expect(page.locator('.editor-main')).toBeAttached();
-      const cols = await page.evaluate(() => {
-        const main = document.querySelector('.editor-main');
-        return main ? getComputedStyle(main).gridTemplateColumns : '';
-      });
-      // Single column: should not contain two separate column values
-      const columnCount = cols.trim().split(/\s+/).filter(Boolean).length;
-      expect(columnCount).toBeLessThanOrEqual(1);
+      await page.locator('#tab-preview').click();
+      await expect(page.locator('#tab-preview')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#preview-pane')).toHaveClass(/tab-active/);
+      await expect(page).toHaveURL(/\/editor\?panel=preview$/);
+
+      await page.locator('#tab-edit').click();
+      await expect(page.locator('#tab-edit')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#editor-pane')).toHaveClass(/tab-active/);
+      await expect(page).toHaveURL(/\/editor$/);
+    });
+
+    test('arrow keys switch tabs and keep the URL in sync', async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto('/editor');
+
+      await page.locator('#tab-edit').focus();
+      await page.keyboard.press('ArrowRight');
+      await expect(page.locator('#tab-preview')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#preview-pane')).toHaveClass(/tab-active/);
+      await expect(page).toHaveURL(/\/editor\?panel=preview$/);
+
+      await page.keyboard.press('ArrowLeft');
+      await expect(page.locator('#tab-edit')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#editor-pane')).toHaveClass(/tab-active/);
+      await expect(page).toHaveURL(/\/editor$/);
+    });
+
+    test('browser history restores the prior panel', async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto('/editor');
+
+      await page.locator('#tab-preview').click();
+      await page.locator('#tab-edit').click();
+      await page.goBack();
+
+      await expect(page.locator('#tab-preview')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#preview-pane')).toHaveClass(/tab-active/);
+      await expect(page).toHaveURL(/\/editor\?panel=preview$/);
+    });
+
+    test('invalid panel query params normalize back to the canonical edit URL', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto('/editor?panel=unknown');
+
+      await expect(page.locator('#tab-edit')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#editor-pane')).toHaveClass(/tab-active/);
+      await expect(page).toHaveURL(/\/editor$/);
     });
   });
 });
