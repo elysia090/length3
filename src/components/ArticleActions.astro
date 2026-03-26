@@ -6,6 +6,11 @@ interface Props {
 const { readingTime } = Astro.props;
 ---
 
+<!--
+  Reading progress bar lives here (position: fixed — DOM location is irrelevant).
+  Previously in ReadingProgress.astro, but that split one feature across two files
+  with the controlling script always living here. Merged per KISS.
+-->
 <div
   id="reading-progress"
   role="progressbar"
@@ -31,6 +36,8 @@ const { readingTime } = Astro.props;
   </div>
   <p id="article-action-status" class="sr-only" aria-live="polite" aria-atomic="true"></p>
 
+  <!-- aria-live removed: role="progressbar" on #reading-progress already handles AT updates.
+       Polling aria-live on every scroll causes disruptive double-announcements (H1/Nielsen). -->
   <div class="reading-stats" aria-label="Reading progress stats">
     <div class="stat-row">
       <span class="stat-pct" id="pct-read">0%</span>
@@ -46,6 +53,73 @@ const { readingTime } = Astro.props;
     </div>
   </div>
 </div>
+
+<script>
+  import { createArticleActionsController } from '../lib/article-actions';
+
+  const container = document.querySelector<HTMLElement>('.article-actions');
+  const status = document.getElementById('article-action-status');
+  const copyButton = document.getElementById('copy-link-btn') as HTMLButtonElement | null;
+  const shareButton = document.getElementById('share-btn') as HTMLButtonElement | null;
+  const percentRead = document.getElementById('pct-read');
+  const minutesLeft = document.getElementById('min-left');
+  const progressBar = document.getElementById('reading-progress');
+  const copyLabel = copyButton?.querySelector<HTMLElement>('.action-label') ?? null;
+  const shareLabel = shareButton?.querySelector<HTMLElement>('.action-label') ?? null;
+
+  if (
+    container &&
+    status &&
+    copyButton &&
+    shareButton &&
+    copyLabel &&
+    shareLabel &&
+    percentRead &&
+    minutesLeft &&
+    progressBar
+  ) {
+    createArticleActionsController(
+      {
+        elements: {
+          copyButton,
+          copyLabel,
+          minutesLeft,
+          percentRead,
+          progressBar,
+          shareButton,
+          shareLabel,
+          status,
+        },
+        readingTime: Number(container.dataset.readingTime) || 5,
+      },
+      {
+        addScrollListener: (listener) => {
+          window.addEventListener('scroll', listener, { passive: true });
+          return () => window.removeEventListener('scroll', listener);
+        },
+        clipboardWriteText: (text) => {
+          const writeText = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+          return writeText
+            ? writeText(text)
+            : Promise.reject(new Error('Clipboard API unavailable.'));
+        },
+        getDocumentTitle: () => document.title,
+        getLocationHref: () => window.location.href,
+        getScrollMetrics: () => ({
+          scrollHeight: document.body.scrollHeight,
+          scrollY: window.scrollY,
+          viewportHeight: window.innerHeight,
+        }),
+        requestFrame: (callback) => window.requestAnimationFrame(() => callback()),
+        setTimeout: (callback, ms) => window.setTimeout(callback, ms),
+        share: navigator.share
+          ? (data) => navigator.share!({ title: data.title, url: data.url })
+          : null,
+        warn: (scope, error) => console.warn(`[${scope}]`, error),
+      },
+    );
+  }
+</script>
 
 <style>
   /* Reading progress bar — position: fixed so DOM location is irrelevant */

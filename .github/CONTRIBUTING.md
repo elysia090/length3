@@ -68,7 +68,7 @@ static analysis instead of browser E2E.
 ## Fonts
 
 `/public/fonts/` holds the Fraunces variable font files.
-WOFF2 format is required for production. To convert from an upstream TTF source:
+WOFF2 format is required for production. To convert from TTF:
 
 ```sh
 pip install fonttools brotli

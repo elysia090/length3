@@ -1,6 +1,7 @@
 ---
 export const prerender = true;
 
+import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import type { ProcessedPost, TagRoute } from '../../lib/types';
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -8,24 +9,23 @@ import ArticleCard from '../../components/ArticleCard.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
-import { getBlogIndex } from '../../lib/blog-index';
+import { buildTagResolver, processPost, notDraft } from '../../lib/utils';
+
+const allPosts = await getCollection('blog', notDraft);
+const tagResolver = buildTagResolver(allPosts);
 
 export const getStaticPaths = (async () => {
-  return (await getBlogIndex()).tagRoutes.map((route) => ({
-    params: { tag: route.canonicalSlug },
-    props: { route },
-  }));
+  const posts = await getCollection('blog', notDraft);
+  return buildTagResolver(posts)
+    .routes()
+    .map((route) => ({
+      params: { tag: route.canonicalSlug },
+      props: { route },
+    }));
 }) satisfies GetStaticPaths;
 
 const { route } = Astro.props as { route: TagRoute };
-const { processedPostsById } = await getBlogIndex();
-const processed: ProcessedPost[] = route.posts.map((post) => {
-  const processedPost = processedPostsById.get(post.id);
-  if (!processedPost) {
-    throw new Error(`Missing processed post for "${post.id}".`);
-  }
-  return processedPost;
-});
+const processed: ProcessedPost[] = route.posts.map((post) => processPost(post, tagResolver));
 
 processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publishDate.valueOf());
 ---
