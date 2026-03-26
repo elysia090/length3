@@ -5,8 +5,8 @@ import {
   createPagefindSearchController,
   normalizePagefindSearchTerm,
   type PagefindSearchControllerOptions,
-  type PagefindUIConstructor,
   type PagefindSearchResult,
+  type PagefindUIConstructor,
   searchErrorMessage,
   searchUnavailableMessage,
 } from './pagefind-search';
@@ -131,7 +131,10 @@ describe('createPagefindSearchController', () => {
     expect(PagefindUIMock).toHaveBeenCalledWith(
       expect.objectContaining({
         element: '#pagefind-ui',
-        mergeIndex: buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'en'),
+        mergeIndex: buildMergedPagefindIndexes(
+          'https://example.test/pagefind/pagefind-ui.js',
+          'en',
+        ),
         processTerm: normalizePagefindSearchTerm,
         processResult: expect.any(Function),
       }),

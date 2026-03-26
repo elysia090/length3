@@ -37,18 +37,18 @@ describe('getPageLanguage', () => {
 
 describe('buildMergedPagefindIndexes', () => {
   it('merges the other site language into the current search UI', () => {
-    expect(buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'en')).toEqual(
-      [{ bundlePath: 'https://example.test/pagefind/', language: 'ja' }],
-    );
-    expect(buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'ja')).toEqual(
-      [{ bundlePath: 'https://example.test/pagefind/', language: 'en' }],
-    );
+    expect(
+      buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'en'),
+    ).toEqual([{ bundlePath: 'https://example.test/pagefind/', language: 'ja' }]);
+    expect(
+      buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'ja'),
+    ).toEqual([{ bundlePath: 'https://example.test/pagefind/', language: 'en' }]);
   });
 
   it('skips merging when the page language is unknown', () => {
-    expect(buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', null)).toEqual(
-      [],
-    );
+    expect(
+      buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', null),
+    ).toEqual([]);
   });
 });
 

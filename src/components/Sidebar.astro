@@ -91,14 +91,12 @@ const { topics } = Astro.props;
     pagefindMount instanceof HTMLElement &&
     status instanceof HTMLElement
   ) {
-    const searchController = createPagefindSearchController(
-      {
-        browserWindow: window,
-        mount: pagefindMount,
-        mountSelector: '#pagefind-ui',
-        status,
-      },
-    );
+    const searchController = createPagefindSearchController({
+      browserWindow: window,
+      mount: pagefindMount,
+      mountSelector: '#pagefind-ui',
+      status,
+    });
     const openSearch = () => {
       setExpandedState(trigger, true);
       if (!modal.open) {
