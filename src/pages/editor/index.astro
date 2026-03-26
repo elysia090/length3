@@ -508,7 +508,8 @@ Start writing here.
     }
     const targetId = tab.getAttribute('aria-controls');
     for (const pane of panes) {
-      pane?.classList.toggle('tab-active', pane.id === targetId);
+      const isActive = pane?.id === targetId;
+      pane?.classList.toggle('tab-active', isActive);
     }
   }
 
