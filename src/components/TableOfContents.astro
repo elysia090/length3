@@ -26,28 +26,6 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
   )
 }
 
-<script>
-  import { createTableOfContentsController } from '../lib/toc-controller';
-
-  createTableOfContentsController(
-    {
-      articleBody: document.querySelector<HTMLElement>('article[data-pagefind-body]'),
-      headingEls: [...document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]')],
-      links: [...document.querySelectorAll<HTMLAnchorElement>('.toc-link')],
-      tocNav: document.querySelector<HTMLElement>('.toc'),
-    },
-    {
-      createObserver: (callback, options) => new IntersectionObserver(callback, options),
-      onFirstScroll: (listener) => {
-        window.addEventListener('scroll', listener, { once: true, passive: true });
-        return () => window.removeEventListener('scroll', listener);
-      },
-      prefersReducedMotion: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-      pushHistoryHash: (href) => history.pushState(null, '', href),
-    },
-  );
-</script>
-
 <style>
   .toc {
     transition: opacity 200ms ease; /* spec §5: TOC disappearance 200ms */
