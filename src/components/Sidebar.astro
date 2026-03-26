@@ -76,11 +76,7 @@ const { topics } = Astro.props;
 </dialog>
 
 <script>
-  import {
-    createBrowserSearchBootstrapDeps,
-    createPagefindSearchController,
-  } from '../lib/pagefind-search';
-  import { createSearchModalController } from '../lib/search-modal';
+  import { createPagefindSearchController } from '../lib/pagefind-search';
 
   const trigger = document.getElementById('search-trigger') as HTMLButtonElement | null;
   const modal = document.getElementById('search-modal') as HTMLDialogElement | null;
@@ -97,23 +93,69 @@ const { topics } = Astro.props;
   ) {
     const searchController = createPagefindSearchController(
       {
+        browserWindow: window,
         mount: pagefindMount,
         mountSelector: '#pagefind-ui',
         status,
       },
-      createBrowserSearchBootstrapDeps({
-        browserWindow: window,
-        isDev: import.meta.env.DEV,
-      }),
     );
+    const openSearch = () => {
+      setExpandedState(trigger, true);
+      if (!modal.open) {
+        modal.showModal();
+      }
+      void searchController.open();
+    };
+    const closeSearch = () => {
+      setExpandedState(trigger, false);
+      if (modal.open) {
+        modal.close();
+      }
+    };
 
-    createSearchModalController({
-      closeButton: closeBtn,
-      document,
-      modal,
-      onOpenSearch: () => searchController.open(),
-      trigger,
+    trigger.addEventListener('click', openSearch);
+    closeBtn.addEventListener('click', closeSearch);
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        modal.close();
+      }
     });
+    modal.addEventListener('cancel', () => {
+      setExpandedState(trigger, false);
+    });
+    modal.addEventListener('close', () => {
+      setExpandedState(trigger, false);
+      trigger.focus();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (!shouldOpenSearchFromKeydown(event.key, modal.open, document.activeElement)) {
+        return;
+      }
+
+      event.preventDefault();
+      openSearch();
+    });
+  }
+
+  function shouldOpenSearchFromKeydown(
+    key: string,
+    modalOpen: boolean,
+    activeElement: Element | null,
+  ) {
+    return key === '/' && !modalOpen && !isTextEntryElement(activeElement);
+  }
+
+  function isTextEntryElement(element: Element | null) {
+    return (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement ||
+      Boolean(element instanceof HTMLElement && element.isContentEditable)
+    );
+  }
+
+  function setExpandedState(button: HTMLButtonElement, isExpanded: boolean) {
+    button.setAttribute('aria-expanded', String(isExpanded));
   }
 </script>
 
