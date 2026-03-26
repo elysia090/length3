@@ -11,7 +11,6 @@ const { title, description = 'A technical blog.', ogImage, lang = 'en' } = Astro
 import '../styles/fonts.css';
 import '../styles/global.css';
 import '../styles/typography.css';
-import { FRAUNCES_WOFF2 } from '../lib/fontConfig';
 ---
 
 <!doctype html>
@@ -20,32 +19,15 @@ import { FRAUNCES_WOFF2 } from '../lib/fontConfig';
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <!--
-      Preload the upright variable font so the browser can start fetching it
-      before CSS is parsed. Only the normal (non-italic) file is preloaded
-      because italic is non-critical path on first render.
-      crossorigin is required for fonts even when self-hosted (CORS fetch).
-      Font path comes from src/lib/fontConfig.ts — single source of truth for JS/TS.
-      The @font-face declaration in src/styles/fonts.css must stay in sync.
-    -->
-    <link rel="preload" href={FRAUNCES_WOFF2} as="font" type="font/woff2" crossorigin />
-    <!-- Noto Sans JP from Google Fonts — auto unicode-range subsetting for CJK.
-         Loaded asynchronously via JS to avoid blocking page render/load event. -->
-    <script is:inline>
-      (function () {
-        const l = document.createElement('link');
-        l.rel = 'stylesheet';
-        l.href =
-          'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap';
-        document.head.appendChild(l);
-      })();
-    </script>
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Noto Sans JP remains hosted by Google Fonts, but is loaded declaratively so
+         connections can warm early and typography is stable on first paint. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap"
+    />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     {ogImage && <meta property="og:image" content={ogImage} />}

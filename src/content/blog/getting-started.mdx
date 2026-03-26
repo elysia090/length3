@@ -1,9 +1,9 @@
 ---
 title: "length3: A Technical Blog Built on Astro 6 and Cloudflare Workers"
-description: A deep dive into how this blog is built — Astro 6, MDX content collections, CodeMirror 6 live editor, Pagefind search, and Japanese typography, all deployed at the edge.
+description: A deep dive into how this blog is built — Astro 6, MDX content collections, Pagefind search, and Japanese typography, all deployed at the edge.
 publishDate: 2026-03-20
 updatedDate: 2026-03-23
-tags: [astro, cloudflare, mdx, typescript, codemirror, pagefind, typography]
+tags: [astro, cloudflare, mdx, typescript, pagefind, typography]
 draft: false
 lang: en
 ---
@@ -23,8 +23,8 @@ The stack has three layers:
 | Content | MDX + Content Layer API (Zod-validated) |
 | Runtime | Cloudflare Workers (edge-native) |
 
-The blog is statically generated at build time (`output: 'static'`), with a single SSR exception for the live editor route (`/editor`).
-Static pages are served as Cloudflare Pages assets; the editor is a Worker that hydrates CodeMirror on the client.
+The blog is statically generated at build time (`output: 'static'`).
+Static pages, fonts, and the Pagefind index are served as Cloudflare Pages assets at the edge.
 
 ## Content System
 
@@ -115,13 +115,13 @@ Hierarchy comes from spacing and typography alone, following a print-editorial m
 
 ### Table of Contents
 
-The `TableOfContents` component extracts `h2` and `h3` headings from the MDX render tree and builds an accessible `<nav>` using `<details>`/`<summary>`:
+The `TableOfContents` component extracts `h2` and `h3` headings from the MDX render tree and renders an accessible `<nav>`:
 
-- **Desktop (≥ 720px):** starts open; `<summary>` is a visual-only label (`pointer-events: none`)
-- **Mobile (< 720px):** JS removes `open` on mount so the TOC starts collapsed; `<summary>` becomes an interactive toggle with a chevron indicator
+- **Desktop (≥ 720px):** TOC stays visible in the left rail as secondary navigation
+- **Mobile (< 720px):** TOC is hidden so the reader reaches title and prose immediately
 - **Active section:** an `IntersectionObserver` tracks which heading is in the top 45% of the viewport and highlights the corresponding TOC link in amber
 - **Fade-out:** a second observer watches a sentinel element at the end of the article body; once the reader scrolls past it, the TOC fades to `opacity: 0` with `pointer-events: none`
-- **Smooth scroll:** TOC link clicks call `scrollIntoView({ behavior: 'smooth' })` and push the hash to `history` without a hard jump
+- **Smooth scroll:** TOC link clicks call `scrollIntoView()` and push the hash to `history` without a hard jump
 
 ### Reading Time
 
@@ -170,8 +170,8 @@ export function tagToSlug(tag: string): string {
 Without the `u` flag, `\w` only covers `[A-Za-z0-9_]` — a tag like `機械学習` would collapse to an empty string and every CJK tag would map to the same `/tags/` route.
 The `u` flag enables Unicode property escapes, so `機械学習` → `機械学習` (preserved) and `TypeScript` → `typescript`.
 
-Tag pages are generated at `/tags/[tag]` via `getStaticPaths`.
-The `buildTagIndex` utility centralises aggregation so the tag cloud on the index sidebar and the per-tag listing page share identical logic:
+Tag archive pages are generated at `/tags/[tag]` via `getStaticPaths`.
+The `buildTagIndex` utility centralises aggregation so the topic directory on the home page and the per-tag listing page share identical logic:
 
 ```typescript
 export function buildTagIndex(posts: BlogPost[]): TagIndex {
@@ -187,72 +187,6 @@ export function buildTagIndex(posts: BlogPost[]): TagIndex {
   return { bySlug, names };
 }
 ```
-
-## Live MDX Editor
-
-The `/editor` route is an in-browser MDX drafting environment.
-It is the one SSR page in an otherwise fully static site (`export const prerender = false`).
-
-### CodeMirror 6 Integration
-
-The editor is built on [CodeMirror 6](https://codemirror.net/), a modular, tree-sitter-based editor framework.
-The setup:
-
-```typescript
-const state = EditorState.create({
-  doc: initialDoc,
-  extensions: [
-    basicSetup,
-    markdown(),           // @codemirror/lang-markdown
-    length3Theme,         // custom dark theme
-    syntaxHighlighting(length3Highlight),  // custom highlight rules
-    frontmatterPlugin,    // grey-out YAML frontmatter block
-    EditorView.updateListener.of((update) => {
-      // cursor position → status bar
-      // doc changes → debounced preview render
-    }),
-  ],
-});
-```
-
-The `frontmatterPlugin` is a `StateField` that detects the `---` delimiters and applies a decorative style to the YAML block so it reads as metadata rather than prose.
-
-### Custom Theme
-
-CSS custom properties cannot be used inside CodeMirror JS theme strings, so the design tokens from `global.css` are mirrored as TypeScript constants in `lib/editor/theme.ts`:
-
-```typescript
-const AMBER      = '#d4820a';  // --amber
-const EDITOR_BG  = '#181511';  // --editor-bg
-const EDITOR_INK = '#c8c4be';  // --editor-ink
-// …
-export const length3Theme = EditorView.theme({ … }, { dark: true });
-```
-
-The syntax highlight spec maps lezer tags to muted palette colours — blue for YAML keys, green for values, amber for headings — so YAML frontmatter and Markdown content are visually distinct at a glance.
-
-### Live Preview
-
-The right pane renders a live HTML preview using [marked](https://marked.js.org/).
-Preview rendering is debounced to 50 ms so that rapid typing (e.g. 10 keystrokes in 50 ms) triggers only one `marked.parse()` call instead of ten.
-Frontmatter is stripped before rendering:
-
-```typescript
-export function parseFrontmatter(raw: string): { meta: Record<string, string>; body: string } {
-  // splits on the second `---` delimiter and returns the body only
-}
-
-// In the update listener:
-const parsed = parseFrontmatter(update.state.doc.toString());
-updateStatusCount(parsed.body);           // immediate: char count
-clearTimeout(previewTimer);
-previewTimer = setTimeout(() => renderPreview(parsed, output), 50);  // debounced
-```
-
-### Mobile Tab Mode
-
-Below 640 px the split-pane view becomes a tab interface following the ARIA APG Tabs pattern.
-`aria-controls` links each tab button to its panel; `Arrow` keys navigate between tabs; `aria-selected` drives the active indicator.
 
 ## Full-Text Search with Pagefind
 
@@ -277,7 +211,7 @@ This scopes indexing to article content, excluding header, footer, and sidebar n
 ### Fraunces Variable Font
 
 Display headings use [Fraunces](https://github.com/undercasetype/Fraunces), a variable optical-size serif with a distinctive softness.
-The font files (`Fraunces-Variable.woff2`, `Fraunces-Italic-Variable.woff2`) are self-hosted under `public/fonts/` and declared with `font-display: swap` to prevent invisible text during load.
+The font files (`Fraunces-Variable.woff2`, `Fraunces-Italic-Variable.woff2`) are self-hosted under `public/fonts/` and declared with `font-display: optional` so first paint can fall back immediately while repeat visits reuse the cached face.
 
 ### Font Stack
 
@@ -289,7 +223,8 @@ The font files (`Fraunces-Variable.woff2`, `Fraunces-Italic-Variable.woff2`) are
                 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
 
 --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code',
-                'Cascadia Code', monospace;
+                'Cascadia Code', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN',
+                'Yu Gothic UI', 'Meiryo', monospace;
 ```
 
 Japanese mincho fallbacks are placed *before* `Georgia` in the display stack so that CJK characters in headings render in a matching serif/mincho style.
@@ -308,7 +243,7 @@ The blog has first-class support for Japanese composition:
 ### Amber Accent
 
 The single accent colour throughout the UI is amber (`#d4820a` for decorative elements, `#b45309` for text/interactive elements to meet WCAG AA at 4.5:1).
-It appears on: the amber rule under article titles, TOC active-section indicators, tag links, dates, the `L³` editor logo, and the CodeMirror cursor.
+It appears on: the amber rule under article titles, TOC active-section indicators, tag links, and dates.
 Everything else is ink (`#1c1a18`) and paper (`#f9f8f5`).
 
 ## Developer Experience
@@ -348,7 +283,7 @@ This guarantees that no unformatted code reaches the repository without interrup
 | Suite | Tool | Scope |
 |---|---|---|
 | Unit | Vitest 4 | `estimateReadingTime`, `tagToSlug`, `buildTagIndex`, `formatDate` |
-| End-to-end | Playwright | Article rendering, TOC behaviour, editor tab switching |
+| End-to-end | Playwright | Article rendering, search modal behaviour, tag navigation |
 
 Vitest shares the Vite config and runs in `node` environment, which means TypeScript compilation is handled by the same pipeline as the main build.
 Playwright runs against a locally built `dist/` directory with the `chromium` project.
@@ -366,7 +301,7 @@ compatibility_date = "2025-01-01"
 ```
 
 The `@astrojs/cloudflare` adapter wraps the Astro build output into a Worker bundle.
-Static assets (HTML, CSS, fonts, Pagefind index) are uploaded as Cloudflare Pages assets; the SSR Worker handles the `/editor` route.
+Static assets (HTML, CSS, fonts, Pagefind index) are uploaded as Cloudflare Pages assets.
 
 The Vite SSR target is set to `'webworker'` so that Node.js-specific modules (like `fs`) are excluded from the bundle:
 
@@ -374,12 +309,9 @@ The Vite SSR target is set to `'webworker'` so that Node.js-specific modules (li
 vite: {
   ssr: {
     target: 'webworker',
-    noExternal: ['codemirror', /@codemirror\/.*/],
   },
 }
 ```
-
-CodeMirror packages are marked `noExternal` because they ship as ESM-only and need to be bundled for the edge runtime.
 
 ### CI/CD
 
@@ -399,6 +331,5 @@ Rather than feeling like a typical web app, it leans toward an editorial, print-
 - **Generous whitespace** — hierarchy from spacing alone, not decorative borders
 - **No sidebar on article pages** — the right column is intentionally empty
 - **680 px prose measure** — optimised for comfortable line length across viewport sizes
-- **Dark editor, light reader** — strong contrast between writing mode and reading mode
 
 The result is an interface whose character comes from spacing and type treatment rather than decoration.

@@ -37,7 +37,6 @@ export default defineConfig({
   vite: {
     ssr: {
       target: 'webworker',
-      noExternal: ['codemirror', /@codemirror\/.*/],
     },
     optimizeDeps: {
       exclude: ['pagefind'],

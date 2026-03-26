@@ -8,13 +8,14 @@ import { FRAUNCES_ITALIC_WOFF2, FRAUNCES_WOFF2 } from '../../src/lib/fontConfig'
  * cold headless browser never loads the custom font — the fallback is chosen
  * permanently.  We bypass this by:
  *
- *   1. Navigating to the page (domcontentloaded — avoids hanging on Google Fonts)
+ *   1. Navigating to the page at domcontentloaded so external font requests do
+ *      not hold the screenshot flow hostage
  *   2. Constructing FontFace objects programmatically, bypassing font-display
  *   3. Forcing a style recalculation so text re-renders with the loaded fonts
  *
  * Font paths come from src/lib/fontConfig.ts — single source of truth.
- * Noto Sans JP comes from Google Fonts (loaded async in BaseLayout); we wait
- * up to 3 s for it but never stall CI when the network is unavailable.
+ * Noto Sans JP still comes from Google Fonts in BaseLayout, so we wait up to
+ * 3 s for it but never stall CI when the network is unavailable.
  */
 export async function gotoWithFonts(page: Page, url: string): Promise<void> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });

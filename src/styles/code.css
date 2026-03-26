@@ -1,7 +1,0 @@
-/* ── Frontmatter YAML decoration ─────────────────────────────────────────────
- * Class names are defined in src/lib/editor/frontmatter-plugin.ts (FM_CSS).
- * Colours use editor dark-palette tokens defined in global.css.
- * ── */
-.cm-fm-delim { color: var(--editor-ink-2); } /* delimiter (---): muted */
-.cm-fm-key   { color: var(--editor-hl-key); } /* YAML key:   muted blue */
-.cm-fm-val   { color: var(--editor-hl-val); } /* YAML value: muted green */

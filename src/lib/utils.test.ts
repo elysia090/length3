@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { parseFrontmatter } from './editor/preview';
 import type { BlogPost } from './types';
 import { estimateReadingTime, formatDate, notDraft, processPost, tagToSlug, toSlug } from './utils';
 
@@ -86,23 +85,23 @@ describe('estimateReadingTime', () => {
 
 // ── formatDate ───────────────────────────────────────────────────
 describe('formatDate', () => {
-  // Use a fixed UTC midnight so local-timezone offsets do not shift the date
-  const date = new Date('2026-03-20T12:00:00Z');
+  const dateOnlyValue = new Date('2026-03-20');
+  const explicitUtcValue = new Date('2026-03-20T18:30:00Z');
 
-  it('defaults to en locale (YYYY-MM-DD)', () => {
-    expect(formatDate(date, 'en')).toMatch(/^2026-\d{2}-\d{2}$/);
+  it('formats date-only values in UTC for en locale', () => {
+    expect(formatDate(dateOnlyValue, 'en')).toBe('2026-03-20');
   });
 
-  it('en locale includes the year 2026', () => {
-    expect(formatDate(date, 'en')).toContain('2026');
+  it('formats date-only values in UTC for ja locale', () => {
+    expect(formatDate(dateOnlyValue, 'ja')).toBe('2026/03/20');
   });
 
-  it('ja locale uses YYYY/MM/DD format', () => {
-    expect(formatDate(date, 'ja')).toMatch(/2026\/\d{2}\/\d{2}/);
+  it('keeps explicit UTC timestamps stable for en locale', () => {
+    expect(formatDate(explicitUtcValue, 'en')).toBe('2026-03-20');
   });
 
-  it('ja locale includes the year 2026', () => {
-    expect(formatDate(date, 'ja')).toContain('2026');
+  it('keeps explicit UTC timestamps stable for ja locale', () => {
+    expect(formatDate(explicitUtcValue, 'ja')).toBe('2026/03/20');
   });
 });
 
@@ -174,37 +173,5 @@ describe('estimateReadingTime edge cases', () => {
     const text = `${'word '.repeat(100)}\n\n\`\`\`\ncode here\n\`\`\`\n\n${'word '.repeat(100)}`;
     // 200 real words + a few code tokens = ceil(≈1 min) = 1 min
     expect(estimateReadingTime(text)).toBeGreaterThanOrEqual(1);
-  });
-});
-
-// ── parseFrontmatter ─────────────────────────────────────────────
-describe('parseFrontmatter', () => {
-  it('extracts title and body', () => {
-    const text = '---\ntitle: Hello\n---\n\nBody here.';
-    const result = parseFrontmatter(text);
-    expect(result.title).toBe('Hello');
-    expect(result.body).toBe('Body here.');
-  });
-
-  it('extracts lang field', () => {
-    const text = '---\ntitle: Test\nlang: ja\n---\n\nBody.';
-    expect(parseFrontmatter(text).lang).toBe('ja');
-  });
-
-  it('defaults lang to en when absent', () => {
-    const text = '---\ntitle: Test\n---\n\nBody.';
-    expect(parseFrontmatter(text).lang).toBe('en');
-  });
-
-  it('strips surrounding quotes from title', () => {
-    const text = "---\ntitle: 'Quoted'\n---\n\nBody.";
-    expect(parseFrontmatter(text).title).toBe('Quoted');
-  });
-
-  it('returns empty title and full text as body when no frontmatter', () => {
-    const text = 'Just a body.';
-    const result = parseFrontmatter(text);
-    expect(result.title).toBe('');
-    expect(result.body).toBe('Just a body.');
   });
 });

@@ -2,6 +2,8 @@ dist/
 node_modules/
 .astro/
 .wrangler/
+.cache/
+.pnpm-store/
 .env
 .env.*
 !.env.example

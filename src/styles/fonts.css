@@ -18,36 +18,34 @@
  *   Limiting to U+0000-04FF prevents the browser from downloading
  *   this display font for pages that only render CJK content.
  *
- * Font loading is split across three layers by design:
- *   1. This file   — @font-face source-of-truth for self-hosted fonts
- *   2. BaseLayout  — <link rel="preload"> hint + async Google Fonts loader
- *   3. tests/helpers/fonts.ts — programmatic FontFace to bypass font-display
- *      in headless Playwright (font-display:optional never swaps in cold runs)
- * When renaming or moving font files, update all three locations.
+ * Fraunces is fully self-hosted from /public/fonts/.
+ * tests/helpers/fonts.ts explicitly loads it in headless browser runs where
+ * font-display: optional would otherwise keep the fallback face.
+ * When renaming or moving the Fraunces files, update all related paths.
  */
 
 @font-face {
   font-family: 'Fraunces';
   src:
     url('/fonts/Fraunces-Variable.woff2') format('woff2') tech('variations'),
-    url('/fonts/Fraunces-Variable.ttf')   format('truetype') tech('variations');
+    url('/fonts/Fraunces-Variable.ttf') format('truetype') tech('variations');
   font-weight: 100 900;
   font-style: normal;
   font-display: optional;
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
-    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
   font-family: 'Fraunces';
   src:
     url('/fonts/Fraunces-Italic-Variable.woff2') format('woff2') tech('variations'),
-    url('/fonts/Fraunces-Italic-Variable.ttf')   format('truetype') tech('variations');
+    url('/fonts/Fraunces-Italic-Variable.ttf') format('truetype') tech('variations');
   font-weight: 100 900;
   font-style: italic;
   font-display: optional;
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
-    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }

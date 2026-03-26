@@ -84,8 +84,8 @@ export function estimateReadingTime(text: string): number {
 
 /**
  * Groups posts by tag slug into a TagIndex.
- * Single source of truth for tag aggregation — shared by the tag cloud page
- * and the per-tag listing page so the logic cannot diverge.
+ * Single source of truth for tag aggregation — shared by the home topics
+ * directory and the per-tag listing page so the logic cannot diverge.
  */
 export function buildTagIndex(posts: BlogPost[]): TagIndex {
   const bySlug = new Map<string, BlogPost[]>();
@@ -106,8 +106,16 @@ export function buildTagIndex(posts: BlogPost[]): TagIndex {
 }
 
 export function formatDate(date: Date, locale: 'en' | 'ja'): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return locale === 'ja' ? `${y}/${m}/${d}` : `${y}-${m}-${d}`;
+  const parts = new Intl.DateTimeFormat(locale === 'ja' ? 'ja-JP' : 'en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'UTC',
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value ?? '';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '';
+
+  return locale === 'ja' ? `${year}/${month}/${day}` : `${year}-${month}-${day}`;
 }

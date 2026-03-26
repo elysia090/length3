@@ -1,6 +1,15 @@
 ---
-// Sidebar: search only — spec §1
-// "The sidebar contains search and nothing else."
+interface TopicSummary {
+  count: number;
+  href: string;
+  name: string;
+}
+
+interface Props {
+  topics: TopicSummary[];
+}
+
+const { topics } = Astro.props;
 ---
 
 <aside class="sidebar" aria-label="Blog sidebar">
@@ -17,6 +26,25 @@
       <kbd class="search-shortcut" aria-label="keyboard shortcut: slash">/</kbd>
     </button>
   </div>
+  {
+    topics.length > 0 && (
+      <section class="sidebar-topics" aria-labelledby="sidebar-topics-heading">
+        <h2 class="sidebar-heading" id="sidebar-topics-heading">
+          Topics
+        </h2>
+        <ul class="sidebar-topic-list">
+          {topics.map((topic) => (
+            <li>
+              <a href={topic.href} class="sidebar-topic-card" rel="tag">
+                <span class="sidebar-topic-name">#{topic.name}</span>
+                <span class="sidebar-topic-count">{topic.count}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
 </aside>
 
 <!-- Search modal — spec §4 — native <dialog> for built-in focus trap, Escape, and backdrop -->
@@ -28,13 +56,21 @@
         id="pagefind-input"
         type="search"
         class="search-field"
-        placeholder="Search articles..."
+        name="search"
+        placeholder="Search articles…"
         autocomplete="off"
         aria-label="Search articles"
       />
       <button class="search-esc-btn" id="search-close" aria-label="Close search">esc</button>
     </div>
-    <div id="pagefind-results" class="search-results" role="region" aria-label="Search results">
+    <p id="search-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+    <div
+      id="pagefind-results"
+      class="search-results"
+      role="region"
+      aria-label="Search results"
+      aria-busy="false"
+    >
     </div>
     <div class="search-footer" aria-hidden="true">
       <span class="search-hint">↑↓ navigate</span>
@@ -49,23 +85,99 @@
   const trigger = document.getElementById('search-trigger') as HTMLButtonElement | null;
   const modal = document.getElementById('search-modal') as HTMLDialogElement | null;
   const closeBtn = document.getElementById('search-close') as HTMLButtonElement | null;
+  const results = document.getElementById('pagefind-results') as HTMLDivElement | null;
+  const status = document.getElementById('search-status') as HTMLParagraphElement | null;
   let initialized = false;
+  let statusObserver: MutationObserver | null = null;
+  let statusFrame = 0;
+  let lastStatus = '';
+
+  function setSearchStatus(message: string) {
+    if (!status) return;
+    const next = message.trim();
+    if (next === lastStatus) return;
+    status.textContent = next;
+    lastStatus = next;
+  }
+
+  function summarizeSearchResults() {
+    if (!results) return '';
+
+    const loading = results.querySelector<HTMLElement>('.search-loading')?.textContent?.trim();
+    if (loading) return loading;
+
+    const unavailable = results
+      .querySelector<HTMLElement>('.search-unavailable')
+      ?.textContent?.trim();
+    if (unavailable) return unavailable;
+
+    const resultCount = results.querySelectorAll('.pagefind-ui__result').length;
+    if (resultCount > 0) {
+      return `${resultCount} search result${resultCount === 1 ? '' : 's'} available.`;
+    }
+
+    const message = results
+      .querySelector<HTMLElement>(
+        '.pagefind-ui__message, .pagefind-ui__results-message, .pagefind-ui__result-message',
+      )
+      ?.textContent?.trim();
+    return message ?? '';
+  }
+
+  function syncSearchStatus() {
+    setSearchStatus(summarizeSearchResults());
+  }
+
+  function scheduleStatusSync() {
+    if (statusFrame) cancelAnimationFrame(statusFrame);
+    statusFrame = requestAnimationFrame(() => {
+      statusFrame = 0;
+      syncSearchStatus();
+    });
+  }
+
+  function observeSearchStatus() {
+    if (!results || statusObserver) return;
+
+    statusObserver = new MutationObserver(() => {
+      scheduleStatusSync();
+    });
+    statusObserver.observe(results, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+    });
+  }
+
+  function setResultsBusy(isBusy: boolean) {
+    results?.setAttribute('aria-busy', String(isBusy));
+  }
+
+  function resetSearchStatus() {
+    lastStatus = '';
+    if (status) status.textContent = '';
+  }
 
   async function initSearch() {
     if (initialized) return;
     initialized = true;
-    const results = document.getElementById('pagefind-results');
+    observeSearchStatus();
+    setResultsBusy(true);
     if (results) results.innerHTML = '<p class="search-loading">Loading…</p>';
+    syncSearchStatus();
     try {
       const pagefindSrc = `${location.origin}/pagefind/pagefind-ui.js`;
       const { PagefindUI } = await import(/* @vite-ignore */ pagefindSrc);
       new PagefindUI({ element: '#pagefind-results', showImages: false, showSubResults: true });
     } catch (err) {
       // Pagefind index is only present after `astro build` — not in dev mode.
-      console.warn('[search] Pagefind unavailable:', err instanceof Error ? err.message : err);
       if (results)
         results.innerHTML =
-          '<p class="search-unavailable">Search is only available in the built site.</p>';
+          '<p class="search-unavailable">Search is available in the built site. Run pnpm build and pnpm preview to test it locally.</p>';
+    } finally {
+      setResultsBusy(false);
+      scheduleStatusSync();
     }
   }
 
@@ -73,8 +185,10 @@
     if (!modal || !trigger) return;
     trigger.setAttribute('aria-expanded', 'true');
     modal.showModal();
+    resetSearchStatus();
     initSearch();
     document.getElementById('pagefind-input')?.focus();
+    scheduleStatusSync();
   }
 
   function closeSearch() {
@@ -111,9 +225,12 @@
 </script>
 
 <style>
-  /* ── Sidebar layout — search only ── */
   .sidebar {
-    padding-top: 2rem;
+    padding-top: 0;
+  }
+
+  .search-input-wrap {
+    margin-bottom: 1.5rem;
   }
 
   /* ── Search trigger ── */
@@ -165,6 +282,7 @@
     align-items: flex-start;
     justify-content: center;
     padding-top: 12vh;
+    overscroll-behavior: contain;
   }
 
   /* Override UA display:none only when open */
@@ -239,6 +357,7 @@
     min-height: 3rem;
     max-height: 60vh;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 0.5rem 0;
   }
 
@@ -275,6 +394,62 @@
     color: var(--ink-2);
     margin-left: auto;
     flex-shrink: 0;
+  }
+
+  .sidebar-topics {
+    min-width: 0;
+  }
+
+  @media (min-width: 52.5rem) {
+    .sidebar {
+      margin-top: -0.25rem;
+    }
+  }
+
+  .sidebar-heading {
+    margin-bottom: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .sidebar-topic-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .sidebar-topic-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--ink);
+    transition: color var(--transition-fast);
+  }
+
+  .sidebar-topic-card:hover,
+  .sidebar-topic-card:active {
+    color: var(--amber-text);
+  }
+
+  .sidebar-topic-name {
+    min-width: 0;
+    color: inherit;
+  }
+
+  .sidebar-topic-count {
+    flex-shrink: 0;
+    color: var(--ink-2);
+    font-size: 0.75rem;
   }
 
   /* Search unavailable / loading messages — injected dynamically */

@@ -27,7 +27,9 @@ import Footer from '../components/Footer.astro';
   .about-main {
     max-width: var(--measure);
     margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+    padding-block: 2rem 4rem;
+    padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
+      max(var(--page-gutter), env(safe-area-inset-right));
   }
 
   .about-header {

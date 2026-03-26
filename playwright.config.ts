@@ -1,10 +1,12 @@
 /// <reference types="node" />
 import { defineConfig, devices } from '@playwright/test';
 
+const isScreenshotMode = process.env['SCREENSHOT_MODE'] === '1';
+const baseURL = isScreenshotMode ? 'http://localhost:4322' : 'http://localhost:4321';
 const chromiumLaunchArgs = [
-  // Fail Google Fonts DNS lookups immediately so the dynamically-added
-  // <link rel="stylesheet"> errors out fast instead of hanging through
-  // the proxy, which blocks the window `load` event in headless Chromium.
+  // Fail Google Fonts DNS lookups immediately in headless runs. The site links
+  // Google Fonts declaratively in <head>, but some proxied CI environments can
+  // hang on those external requests and delay load-related waits.
   '--host-resolver-rules=MAP fonts.googleapis.com ~NOTFOUND, MAP fonts.gstatic.com ~NOTFOUND',
 ];
 
@@ -19,14 +21,14 @@ export default defineConfig({
   reporter: process.env['CI'] ? [['github'], ['html']] : [['html']],
 
   use: {
-    baseURL: 'http://localhost:4321',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
 
   projects: [
     {
-      // Primary functional test project — runs all specs except screenshots.
+      // Primary behavior test project — runs all specs except screenshots.
       name: 'chromium',
       testIgnore: ['**/screenshot.spec.ts'],
       use: {
@@ -35,8 +37,8 @@ export default defineConfig({
       },
     },
     {
-      // Screenshot-only project — run explicitly with `pnpm screenshots`.
-      // Separated so screenshots are not retaken on every `pnpm test` run.
+      // Screenshot-only project for documentation capture.
+      // Kept separate so normal E2E is not used as a visual regression suite.
       name: 'screenshots',
       testMatch: ['**/screenshot.spec.ts'],
       use: {
@@ -47,8 +49,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:4321',
+    command: isScreenshotMode ? 'pnpm preview --port 4322' : 'pnpm dev',
+    url: baseURL,
     reuseExistingServer: !process.env['CI'],
   },
 });

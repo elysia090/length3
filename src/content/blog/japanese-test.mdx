@@ -41,24 +41,26 @@ Linux・Android 環境ではこれらが不在のため `Noto Sans JP` にフォ
 `Noto Sans JP` を先頭に置くことで、Google Fonts からロードできる環境では常に日本語最適化グリフが使われる。
 `system-ui` より前に日本語フォントを列挙しているのは、`system-ui` がプラットフォームの UI フォントを指し、CJK グリフを持たない場合があるためだ。
 
-### グリフ選択と `font-variant-east-asian`
+### グリフ選択と `lang` とフォントスタック
 
 CJK 統合漢字（U+4E00–U+9FFF）は、日本語・繁体字中国語・簡体字中国語で同一コードポイントでも字形が異なる場合がある。
 たとえば「直」「骨」「角」などは日中台でストロークが微妙に違う。
 
-`lang="ja"` を `<html>` 要素に設定するだけでは不十分なケースがある。
-`Noto Sans JP` のロード完了前（FOUT 期間）に `system-ui` や `sans-serif` へフォールバックした場合、Linux では簡体字中国語フォント（`Noto Sans CJK SC` 等）が選ばれることがある。
-
-これを防ぐのが `font-variant-east-asian: traditional` だ:
+このブログでは `lang="ja"` を `<html>` と記事本文の両方に付けたうえで、フォントスタックの先頭に日本語向けフォントを置いている。
+`Noto Sans JP` のロード完了前（FOUT 期間）でも `Hiragino Kaku Gothic ProN`・`Yu Gothic UI`・`Meiryo` が先に評価されるため、`system-ui` や汎用 `sans-serif` に落ちる頻度を下げられる。
 
 ```css
 :lang(ja) {
-  font-variant-east-asian: traditional;
+  quotes: '\300C' '\300D' '\300E' '\300F';
 }
+
+--font-sans: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN',
+             'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
 ```
 
-`traditional` は日本語・繁体字中国語の字形を要求し、簡体字（Simplified Chinese）の字形選択を抑制する。
-`lang="ja"` と組み合わせることで、フォールバック時もブラウザへの字形ヒントが維持される。
+`font-variant-east-asian: traditional` は一見それらしく見えるが、日本語専用の字形選択子ではない。
+実際には繁体字寄りの字形選択を促すため、環境によっては日本語より中国語っぽい見え方になる。
+日本語サイトでは `lang="ja"` と日本語優先フォールバックを正しく組む方が安定する。
 
 ## ルビ注釈
 
@@ -183,7 +185,7 @@ CSS の `quotes` プロパティで `<q>` 要素が日本語の引用符を使�
 |---|---|---|
 | 禁則処理 | `line-break: strict` | 全モダンブラウザ |
 | 約物プロポーショナル | `font-feature-settings: 'palt'` | Noto Sans JP 対応 |
-| 日本語グリフ選択 | `font-variant-east-asian: traditional` | モダンブラウザ |
+| 日本語グリフ選択 | `lang="ja"` + JP-first font stack | 全モダンブラウザ |
 | 引用符 | `quotes: '「' '」'` | 全モダンブラウザ |
 | 自動スペース | `text-autospace: ideograph-alpha` | Chrome 123+ |
 | 自然改行 | `word-break: auto-phrase` | Chrome 119+ |
@@ -195,6 +197,6 @@ CSS の `quotes` プロパティで `<q>` 要素が日本語の引用符を使�
 ## おわりに
 
 日本語タイポグラフィは「フォントを入れれば終わり」ではない。
-`font-variant-east-asian` で字形を指定し、`line-break: strict` で禁則を守り、`palt` で約物を詰め、`text-autospace` で和欧の間を整える—これらが重なってはじめて、日本語テキストが自然に読める状態になる。
+`lang="ja"` と日本語優先フォントスタックで字形の土台を作り、`line-break: strict` で禁則を守り、`palt` で約物を詰め、`text-autospace` で和欧の間を整える—これらが重なってはじめて、日本語テキストが自然に読める状態になる。
 
 多くは CSS 1〜2 行で実装できる。コストは低く、効果は大きい。
