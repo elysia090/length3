@@ -6,6 +6,7 @@ import ArticleActions from '../components/ArticleActions.astro';
 import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import articlePageScript from '../scripts/article-page.ts?url&no-inline';
 import { formatDate } from '../lib/utils';
 
 interface Props {
@@ -35,23 +36,13 @@ const dateStr = formatDate(publishDate, lang);
 
 <BaseLayout title={title} description={description} lang={lang}>
   <Header />
-
-  <!-- SC 2.4.1: id="main-content" is the skip-link target -->
   <main id="main-content">
-    <!-- SC 2.4.6: breadcrumb uses article title (not URL slug) for a descriptive label -->
     <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: title }]} />
-
-    <!--
-    Article shell: TOC | prose | empty right column
-    spec §1: "The right column is deliberately empty — no widgets, no actions, no metadata."
-  -->
     <div class="article-shell">
-      <!-- TOC — left column, sticky -->
       <aside class="toc-aside" aria-label="Table of contents">
         <TableOfContents headings={headings} />
       </aside>
 
-      <!-- Prose — center column -->
       <div class="prose-area">
         <article class="prose" data-pagefind-body lang={lang}>
           <header class="article-header">
@@ -90,14 +81,13 @@ const dateStr = formatDate(publishDate, lang);
           <slot />
         </article>
 
-        <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
         <ArticleActions readingTime={readingTime} />
       </div>
 
-      <!-- Right column: intentionally empty — spec §1 -->
       <div class="article-empty-margin" aria-hidden="true"></div>
     </div>
   </main>
 
   <Footer />
+  <script is:inline type="module" src={articlePageScript}></script>
 </BaseLayout>

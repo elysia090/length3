@@ -1,6 +1,7 @@
 ---
 import type { ProcessedPost } from '../lib/types';
 import { formatDate } from '../lib/utils';
+import '../styles/article-card.css';
 
 interface Props {
   post: ProcessedPost;
@@ -13,7 +14,6 @@ const { title, publishDate, lang } = entry.data;
 const dateStr = formatDate(publishDate, lang);
 ---
 
-<!-- SC 3.1.2: lang attr ensures AT uses correct phonetic rules for card language -->
 <article class="article-card" lang={lang}>
   <div class="card-meta">
     <time datetime={publishDate.toISOString()} class="card-date">{dateStr}</time>
@@ -46,85 +46,3 @@ const dateStr = formatDate(publishDate, lang);
     )
   }
 </article>
-
-<style>
-  /* Single-column card: date → title → description → tags */
-  .article-card {
-    padding: 2rem 0;
-    border-bottom: 1px solid var(--rule);
-  }
-
-  .article-card:first-child {
-    padding-top: 0;
-  }
-
-  .article-card:last-child {
-    border-bottom: none;
-  }
-
-  /* Date + reading time — inline, top of card */
-  .card-meta {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--ink-2);
-    margin-bottom: 0.25rem;
-  }
-
-  .card-date {
-    letter-spacing: 0.04em;
-    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
-    min-width: 10ch;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .card-meta-sep {
-    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at 12px */
-  }
-
-  .card-reading-time {
-    color: var(--ink-2);
-  }
-
-  /* Title — gravitational center, heaviest element */
-  .card-title {
-    font-family: var(--font-display);
-    font-size: 1.25rem; /* spec §4: 20px */
-    font-weight: 400; /* spec §4 */
-    line-height: 1.4; /* spec §4 */
-    letter-spacing: -0.015em;
-    margin-bottom: 0.5rem;
-    text-wrap: balance;
-  }
-
-  .card-title a {
-    color: var(--ink);
-    transition: color var(--transition-fast);
-  }
-
-  .card-title a:hover {
-    color: var(--amber);
-  }
-
-  /* Description — secondary, below title */
-  .card-excerpt {
-    font-size: 0.875rem;
-    line-height: 1.75;
-    color: var(--ink-2);
-    margin-bottom: 1rem;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  /* Tags — bottom of card, bordered pills */
-  .card-tags {
-    margin: 0;
-  }
-</style>
