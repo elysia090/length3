@@ -1,20 +1,34 @@
 /*
- * Fraunces display font, self-hosted as checked-in WOFF2 subsets.
+ * @font-face declarations for Fraunces variable font.
  *
- * The shipped files are Latin-focused subsets that preserve the current
- * family name, weight range, and style contract while reducing deploy bytes.
+ * Font files should be WOFF2 (primary) with TTF as fallback.
+ * To generate WOFF2 from the source TTF:
+ *   python3 -c "from fontTools.ttLib import TTFont; f = TTFont('Fraunces-Variable.ttf'); f.flavor = 'woff2'; f.save('Fraunces-Variable.woff2')"
+ *
+ * Font files in /public/fonts/ are real Fraunces variable fonts (woff2 + ttf).
  *
  * font-display: optional
- *   Gives the browser a short block period, then falls back permanently on
- *   cold loads. Repeat visits reuse the cached face without CLS.
+ *   Gives the browser a 100 ms window to load from cache.
+ *   If not available in time, uses the system fallback and never swaps —
+ *   eliminating FOUT and CLS on first load. Repeat visitors get the
+ *   custom font instantly from cache.
  *
- * tests/helpers/fonts.ts explicitly loads these faces in headless browser
- * runs where font-display: optional would otherwise keep the fallback face.
+ * unicode-range: U+0000-04FF
+ *   Fraunces covers Latin, Latin Extended, and Cyrillic ranges.
+ *   Limiting to U+0000-04FF prevents the browser from downloading
+ *   this display font for pages that only render CJK content.
+ *
+ * Fraunces is fully self-hosted from /public/fonts/.
+ * tests/helpers/fonts.ts explicitly loads it in headless browser runs where
+ * font-display: optional would otherwise keep the fallback face.
+ * When renaming or moving the Fraunces files, update all related paths.
  */
 
 @font-face {
   font-family: 'Fraunces';
-  src: url('/fonts/Fraunces-Variable.woff2') format('woff2') tech('variations');
+  src:
+    url('/fonts/Fraunces-Variable.woff2') format('woff2') tech('variations'),
+    url('/fonts/Fraunces-Variable.ttf') format('truetype') tech('variations');
   font-weight: 100 900;
   font-style: normal;
   font-display: optional;
@@ -25,7 +39,9 @@
 
 @font-face {
   font-family: 'Fraunces';
-  src: url('/fonts/Fraunces-Italic-Variable.woff2') format('woff2') tech('variations');
+  src:
+    url('/fonts/Fraunces-Italic-Variable.woff2') format('woff2') tech('variations'),
+    url('/fonts/Fraunces-Italic-Variable.ttf') format('truetype') tech('variations');
   font-weight: 100 900;
   font-style: italic;
   font-display: optional;

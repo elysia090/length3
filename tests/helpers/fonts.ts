@@ -14,8 +14,8 @@ import { FRAUNCES_ITALIC_WOFF2, FRAUNCES_WOFF2 } from '../../src/lib/fontConfig'
  *   3. Forcing a style recalculation so text re-renders with the loaded fonts
  *
  * Font paths come from src/lib/fontConfig.ts — single source of truth.
- * We still cap the wait at 3 s so headless runs never stall if the browser
- * keeps any font loads pending.
+ * Noto Sans JP still comes from Google Fonts in BaseLayout, so we wait up to
+ * 3 s for it but never stall CI when the network is unavailable.
  */
 export async function gotoWithFonts(page: Page, url: string): Promise<void> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -31,7 +31,7 @@ export async function gotoWithFonts(page: Page, url: string): Promise<void> {
           document.fonts.add(ff);
         }),
       );
-      // Cap font readiness waits so CI never stalls on pending browser font work.
+      // Wait for Google Fonts (Noto Sans JP) with a cap so CI never stalls.
       await Promise.race([
         document.fonts.ready,
         new Promise<void>((resolve) => setTimeout(resolve, 3000)),

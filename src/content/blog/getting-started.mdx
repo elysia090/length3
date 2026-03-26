@@ -177,7 +177,7 @@ Search is powered by [Pagefind](https://pagefind.app/), a static-site search lib
 The build pipeline:
 
 1. `astro build` generates the static HTML output in `dist/`
-2. `astro-pagefind` emits the search index during `astro build`, so the deploy only ships the assets the worker actually serves
+2. `postbuild` runs `pagefind --site dist`, which crawls the HTML, indexes every `data-pagefind-body` element, and emits a binary search index alongside the static files
 3. On the client, Pagefind's WASM engine loads the index from the same CDN edge node that serves the page — zero extra round-trips
 
 The article body is annotated `data-pagefind-body` in `ArticleLayout.astro`:
@@ -299,9 +299,9 @@ vite: {
 GitHub Actions runs two workflows:
 
 - **`ci.yml`** — on every push and PR: `astro check`, `biome check`, `vitest run`, `playwright test`
-- **`deploy.yml`** — on push to `main`: `astro build` → `wrangler deploy`
+- **`deploy.yml`** — on push to `main`: `astro build` → `pagefind --site dist` → `wrangler deploy`
 
-The Pagefind index is generated as part of the Astro build itself, which keeps deploy output limited to the assets bound to the Cloudflare worker.
+The `postbuild` npm script ensures the Pagefind index is always generated immediately after the Astro build, keeping the deploy pipeline simple.
 
 ## Design Principles
 

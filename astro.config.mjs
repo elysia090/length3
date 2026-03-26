@@ -6,7 +6,9 @@ import pagefind from 'astro-pagefind';
 
 export default defineConfig({
   output: 'static',
-  adapter: cloudflare(),
+  adapter: cloudflare({
+    imageService: 'compile',
+  }),
 
   site: 'https://length3.pages.dev',
 
@@ -26,6 +28,12 @@ export default defineConfig({
     rehypePlugins: [],
   },
 
+  image: {
+    service: {
+      entrypoint: 'astro/assets/services/compile',
+    },
+  },
+
   vite: {
     ssr: {
       target: 'webworker',
@@ -40,6 +48,7 @@ export default defineConfig({
 
   build: {
     format: 'file',
+    concurrency: 4,
   },
 
   trailingSlash: 'never',

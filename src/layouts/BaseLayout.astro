@@ -29,6 +29,7 @@ import '../styles/typography.css';
     <meta property="og:url" content={Astro.url.href} />
   </head>
   <body>
+    <!-- SC 2.4.1: skip link — first focusable element, targets #main-content on each page -->
     <a href="#main-content" class="skip-link">Skip to main content</a>
     <slot />
   </body>

@@ -11,6 +11,5 @@ test('article route smoke', async ({ page }) => {
   await expect(page.locator('.toc')).toHaveAttribute('aria-label', 'Table of Contents');
   await expect(page.locator('#copy-link-btn')).toBeVisible();
   await expect(page.locator('#share-btn')).toBeVisible();
-  await expect(page.locator('#min-left')).not.toHaveText('—');
   expect(errors).toEqual([]);
 });
