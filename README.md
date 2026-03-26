@@ -1,4 +1,4 @@
-# length3
+# Length³
 
 Technical blog built with Astro 6, MDX, and Cloudflare Workers.
 
