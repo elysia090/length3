@@ -38,6 +38,7 @@
               dbus
               expat
               glib
+              libgbm
               libdrm
               libxkbcommon
               mesa
