@@ -1,17 +1,15 @@
 ---
 export const prerender = true;
 
-import { getCollection, render } from 'astro:content';
+import { render } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
 import type { BlogPost } from '../lib/types';
-import { buildTagResolver, processPost, toSlug, notDraft } from '../lib/utils';
-
-const allPosts = await getCollection('blog', notDraft);
-const tagResolver = buildTagResolver(allPosts);
+import { getBlogIndex } from '../lib/blog-index';
+import { toSlug } from '../lib/utils';
 
 export const getStaticPaths = (async () => {
-  const posts = await getCollection('blog', notDraft);
+  const { posts } = await getBlogIndex();
   return posts.map((entry) => ({
     params: { slug: toSlug(entry.id) },
     props: { entry },
@@ -19,8 +17,13 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 const { entry } = Astro.props as { entry: BlogPost };
+const { processedPostsById } = await getBlogIndex();
 const { Content, headings } = await render(entry);
-const processed = processPost(entry, tagResolver);
+const processed = processedPostsById.get(entry.id);
+
+if (!processed) {
+  throw new Error(`Missing processed post for "${entry.id}".`);
+}
 ---
 
 <ArticleLayout
