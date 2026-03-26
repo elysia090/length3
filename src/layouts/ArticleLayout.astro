@@ -1,19 +1,19 @@
 ---
-import type { TocHeading } from '../lib/types';
+import type { TagLink, TocHeading } from '../lib/types';
 import BaseLayout from './BaseLayout.astro';
 import TableOfContents from '../components/TableOfContents.astro';
 import ArticleActions from '../components/ArticleActions.astro';
 import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { formatDate, getTagUrl } from '../lib/utils';
+import { formatDate } from '../lib/utils';
 
 interface Props {
   title: string;
   description?: string;
   publishDate: Date;
   updatedDate?: Date;
-  tags: string[];
+  tags: TagLink[];
   readingTime: number;
   headings: TocHeading[];
   lang?: 'en' | 'ja';
@@ -60,8 +60,8 @@ const dateStr = formatDate(publishDate, lang);
                 <ul class="article-header-tags tag-pill-list" aria-label="Tags">
                   {tags.map((tag) => (
                     <li>
-                      <a href={getTagUrl(tag)} class="article-header-tag tag-pill">
-                        #{tag}
+                      <a href={tag.href} class="article-header-tag tag-pill">
+                        #{tag.name}
                       </a>
                     </li>
                   ))}

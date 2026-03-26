@@ -8,19 +8,20 @@ import ArticleCard from '../components/ArticleCard.astro';
 import Sidebar from '../components/Sidebar.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { buildTagIndex, getTagUrl, processPost, notDraft } from '../lib/utils';
+import { buildTagResolver, getTagUrl, processPost, notDraft } from '../lib/utils';
 
 const allPosts = await getCollection('blog', notDraft);
 allPosts.sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());
 
-const processed: ProcessedPost[] = allPosts.map(processPost);
-const { bySlug, names } = buildTagIndex(allPosts);
-const topics = [...bySlug.entries()]
-  .sort(([, a], [, b]) => b.length - a.length)
-  .map(([slug, tagPosts]) => {
-    const name = names.get(slug) ?? slug;
-    return { count: tagPosts.length, href: getTagUrl(name), name };
-  });
+const tagResolver = buildTagResolver(allPosts);
+const processed: ProcessedPost[] = allPosts.map((post) => processPost(post, tagResolver));
+const topics = [...tagResolver.routes()]
+  .sort((a, b) => b.posts.length - a.posts.length)
+  .map((route) => ({
+    count: route.posts.length,
+    href: getTagUrl(route.canonicalSlug),
+    name: route.name,
+  }));
 ---
 
 <BaseLayout title="Length³" description="A technical blog.">

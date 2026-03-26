@@ -47,25 +47,19 @@ const { topics } = Astro.props;
   }
 </aside>
 
-<!-- Search modal — spec §4 — native <dialog> for built-in focus trap, Escape, and backdrop -->
+<!-- Search modal — native <dialog> keeps focus trapping and Escape behaviour built in -->
 <dialog id="search-modal" class="search-overlay" aria-label="Search">
   <div class="search-card">
-    <div class="search-input-row">
+    <div class="search-card-header">
       <span class="search-q" aria-hidden="true">Q</span>
-      <input
-        id="pagefind-input"
-        type="search"
-        class="search-field"
-        name="search"
-        placeholder="Search articles…"
-        autocomplete="off"
-        aria-label="Search articles"
-      />
-      <button class="search-esc-btn" id="search-close" aria-label="Close search">esc</button>
+      <p class="search-title">Search</p>
+      <button class="search-esc-btn" id="search-close" aria-label="Close search" autofocus>
+        esc
+      </button>
     </div>
     <p id="search-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
     <div
-      id="pagefind-results"
+      id="pagefind-ui"
       class="search-results"
       role="region"
       aria-label="Search results"
@@ -82,146 +76,45 @@ const { topics } = Astro.props;
 </dialog>
 
 <script>
+  import {
+    createBrowserSearchBootstrapDeps,
+    createPagefindSearchController,
+  } from '../lib/pagefind-search';
+  import { createSearchModalController } from '../lib/search-modal';
+
   const trigger = document.getElementById('search-trigger') as HTMLButtonElement | null;
   const modal = document.getElementById('search-modal') as HTMLDialogElement | null;
   const closeBtn = document.getElementById('search-close') as HTMLButtonElement | null;
-  const results = document.getElementById('pagefind-results') as HTMLDivElement | null;
-  const status = document.getElementById('search-status') as HTMLParagraphElement | null;
-  let initialized = false;
-  let statusObserver: MutationObserver | null = null;
-  let statusFrame = 0;
-  let lastStatus = '';
+  const pagefindMount = document.getElementById('pagefind-ui');
+  const status = document.getElementById('search-status');
 
-  function setSearchStatus(message: string) {
-    if (!status) return;
-    const next = message.trim();
-    if (next === lastStatus) return;
-    status.textContent = next;
-    lastStatus = next;
-  }
+  if (
+    trigger &&
+    modal &&
+    closeBtn &&
+    pagefindMount instanceof HTMLElement &&
+    status instanceof HTMLElement
+  ) {
+    const searchController = createPagefindSearchController(
+      {
+        mount: pagefindMount,
+        mountSelector: '#pagefind-ui',
+        status,
+      },
+      createBrowserSearchBootstrapDeps({
+        browserWindow: window,
+        isDev: import.meta.env.DEV,
+      }),
+    );
 
-  function summarizeSearchResults() {
-    if (!results) return '';
-
-    const loading = results.querySelector<HTMLElement>('.search-loading')?.textContent?.trim();
-    if (loading) return loading;
-
-    const unavailable = results
-      .querySelector<HTMLElement>('.search-unavailable')
-      ?.textContent?.trim();
-    if (unavailable) return unavailable;
-
-    const resultCount = results.querySelectorAll('.pagefind-ui__result').length;
-    if (resultCount > 0) {
-      return `${resultCount} search result${resultCount === 1 ? '' : 's'} available.`;
-    }
-
-    const message = results
-      .querySelector<HTMLElement>(
-        '.pagefind-ui__message, .pagefind-ui__results-message, .pagefind-ui__result-message',
-      )
-      ?.textContent?.trim();
-    return message ?? '';
-  }
-
-  function syncSearchStatus() {
-    setSearchStatus(summarizeSearchResults());
-  }
-
-  function scheduleStatusSync() {
-    if (statusFrame) cancelAnimationFrame(statusFrame);
-    statusFrame = requestAnimationFrame(() => {
-      statusFrame = 0;
-      syncSearchStatus();
+    createSearchModalController({
+      closeButton: closeBtn,
+      document,
+      modal,
+      onOpenSearch: () => searchController.open(),
+      trigger,
     });
   }
-
-  function observeSearchStatus() {
-    if (!results || statusObserver) return;
-
-    statusObserver = new MutationObserver(() => {
-      scheduleStatusSync();
-    });
-    statusObserver.observe(results, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-    });
-  }
-
-  function setResultsBusy(isBusy: boolean) {
-    results?.setAttribute('aria-busy', String(isBusy));
-  }
-
-  function resetSearchStatus() {
-    lastStatus = '';
-    if (status) status.textContent = '';
-  }
-
-  async function initSearch() {
-    if (initialized) return;
-    initialized = true;
-    observeSearchStatus();
-    setResultsBusy(true);
-    if (results) results.innerHTML = '<p class="search-loading">Loading…</p>';
-    syncSearchStatus();
-    try {
-      const pagefindSrc = `${location.origin}/pagefind/pagefind-ui.js`;
-      const { PagefindUI } = await import(/* @vite-ignore */ pagefindSrc);
-      new PagefindUI({ element: '#pagefind-results', showImages: false, showSubResults: true });
-    } catch (err) {
-      // Pagefind index is only present after `astro build` — not in dev mode.
-      if (results)
-        results.innerHTML =
-          '<p class="search-unavailable">Search is available in the built site. Run pnpm build and pnpm preview to test it locally.</p>';
-    } finally {
-      setResultsBusy(false);
-      scheduleStatusSync();
-    }
-  }
-
-  function openSearch() {
-    if (!modal || !trigger) return;
-    trigger.setAttribute('aria-expanded', 'true');
-    modal.showModal();
-    resetSearchStatus();
-    initSearch();
-    document.getElementById('pagefind-input')?.focus();
-    scheduleStatusSync();
-  }
-
-  function closeSearch() {
-    if (!modal || !trigger) return;
-    modal.close();
-    trigger.setAttribute('aria-expanded', 'false');
-  }
-
-  trigger?.addEventListener('click', openSearch);
-  closeBtn?.addEventListener('click', closeSearch);
-
-  // Close on backdrop click (click outside .search-card)
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) modal.close();
-  });
-
-  // Sync aria-expanded when dialog closes (covers Escape key)
-  modal?.addEventListener('close', () => {
-    trigger?.setAttribute('aria-expanded', 'false');
-  });
-
-  // Open on '/' when no input is focused and modal is closed — spec §4
-  document.addEventListener('keydown', (e) => {
-    if (
-      e.key === '/' &&
-      !modal?.open &&
-      !(document.activeElement instanceof HTMLInputElement) &&
-      !(document.activeElement instanceof HTMLTextAreaElement)
-    ) {
-      e.preventDefault();
-      openSearch();
-    }
-  });
 </script>
 
 <style>
@@ -233,7 +126,6 @@ const { topics } = Astro.props;
     margin-bottom: 1.5rem;
   }
 
-  /* ── Search trigger ── */
   .search-underline-btn {
     display: flex;
     align-items: center;
@@ -260,15 +152,11 @@ const { topics } = Astro.props;
 
   .search-icon {
     font-weight: 500;
-    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
+    color: var(--amber-text);
     flex-shrink: 0;
   }
 
-  /* ── Search overlay — spec §4 ── */
-  /* No backdrop-filter blur — spec §4: "Blur is a visual effect that serves the
-     interface's aesthetics, not the reader's task." */
   .search-overlay {
-    /* Reset native <dialog> styles */
     border: none;
     padding: 0;
     background: transparent;
@@ -276,7 +164,6 @@ const { topics } = Astro.props;
     max-height: 100vh;
     width: 100%;
     height: 100%;
-    /* Position as full-screen overlay */
     position: fixed;
     inset: 0;
     align-items: flex-start;
@@ -285,7 +172,6 @@ const { topics } = Astro.props;
     overscroll-behavior: contain;
   }
 
-  /* Override UA display:none only when open */
   .search-overlay[open] {
     display: flex;
   }
@@ -303,7 +189,7 @@ const { topics } = Astro.props;
     box-shadow: var(--shadow-card);
   }
 
-  .search-input-row {
+  .search-card-header {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -311,39 +197,32 @@ const { topics } = Astro.props;
     border-bottom: 1px solid var(--rule);
   }
 
+  .search-title {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
   .search-q {
     font-family: var(--font-mono);
     font-size: 1rem;
     font-weight: 500;
-    color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
+    color: var(--amber-text);
     flex-shrink: 0;
   }
 
-  /* spec §4: search input uses Fraunces — "feels like composing a thought" */
-  .search-field {
-    flex: 1;
-    border: none;
-    background: none;
-    font-family: var(--font-display);
-    font-size: 1rem;
-    color: var(--ink);
-    /* outline preserved for :focus-visible — WCAG 2.4.7 */
-  }
-
-  .search-field::placeholder {
-    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at 14px */
-    font-family: var(--font-mono);
-    font-size: 0.875rem;
-  }
-
   .search-esc-btn {
+    margin-left: auto;
     font-family: var(--font-mono);
     font-size: var(--font-ui-xs);
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--rule);
     border-radius: 2px;
     background: var(--bg-2);
-    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA at 11px */
+    color: var(--ink-2);
     cursor: pointer;
     flex-shrink: 0;
     transition: color var(--transition-fast);
@@ -355,13 +234,8 @@ const { topics } = Astro.props;
 
   .search-results {
     min-height: 3rem;
-    max-height: 60vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 0.5rem 0;
   }
 
-  /* spec §4: footer — keyboard guide only, right-aligned "Pagefind" */
   .search-footer {
     display: flex;
     align-items: center;
@@ -373,15 +247,15 @@ const { topics } = Astro.props;
 
   .search-hint {
     font-family: var(--font-mono);
-    font-size: 0.75rem; /* bumped from 0.7rem for readability */
-    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA */
+    font-size: 0.75rem;
+    color: var(--ink-2);
   }
 
   .search-powered {
     margin-left: auto;
     font-family: var(--font-mono);
-    font-size: 0.75rem; /* bumped from 0.7rem for readability */
-    color: var(--ink-2); /* upgraded from Ink-3 for WCAG AA */
+    font-size: 0.75rem;
+    color: var(--ink-2);
   }
 
   .search-shortcut {
@@ -452,41 +326,105 @@ const { topics } = Astro.props;
     font-size: 0.75rem;
   }
 
-  /* Search unavailable / loading messages — injected dynamically */
   :global(.search-unavailable),
-  :global(.search-loading) {
+  :global(.search-loading),
+  :global(.search-error) {
     padding: 1rem;
     font-size: 0.875rem;
     color: var(--ink-2);
   }
 
-  /* Pagefind result overrides — spec §4 */
+  :global(#pagefind-ui .pagefind-ui__form) {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  :global(#pagefind-ui .pagefind-ui__form::before) {
+    display: none;
+  }
+
+  :global(#pagefind-ui .pagefind-ui__search-input) {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: none;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    color: var(--ink);
+  }
+
+  :global(#pagefind-ui .pagefind-ui__search-input::placeholder) {
+    color: var(--ink-2);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+  }
+
+  :global(#pagefind-ui .pagefind-ui__search-clear) {
+    font-family: var(--font-mono);
+    font-size: var(--font-ui-xs);
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--bg-2);
+    color: var(--ink-2);
+  }
+
+  :global(#pagefind-ui .pagefind-ui__search-clear:hover) {
+    color: var(--ink);
+  }
+
+  :global(#pagefind-ui .pagefind-ui__drawer) {
+    max-height: 60vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.5rem 0;
+  }
+
+  :global(#pagefind-ui .pagefind-ui__message) {
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: var(--ink-2);
+  }
+
+  :global(#pagefind-ui .pagefind-ui__results) {
+    margin: 0;
+    padding: 0;
+  }
+
   :global(.pagefind-ui__result) {
     padding: 0.625rem 1rem;
     border-bottom: 1px solid var(--rule);
     border-left: 2px solid transparent;
   }
+
   :global(.pagefind-ui__result:last-child) {
     border-bottom: none;
   }
+
   :global(.pagefind-ui__result:focus-within),
   :global(.pagefind-ui__result[aria-selected='true']) {
-    border-left-color: var(--amber-text); /* SC 1.4.11: UI state indicator needs 3:1 */
+    border-left-color: var(--amber-text);
     background: var(--bg-2);
   }
+
   :global(.pagefind-ui__result-title) {
     font-family: var(--font-display);
     font-size: 0.9375rem;
     color: var(--ink);
   }
+
   :global(.pagefind-ui__result-excerpt) {
     font-size: 0.8125rem;
     color: var(--ink-2);
     margin-top: 0.25rem;
   }
+
   :global(mark) {
     background: none;
-    color: var(--amber-text); /* SC 1.4.3: search highlight text needs 4.5:1 */
+    color: var(--amber-text);
     font-style: italic;
   }
 </style>

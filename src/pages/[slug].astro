@@ -4,7 +4,11 @@ export const prerender = true;
 import { getCollection, render } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
-import { toSlug, estimateReadingTime, notDraft } from '../lib/utils';
+import type { BlogPost } from '../lib/types';
+import { buildTagResolver, processPost, toSlug, notDraft } from '../lib/utils';
+
+const allPosts = await getCollection('blog', notDraft);
+const tagResolver = buildTagResolver(allPosts);
 
 export const getStaticPaths = (async () => {
   const posts = await getCollection('blog', notDraft);
@@ -14,10 +18,9 @@ export const getStaticPaths = (async () => {
   }));
 }) satisfies GetStaticPaths;
 
-const { entry } = Astro.props;
+const { entry } = Astro.props as { entry: BlogPost };
 const { Content, headings } = await render(entry);
-
-const readingTime = estimateReadingTime(entry.body ?? '');
+const processed = processPost(entry, tagResolver);
 ---
 
 <ArticleLayout
@@ -25,8 +28,8 @@ const readingTime = estimateReadingTime(entry.body ?? '');
   description={entry.data.description}
   publishDate={entry.data.publishDate}
   updatedDate={entry.data.updatedDate}
-  tags={entry.data.tags}
-  readingTime={readingTime}
+  tags={processed.tags}
+  readingTime={processed.readingTime}
   headings={headings}
   lang={entry.data.lang}
 >

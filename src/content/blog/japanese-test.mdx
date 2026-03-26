@@ -38,7 +38,7 @@ Linux・Android 環境ではこれらが不在のため `Noto Sans JP` にフォ
              'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
 ```
 
-`Noto Sans JP` を先頭に置くことで、Google Fonts からロードできる環境では常に日本語最適化グリフが使われる。
+`Noto Sans JP` を先頭に置くことで、そのフォントがローカルに存在する環境では日本語最適化グリフを優先して使える。
 `system-ui` より前に日本語フォントを列挙しているのは、`system-ui` がプラットフォームの UI フォントを指し、CJK グリフを持たない場合があるためだ。
 
 ### グリフ選択と `lang` とフォントスタック

@@ -27,109 +27,25 @@ const filtered = headings.filter((h) => h.depth === 2 || h.depth === 3);
 }
 
 <script>
-  const tocNav = document.querySelector<HTMLElement>('.toc');
-  const links = document.querySelectorAll<HTMLAnchorElement>('.toc-link');
-  const headingEls = document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]');
+  import { createTableOfContentsController } from '../lib/toc-controller';
 
-  function focusHeadingTarget(target: HTMLElement) {
-    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
-    target.focus({ preventScroll: true });
-  }
-
-  // ── Active section tracking ──────────────────────────────────
-  if (links.length > 0 && headingEls.length > 0) {
-    // Map heading id → link for O(1) lookup instead of scanning all links per entry
-    const linkByHeadingId = new Map<string, HTMLAnchorElement>();
-    for (const link of links) {
-      const id = link.getAttribute('href')?.slice(1);
-      if (id) linkByHeadingId.set(id, link);
-    }
-
-    let activeLink: HTMLAnchorElement | null = null;
-    const intersecting = new Set<string>();
-
-    const sectionObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            intersecting.add(entry.target.id);
-          } else {
-            intersecting.delete(entry.target.id);
-          }
-        }
-        // Pick the topmost intersecting heading in document order
-        let next: HTMLAnchorElement | null = null;
-        for (const el of headingEls) {
-          if (intersecting.has(el.id)) {
-            next = linkByHeadingId.get(el.id) ?? null;
-            break;
-          }
-        }
-        if (next !== activeLink) {
-          activeLink?.classList.remove('active');
-          next?.classList.add('active');
-          activeLink = next;
-        }
+  createTableOfContentsController(
+    {
+      articleBody: document.querySelector<HTMLElement>('article[data-pagefind-body]'),
+      headingEls: [...document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]')],
+      links: [...document.querySelectorAll<HTMLAnchorElement>('.toc-link')],
+      tocNav: document.querySelector<HTMLElement>('.toc'),
+    },
+    {
+      createObserver: (callback, options) => new IntersectionObserver(callback, options),
+      onFirstScroll: (listener) => {
+        window.addEventListener('scroll', listener, { once: true, passive: true });
+        return () => window.removeEventListener('scroll', listener);
       },
-      // -55%: heading must be in the top 45% of the viewport to be "active"
-      { rootMargin: '0px 0px -55% 0px', threshold: 0 },
-    );
-    for (const el of headingEls) sectionObserver.observe(el);
-  }
-
-  // ── TOC fade-out when article body ends — spec §4 ────────────
-  // "When the reader scrolls past the bottom of the article body, the TOC fades
-  //  to opacity: 0 over 200ms and receives pointer-events: none + visibility: hidden"
-  if (tocNav) {
-    const articleBody = document.querySelector<HTMLElement>('article[data-pagefind-body]');
-    if (articleBody) {
-      // Sentinel element placed at the end of the article
-      const sentinel = document.createElement('div');
-      sentinel.setAttribute('aria-hidden', 'true');
-      articleBody.appendChild(sentinel);
-
-      // Guard: don't respond to the initial IntersectionObserver callback that
-      // fires synchronously on observe() — only act after the user has scrolled.
-      // Without this, hash-navigation page loads (e.g. #section-3) can trigger
-      // the fade immediately before the reader has seen anything.
-      let userHasScrolled = false;
-      window.addEventListener(
-        'scroll',
-        () => {
-          userHasScrolled = true;
-        },
-        { once: true, passive: true },
-      );
-
-      const fadeObserver = new IntersectionObserver(
-        ([entry]) => {
-          if (!userHasScrolled) return;
-          // Sentinel scrolled above viewport → article body is done
-          const past = Boolean(entry && !entry.isIntersecting && entry.boundingClientRect.top < 0);
-          tocNav.classList.toggle('toc--hidden', past);
-        },
-        { threshold: 0 },
-      );
-      fadeObserver.observe(sentinel);
-    }
-  }
-
-  // ── Smooth scroll on TOC link click — spec §5 ────────────────
-  for (const link of links) {
-    link.addEventListener('click', (e) => {
-      const href = link.getAttribute('href');
-      if (!href) return;
-      const target = document.querySelector<HTMLElement>(href);
-      if (!target) return;
-      e.preventDefault();
-      const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        ? 'auto'
-        : 'smooth';
-      target.scrollIntoView({ behavior });
-      focusHeadingTarget(target);
-      history.pushState(null, '', href);
-    });
-  }
+      prefersReducedMotion: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      pushHistoryHash: (href) => history.pushState(null, '', href),
+    },
+  );
 </script>
 
 <style>

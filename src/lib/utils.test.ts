@@ -1,8 +1,46 @@
 import { describe, expect, it } from 'vitest';
 import type { BlogPost } from './types';
-import { estimateReadingTime, formatDate, notDraft, processPost, tagToSlug, toSlug } from './utils';
+import {
+  buildTagResolver,
+  buildTagRoutes,
+  canonicalizeTagSlug,
+  estimateReadingTime,
+  formatDate,
+  notDraft,
+  processPost,
+  toSlug,
+} from './utils';
 
-// ── toSlug ───────────────────────────────────────────────────────
+function makeEntry({
+  body = '',
+  description = 'desc',
+  draft = false,
+  id = 'post.mdx',
+  lang = 'en',
+  tags = [] as string[],
+}: {
+  body?: string;
+  description?: string;
+  draft?: boolean;
+  id?: string;
+  lang?: 'en' | 'ja';
+  tags?: string[];
+} = {}): BlogPost {
+  return {
+    id,
+    body,
+    data: {
+      description,
+      draft,
+      lang,
+      publishDate: new Date('2026-03-20T00:00:00Z'),
+      tags,
+      title: 'Title',
+      updatedDate: undefined,
+    },
+  } as unknown as BlogPost;
+}
+
 describe('toSlug', () => {
   it('strips .mdx extension', () => {
     expect(toSlug('getting-started.mdx')).toBe('getting-started');
@@ -20,40 +58,77 @@ describe('toSlug', () => {
     expect(toSlug('no-extension')).toBe('no-extension');
   });
 
-  it('handles nested path IDs (Content Layer format)', () => {
+  it('handles nested path IDs', () => {
     expect(toSlug('2026/getting-started.mdx')).toBe('2026/getting-started');
   });
 });
 
-// ── tagToSlug ────────────────────────────────────────────────────
-describe('tagToSlug', () => {
-  it('lowercases ASCII tags', () => {
-    expect(tagToSlug('Astro')).toBe('astro');
+describe('canonicalizeTagSlug', () => {
+  it('normalizes whitespace and repeated hyphens', () => {
+    expect(canonicalizeTagSlug(' TypeScript / JS ')).toBe('typescript-js');
   });
 
-  it('replaces spaces with hyphens', () => {
-    expect(tagToSlug('machine learning')).toBe('machine-learning');
+  it('preserves CJK characters', () => {
+    expect(canonicalizeTagSlug('機械学習')).toBe('機械学習');
   });
 
-  it('strips non-alphanumeric ASCII symbols', () => {
-    expect(tagToSlug('C++')).toBe('c');
+  it('normalizes compatibility characters', () => {
+    expect(canonicalizeTagSlug('Ａstro')).toBe('astro');
   });
 
-  it('preserves CJK characters (prevents empty-slug bug)', () => {
-    expect(tagToSlug('機械学習')).toBe('機械学習');
-  });
-
-  it('handles mixed CJK and Latin', () => {
-    expect(tagToSlug('AI 機械学習')).toBe('ai-機械学習');
-  });
-
-  it('strips leading/trailing hyphens from punctuation-only boundaries', () => {
-    // punctuation that maps to "-" should not produce stray hyphens
-    expect(tagToSlug('typescript')).toBe('typescript');
+  it('falls back to a stable hash when the slug would be empty', () => {
+    expect(canonicalizeTagSlug('!!!')).toMatch(/^tag-[0-9a-f]{8}$/);
   });
 });
 
-// ── estimateReadingTime ──────────────────────────────────────────
+describe('buildTagRoutes', () => {
+  it('emits canonical routes only', () => {
+    const routes = buildTagRoutes([makeEntry({ id: 'one.mdx', tags: ['TypeScript / JS'] })]);
+    expect(routes).toEqual([
+      {
+        canonicalSlug: 'typescript-js',
+        name: 'TypeScript / JS',
+        posts: [expect.objectContaining({ id: 'one.mdx' })],
+      },
+    ]);
+  });
+
+  it('keeps empty slugs routable', () => {
+    const routes = buildTagRoutes([makeEntry({ id: 'one.mdx', tags: ['!!!'] })]);
+    expect(routes[0]?.canonicalSlug).toMatch(/^tag-[0-9a-f]{8}$/);
+  });
+
+  it('is stable regardless of post order when canonical bases collide', () => {
+    const first = buildTagRoutes([
+      makeEntry({ id: 'one.mdx', tags: ['foo-bar'] }),
+      makeEntry({ id: 'two.mdx', tags: ['foo--bar'] }),
+    ]).map(({ canonicalSlug, name }) => [name, canonicalSlug]);
+
+    const second = buildTagRoutes([
+      makeEntry({ id: 'two.mdx', tags: ['foo--bar'] }),
+      makeEntry({ id: 'one.mdx', tags: ['foo-bar'] }),
+    ]).map(({ canonicalSlug, name }) => [name, canonicalSlug]);
+
+    expect(first).toEqual(second);
+    expect(new Set(first.map(([, canonicalSlug]) => canonicalSlug)).size).toBe(2);
+  });
+});
+
+describe('buildTagResolver', () => {
+  it('resolves every tag to its canonical URL', () => {
+    const resolver = buildTagResolver([makeEntry({ id: 'one.mdx', tags: ['TypeScript / JS'] })]);
+    expect(resolver.linkFor('TypeScript / JS')).toEqual({
+      href: '/tags/typescript-js',
+      name: 'TypeScript / JS',
+    });
+  });
+
+  it('throws when a tag is not part of the routing model', () => {
+    const resolver = buildTagResolver([makeEntry({ id: 'one.mdx', tags: ['astro'] })]);
+    expect(() => resolver.linkFor('missing')).toThrow('Unknown tag "missing".');
+  });
+});
+
 describe('estimateReadingTime', () => {
   it('returns at least 1 for any input', () => {
     expect(estimateReadingTime('')).toBe(1);
@@ -77,13 +152,21 @@ describe('estimateReadingTime', () => {
   });
 
   it('mixed CJK + Latin accumulates both rates', () => {
-    // 200 CJK (0.5 min) + 100 Latin words (0.5 min) = ceil(1.0) = 1
     const text = `${'漢'.repeat(200)} ${'word '.repeat(100).trim()}`;
     expect(estimateReadingTime(text)).toBe(1);
   });
+
+  it('multiple blank lines do not inflate word count', () => {
+    const words = Array.from({ length: 200 }, () => 'word').join('\n\n');
+    expect(estimateReadingTime(words)).toBe(1);
+  });
+
+  it('counts non-CJK tokens in code blocks the same way as prose tokens', () => {
+    const text = `${'word '.repeat(100)}\n\n\`\`\`\ncode here\n\`\`\`\n\n${'word '.repeat(100)}`;
+    expect(estimateReadingTime(text)).toBeGreaterThanOrEqual(1);
+  });
 });
 
-// ── formatDate ───────────────────────────────────────────────────
 describe('formatDate', () => {
   const dateOnlyValue = new Date('2026-03-20');
   const explicitUtcValue = new Date('2026-03-20T18:30:00Z');
@@ -105,73 +188,43 @@ describe('formatDate', () => {
   });
 });
 
-// ── notDraft ─────────────────────────────────────────────────────
 describe('notDraft', () => {
-  const makeEntry = (draft: boolean) => ({ data: { draft } }) as unknown as BlogPost;
-
   it('returns true for published posts', () => {
-    expect(notDraft(makeEntry(false))).toBe(true);
+    expect(notDraft(makeEntry({ draft: false }))).toBe(true);
   });
 
   it('returns false for draft posts', () => {
-    expect(notDraft(makeEntry(true))).toBe(false);
+    expect(notDraft(makeEntry({ draft: true }))).toBe(false);
   });
 });
 
-// ── processPost ──────────────────────────────────────────────────
 describe('processPost', () => {
-  const makeEntry = (id: string, body: string, description: string) =>
-    ({ id, body, data: { description, draft: false } }) as unknown as BlogPost;
-
   it('derives slug from entry id', () => {
-    const result = processPost(makeEntry('hello.mdx', '', 'desc'));
+    const entry = makeEntry({ id: 'hello.mdx', tags: ['astro'] });
+    const result = processPost(entry, buildTagResolver([entry]));
     expect(result.slug).toBe('hello');
   });
 
   it('sets description from data.description', () => {
-    const result = processPost(makeEntry('hello.mdx', '', 'My excerpt'));
+    const entry = makeEntry({ description: 'My excerpt', tags: ['astro'] });
+    const result = processPost(entry, buildTagResolver([entry]));
     expect(result.description).toBe('My excerpt');
   });
 
+  it('maps tags to canonical hrefs through the resolver', () => {
+    const entry = makeEntry({ tags: ['TypeScript / JS'] });
+    const result = processPost(entry, buildTagResolver([entry]));
+    expect(result.tags).toEqual([{ href: '/tags/typescript-js', name: 'TypeScript / JS' }]);
+  });
+
   it('readingTime is at least 1', () => {
-    const result = processPost(makeEntry('hello.mdx', '', 'desc'));
+    const entry = makeEntry({ tags: ['astro'] });
+    const result = processPost(entry, buildTagResolver([entry]));
     expect(result.readingTime).toBeGreaterThanOrEqual(1);
   });
 
   it('preserves the original entry reference', () => {
-    const entry = makeEntry('hello.mdx', 'body text', 'desc');
-    expect(processPost(entry).entry).toBe(entry);
-  });
-});
-
-// ── tagToSlug edge cases ─────────────────────────────────────────
-describe('tagToSlug edge cases', () => {
-  it('strips leading/trailing hyphens produced by punctuation', () => {
-    // '@astro' → strip '@' → 'astro' (no leading hyphen)
-    expect(tagToSlug('@astro')).toBe('astro');
-  });
-
-  it('Node.js loses the dot and produces no trailing hyphen', () => {
-    expect(tagToSlug('Node.js')).toBe('nodejs');
-  });
-
-  it('all-punctuation tag produces empty string', () => {
-    expect(tagToSlug('!!!')).toBe('');
-  });
-});
-
-// ── estimateReadingTime edge cases ───────────────────────────────
-describe('estimateReadingTime edge cases', () => {
-  it('multiple blank lines do not inflate word count', () => {
-    // 200 real words separated by blank lines should still be 1 min
-    const words = Array.from({ length: 200 }, () => 'word').join('\n\n');
-    expect(estimateReadingTime(words)).toBe(1);
-  });
-
-  it('mixed content with code block does not produce more than expected', () => {
-    // 100 words + code block with blank lines
-    const text = `${'word '.repeat(100)}\n\n\`\`\`\ncode here\n\`\`\`\n\n${'word '.repeat(100)}`;
-    // 200 real words + a few code tokens = ceil(≈1 min) = 1 min
-    expect(estimateReadingTime(text)).toBeGreaterThanOrEqual(1);
+    const entry = makeEntry({ body: 'body text', tags: ['astro'] });
+    expect(processPost(entry, buildTagResolver([entry])).entry).toBe(entry);
   });
 });
