@@ -1,9 +1,32 @@
 # Contributing
 
-## Prerequisites
+## Recommended setup
+
+Use the Nix development shell when possible. It provides the required runtime
+and keeps Node, pnpm, Playwright browser downloads, and font tooling out of the
+global environment.
+
+```sh
+XDG_CACHE_HOME=$PWD/.cache nix develop
+pnpm install
+pnpm exec playwright install chromium
+```
+
+The shell provides:
+
+- Node 22
+- `pnpm` via Corepack using the version pinned in `package.json`
+- Python 3 with `fonttools` and `brotli`
+
+Project-local caches are written to `.cache/` and `.pnpm-store/`. The
+`XDG_CACHE_HOME=$PWD/.cache` prefix also keeps Nix's eval/fetch cache out of
+`~/.cache/nix`.
+
+## Manual prerequisites
 
 - Node 22+
 - pnpm 9+
+- Python 3 with `fonttools` and `brotli` if you need to regenerate fonts
 
 ```sh
 pnpm install
@@ -66,7 +89,7 @@ title: Post title
 description: One-sentence summary shown on the index and in og:description.
 publishDate: 2025-01-01
 tags: [tag-one, tag-two]
-lang: en          # or ja
+lang: en # or ja
 draft: false
 ---
 ```
