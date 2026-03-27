@@ -55,70 +55,9 @@ const { readingTime } = Astro.props;
 </div>
 
 <script>
-  import { createArticleActionsController } from '../lib/article-actions';
+  import { initializeArticleActions } from '../lib/article-actions';
 
-  const container = document.querySelector<HTMLElement>('.article-actions');
-  const status = document.getElementById('article-action-status');
-  const copyButton = document.getElementById('copy-link-btn') as HTMLButtonElement | null;
-  const shareButton = document.getElementById('share-btn') as HTMLButtonElement | null;
-  const percentRead = document.getElementById('pct-read');
-  const minutesLeft = document.getElementById('min-left');
-  const progressBar = document.getElementById('reading-progress');
-  const copyLabel = copyButton?.querySelector<HTMLElement>('.action-label') ?? null;
-  const shareLabel = shareButton?.querySelector<HTMLElement>('.action-label') ?? null;
-
-  if (
-    container &&
-    status &&
-    copyButton &&
-    shareButton &&
-    copyLabel &&
-    shareLabel &&
-    percentRead &&
-    minutesLeft &&
-    progressBar
-  ) {
-    createArticleActionsController(
-      {
-        elements: {
-          copyButton,
-          copyLabel,
-          minutesLeft,
-          percentRead,
-          progressBar,
-          shareButton,
-          shareLabel,
-          status,
-        },
-        readingTime: Number(container.dataset.readingTime) || 5,
-      },
-      {
-        addScrollListener: (listener) => {
-          window.addEventListener('scroll', listener, { passive: true });
-          return () => window.removeEventListener('scroll', listener);
-        },
-        clipboardWriteText: (text) => {
-          const writeText = navigator.clipboard?.writeText?.bind(navigator.clipboard);
-          return writeText
-            ? writeText(text)
-            : Promise.reject(new Error('Clipboard API unavailable.'));
-        },
-        getDocumentTitle: () => document.title,
-        getLocationHref: () => window.location.href,
-        getScrollMetrics: () => ({
-          scrollHeight: document.body.scrollHeight,
-          scrollY: window.scrollY,
-          viewportHeight: window.innerHeight,
-        }),
-        requestFrame: (callback) => window.requestAnimationFrame(() => callback()),
-        setTimeout: (callback, ms) => window.setTimeout(callback, ms),
-        share: navigator.share
-          ? (data) => navigator.share!({ title: data.title, url: data.url })
-          : null,
-        warn: (scope, error) => console.warn(`[${scope}]`, error),
-      },
-    );
-  }
+  initializeArticleActions();
 </script>
 
 <style>

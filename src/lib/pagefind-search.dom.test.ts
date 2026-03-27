@@ -31,7 +31,6 @@ function createOptions(
     browserWindow: window,
     getPagefindUI: () => null,
     importPagefind: async () => {},
-    isPagefindAvailable: async () => true,
     logError: vi.fn(),
     mount: document.getElementById('pagefind-ui') as HTMLElement,
     mountSelector: '#pagefind-ui',
@@ -43,27 +42,7 @@ function createOptions(
 }
 
 describe('createPagefindSearchController', () => {
-  it('renders the unavailable state when the Pagefind asset probe fails', async () => {
-    const { mount, status } = createSearchDom();
-    const isPagefindAvailable = vi.fn(async () => false);
-    const controller = createPagefindSearchController(
-      createOptions({
-        isPagefindAvailable,
-        mount,
-        status,
-      }),
-    );
-
-    await expect(controller.open()).resolves.toEqual({
-      kind: 'unavailable',
-      message: searchUnavailableMessage,
-    });
-    expect(isPagefindAvailable).toHaveBeenCalledTimes(1);
-    expect(mount.textContent).toContain(searchUnavailableMessage);
-    expect(status.textContent).toBe(searchUnavailableMessage);
-  });
-
-  it('surfaces import failures as integration errors', async () => {
+  it('renders the unavailable state when importing Pagefind fails', async () => {
     const { mount, status } = createSearchDom();
     const logError = vi.fn();
     const controller = createPagefindSearchController(
@@ -78,12 +57,12 @@ describe('createPagefindSearchController', () => {
     );
 
     await expect(controller.open()).resolves.toEqual({
-      kind: 'error',
-      message: searchErrorMessage,
+      kind: 'unavailable',
+      message: searchUnavailableMessage,
     });
-    expect(logError).toHaveBeenCalledWith('module import', expect.any(Error));
-    expect(mount.textContent).toContain(searchErrorMessage);
-    expect(status.textContent).toBe(searchErrorMessage);
+    expect(logError).not.toHaveBeenCalled();
+    expect(mount.textContent).toContain(searchUnavailableMessage);
+    expect(status.textContent).toBe(searchUnavailableMessage);
   });
 
   it('surfaces missing global registration as an integration error', async () => {
@@ -186,8 +165,8 @@ describe('createPagefindSearchController', () => {
     );
 
     await expect(controller.open()).resolves.toEqual({
-      kind: 'error',
-      message: searchErrorMessage,
+      kind: 'unavailable',
+      message: searchUnavailableMessage,
     });
 
     shouldFail = false;

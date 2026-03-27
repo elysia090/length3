@@ -12,7 +12,8 @@ export interface ScrollMetrics {
   viewportHeight: number;
 }
 
-export interface ArticleActionsElements {
+interface ArticleActionsElements {
+  container: HTMLElement;
   copyButton: HTMLButtonElement;
   copyLabel: HTMLElement;
   minutesLeft: HTMLElement;
@@ -23,28 +24,6 @@ export interface ArticleActionsElements {
   status: HTMLElement;
 }
 
-export interface ArticleActionsDeps {
-  addScrollListener: (listener: () => void) => () => void;
-  clipboardWriteText: (text: string) => Promise<void>;
-  getDocumentTitle: () => string;
-  getLocationHref: () => string;
-  getScrollMetrics: () => ScrollMetrics;
-  requestFrame: (callback: () => void) => number;
-  setTimeout: (callback: () => void, ms: number) => number;
-  share: ((data: { title: string; url: string }) => Promise<void>) | null;
-  warn: (scope: string, error: unknown) => void;
-}
-
-interface ArticleActionsControllerOptions {
-  elements: ArticleActionsElements;
-  readingTime: number;
-}
-
-export interface ArticleActionsController {
-  destroy(): void;
-  updateReadingProgress(): void;
-}
-
 export const articleActionMessages = {
   copyFailure: 'Could not copy the link. Copy the URL from the address bar.',
   copySuccess: 'Link copied to clipboard.',
@@ -52,58 +31,64 @@ export const articleActionMessages = {
   shareSuccess: 'Share dialog completed.',
 } as const;
 
-export function createArticleActionsController(
-  { elements, readingTime }: ArticleActionsControllerOptions,
-  deps: ArticleActionsDeps,
-): ArticleActionsController {
+let cleanupArticleActions: (() => void) | null = null;
+
+export function initializeArticleActions() {
+  cleanupArticleActions?.();
+  cleanupArticleActions = null;
+
+  const elements = getArticleActionsElements(document);
+  if (!elements) {
+    return;
+  }
+
+  const readingTime = Number(elements.container.dataset.readingTime) || 5;
   let framePending = false;
 
   const onCopyClick = () => {
-    deps
-      .clipboardWriteText(deps.getLocationHref())
+    writeClipboardText(window.location.href)
       .then(() => {
-        flash(elements.copyLabel, 'Copied!', 'Copy link', deps);
-        announce(elements.status, articleActionMessages.copySuccess, deps);
+        flash(elements.copyLabel, 'Copied!', 'Copy link');
+        announce(elements.status, articleActionMessages.copySuccess);
       })
       .catch((error) => {
-        deps.warn('copy-link', error);
-        flash(elements.copyLabel, 'Failed', 'Copy link', deps);
-        announce(elements.status, articleActionMessages.copyFailure, deps);
+        warn('copy-link', error);
+        flash(elements.copyLabel, 'Failed', 'Copy link');
+        announce(elements.status, articleActionMessages.copyFailure);
       });
   };
 
   const onShareClick = () => {
-    if (deps.share) {
-      deps
-        .share({
-          title: deps.getDocumentTitle(),
-          url: deps.getLocationHref(),
-        })
+    const share = getShare();
+    if (share) {
+      share({
+        title: document.title,
+        url: window.location.href,
+      })
         .then(() => {
-          announce(elements.status, articleActionMessages.shareSuccess, deps);
+          announce(elements.status, articleActionMessages.shareSuccess);
         })
         .catch((error) => {
           if (error instanceof Error && error.name === 'AbortError') {
             return;
           }
 
-          deps.warn('share', error);
-          flash(elements.shareLabel, 'Failed', 'Share', deps);
-          announce(elements.status, articleActionMessages.shareFailure, deps);
+          warn('share', error);
+          flash(elements.shareLabel, 'Failed', 'Share');
+          announce(elements.status, articleActionMessages.shareFailure);
         });
       return;
     }
 
-    deps
-      .clipboardWriteText(deps.getLocationHref())
+    writeClipboardText(window.location.href)
       .then(() => {
-        flash(elements.shareLabel, 'Copied!', 'Share', deps);
-        announce(elements.status, articleActionMessages.copySuccess, deps);
+        flash(elements.shareLabel, 'Copied!', 'Share');
+        announce(elements.status, articleActionMessages.copySuccess);
       })
       .catch((error) => {
-        deps.warn('share-fallback', error);
-        flash(elements.shareLabel, 'Failed', 'Share', deps);
-        announce(elements.status, articleActionMessages.shareFailure, deps);
+        warn('share-fallback', error);
+        flash(elements.shareLabel, 'Failed', 'Share');
+        announce(elements.status, articleActionMessages.shareFailure);
       });
   };
 
@@ -111,35 +96,22 @@ export function createArticleActionsController(
     if (framePending) return;
 
     framePending = true;
-    deps.requestFrame(() => {
+    window.requestAnimationFrame(() => {
       framePending = false;
-      updateReadingProgress();
+      updateReadingProgress(elements, readingTime);
     });
   };
 
-  const removeScrollListener = deps.addScrollListener(onScroll);
+  window.addEventListener('scroll', onScroll, { passive: true });
   elements.copyButton.addEventListener('click', onCopyClick);
   elements.shareButton.addEventListener('click', onShareClick);
-  updateReadingProgress();
+  updateReadingProgress(elements, readingTime);
 
-  return {
-    destroy() {
-      removeScrollListener();
-      elements.copyButton.removeEventListener('click', onCopyClick);
-      elements.shareButton.removeEventListener('click', onShareClick);
-    },
-    updateReadingProgress,
+  cleanupArticleActions = () => {
+    window.removeEventListener('scroll', onScroll);
+    elements.copyButton.removeEventListener('click', onCopyClick);
+    elements.shareButton.removeEventListener('click', onShareClick);
   };
-
-  function updateReadingProgress() {
-    renderReadingProgress(
-      elements,
-      calculateReadingProgress({
-        ...deps.getScrollMetrics(),
-        readingTime,
-      }),
-    );
-  }
 }
 
 export function calculateReadingProgress({
@@ -164,25 +136,88 @@ export function calculateReadingProgress({
   };
 }
 
-function announce(
-  status: HTMLElement,
-  message: string,
-  deps: Pick<ArticleActionsDeps, 'requestFrame'>,
-) {
+function getArticleActionsElements(doc: Document): ArticleActionsElements | null {
+  const container = doc.querySelector<HTMLElement>('.article-actions');
+  const status = doc.getElementById('article-action-status');
+  const copyButton = doc.getElementById('copy-link-btn');
+  const shareButton = doc.getElementById('share-btn');
+  const percentRead = doc.getElementById('pct-read');
+  const minutesLeft = doc.getElementById('min-left');
+  const progressBar = doc.getElementById('reading-progress');
+
+  if (
+    !(container instanceof HTMLElement) ||
+    !(status instanceof HTMLElement) ||
+    !(copyButton instanceof HTMLButtonElement) ||
+    !(shareButton instanceof HTMLButtonElement) ||
+    !(percentRead instanceof HTMLElement) ||
+    !(minutesLeft instanceof HTMLElement) ||
+    !(progressBar instanceof HTMLElement)
+  ) {
+    return null;
+  }
+
+  const copyLabel = copyButton.querySelector<HTMLElement>('.action-label');
+  const shareLabel = shareButton.querySelector<HTMLElement>('.action-label');
+  if (!(copyLabel instanceof HTMLElement) || !(shareLabel instanceof HTMLElement)) {
+    return null;
+  }
+
+  return {
+    container,
+    copyButton,
+    copyLabel,
+    minutesLeft,
+    percentRead,
+    progressBar,
+    shareButton,
+    shareLabel,
+    status,
+  };
+}
+
+function updateReadingProgress(elements: ArticleActionsElements, readingTime: number) {
+  renderReadingProgress(
+    elements,
+    calculateReadingProgress({
+      ...getScrollMetrics(),
+      readingTime,
+    }),
+  );
+}
+
+function getScrollMetrics(): ScrollMetrics {
+  return {
+    scrollHeight: document.body.scrollHeight,
+    scrollY: window.scrollY,
+    viewportHeight: window.innerHeight,
+  };
+}
+
+function getShare() {
+  const share = navigator.share?.bind(navigator);
+  return typeof share === 'function' ? (data: { title: string; url: string }) => share(data) : null;
+}
+
+function writeClipboardText(text: string) {
+  const writeText = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+  return writeText ? writeText(text) : Promise.reject(new Error('Clipboard API unavailable.'));
+}
+
+function warn(scope: string, error: unknown) {
+  console.warn(`[${scope}]`, error);
+}
+
+function announce(status: HTMLElement, message: string) {
   status.textContent = '';
-  deps.requestFrame(() => {
+  window.requestAnimationFrame(() => {
     status.textContent = message;
   });
 }
 
-function flash(
-  label: HTMLElement,
-  temporaryText: string,
-  restoreText: string,
-  deps: Pick<ArticleActionsDeps, 'setTimeout'>,
-) {
+function flash(label: HTMLElement, temporaryText: string, restoreText: string) {
   label.textContent = temporaryText;
-  deps.setTimeout(() => {
+  window.setTimeout(() => {
     label.textContent = restoreText;
   }, 1500);
 }
