@@ -1,6 +1,7 @@
 ---
 import type { ProcessedPost } from '../lib/types';
 import { formatDate } from '../lib/utils';
+import { formatCompactReadingTime, getSiteCopy } from '../lib/ui-copy';
 
 interface Props {
   post: ProcessedPost;
@@ -11,6 +12,9 @@ const { entry, slug, readingTime, description, tags: tagLinks } = post;
 const { title, publishDate, lang } = entry.data;
 
 const dateStr = formatDate(publishDate, lang);
+const visibleTagLinks = tagLinks.slice(0, 4);
+const hiddenTagCount = Math.max(0, tagLinks.length - visibleTagLinks.length);
+const copy = getSiteCopy(lang);
 ---
 
 <!-- SC 3.1.2: lang attr ensures AT uses correct phonetic rules for card language -->
@@ -23,7 +27,7 @@ const dateStr = formatDate(publishDate, lang);
           <span class="card-meta-sep" aria-hidden="true">
             —
           </span>
-          <span class="card-reading-time">{readingTime} min</span>
+          <span class="card-reading-time">{formatCompactReadingTime(readingTime, lang)}</span>
         </>
       )
     }
@@ -33,15 +37,22 @@ const dateStr = formatDate(publishDate, lang);
   </h2>
   {description && <p class="card-excerpt">{description}</p>}
   {
-    tagLinks.length > 0 && (
-      <ul class="card-tags tag-pill-list" aria-label="Tags">
-        {tagLinks.map((tag) => (
+    visibleTagLinks.length > 0 && (
+      <ul class="card-tags tag-pill-list" aria-label={copy.tags}>
+        {visibleTagLinks.map((tag) => (
           <li>
             <a href={tag.href} class="card-tag tag-pill">
               #{tag.name}
             </a>
           </li>
         ))}
+        {hiddenTagCount > 0 && (
+          <li>
+            <span class="card-tag card-tag-overflow tag-pill tag-pill-overflow">
+              +{hiddenTagCount}
+            </span>
+          </li>
+        )}
       </ul>
     )
   }
@@ -50,8 +61,8 @@ const dateStr = formatDate(publishDate, lang);
 <style>
   /* Single-column card: date → title → description → tags */
   .article-card {
-    padding: 2rem 0;
-    border-bottom: 1px solid var(--rule);
+    padding: 1.7rem 0;
+    border-bottom: 0.0625rem solid var(--rule);
   }
 
   .article-card:first-child {
@@ -69,16 +80,16 @@ const dateStr = formatDate(publishDate, lang);
     flex-wrap: wrap;
     gap: 0.5rem;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-variant-numeric: tabular-nums;
     color: var(--ink-2);
-    margin-bottom: 0.25rem;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.4rem;
   }
 
   .card-date {
-    letter-spacing: 0.04em;
     color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
-    min-width: 10ch;
+    min-width: 9.5ch;
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -94,11 +105,11 @@ const dateStr = formatDate(publishDate, lang);
   /* Title — gravitational center, heaviest element */
   .card-title {
     font-family: var(--font-display);
-    font-size: 1.25rem; /* spec §4: 20px */
+    font-size: 1.2rem;
     font-weight: 400; /* spec §4 */
-    line-height: 1.4; /* spec §4 */
+    line-height: 1.32;
     letter-spacing: -0.015em;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.6rem;
     text-wrap: balance;
   }
 
@@ -108,15 +119,15 @@ const dateStr = formatDate(publishDate, lang);
   }
 
   .card-title a:hover {
-    color: var(--amber);
+    color: var(--amber-text);
   }
 
   /* Description — secondary, below title */
   .card-excerpt {
     font-size: 0.875rem;
-    line-height: 1.75;
+    line-height: 1.7;
     color: var(--ink-2);
-    margin-bottom: 1rem;
+    margin-bottom: 0.9rem;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -126,5 +137,47 @@ const dateStr = formatDate(publishDate, lang);
   /* Tags — bottom of card, bordered pills */
   .card-tags {
     margin: 0;
+    gap: 0.5rem;
+  }
+
+  .card-tag {
+    min-height: 1.5rem;
+    padding: 0.25rem 0.5rem;
+    border: 0.0625rem solid var(--rule);
+    border-radius: 0.125rem;
+    background: none;
+    box-shadow: none;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    letter-spacing: 0;
+    color: var(--amber-text);
+  }
+
+  .card-tag:hover,
+  .card-tag:active {
+    color: var(--amber-text);
+    border-color: var(--amber-text);
+    background: none;
+  }
+
+  .card-tag-overflow {
+    border-color: var(--rule);
+    color: var(--ink-2);
+  }
+
+  .card-tag-overflow:hover,
+  .card-tag-overflow:active {
+    border-color: var(--rule);
+    color: var(--ink-2);
+  }
+
+  @media (min-width: 40rem) {
+    .article-card {
+      padding: 2rem 0;
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+    }
   }
 </style>

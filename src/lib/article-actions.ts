@@ -1,3 +1,5 @@
+import { formatRemainingReadingTime, getSiteCopy } from './ui-copy';
+
 export interface ReadingProgressState {
   ariaValueNow: string;
   minutesLeft: number;
@@ -16,11 +18,16 @@ interface ArticleActionsElements {
   container: HTMLElement;
   copyButton: HTMLButtonElement;
   copyLabel: HTMLElement;
+  copyRestoreLabel: string;
+  copyTemporaryLabel: string;
+  failureTemporaryLabel: string;
+  language: 'en' | 'ja';
   minutesLeft: HTMLElement;
   percentRead: HTMLElement;
   progressBar: HTMLElement;
   shareButton: HTMLButtonElement;
   shareLabel: HTMLElement;
+  shareRestoreLabel: string;
   status: HTMLElement;
 }
 
@@ -43,18 +50,19 @@ export function initializeArticleActions() {
   }
 
   const readingTime = Number(elements.container.dataset.readingTime) || 5;
+  const copy = getSiteCopy(elements.language);
   let framePending = false;
 
   const onCopyClick = () => {
     writeClipboardText(window.location.href)
       .then(() => {
-        flash(elements.copyLabel, 'Copied!', 'Copy link');
-        announce(elements.status, articleActionMessages.copySuccess);
+        flash(elements.copyLabel, elements.copyTemporaryLabel, elements.copyRestoreLabel);
+        announce(elements.status, copy.copySuccess);
       })
       .catch((error) => {
         warn('copy-link', error);
-        flash(elements.copyLabel, 'Failed', 'Copy link');
-        announce(elements.status, articleActionMessages.copyFailure);
+        flash(elements.copyLabel, elements.failureTemporaryLabel, elements.copyRestoreLabel);
+        announce(elements.status, copy.copyFailure);
       });
   };
 
@@ -66,7 +74,7 @@ export function initializeArticleActions() {
         url: window.location.href,
       })
         .then(() => {
-          announce(elements.status, articleActionMessages.shareSuccess);
+          announce(elements.status, copy.shareSuccess);
         })
         .catch((error) => {
           if (error instanceof Error && error.name === 'AbortError') {
@@ -74,21 +82,21 @@ export function initializeArticleActions() {
           }
 
           warn('share', error);
-          flash(elements.shareLabel, 'Failed', 'Share');
-          announce(elements.status, articleActionMessages.shareFailure);
+          flash(elements.shareLabel, elements.failureTemporaryLabel, elements.shareRestoreLabel);
+          announce(elements.status, copy.shareFailure);
         });
       return;
     }
 
     writeClipboardText(window.location.href)
       .then(() => {
-        flash(elements.shareLabel, 'Copied!', 'Share');
-        announce(elements.status, articleActionMessages.copySuccess);
+        flash(elements.shareLabel, elements.copyTemporaryLabel, elements.shareRestoreLabel);
+        announce(elements.status, copy.copySuccess);
       })
       .catch((error) => {
         warn('share-fallback', error);
-        flash(elements.shareLabel, 'Failed', 'Share');
-        announce(elements.status, articleActionMessages.shareFailure);
+        flash(elements.shareLabel, elements.failureTemporaryLabel, elements.shareRestoreLabel);
+        announce(elements.status, copy.shareFailure);
       });
   };
 
@@ -115,11 +123,12 @@ export function initializeArticleActions() {
 }
 
 export function calculateReadingProgress({
+  language = 'en',
   readingTime,
   scrollHeight,
   scrollY,
   viewportHeight,
-}: ScrollMetrics & { readingTime: number }): ReadingProgressState {
+}: ScrollMetrics & { language?: 'en' | 'ja'; readingTime: number }): ReadingProgressState {
   const totalScrollableHeight = Math.max(0, scrollHeight - viewportHeight);
   const percentRead =
     totalScrollableHeight > 0
@@ -130,7 +139,7 @@ export function calculateReadingProgress({
   return {
     ariaValueNow: String(percentRead),
     minutesLeft,
-    minutesLeftLabel: minutesLeft > 0 ? `~${minutesLeft} min` : '< 1 min',
+    minutesLeftLabel: formatRemainingReadingTime(minutesLeft, language),
     percentRead,
     progressValue: `${percentRead}%`,
   };
@@ -163,15 +172,23 @@ function getArticleActionsElements(doc: Document): ArticleActionsElements | null
     return null;
   }
 
+  const language = container.dataset.lang === 'ja' ? 'ja' : 'en';
+  const copy = getSiteCopy(language);
+
   return {
     container,
     copyButton,
     copyLabel,
+    copyRestoreLabel: copy.copyLink,
+    copyTemporaryLabel: copy.copiedLabel,
+    failureTemporaryLabel: copy.copyFailureLabel,
+    language,
     minutesLeft,
     percentRead,
     progressBar,
     shareButton,
     shareLabel,
+    shareRestoreLabel: copy.share,
     status,
   };
 }
@@ -181,6 +198,7 @@ function updateReadingProgress(elements: ArticleActionsElements, readingTime: nu
     elements,
     calculateReadingProgress({
       ...getScrollMetrics(),
+      language: elements.language,
       readingTime,
     }),
   );

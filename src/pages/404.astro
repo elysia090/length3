@@ -8,8 +8,8 @@ import Footer from '../components/Footer.astro';
 
 <BaseLayout title="404 — Length³" description="Page not found">
   <Header />
-  <main class="not-found" id="main-content">
-    <p class="not-found-code">404</p>
+  <main class="page-shell page-shell--spacious not-found" id="main-content">
+    <p class="page-kicker not-found-code">404</p>
     <h1 class="not-found-title">Page not found</h1>
     <hr class="amber-rule not-found-rule" />
     <p class="not-found-body">The page you're looking for doesn't exist or has been moved.</p>
@@ -19,50 +19,40 @@ import Footer from '../components/Footer.astro';
 </BaseLayout>
 
 <style>
-  .not-found {
-    max-width: var(--measure);
-    margin: 0 auto;
-    padding-block: 4rem 6rem;
-    padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
-      max(var(--page-gutter), env(safe-area-inset-right));
-  }
-
   .not-found-code {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--amber);
-    letter-spacing: 0.08em;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.65rem;
   }
 
   .not-found-title {
     font-family: var(--font-display);
     font-size: 2rem;
     font-weight: 300;
-    line-height: 1.2;
+    line-height: 1.15;
     color: var(--ink);
+    text-wrap: balance;
     margin-bottom: 1.25rem;
   }
 
   .not-found-rule {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
 
   .not-found-body {
     font-size: 0.9375rem;
     color: var(--ink-2);
-    line-height: 1.75;
-    margin-bottom: 2rem;
+    line-height: 1.7;
+    margin-bottom: 1.75rem;
   }
 
   .not-found-link {
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
     color: var(--ink-2);
     transition: color var(--transition-fast);
   }
 
   .not-found-link:hover {
-    color: var(--amber);
+    color: var(--amber-text);
   }
 </style>

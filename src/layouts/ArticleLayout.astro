@@ -7,6 +7,7 @@ import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { formatDate } from '../lib/utils';
+import { formatArticleReadingTime, getSiteCopy } from '../lib/ui-copy';
 
 interface Props {
   title: string;
@@ -31,71 +32,90 @@ const {
 } = Astro.props;
 
 const dateStr = formatDate(publishDate, lang);
+const copy = getSiteCopy(lang);
 ---
 
 <BaseLayout title={title} description={description} lang={lang}>
-  <Header />
+  <Header lang={lang} />
 
   <!-- SC 2.4.1: id="main-content" is the skip-link target -->
   <main id="main-content">
-    <!-- SC 2.4.6: breadcrumb uses article title (not URL slug) for a descriptive label -->
-    <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: title }]} />
+    <div class="article-page-frame">
+      <!-- SC 2.4.6: breadcrumb uses article title (not URL slug) for a descriptive label -->
+      <Breadcrumb
+        segments={[{ label: 'Length³', href: '/' }, { label: title }]}
+        flush
+        lang={lang}
+      />
 
-    <!--
-    Article shell: TOC | prose | empty right column
-    spec §1: "The right column is deliberately empty — no widgets, no actions, no metadata."
-  -->
-    <div class="article-shell">
-      <!-- TOC — left column, sticky -->
-      <aside class="toc-aside" aria-label="Table of contents">
-        <TableOfContents headings={headings} />
-      </aside>
+      <!--
+      Article shell: TOC | prose | empty right column
+      spec §1: "The right column is deliberately empty — no widgets, no actions, no metadata."
+    -->
+      <div class="article-shell">
+        <!-- TOC — left column, sticky -->
+        <aside class="toc-aside" aria-label={copy.tableOfContents}>
+          <TableOfContents headings={headings} lang={lang} />
+        </aside>
 
-      <!-- Prose — center column -->
-      <div class="prose-area">
-        <article class="prose" data-pagefind-body lang={lang}>
-          <header class="article-header">
-            {
-              tags.length > 0 && (
-                <ul class="article-header-tags tag-pill-list" aria-label="Tags">
-                  {tags.map((tag) => (
-                    <li>
-                      <a href={tag.href} class="article-header-tag tag-pill">
-                        #{tag.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )
-            }
-            <div class="article-header-dates">
-              <time datetime={publishDate.toISOString()} class="article-header-date">
-                {dateStr}
-              </time>
+        <!-- Prose — center column -->
+        <div class="prose-area">
+          <article class="prose" data-pagefind-body lang={lang}>
+            <header class="article-header">
+              <div class="article-header-meta">
+                <time datetime={publishDate.toISOString()} class="article-header-meta-item">
+                  {dateStr}
+                </time>
+                {
+                  updatedDate && (
+                    <>
+                      <span class="article-header-meta-sep" aria-hidden="true">
+                        •
+                      </span>
+                      <span class="article-header-meta-item">
+                        {copy.updatedPrefix} {formatDate(updatedDate, lang)}
+                      </span>
+                    </>
+                  )
+                }
+                <span class="article-header-meta-sep" aria-hidden="true"> • </span>
+                <span class="article-header-meta-item">
+                  {formatArticleReadingTime(readingTime, lang)}
+                </span>
+              </div>
+
+              <h1>{title}</h1>
+              <hr class="amber-rule article-header-hr" />
+
+              {description && <p class="article-header-lead">{description}</p>}
               {
-                updatedDate && (
-                  <span class="article-header-date">(upd. {formatDate(updatedDate, lang)})</span>
+                tags.length > 0 && (
+                  <ul
+                    class="article-header-tags tag-pill-list tag-pill-list--quiet"
+                    aria-label={copy.tags}
+                  >
+                    {tags.map((tag) => (
+                      <li>
+                        <a href={tag.href} class="article-header-tag tag-pill tag-pill--quiet">
+                          #{tag.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
                 )
               }
-            </div>
+            </header>
 
-            <h1>{title}</h1>
-            <hr class="amber-rule article-header-hr" />
+            <slot />
+          </article>
 
-            {description && <p class="article-header-lead">{description}</p>}
+          <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
+          <ArticleActions readingTime={readingTime} lang={lang} />
+        </div>
 
-            <p class="article-reading-time">{readingTime} min read</p>
-          </header>
-
-          <slot />
-        </article>
-
-        <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
-        <ArticleActions readingTime={readingTime} />
+        <!-- Right column: intentionally empty — spec §1 -->
+        <div class="article-empty-margin" aria-hidden="true"></div>
       </div>
-
-      <!-- Right column: intentionally empty — spec §1 -->
-      <div class="article-empty-margin" aria-hidden="true"></div>
     </div>
   </main>
 

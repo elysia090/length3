@@ -1,4 +1,7 @@
 ---
+import { getSearchCopy } from '../lib/pagefind-search';
+import { getSiteCopy } from '../lib/ui-copy';
+
 interface TopicSummary {
   count: number;
   href: string;
@@ -6,15 +9,19 @@ interface TopicSummary {
 }
 
 interface Props {
+  lang?: 'en' | 'ja';
   topics: TopicSummary[];
 }
 
-const { topics } = Astro.props;
+const { topics, lang } = Astro.props;
+const copy = getSearchCopy(lang);
+const siteCopy = getSiteCopy(lang);
 ---
 
-<aside class="sidebar" aria-label="Blog sidebar">
+<aside class="sidebar" aria-label={siteCopy.blogSidebar} data-search-lang={lang}>
   <div class="search-input-wrap">
     <button
+      type="button"
       id="search-trigger"
       class="search-underline-btn"
       aria-haspopup="dialog"
@@ -22,15 +29,15 @@ const { topics } = Astro.props;
       aria-controls="search-modal"
     >
       <span class="search-icon" aria-hidden="true">Q</span>
-      <span class="search-placeholder">Search articles…</span>
-      <kbd class="search-shortcut" aria-label="keyboard shortcut: slash">/</kbd>
+      <span class="search-placeholder">{copy.searchPlaceholder}</span>
+      <kbd class="search-shortcut" aria-label={siteCopy.keyboardShortcutSlash}>/</kbd>
     </button>
   </div>
   {
     topics.length > 0 && (
       <section class="sidebar-topics" aria-labelledby="sidebar-topics-heading">
         <h2 class="sidebar-heading" id="sidebar-topics-heading">
-          Topics
+          {siteCopy.topics}
         </h2>
         <ul class="sidebar-topic-list">
           {topics.map((topic) => (
@@ -48,13 +55,18 @@ const { topics } = Astro.props;
 </aside>
 
 <!-- Search modal — native <dialog> keeps focus trapping and Escape behaviour built in -->
-<dialog id="search-modal" class="search-overlay" aria-label="Search">
+<dialog
+  id="search-modal"
+  class="search-overlay"
+  aria-label={copy.searchDialogLabel}
+  data-search-lang={lang}
+>
   <div class="search-card">
     <div class="search-card-header">
       <span class="search-q" aria-hidden="true">Q</span>
-      <p class="search-title">Search</p>
-      <button class="search-esc-btn" id="search-close" aria-label="Close search" autofocus>
-        esc
+      <p class="search-title">{copy.searchDialogLabel}</p>
+      <button type="button" class="search-esc-btn" id="search-close" aria-label={copy.closeSearch}>
+        {siteCopy.close}
       </button>
     </div>
     <p id="search-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -62,14 +74,19 @@ const { topics } = Astro.props;
       id="pagefind-ui"
       class="search-results"
       role="region"
-      aria-label="Search results"
+      aria-label={copy.resultsLabel}
       aria-busy="false"
     >
     </div>
+    <div id="search-empty-state" class="search-empty-state" data-search-state="empty" hidden>
+      <p class="search-empty-title">{copy.emptyTitle}</p>
+      <p class="search-empty-body">{copy.emptyBody}</p>
+    </div>
     <div class="search-footer" aria-hidden="true">
-      <span class="search-hint">↑↓ navigate</span>
-      <span class="search-hint">↵ open</span>
-      <span class="search-hint">esc close</span>
+      <span class="search-hint search-hint--desktop">{copy.searchHintNavigate}</span>
+      <span class="search-hint search-hint--desktop">{copy.searchHintOpen}</span>
+      <span class="search-hint search-hint--desktop">{copy.searchHintClose}</span>
+      <span class="search-hint search-hint--mobile">{copy.searchHintMobileOpen}</span>
       <span class="search-powered">Pagefind</span>
     </div>
   </div>
@@ -82,7 +99,9 @@ const { topics } = Astro.props;
   const modal = document.getElementById('search-modal') as HTMLDialogElement | null;
   const closeBtn = document.getElementById('search-close') as HTMLButtonElement | null;
   const pagefindMount = document.getElementById('pagefind-ui');
+  const emptyState = document.getElementById('search-empty-state');
   const status = document.getElementById('search-status');
+  const modalLanguage = modal?.dataset.searchLang === 'ja' ? 'ja' : null;
 
   if (
     trigger &&
@@ -93,6 +112,9 @@ const { topics } = Astro.props;
   ) {
     const searchController = createPagefindSearchController({
       browserWindow: window,
+      emptyState: emptyState instanceof HTMLElement ? emptyState : null,
+      focusMode: 'desktop-only',
+      language: modalLanguage,
       mount: pagefindMount,
       mountSelector: '#pagefind-ui',
       status,
@@ -106,6 +128,7 @@ const { topics } = Astro.props;
     };
     const closeSearch = () => {
       setExpandedState(trigger, false);
+      searchController.close();
       if (modal.open) {
         modal.close();
       }
@@ -120,9 +143,11 @@ const { topics } = Astro.props;
     });
     modal.addEventListener('cancel', () => {
       setExpandedState(trigger, false);
+      searchController.close();
     });
     modal.addEventListener('close', () => {
       setExpandedState(trigger, false);
+      searchController.close();
       trigger.focus();
     });
     document.addEventListener('keydown', (event) => {
@@ -163,7 +188,7 @@ const { topics } = Astro.props;
   }
 
   .search-input-wrap {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
   }
 
   .search-underline-btn {
@@ -171,22 +196,27 @@ const { topics } = Astro.props;
     align-items: center;
     gap: 0.5rem;
     width: 100%;
-    padding: 0.5rem 0;
+    min-height: 2.75rem;
+    padding: 0.375rem 0 0.625rem;
     border: none;
-    border-bottom: 1px solid var(--rule);
     background: none;
+    box-shadow: inset 0 -0.0625rem 0 var(--surface-line);
     cursor: pointer;
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
     color: var(--ink-2);
     text-align: left;
+    touch-action: manipulation;
     transition:
       border-color var(--transition-fast),
       color var(--transition-fast);
   }
 
   .search-underline-btn:hover {
-    border-bottom-color: var(--amber);
+    box-shadow:
+      inset 0 -0.0625rem 0 var(--surface-line),
+      inset 0 -0.125rem 0 rgba(212, 130, 10, 0.48);
     color: var(--ink);
   }
 
@@ -208,7 +238,8 @@ const { topics } = Astro.props;
     inset: 0;
     align-items: flex-start;
     justify-content: center;
-    padding-top: 12vh;
+    padding: max(0.75rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right)) 0
+      max(0.5rem, env(safe-area-inset-left));
     overscroll-behavior: contain;
   }
 
@@ -221,10 +252,15 @@ const { topics } = Astro.props;
   }
 
   .search-card {
-    width: min(35rem, calc(100vw - 2rem));
-    background: var(--bg);
-    border: 1px solid var(--rule);
-    border-radius: 0.375rem;
+    width: min(36rem, calc(100vw - 1rem));
+    max-height: calc(100dvh - 1rem);
+    display: flex;
+    flex-direction: column;
+    background:
+      linear-gradient(90deg, rgba(212, 130, 10, 0.08), transparent 34%),
+      linear-gradient(180deg, rgba(249, 248, 245, 0.98), rgba(240, 237, 232, 0.97));
+    border: 0.0625rem solid var(--surface-border);
+    border-radius: 0.65rem;
     overflow: hidden;
     box-shadow: var(--shadow-card);
   }
@@ -232,16 +268,16 @@ const { topics } = Astro.props;
   .search-card-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--rule);
+    gap: 0.65rem;
+    padding: 0.85rem 1rem 0.75rem;
+    border-bottom: 0.0625rem solid var(--rule);
   }
 
   .search-title {
     margin: 0;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.12em;
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--ink-2);
   }
@@ -256,15 +292,20 @@ const { topics } = Astro.props;
 
   .search-esc-btn {
     margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
     font-family: var(--font-mono);
     font-size: var(--font-ui-xs);
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--rule);
-    border-radius: 2px;
-    background: var(--bg-2);
+    padding: 0.45rem 0.75rem;
+    border: 0.0625rem solid var(--surface-line);
+    border-radius: 0.125rem;
+    background: var(--surface-fill);
     color: var(--ink-2);
     cursor: pointer;
     flex-shrink: 0;
+    touch-action: manipulation;
     transition: color var(--transition-fast);
   }
 
@@ -273,37 +314,56 @@ const { topics } = Astro.props;
   }
 
   .search-results {
-    min-height: 3rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :global(#pagefind-ui),
+  :global(#pagefind-ui .pagefind-ui) {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .search-footer {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.5rem 1rem;
-    border-top: 1px solid var(--rule);
-    background: var(--bg-2);
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.55rem 0.85rem;
+    border-top: 0.0625rem solid var(--rule);
+    background: var(--surface-fill-strong);
   }
 
   .search-hint {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
     color: var(--ink-2);
+  }
+
+  .search-hint--desktop {
+    display: none;
   }
 
   .search-powered {
     margin-left: auto;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
     color: var(--ink-2);
   }
 
   .search-shortcut {
+    display: none;
     font-family: var(--font-mono);
     font-size: var(--font-ui-xs);
     padding: 0.125rem 0.375rem;
-    border: 1px solid var(--rule);
-    border-radius: 2px;
+    border: 0.0625rem solid var(--rule);
+    border-radius: 0.125rem;
     background: var(--bg-2);
     color: var(--ink-2);
     margin-left: auto;
@@ -333,7 +393,7 @@ const { topics } = Astro.props;
     list-style: none;
     padding: 0;
     margin: 0;
-    border-top: 1px solid var(--rule);
+    border-top: 0.0625rem solid var(--rule);
   }
 
   .sidebar-topic-card {
@@ -342,11 +402,14 @@ const { topics } = Astro.props;
     justify-content: space-between;
     gap: 0.75rem;
     width: 100%;
-    padding: 1rem 0;
-    border-bottom: 1px solid var(--rule);
+    min-height: 2.75rem;
+    padding: 0.875rem 0;
+    border-bottom: 0.0625rem solid var(--rule);
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
     color: var(--ink);
+    touch-action: manipulation;
     transition: color var(--transition-fast);
   }
 
@@ -358,28 +421,31 @@ const { topics } = Astro.props;
   .sidebar-topic-name {
     min-width: 0;
     color: inherit;
+    overflow-wrap: anywhere;
   }
 
   .sidebar-topic-count {
     flex-shrink: 0;
     color: var(--ink-2);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
   }
 
   :global(.search-unavailable),
   :global(.search-loading),
   :global(.search-error) {
-    padding: 1rem;
+    padding: 1rem 1rem 1.1rem;
     font-size: 0.875rem;
     color: var(--ink-2);
   }
 
   :global(#pagefind-ui .pagefind-ui__form) {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--rule);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.625rem;
+    padding: 0.9rem 1rem 0.85rem;
+    border-bottom: 0.0625rem solid var(--rule);
   }
 
   :global(#pagefind-ui .pagefind-ui__form::before) {
@@ -387,13 +453,20 @@ const { topics } = Astro.props;
   }
 
   :global(#pagefind-ui .pagefind-ui__search-input) {
-    flex: 1;
-    min-width: 0;
+    width: 100%;
     border: none;
     background: none;
+    box-shadow: inset 0 -0.0625rem 0 var(--surface-line);
     font-family: var(--font-display);
     font-size: 1rem;
     color: var(--ink);
+    padding: 0 0 0.55rem;
+  }
+
+  :global(#pagefind-ui .pagefind-ui__search-input:focus-visible) {
+    box-shadow:
+      inset 0 -0.0625rem 0 var(--surface-line),
+      inset 0 -0.125rem 0 rgba(212, 130, 10, 0.56);
   }
 
   :global(#pagefind-ui .pagefind-ui__search-input::placeholder) {
@@ -403,13 +476,19 @@ const { topics } = Astro.props;
   }
 
   :global(#pagefind-ui .pagefind-ui__search-clear) {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
     font-family: var(--font-mono);
     font-size: var(--font-ui-xs);
     padding: 0.5rem 0.75rem;
-    border: 1px solid var(--rule);
-    border-radius: 2px;
-    background: var(--bg-2);
+    border: 0.0625rem solid var(--surface-line);
+    border-radius: 0.125rem;
+    background: var(--surface-fill);
     color: var(--ink-2);
+    touch-action: manipulation;
   }
 
   :global(#pagefind-ui .pagefind-ui__search-clear:hover) {
@@ -417,15 +496,42 @@ const { topics } = Astro.props;
   }
 
   :global(#pagefind-ui .pagefind-ui__drawer) {
-    max-height: 60vh;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 0.5rem 0;
+    padding: 0.25rem 0 0.45rem;
   }
 
   :global(#pagefind-ui .pagefind-ui__message) {
-    padding: 1rem;
+    padding: 1rem 1rem 1.1rem;
     font-size: 0.875rem;
+    color: var(--ink-2);
+  }
+
+  :global(#pagefind-ui .pagefind-ui__message[data-search-message-kind='empty']) {
+    display: none;
+  }
+
+  .search-empty-state {
+    min-height: 6.5rem;
+    display: grid;
+    align-content: center;
+    gap: 0.45rem;
+    padding: 1rem 1rem 1.1rem;
+  }
+
+  .search-empty-title {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    line-height: 1.25;
+    color: var(--ink);
+  }
+
+  .search-empty-body {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
     color: var(--ink-2);
   }
 
@@ -436,8 +542,8 @@ const { topics } = Astro.props;
 
   :global(.pagefind-ui__result) {
     padding: 0.625rem 1rem;
-    border-bottom: 1px solid var(--rule);
-    border-left: 2px solid transparent;
+    border-bottom: 0.0625rem solid var(--rule);
+    border-left: 0.125rem solid transparent;
   }
 
   :global(.pagefind-ui__result:last-child) {
@@ -466,5 +572,45 @@ const { topics } = Astro.props;
     background: none;
     color: var(--amber-text);
     font-style: italic;
+  }
+
+  @media (min-width: 48rem) {
+    .search-overlay {
+      padding: clamp(1rem, 6vh, 3.5rem) max(1rem, env(safe-area-inset-right)) 0
+        max(1rem, env(safe-area-inset-left));
+    }
+
+    .search-card {
+      width: min(36rem, calc(100vw - 2rem));
+      max-height: calc(100dvh - clamp(1rem, 6vh, 3.5rem) - 2rem);
+    }
+
+    .search-hint--desktop {
+      display: inline;
+    }
+
+    .search-hint--mobile {
+      display: none;
+    }
+
+    .search-shortcut {
+      display: inline-flex;
+    }
+
+    :global(#pagefind-ui .pagefind-ui__form) {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.85rem 1rem;
+    }
+
+    :global(#pagefind-ui .pagefind-ui__search-input) {
+      flex: 1;
+      min-width: 0;
+    }
+
+    :global(#pagefind-ui .pagefind-ui__search-clear) {
+      align-self: center;
+    }
   }
 </style>

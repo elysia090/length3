@@ -1,17 +1,22 @@
 ---
+import { getSiteCopy } from '../lib/ui-copy';
+
 interface Segment {
   label: string;
   href?: string;
 }
 
 interface Props {
+  flush?: boolean;
+  lang?: 'en' | 'ja';
   segments: Segment[];
 }
 
-const { segments } = Astro.props;
+const { segments, flush = false, lang = 'en' } = Astro.props;
+const copy = getSiteCopy(lang);
 ---
 
-<nav class="breadcrumb" aria-label="Breadcrumb">
+<nav class:list={['breadcrumb', { 'breadcrumb--flush': flush }]} aria-label={copy.breadcrumb}>
   <ol>
     {
       segments.map((seg, i) => (
@@ -22,7 +27,7 @@ const { segments } = Astro.props;
             </span>
           )}
           {seg.href ? (
-            <a href={seg.href} class="crumb">
+            <a href={seg.href} class="crumb crumb-link">
               {seg.label}
             </a>
           ) : (
@@ -39,21 +44,20 @@ const { segments } = Astro.props;
 <style>
   .breadcrumb {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     color: var(--ink-2);
     max-width: var(--layout-max-width);
     margin: 0 auto;
-    padding-top: 0.75rem;
+    padding-top: 0.5rem;
     padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
       max(var(--page-gutter), env(safe-area-inset-right));
-    text-align: center;
   }
 
   .breadcrumb ol {
     display: flex;
     align-items: center;
-    gap: 0.5rem; /* 8px — grid aligned */
-    justify-content: center;
+    gap: 0.25rem 0.45rem;
+    justify-content: flex-start;
     flex-wrap: wrap;
     row-gap: 0.25rem;
     list-style: none;
@@ -61,8 +65,16 @@ const { segments } = Astro.props;
     margin: 0;
   }
 
+  .breadcrumb li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .sep {
-    color: var(--rule);
+    color: var(--ink-3);
   }
 
   .crumb {
@@ -70,23 +82,30 @@ const { segments } = Astro.props;
     transition: color var(--transition-fast);
   }
 
+  .crumb-link {
+    white-space: nowrap;
+  }
+
   a.crumb:hover,
   a.crumb:active {
-    color: var(--amber);
+    color: var(--amber-text);
   }
 
   .crumb-current {
-    color: var(--ink);
+    color: var(--ink-2);
+    overflow-wrap: anywhere;
+  }
+
+  .breadcrumb--flush {
+    max-width: none;
+    margin: 0;
+    padding-inline: 0;
   }
 
   @media (min-width: 40rem) {
     .breadcrumb {
-      padding-top: 1rem;
-      text-align: left;
-    }
-
-    .breadcrumb ol {
-      justify-content: flex-start;
+      font-size: 0.75rem;
+      padding-top: 0.75rem;
     }
   }
 </style>

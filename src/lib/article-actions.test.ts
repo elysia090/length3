@@ -52,4 +52,22 @@ describe('calculateReadingProgress', () => {
       progressValue: '0%',
     });
   });
+
+  it('formats remaining time in Japanese when requested', () => {
+    expect(
+      calculateReadingProgress({
+        language: 'ja',
+        readingTime: 8,
+        scrollHeight: 2000,
+        scrollY: 250,
+        viewportHeight: 1000,
+      }),
+    ).toEqual({
+      ariaValueNow: '25',
+      minutesLeft: 6,
+      minutesLeftLabel: '約6分',
+      percentRead: 25,
+      progressValue: '25%',
+    });
+  });
 });
