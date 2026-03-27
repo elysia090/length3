@@ -1,9 +1,13 @@
 ---
+import { formatCompactReadingTime, getSiteCopy } from '../lib/ui-copy';
+
 interface Props {
+  lang?: 'en' | 'ja';
   readingTime: number;
 }
 
-const { readingTime } = Astro.props;
+const { readingTime, lang = 'en' } = Astro.props;
+const copy = getSiteCopy(lang);
 ---
 
 <!--
@@ -17,20 +21,20 @@ const { readingTime } = Astro.props;
   aria-valuemin={0}
   aria-valuemax={100}
   aria-valuenow={0}
-  aria-label="Reading progress"
+  aria-label={copy.readingProgress}
 >
 </div>
 
-<div class="article-actions" data-reading-time={readingTime}>
+<div class="article-actions" data-lang={lang} data-reading-time={readingTime}>
   <div class="actions-group">
-    <button class="action-row" id="copy-link-btn" aria-label="Copy link to clipboard">
+    <button class="action-row" id="copy-link-btn" aria-label={copy.copyLinkAria}>
       <span class="action-dash" aria-hidden="true">—</span>
-      <span class="action-label">Copy link</span>
+      <span class="action-label">{copy.copyLink}</span>
       <span class="action-arrow" aria-hidden="true">&rsaquo;</span>
     </button>
-    <button class="action-row" id="share-btn" aria-label="Share article">
+    <button class="action-row" id="share-btn" aria-label={copy.shareAria}>
       <span class="action-dash" aria-hidden="true">×</span>
-      <span class="action-label">Share</span>
+      <span class="action-label">{copy.share}</span>
       <span class="action-arrow" aria-hidden="true">&rsaquo;</span>
     </button>
   </div>
@@ -38,18 +42,18 @@ const { readingTime } = Astro.props;
 
   <!-- aria-live removed: role="progressbar" on #reading-progress already handles AT updates.
        Polling aria-live on every scroll causes disruptive double-announcements (H1/Nielsen). -->
-  <div class="reading-stats" aria-label="Reading progress stats">
+  <div class="reading-stats" aria-label={copy.readingProgressStats}>
     <div class="stat-row">
       <span class="stat-pct" id="pct-read">0%</span>
-      <span class="stat-detail">read</span>
+      <span class="stat-detail">{copy.read}</span>
     </div>
     <div class="stat-row">
       <span class="stat-detail" id="min-left">—</span>
-      <span class="stat-detail">left</span>
+      <span class="stat-detail">{copy.left}</span>
     </div>
     <div class="stat-row">
-      <span class="stat-detail">{readingTime} min</span>
-      <span class="stat-detail">total</span>
+      <span class="stat-detail">{formatCompactReadingTime(readingTime, lang)}</span>
+      <span class="stat-detail">{copy.total}</span>
     </div>
   </div>
 </div>
@@ -66,9 +70,11 @@ const { readingTime } = Astro.props;
     position: fixed;
     top: 0;
     left: 0;
-    height: 2px;
+    height: 0.125rem;
     width: var(--progress, 0%);
-    background: var(--amber);
+    background:
+      linear-gradient(90deg, rgba(255, 244, 229, 0.3), transparent 28%),
+      linear-gradient(90deg, var(--amber-deep) 0%, var(--agate-core) 42%, var(--agate-soft) 100%);
     /* SC 2.4.11: lowered from 200 so it cannot obscure focus rings of interactive elements */
     z-index: 10;
     transition: width 150ms linear;
@@ -81,7 +87,7 @@ const { readingTime } = Astro.props;
     gap: 1.5rem;
     margin-top: 3rem;
     padding-top: 2rem;
-    border-top: 1px solid var(--rule);
+    border-top: 0.0625rem solid var(--rule);
   }
 
   .actions-group {
@@ -119,7 +125,7 @@ const { readingTime } = Astro.props;
   .action-dash {
     width: 1rem;
     flex-shrink: 0;
-    color: var(--amber);
+    color: var(--amber-text);
     font-weight: 600;
   }
 

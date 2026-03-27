@@ -1,4 +1,9 @@
 ---
+import '../styles/fonts.css';
+import '../styles/global.css';
+import '../styles/typography.css';
+import { getSiteCopy } from '../lib/ui-copy';
+
 interface Props {
   title: string;
   description?: string;
@@ -7,10 +12,7 @@ interface Props {
 }
 
 const { title, description = 'A technical blog.', ogImage, lang = 'en' } = Astro.props;
-
-import '../styles/fonts.css';
-import '../styles/global.css';
-import '../styles/typography.css';
+const copy = getSiteCopy(lang);
 ---
 
 <!doctype html>
@@ -19,6 +21,7 @@ import '../styles/typography.css';
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
+    <meta name="theme-color" content="#f4eee5" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
@@ -30,7 +33,7 @@ import '../styles/typography.css';
   </head>
   <body>
     <!-- SC 2.4.1: skip link — first focusable element, targets #main-content on each page -->
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#main-content" class="skip-link">{copy.skipToMainContent}</a>
     <slot />
   </body>
 </html>

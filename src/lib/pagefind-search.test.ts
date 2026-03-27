@@ -4,11 +4,13 @@ import {
   canonicalizePagefindResult,
   canonicalizePagefindResultUrl,
   getPageLanguage,
+  getSearchCopy,
   normalizePagefindSearchTerm,
 } from './pagefind-search';
 
 describe('normalizePagefindSearchTerm', () => {
   it('segments Japanese queries into Pagefind-friendly words', () => {
+    expect(normalizePagefindSearchTerm('ウェブ')).toBe('ウェブ');
     expect(normalizePagefindSearchTerm('日本語タイポグラフィ')).toBe('日本語 タイポグラフィ');
     expect(normalizePagefindSearchTerm('ウェブにおける日本語タイポグラフィ')).toBe(
       'ウェブ における 日本語 タイポグラフィ',
@@ -49,6 +51,16 @@ describe('buildMergedPagefindIndexes', () => {
     expect(
       buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', null),
     ).toEqual([]);
+  });
+});
+
+describe('getSearchCopy', () => {
+  it('returns Japanese search copy for Japanese pages', () => {
+    const copy = getSearchCopy('ja');
+
+    expect(copy.searchLabel).toBe('記事を検索');
+    expect(copy.searchPlaceholder).toBe('記事を検索…');
+    expect(copy.resultCount(1)).toBe('1件の検索結果があります。');
   });
 });
 
@@ -112,6 +124,28 @@ describe('canonicalizePagefindResultUrl', () => {
         },
       ],
       url: '/getting-started',
+    });
+  });
+
+  it('normalizes Japanese article results to the runtime route', () => {
+    expect(
+      canonicalizePagefindResult(
+        {
+          meta: {
+            title: 'ウェブにおける日本語タイポグラフィ',
+            url: '/japanese-test.html',
+          },
+          url: '/japanese-test.html',
+        },
+        origin,
+      ),
+    ).toEqual({
+      meta: {
+        title: 'ウェブにおける日本語タイポグラフィ',
+        url: '/japanese-test',
+      },
+      sub_results: undefined,
+      url: '/japanese-test',
     });
   });
 });

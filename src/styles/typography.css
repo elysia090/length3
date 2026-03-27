@@ -49,7 +49,7 @@
   margin-top: 2rem;
   margin-bottom: 0.75rem;
   padding-left: 1.25rem;
-  border-left: 2px solid var(--rule);
+  border-left: 0.125rem solid var(--rule);
   text-wrap: balance;                  /* spec §2: even distribution on multi-line */
 }
 
@@ -74,8 +74,8 @@
 .prose a {
   color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
   text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 0.0625rem;
+  text-underline-offset: 0.125rem;
 }
 
 .prose a:hover {
@@ -88,17 +88,17 @@
   font-family: var(--font-mono);
   font-size: 0.875em;           /* spec §2 */
   background: var(--bg-2);
-  padding: 1px 5px;             /* spec §4: 1px 5px */
-  border-radius: 3px;           /* spec §4 */
-  border: 1px solid var(--rule);
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 0.1875rem;
+  border: 0.0625rem solid var(--rule);
   color: var(--ink);
 }
 
 /* Block code — spec §4: light background, amber-lt left border */
 .prose pre {
   background: var(--bg-2);
-  border-left: 2px solid var(--amber-lt);
-  border-radius: 0 4px 4px 0;
+  border-left: 0.125rem solid var(--amber-lt);
+  border-radius: 0 0.25rem 0.25rem 0;
   padding: 1rem 1.25rem;
   overflow-x: auto;
   margin-bottom: 1.5rem;
@@ -116,7 +116,7 @@
 
 /* ─── Blockquote ─────────────────────────────────────────────── */
 .prose blockquote {
-  border-left: 2px solid var(--rule);
+  border-left: 0.125rem solid var(--rule);
   padding: 0.5rem 0 0.5rem 1.5rem;
   margin: 0 0 1.5rem;
   font-style: italic;
@@ -148,8 +148,10 @@
    .article-header-hr uses class="amber-rule article-header-hr" and only needs margin. */
 .prose hr {
   border: none;
-  height: 2px;
-  background: var(--amber);
+  height: 0.125rem;
+  background:
+    linear-gradient(90deg, rgba(255, 244, 229, 0.26), transparent 32%),
+    linear-gradient(90deg, var(--amber-deep) 0%, var(--agate-core) 40%, var(--agate-soft) 100%);
   width: 3rem;
   margin: 1.5rem 0 2rem;
 }
@@ -165,7 +167,7 @@
 .prose th,
 .prose td {
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--rule);
+  border: 0.0625rem solid var(--rule);
   text-align: left;
 }
 
@@ -178,8 +180,8 @@
 .prose img {
   max-width: 100%;
   height: auto;
-  border-radius: 2px;
-  border: 1px solid var(--rule);
+  border-radius: 0.125rem;
+  border: 0.0625rem solid var(--rule);
 }
 
 /* ─── Ruby (Japanese) — spec §2 ──────────────────────────────── */
@@ -201,56 +203,139 @@ rt {
 
 /* ─── Article Header ─────────────────────────────────────────── */
 .article-header {
-  padding: 2rem 0;
+  padding: 1.5rem 0 1.75rem;
 }
 
 .article-header-tags {
-  margin: 0 0 0.75rem;
+  margin: 0.9rem 0 0;
 }
 
-.article-header-dates {
+.article-header-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
-  margin-bottom: 1.25rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.85rem;
 }
 
-.article-header-date {
+.article-header-meta-item {
   color: var(--ink-2);
+}
+
+.article-header-meta-sep {
+  color: var(--surface-separator);
 }
 
 .article-header h1 {
-  margin-bottom: 1rem;
+  margin-bottom: 0.9rem;
+  max-width: 18ch;
 }
 
 /* margin only — shape is provided by .amber-rule (global.css) */
 .article-header-hr {
-  margin: 0 0 1.5rem;
+  margin: 0 0 1rem;
 }
 
 /* Lead paragraph — spec §3: 1px left-border in amber */
 .article-header-lead {
+  position: relative;
   font-family: var(--font-display);
-  font-size: 1.0625rem;  /* bumped from 1.05rem (17px) for stronger presence */
+  font-size: 1rem;
   font-weight: 300;
   font-style: italic;
-  line-height: 1.9;
-  color: var(--ink);      /* upgraded from Ink-2: lead is prose, not metadata */
-  border-left: 1px solid var(--amber);
-  padding-left: 1.25rem;
-  margin-bottom: 1.5rem;
+  line-height: 1.7;
+  color: var(--ink);
+  padding: 0.55rem 0.75rem 0.55rem 1rem;
+  margin-bottom: 0;
+  background:
+    linear-gradient(90deg, rgba(212, 130, 10, 0.1), rgba(212, 130, 10, 0.03) 32%, transparent 80%),
+    linear-gradient(130deg, rgba(255, 255, 255, 0.28), rgba(240, 237, 232, 0.1));
+  border-radius: 0 0.45rem 0.45rem 0;
 }
 
-.article-reading-time {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;   /* spec §2: UI label */
-  color: var(--ink-2);   /* upgraded from Ink-3 for WCAG AA at 12px */
-  margin-top: 0.5rem;   /* visual pause after lead paragraph */
-  margin-bottom: 0;     /* cancel .prose p margin; header padding-bottom handles the gap */
+.article-header-lead::before {
+  content: '';
+  position: absolute;
+  top: 0.3rem;
+  bottom: 0.3rem;
+  left: 0;
+  width: 0.0625rem;
+  background:
+    linear-gradient(180deg, var(--agate-soft) 0%, var(--agate-core) 52%, var(--amber-deep) 100%);
+}
+
+@media (min-width: 45rem) {
+  .article-header {
+    padding: 1.9rem 0 2.15rem;
+  }
+
+  .article-header-meta {
+    margin-bottom: 1rem;
+  }
+
+  .article-header h1 {
+    max-width: 22ch;
+    margin-bottom: 1rem;
+  }
+
+  .article-header-hr {
+    margin-bottom: 1.15rem;
+  }
+
+  .article-header-lead {
+    font-size: 1.0625rem;
+    padding-right: 1rem;
+  }
+}
+
+@keyframes article-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.65rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .article-header > *,
+  .prose > .article-header + p {
+    opacity: 0;
+    transform: translateY(0.65rem);
+    animation: article-reveal 520ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  }
+
+  .article-header-meta {
+    animation-delay: 40ms;
+  }
+
+  .article-header h1 {
+    animation-delay: 110ms;
+  }
+
+  .article-header-hr {
+    animation-delay: 170ms;
+  }
+
+  .article-header-lead {
+    animation-delay: 240ms;
+  }
+
+  .article-header-tags {
+    animation-delay: 300ms;
+  }
+
+  .prose > .article-header + p {
+    animation-delay: 360ms;
+  }
 }
 
 /* ─── Japanese typography — spec §2 ─────────────────────────── */

@@ -1,18 +1,30 @@
 /* ─── Design Tokens ─────────────────────────────────────────── */
 :root {
-  /* Colors — spec §3 */
-  --amber:      #d4820a;   /* decorative only: progress bar, hr, logo ³, borders — 2.83:1 on bg (non-text OK) */
-  --amber-text: #b45309;   /* text & UI indicators: links, tags, dates, TOC active, focus — 4.73:1 on bg (WCAG AA) */
-  --amber-lt:   #e8a030;   /* code block left border (decorative) */
-  --ink:        #1c1a18;   /* primary text */
-  --ink-2:      #52504a;   /* secondary text: descriptions, dates, meta */
-  --ink-3:      #9a9690;   /* tertiary: labels, placeholders — large text only */
-  --rule:       #dedad5;   /* dividers only */
-  --bg:         #f9f8f5;   /* page background */
-  --bg-2:       #f0ede8;   /* secondary surface: code, sidebar */
+  /* Colors — original palette with mineral accents */
+  --amber: #d4820a;
+  --amber-deep: #9a4312;
+  --amber-text: #b45309;
+  --amber-lt: #e8a030;
+  --agate-core: #c46319;
+  --agate-soft: #e1a03d;
+  --ink: #1c1a18;
+  --ink-2: #52504a;
+  --ink-3: #9a9690;
+  --rule: #dedad5;
+  --bg: #f9f8f5;
+  --bg-2: #f0ede8;
+  --paper: rgba(249, 248, 245, 0.9);
+  --paper-strong: rgba(249, 248, 245, 0.96);
+  --surface-line: rgba(168, 151, 129, 0.28);
+  --surface-shine: rgba(255, 255, 255, 0.42);
+  --surface-fill: rgba(240, 237, 232, 0.72);
+  --surface-fill-strong: rgba(240, 237, 232, 0.78);
+  --surface-border: rgba(168, 151, 129, 0.32);
+  --surface-separator: rgba(82, 80, 74, 0.55);
   /* Surfaces & shadows */
-  --overlay-bg:  rgba(28, 26, 24, 0.6);              /* modal/dialog scrim — --ink at ~60% */
-  --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);  /* floating card elevation */
+  --overlay-bg: rgba(28, 26, 24, 0.6);
+  --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);
+  --focus-halo: rgba(180, 83, 9, 0.14);
 
   /* Typography — font-size scale */
   --font-ui-xs: 0.6875rem;   /* 11px — smallest UI text: shortcuts and compact UI labels */
@@ -61,11 +73,24 @@ body {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.76), transparent 38%),
+    linear-gradient(180deg, #fbfaf7 0%, #f4f1ec 100%);
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+a,
+button,
+[role='button'],
+input,
+textarea,
+select,
+summary {
+  -webkit-tap-highlight-color: rgba(155, 78, 24, 0.18);
 }
 
 img {
@@ -91,15 +116,15 @@ img {
 }
 .skip-link:focus-visible {
   top: 0;
-  outline: 2px solid var(--amber-text);
-  outline-offset: 2px;
+  outline: 0.125rem solid var(--amber-text);
+  outline-offset: 0.125rem;
 }
 
 /* ─── Focus outline — spec §6 ────────────────────────────────── */
-/* --amber-text (#b45309) gives 4.73:1 on --bg: meets SC 1.4.11 non-text contrast (3:1) */
 :focus-visible {
-  outline: 2px solid var(--amber-text);
-  outline-offset: 3px;
+  outline: 0.125rem solid var(--amber-text);
+  outline-offset: 0.1875rem;
+  box-shadow: 0 0 0 0.25rem var(--focus-halo);
 }
 
 /* ─── Reduced motion — spec §5 ──────────────────────────────── */
@@ -123,7 +148,8 @@ img {
   gap: 0;
   max-width: var(--layout-max-width);
   margin: 0 auto;
-  padding-block: 1.5rem 3rem;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-strong) 100%);
+  padding-block: 1.125rem 2.5rem;
   padding-inline:
     max(var(--page-gutter), env(safe-area-inset-left))
     max(var(--page-gutter), env(safe-area-inset-right));
@@ -138,8 +164,8 @@ img {
   grid-area: side;
   padding-left: 0;
   padding-top: 0;
-  margin-top: var(--layout-gap);
-  border-top: 1px solid var(--rule);
+  margin-top: 1.5rem;
+  border-top: 0.0625rem solid var(--rule);
   align-self: start;
   min-width: 0;
 }
@@ -153,7 +179,8 @@ img {
   gap: 0;
   max-width: var(--layout-max-width);
   margin: 0 auto;
-  padding-block: 0 3rem;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-strong) 100%);
+  padding-block: 0 2.5rem;
   padding-inline:
     max(var(--page-gutter), env(safe-area-inset-left))
     max(var(--page-gutter), env(safe-area-inset-right));
@@ -173,6 +200,23 @@ img {
   display: none;
 }
 
+.article-page-frame {
+  max-width: var(--layout-max-width);
+  margin: 0 auto;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-strong) 100%);
+  padding-block: 0 2.5rem;
+  padding-inline:
+    max(var(--page-gutter), env(safe-area-inset-left))
+    max(var(--page-gutter), env(safe-area-inset-right));
+}
+
+.article-page-frame .article-shell {
+  max-width: none;
+  margin: 0;
+  background: none;
+  padding: 0;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────── */
 
 @media (min-width: 45rem) {
@@ -180,6 +224,10 @@ img {
     grid-template-columns: minmax(10rem, var(--toc-width)) minmax(0, 1fr);
     grid-template-areas: 'toc prose';
     gap: 0 var(--layout-gap);
+    padding-bottom: 4rem;
+  }
+
+  .article-page-frame {
     padding-bottom: 4rem;
   }
 
@@ -222,13 +270,34 @@ img {
 
 /* ─── Shared UI patterns ─────────────────────────────────────── */
 
+.page-shell {
+  max-width: var(--measure);
+  margin: 0 auto;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-strong) 100%);
+  padding-block: 1.5rem 3.5rem;
+  padding-inline:
+    max(var(--page-gutter), env(safe-area-inset-left))
+    max(var(--page-gutter), env(safe-area-inset-right));
+}
+
+.page-shell--spacious {
+  padding-block: 3rem 5rem;
+}
+
+.page-header {
+  margin-bottom: 1.75rem;
+}
+
 /* Amber decorative rule — 3 rem wide, 2 px tall accent line.
    Used by article-header-hr (typography.css) and page headers in tags/. */
 .amber-rule {
   border: none;
   height: 0.125rem;
-  background: var(--amber);
-  width: 3rem;
+  background:
+    linear-gradient(90deg, rgba(255, 245, 233, 0.32), transparent 28%),
+    linear-gradient(90deg, var(--amber-deep) 0%, var(--agate-core) 42%, var(--agate-soft) 100%);
+  width: 3.2rem;
+  box-shadow: 0 0 0 0.0625rem rgba(139, 74, 26, 0.05);
 }
 
 /* Page-level heading — matches .prose h1 typographic scale but without
@@ -237,61 +306,132 @@ img {
   font-family: var(--font-display);
   font-size: 1.75rem;
   font-weight: 300;
-  line-height: 1.25;
+  line-height: 1.18;
+  text-wrap: balance;
 }
 
 /* Secondary line below a page title — count / subtitle / metadata. */
 .page-meta {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
+  letter-spacing: 0.06em;
+}
+
+.page-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--amber-text);
+  margin-bottom: 0.75rem;
 }
 
 .tag-pill-list {
   display: flex;
   justify-content: flex-start;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.4rem 0.45rem;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
 .tag-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 1.5rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--rule);
-  border-radius: 0.125rem;
+  min-height: 1.375rem;
+  padding: 0.1875rem 0.5rem;
+  border: 0.0625rem solid rgba(149, 128, 104, 0.24);
+  border-radius: 0.18rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.46), rgba(235, 227, 216, 0.78));
+  box-shadow: inset 0 0.0625rem 0 rgba(255, 255, 255, 0.3);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--amber-text);
+  font-size: 0.6875rem;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  touch-action: manipulation;
   transition:
     color var(--transition-fast),
-    border-color var(--transition-fast);
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
 .tag-pill:hover,
 .tag-pill:active {
   color: var(--amber-text);
-  border-color: var(--amber-text);
+  border-color: rgba(155, 78, 24, 0.32);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(240, 232, 221, 0.9));
+}
+
+.tag-pill-list--quiet {
+  gap: 0.4rem 0.8rem;
+}
+
+.tag-pill--quiet {
+  min-height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink-2);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+}
+
+.tag-pill--quiet:hover,
+.tag-pill--quiet:active {
+  color: var(--amber-text);
+  border: none;
+  background: none;
+}
+
+.tag-pill-overflow {
+  color: var(--ink-2);
+  border-color: rgba(127, 117, 108, 0.2);
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.tag-pill-overflow:hover,
+.tag-pill-overflow:active {
+  color: var(--ink-2);
+  border-color: rgba(154, 150, 144, 0.26);
+  background: rgba(255, 255, 255, 0.34);
 }
 
 @media (pointer: coarse) {
-  .tag-pill {
+  .tag-pill:not(.tag-pill--quiet) {
     min-height: 2.75rem;
+  }
+}
+
+@media (min-width: 40rem) {
+  .page-shell {
+    padding-block: 2rem 4rem;
+  }
+
+  .page-shell--spacious {
+    padding-block: 4rem 6rem;
+  }
+
+  .page-header {
+    margin-bottom: 2rem;
   }
 }
 
 /* ─── Utilities ──────────────────────────────────────────────── */
 .sr-only {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  width: 0.0625rem;
+  height: 0.0625rem;
   padding: 0;
-  margin: -1px;
+  margin: -0.0625rem;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;

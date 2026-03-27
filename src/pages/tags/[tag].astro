@@ -27,8 +27,8 @@ const { route, processedPosts } = Astro.props as {
 <BaseLayout title={`${route.name} — Length³`}>
   <Header />
   <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: route.name }]} />
-  <main class="tag-main" id="main-content">
-    <header class="tag-header">
+  <main class="page-shell tag-main" id="main-content">
+    <header class="page-header tag-header">
       <h1 class="page-title">#{route.name}</h1>
       <p class="page-meta tag-count">
         {processedPosts.length} article{processedPosts.length !== 1 ? 's' : ''}
@@ -43,18 +43,6 @@ const { route, processedPosts } = Astro.props as {
 </BaseLayout>
 
 <style>
-  .tag-main {
-    max-width: var(--measure);
-    margin: 0 auto;
-    padding-block: 2rem 4rem;
-    padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
-      max(var(--page-gutter), env(safe-area-inset-right));
-  }
-
-  .tag-header {
-    margin-bottom: 2rem;
-  }
-
   h1 {
     margin-bottom: 0.5rem; /* page-title base in global.css; only spacing is local */
   }
