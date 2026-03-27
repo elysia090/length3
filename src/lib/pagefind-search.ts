@@ -34,7 +34,6 @@ export interface PagefindSearchControllerOptions {
   browserWindow: PagefindWindow;
   getPagefindUI?: () => PagefindUIConstructor | null;
   importPagefind?: (src: string) => Promise<void>;
-  isPagefindAvailable?: (src: string) => Promise<boolean>;
   logError?: (phase: string, error: unknown) => void;
   mount: HTMLElement;
   mountSelector: string;
@@ -49,7 +48,6 @@ export interface PagefindSearchController {
 }
 
 const PAGEFIND_UI_PATH = '/pagefind/pagefind-ui.js';
-const PAGEFIND_REQUEST_TIMEOUT_MS = 1500;
 const SITE_LANGUAGES = ['en', 'ja'] as const;
 const JAPANESE_QUERY_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 const WORDLIKE_QUERY_PATTERN = /[\p{Letter}\p{Number}]/u;
@@ -70,8 +68,6 @@ export function createPagefindSearchController(options: PagefindSearchController
     (() => (typeof browserWindow.PagefindUI === 'function' ? browserWindow.PagefindUI : null));
   const importPagefind =
     options.importPagefind ?? ((src: string) => import(/* @vite-ignore */ src));
-  const isPagefindScriptAvailable =
-    options.isPagefindAvailable ?? ((src: string) => isPagefindAvailable(browserWindow, src));
   const logError =
     options.logError ??
     ((phase: string, error: unknown) => {
@@ -116,14 +112,10 @@ export function createPagefindSearchController(options: PagefindSearchController
     setBusy(mount, true);
 
     try {
-      if (!(await isPagefindScriptAvailable(pagefindSrc))) {
-        return renderUnavailable(mount);
-      }
-
       try {
         await importPagefind(pagefindSrc);
-      } catch (error) {
-        return renderError(mount, logError, 'module import', error);
+      } catch (_error) {
+        return renderUnavailable(mount);
       }
 
       const PagefindUI = getPagefindUI();
@@ -381,22 +373,4 @@ function renderError(
   logError(phase, error);
   mount.innerHTML = `<p class="search-error">${searchErrorMessage}</p>`;
   return { kind: 'error', message: searchErrorMessage };
-}
-
-async function isPagefindAvailable(browserWindow: PagefindWindow, pagefindSrc: string) {
-  const controller = new AbortController();
-  const timeoutId = browserWindow.setTimeout(() => controller.abort(), PAGEFIND_REQUEST_TIMEOUT_MS);
-
-  try {
-    const response = await browserWindow.fetch(pagefindSrc, {
-      headers: { accept: 'text/javascript' },
-      signal: controller.signal,
-    });
-    const contentType = response.headers.get('content-type') ?? '';
-    return response.ok && /(javascript|ecmascript)/i.test(contentType);
-  } catch {
-    return false;
-  } finally {
-    browserWindow.clearTimeout(timeoutId);
-  }
 }

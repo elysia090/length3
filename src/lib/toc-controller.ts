@@ -1,43 +1,23 @@
-export interface TocController {
-  destroy(): void;
-}
+let cleanupTableOfContents: (() => void) | null = null;
 
-export interface TocControllerDeps {
-  createObserver: (
-    callback: IntersectionObserverCallback,
-    options?: IntersectionObserverInit,
-  ) => {
-    disconnect(): void;
-    observe(target: Element): void;
-  };
-  onFirstScroll: (listener: () => void) => () => void;
-  prefersReducedMotion: () => boolean;
-  pushHistoryHash: (href: string) => void;
-}
+export function initializeTableOfContents() {
+  cleanupTableOfContents?.();
+  cleanupTableOfContents = null;
 
-interface TocControllerOptions {
-  articleBody: HTMLElement | null;
-  headingEls: readonly HTMLElement[];
-  links: readonly HTMLAnchorElement[];
-  tocNav: HTMLElement | null;
-}
-
-export function createTableOfContentsController(
-  { articleBody, headingEls, links, tocNav }: TocControllerOptions,
-  deps: TocControllerDeps,
-): TocController {
+  const articleBody = document.querySelector<HTMLElement>('article[data-pagefind-body]');
+  const headingEls = [...document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]')];
+  const links = [...document.querySelectorAll<HTMLAnchorElement>('.toc-link')];
+  const tocNav = document.querySelector<HTMLElement>('.toc');
   const cleanups: Array<() => void> = [];
 
-  bindLinkClicks(links, deps, cleanups);
-  observeActiveHeading(links, headingEls, deps, cleanups);
-  observeArticleEnd(tocNav, articleBody, deps, cleanups);
+  bindLinkClicks(links, cleanups);
+  observeActiveHeading(links, headingEls, cleanups);
+  observeArticleEnd(tocNav, articleBody, cleanups);
 
-  return {
-    destroy() {
-      while (cleanups.length > 0) {
-        cleanups.pop()?.();
-      }
-    },
+  cleanupTableOfContents = () => {
+    while (cleanups.length > 0) {
+      cleanups.pop()?.();
+    }
   };
 }
 
@@ -65,11 +45,7 @@ export function resolveTocScrollBehavior(prefersReducedMotion: boolean): ScrollB
   return prefersReducedMotion ? 'auto' : 'smooth';
 }
 
-function bindLinkClicks(
-  links: readonly HTMLAnchorElement[],
-  deps: TocControllerDeps,
-  cleanups: Array<() => void>,
-) {
+function bindLinkClicks(links: readonly HTMLAnchorElement[], cleanups: Array<() => void>) {
   for (const link of links) {
     const onClick = (event: MouseEvent) => {
       const href = link.getAttribute('href');
@@ -80,10 +56,10 @@ function bindLinkClicks(
 
       event.preventDefault();
       target.scrollIntoView({
-        behavior: resolveTocScrollBehavior(deps.prefersReducedMotion()),
+        behavior: resolveTocScrollBehavior(prefersReducedMotion()),
       });
       focusHeadingTarget(target);
-      deps.pushHistoryHash(href);
+      history.pushState(null, '', href);
     };
 
     link.addEventListener('click', onClick);
@@ -94,10 +70,11 @@ function bindLinkClicks(
 function observeActiveHeading(
   links: readonly HTMLAnchorElement[],
   headingEls: readonly HTMLElement[],
-  deps: TocControllerDeps,
   cleanups: Array<() => void>,
 ) {
-  if (links.length === 0 || headingEls.length === 0) return;
+  if (links.length === 0 || headingEls.length === 0 || typeof IntersectionObserver !== 'function') {
+    return;
+  }
 
   const linkByHeadingId = new Map<string, HTMLAnchorElement>();
   for (const link of links) {
@@ -110,7 +87,7 @@ function observeActiveHeading(
   let activeLink: HTMLAnchorElement | null = null;
   const intersectingIds = new Set<string>();
   const headingIds = headingEls.map((heading) => heading.id);
-  const observer = deps.createObserver(
+  const observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         if (!(entry.target instanceof HTMLElement)) continue;
@@ -143,21 +120,21 @@ function observeActiveHeading(
 function observeArticleEnd(
   tocNav: HTMLElement | null,
   articleBody: HTMLElement | null,
-  deps: TocControllerDeps,
   cleanups: Array<() => void>,
 ) {
-  if (!tocNav || !articleBody) return;
+  if (!tocNav || !articleBody || typeof IntersectionObserver !== 'function') return;
 
   const sentinel = articleBody.ownerDocument.createElement('div');
   sentinel.setAttribute('aria-hidden', 'true');
   articleBody.appendChild(sentinel);
 
   let userHasScrolled = false;
-  const removeScrollListener = deps.onFirstScroll(() => {
+  const onFirstScroll = () => {
     userHasScrolled = true;
-  });
+  };
+  window.addEventListener('scroll', onFirstScroll, { once: true, passive: true });
 
-  const observer = deps.createObserver(
+  const observer = new IntersectionObserver(
     ([entry]) => {
       if (!userHasScrolled) return;
 
@@ -171,8 +148,12 @@ function observeArticleEnd(
 
   observer.observe(sentinel);
   cleanups.push(() => {
-    removeScrollListener();
+    window.removeEventListener('scroll', onFirstScroll);
     observer.disconnect();
     sentinel.remove();
   });
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }

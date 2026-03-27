@@ -1,11 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import {
-  type ArticleActionsDeps,
-  type ArticleActionsElements,
-  articleActionMessages,
-  createArticleActionsController,
-} from './article-actions';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { articleActionMessages, initializeArticleActions } from './article-actions';
 
 async function flushPromises() {
   await Promise.resolve();
@@ -15,7 +10,7 @@ async function flushPromises() {
 function createArticleActionsDom() {
   document.body.innerHTML = `
     <div id="reading-progress"></div>
-    <div class="article-actions">
+    <div class="article-actions" data-reading-time="8">
       <button id="copy-link-btn"><span class="action-label">Copy link</span></button>
       <button id="share-btn"><span class="action-label">Share</span></button>
     </div>
@@ -23,6 +18,8 @@ function createArticleActionsDom() {
     <span id="pct-read"></span>
     <span id="min-left"></span>
   `;
+  document.title = 'Length³';
+  history.replaceState(null, '', '/getting-started');
 
   return {
     copyButton: document.getElementById('copy-link-btn') as HTMLButtonElement,
@@ -33,58 +30,80 @@ function createArticleActionsDom() {
     shareButton: document.getElementById('share-btn') as HTMLButtonElement,
     shareLabel: document.querySelector('#share-btn .action-label') as HTMLElement,
     status: document.getElementById('article-action-status') as HTMLElement,
-  } satisfies ArticleActionsElements;
-}
-
-function createDeps(overrides: Partial<ArticleActionsDeps> = {}) {
-  let scrollListener: (() => void) | null = null;
-  const frameQueue: Array<() => void> = [];
-  const timeoutQueue: Array<() => void> = [];
-
-  return {
-    deps: {
-      addScrollListener: (listener: () => void) => {
-        scrollListener = listener;
-        return () => {
-          scrollListener = null;
-        };
-      },
-      clipboardWriteText: async () => {},
-      getDocumentTitle: () => 'Length³',
-      getLocationHref: () => 'https://length3.pages.dev/getting-started',
-      getScrollMetrics: () => ({
-        scrollHeight: 2000,
-        scrollY: 0,
-        viewportHeight: 1000,
-      }),
-      requestFrame: (callback: () => void) => {
-        frameQueue.push(callback);
-        return frameQueue.length;
-      },
-      setTimeout: (callback: () => void) => {
-        timeoutQueue.push(callback);
-        return timeoutQueue.length;
-      },
-      share: null,
-      warn: vi.fn(),
-      ...overrides,
-    } satisfies ArticleActionsDeps,
-    frameQueue,
-    scroll() {
-      scrollListener?.();
-    },
-    timeoutQueue,
   };
 }
 
-describe('createArticleActionsController', () => {
+function createBrowserMocks() {
+  const frameQueue: Array<() => void> = [];
+  const timeoutQueue: Array<() => void> = [];
+  let scrollY = 0;
+
+  Object.defineProperty(document.body, 'scrollHeight', {
+    configurable: true,
+    get: () => 2000,
+  });
+  Object.defineProperty(window, 'innerHeight', {
+    configurable: true,
+    value: 1000,
+  });
+  Object.defineProperty(window, 'scrollY', {
+    configurable: true,
+    get: () => scrollY,
+  });
+
+  Object.defineProperty(window, 'requestAnimationFrame', {
+    configurable: true,
+    value: vi.fn((callback: FrameRequestCallback) => {
+      frameQueue.push(() => callback(0));
+      return frameQueue.length;
+    }),
+  });
+  Object.defineProperty(window, 'setTimeout', {
+    configurable: true,
+    value: vi.fn((callback: TimerHandler) => {
+      if (typeof callback === 'function') {
+        timeoutQueue.push(callback as () => void);
+      }
+
+      return timeoutQueue.length as unknown as number;
+    }),
+  });
+
+  const writeText = vi.fn(async () => {});
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText },
+  });
+  Object.defineProperty(navigator, 'share', {
+    configurable: true,
+    value: undefined,
+  });
+
+  return {
+    frameQueue,
+    scroll() {
+      window.dispatchEvent(new Event('scroll'));
+    },
+    setScrollY(nextScrollY: number) {
+      scrollY = nextScrollY;
+    },
+    timeoutQueue,
+    writeText,
+  };
+}
+
+afterEach(() => {
+  document.body.innerHTML = '';
+  initializeArticleActions();
+  vi.restoreAllMocks();
+});
+
+describe('initializeArticleActions', () => {
   it('announces copy success and restores the button label', async () => {
     const elements = createArticleActionsDom();
-    const { deps, frameQueue, timeoutQueue } = createDeps({
-      clipboardWriteText: async () => {},
-    });
+    const { frameQueue, timeoutQueue } = createBrowserMocks();
 
-    createArticleActionsController({ elements, readingTime: 8 }, deps);
+    initializeArticleActions();
     elements.copyButton.click();
     await flushPromises();
 
@@ -98,12 +117,9 @@ describe('createArticleActionsController', () => {
 
   it('announces share fallback success when navigator.share is unavailable', async () => {
     const elements = createArticleActionsDom();
-    const { deps, frameQueue, timeoutQueue } = createDeps({
-      clipboardWriteText: async () => {},
-      share: null,
-    });
+    const { frameQueue, timeoutQueue } = createBrowserMocks();
 
-    createArticleActionsController({ elements, readingTime: 8 }, deps);
+    initializeArticleActions();
     elements.shareButton.click();
     await flushPromises();
 
@@ -115,60 +131,63 @@ describe('createArticleActionsController', () => {
     expect(elements.shareLabel.textContent).toBe('Share');
   });
 
-  it('announces share failures but suppresses AbortError', async () => {
+  it('announces share failures', async () => {
     const elements = createArticleActionsDom();
-    const failing = createDeps({
-      share: async () => {
+    const failing = createBrowserMocks();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: vi.fn(async () => {
         throw new Error('share failed');
-      },
+      }),
     });
 
-    createArticleActionsController({ elements, readingTime: 8 }, failing.deps);
+    initializeArticleActions();
     elements.shareButton.click();
     await flushPromises();
 
     expect(elements.shareLabel.textContent).toBe('Failed');
     failing.frameQueue.shift()?.();
     expect(elements.status.textContent).toBe(articleActionMessages.shareFailure);
-    expect(failing.deps.warn).toHaveBeenCalledWith('share', expect.any(Error));
+    expect(warn).toHaveBeenCalledWith('[share]', expect.any(Error));
 
     failing.timeoutQueue.shift()?.();
     expect(elements.shareLabel.textContent).toBe('Share');
+  });
 
-    const aborting = createDeps({
-      share: async () => {
+  it('suppresses AbortError from navigator.share', async () => {
+    const elements = createArticleActionsDom();
+    const { frameQueue } = createBrowserMocks();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: vi.fn(async () => {
         const error = new Error('dismissed');
         error.name = 'AbortError';
         throw error;
-      },
+      }),
     });
-    const abortElements = createArticleActionsDom();
 
-    createArticleActionsController({ elements: abortElements, readingTime: 8 }, aborting.deps);
-    abortElements.shareButton.click();
+    initializeArticleActions();
+    elements.shareButton.click();
     await flushPromises();
 
-    expect(aborting.deps.warn).not.toHaveBeenCalled();
-    expect(abortElements.status.textContent).toBe('');
+    expect(warn).not.toHaveBeenCalled();
+    expect(elements.status.textContent).toBe('');
+    expect(frameQueue).toHaveLength(0);
   });
 
   it('updates reading progress on init and coalesces scroll events', () => {
     const elements = createArticleActionsDom();
-    let scrollY = 250;
-    const { deps, frameQueue, scroll } = createDeps({
-      getScrollMetrics: () => ({
-        scrollHeight: 2000,
-        scrollY,
-        viewportHeight: 1000,
-      }),
-    });
+    const { frameQueue, scroll, setScrollY } = createBrowserMocks();
 
-    createArticleActionsController({ elements, readingTime: 8 }, deps);
+    setScrollY(250);
+    initializeArticleActions();
     expect(elements.percentRead.textContent).toBe('25%');
     expect(elements.minutesLeft.textContent).toBe('~6 min');
     expect(elements.progressBar.getAttribute('aria-valuenow')).toBe('25');
 
-    scrollY = 500;
+    setScrollY(500);
     scroll();
     scroll();
     expect(frameQueue).toHaveLength(1);

@@ -1,26 +1,22 @@
 ---
 export const prerender = true;
 
-import { getCollection, render } from 'astro:content';
+import { render } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
-import type { BlogPost } from '../lib/types';
-import { buildTagResolver, processPost, toSlug, notDraft } from '../lib/utils';
-
-const allPosts = await getCollection('blog', notDraft);
-const tagResolver = buildTagResolver(allPosts);
+import { getBlogCatalog } from '../lib/blog-data';
+import type { BlogPost, ProcessedPost } from '../lib/types';
 
 export const getStaticPaths = (async () => {
-  const posts = await getCollection('blog', notDraft);
-  return posts.map((entry) => ({
-    params: { slug: toSlug(entry.id) },
-    props: { entry },
+  const { processedPosts } = await getBlogCatalog();
+  return processedPosts.map((processed) => ({
+    params: { slug: processed.slug },
+    props: { entry: processed.entry, processed },
   }));
 }) satisfies GetStaticPaths;
 
-const { entry } = Astro.props as { entry: BlogPost };
+const { entry, processed } = Astro.props as { entry: BlogPost; processed: ProcessedPost };
 const { Content, headings } = await render(entry);
-const processed = processPost(entry, tagResolver);
 ---
 
 <ArticleLayout

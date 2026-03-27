@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  createTableOfContentsController,
+  initializeTableOfContents,
   pickActiveHeadingId,
   resolveTocScrollBehavior,
 } from './toc-controller';
@@ -41,24 +41,49 @@ function createTocDom() {
   return { articleBody, firstHeading, headingEls, links, secondHeading, tocNav };
 }
 
-describe('createTableOfContentsController', () => {
-  it('marks the topmost intersecting heading as active', () => {
-    const { articleBody, firstHeading, headingEls, links, secondHeading, tocNav } = createTocDom();
-    const observers: FakeIntersectionObserver[] = [];
+function mockBrowserApis() {
+  const observers: FakeIntersectionObserver[] = [];
 
-    createTableOfContentsController(
-      { articleBody, headingEls, links, tocNav },
-      {
-        createObserver: (callback, options) => {
-          const observer = new FakeIntersectionObserver(callback, options);
-          observers.push(observer);
-          return observer;
-        },
-        onFirstScroll: () => () => {},
-        prefersReducedMotion: () => false,
-        pushHistoryHash: vi.fn(),
-      },
-    );
+  function IntersectionObserverMock(
+    callback: IntersectionObserverCallback,
+    options?: IntersectionObserverInit,
+  ) {
+    const observer = new FakeIntersectionObserver(callback, options);
+    observers.push(observer);
+    return observer;
+  }
+
+  vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches: false,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    })),
+  );
+
+  return { observers };
+}
+
+afterEach(() => {
+  document.body.innerHTML = '';
+  initializeTableOfContents();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe('initializeTableOfContents', () => {
+  it('marks the topmost intersecting heading as active', () => {
+    const { firstHeading, links, secondHeading } = createTocDom();
+    const { observers } = mockBrowserApis();
+
+    initializeTableOfContents();
 
     observers[0]?.callback(
       [
@@ -89,47 +114,24 @@ describe('createTableOfContentsController', () => {
   });
 
   it('smooth-scrolls, focuses the heading, and updates the hash on click', () => {
-    const { articleBody, headingEls, links, tocNav } = createTocDom();
-    const pushHistoryHash = vi.fn();
+    const { headingEls, links } = createTocDom();
+    mockBrowserApis();
+    const pushState = vi.spyOn(history, 'pushState');
 
-    createTableOfContentsController(
-      { articleBody, headingEls, links, tocNav },
-      {
-        createObserver: () => new FakeIntersectionObserver(vi.fn()),
-        onFirstScroll: () => () => {},
-        prefersReducedMotion: () => false,
-        pushHistoryHash,
-      },
-    );
+    initializeTableOfContents();
 
     links[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
     expect(headingEls[1]?.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth' });
     expect(document.activeElement).toBe(headingEls[1]);
-    expect(pushHistoryHash).toHaveBeenCalledWith('#second');
+    expect(pushState).toHaveBeenCalledWith(null, '', '#second');
   });
 
   it('fades the toc only after the user has scrolled past the article body', () => {
-    const { articleBody, headingEls, links, tocNav } = createTocDom();
-    const observers: FakeIntersectionObserver[] = [];
-    let triggerFirstScroll: (() => void) | undefined;
+    const { articleBody, tocNav } = createTocDom();
+    const { observers } = mockBrowserApis();
 
-    createTableOfContentsController(
-      { articleBody, headingEls, links, tocNav },
-      {
-        createObserver: (callback, options) => {
-          const observer = new FakeIntersectionObserver(callback, options);
-          observers.push(observer);
-          return observer;
-        },
-        onFirstScroll: (listener) => {
-          triggerFirstScroll = listener;
-          return () => {};
-        },
-        prefersReducedMotion: () => false,
-        pushHistoryHash: vi.fn(),
-      },
-    );
+    initializeTableOfContents();
 
     const sentinel = articleBody.lastElementChild;
     expect(sentinel).not.toBeNull();
@@ -150,7 +152,7 @@ describe('createTableOfContentsController', () => {
     );
     expect(tocNav.classList.contains('toc--hidden')).toBe(false);
 
-    triggerFirstScroll?.();
+    window.dispatchEvent(new Event('scroll'));
     observers[1]?.callback(
       [
         {

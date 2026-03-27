@@ -1,33 +1,27 @@
 ---
 export const prerender = true;
 
-import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
+import { getBlogCatalog } from '../../lib/blog-data';
 import type { ProcessedPost, TagRoute } from '../../lib/types';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ArticleCard from '../../components/ArticleCard.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
-import { buildTagResolver, processPost, notDraft } from '../../lib/utils';
-
-const allPosts = await getCollection('blog', notDraft);
-const tagResolver = buildTagResolver(allPosts);
 
 export const getStaticPaths = (async () => {
-  const posts = await getCollection('blog', notDraft);
-  return buildTagResolver(posts)
-    .routes()
-    .map((route) => ({
-      params: { tag: route.canonicalSlug },
-      props: { route },
-    }));
+  const { tagPages } = await getBlogCatalog();
+  return tagPages.map(({ route, processedPosts }) => ({
+    params: { tag: route.canonicalSlug },
+    props: { processedPosts, route },
+  }));
 }) satisfies GetStaticPaths;
 
-const { route } = Astro.props as { route: TagRoute };
-const processed: ProcessedPost[] = route.posts.map((post) => processPost(post, tagResolver));
-
-processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publishDate.valueOf());
+const { route, processedPosts } = Astro.props as {
+  route: TagRoute;
+  processedPosts: ProcessedPost[];
+};
 ---
 
 <BaseLayout title={`${route.name} — Length³`}>
@@ -37,12 +31,12 @@ processed.sort((a, b) => b.entry.data.publishDate.valueOf() - a.entry.data.publi
     <header class="tag-header">
       <h1 class="page-title">#{route.name}</h1>
       <p class="page-meta tag-count">
-        {processed.length} article{processed.length !== 1 ? 's' : ''}
+        {processedPosts.length} article{processedPosts.length !== 1 ? 's' : ''}
       </p>
       <hr class="amber-rule" />
     </header>
     <section aria-label={`Articles tagged ${route.name}`}>
-      {processed.map((p) => <ArticleCard post={p} />)}
+      {processedPosts.map((post) => <ArticleCard post={post} />)}
     </section>
   </main>
   <Footer />
