@@ -15,7 +15,9 @@ const copy = getSiteCopy(lang);
 {
   filtered.length > 0 && (
     <nav class="toc" aria-label={copy.tableOfContents}>
-      <p class="toc-label">{copy.contents}</p>
+      <span class="toc-label" aria-hidden="true">
+        {copy.contents}
+      </span>
       <ul>
         {filtered.map((h) => (
           <li class={`toc-item toc-depth-${h.depth}`}>
@@ -66,10 +68,6 @@ const copy = getSiteCopy(lang);
     margin: 0;
   }
 
-  .toc-item {
-    position: relative;
-  }
-
   .toc-depth-3 {
     margin-left: 0.75rem;
   }
@@ -107,6 +105,7 @@ const copy = getSiteCopy(lang);
       min-height: 2.75rem;
       display: flex;
       align-items: center;
+      opacity: 0.85; /* hover reveal できないため基準値を底上げ */
     }
   }
 
@@ -115,10 +114,5 @@ const copy = getSiteCopy(lang);
     color: var(--amber-text);
     border-left-color: var(--amber-text);
     opacity: 1;
-  }
-
-  /* spec §4: H3 font-size 0.75rem */
-  .toc-depth-3 .toc-link {
-    font-size: 0.75rem;
   }
 </style>

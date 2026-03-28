@@ -104,7 +104,9 @@ function observeActiveHeading(
       if (nextLink === activeLink) return;
 
       activeLink?.classList.remove('active');
+      activeLink?.removeAttribute('aria-current');
       nextLink?.classList.add('active');
+      nextLink?.setAttribute('aria-current', 'location');
       activeLink = nextLink;
     },
     { rootMargin: '0px 0px -55% 0px', threshold: 0 },
