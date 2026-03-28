@@ -216,13 +216,13 @@ img {
 .prose-area {
   grid-area: prose;
   min-width: 0;
-  /* テクスチャ (body::before z-index:9998) の上にフロストガラス面を重ねて
-     読み取り列のノイズを抑えつつテクスチャを透かす。 */
+  /* フロストガラス: テクスチャを透かしつつ読み取り面の可読性を確保。
+     背景色を半透明(65%)に抑えることで柄が透けて見える。 */
   position: relative;
   z-index: var(--z-surface);
-  background: var(--paper); /* rgba(249,248,245,0.9) — 90% opacity */
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(249, 248, 245, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 /* Hide the deliberate empty right margin until the viewport can afford it. */
@@ -269,10 +269,9 @@ img {
     max-height: calc(100dvh - 4rem);
     overflow-y: auto;
     padding-top: 2rem;
-    z-index: var(--z-surface); /* --z-texture より前面に出てテキスト可読性を確保 */
-    background: rgba(249, 248, 245, 0.75); /* prose-areaより薄く階層差を出す */
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    z-index: var(--z-surface); /* テクスチャ (--z-texture) より前面でテキストを描画 */
+    /* 背景なし: TOC列はテクスチャをそのまま透過させる。
+       左端の硬い境界線を排除しスペーシングを自然に保つ。 */
   }
 }
 
