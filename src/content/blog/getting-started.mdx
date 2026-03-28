@@ -66,8 +66,8 @@ const allPosts = await getCollection('blog', notDraft);
 | ------------- | -------------- | --------------------------------------------------------- |
 | `title`       | `string`       | Required. Article heading and `<title>`                   |
 | `description` | `string`       | Required. Lead paragraph and meta description             |
-| `publishDate` | `YYYY/MM/DD`   | Required. Shown in article header and sort order          |
-| `updatedDate` | `YYYY/MM/DD`   | Optional. Shown as "(upd. …)" next to publish date        |
+| `publishDate` | `YYYY-MM-DD`   | Required. Shown in article header and sort order          |
+| `updatedDate` | `YYYY-MM-DD`   | Optional. Shown as "(upd. …)" next to publish date        |
 | `tags`        | `string[]`     | Routed to `/tags/[slug]`, CJK-safe slugification          |
 | `draft`       | `boolean`      | Defaults `false`. `true` hides the post from all listings |
 | `lang`        | `'en' \| 'ja'` | Controls date format and `lang` attribute                 |
@@ -122,7 +122,6 @@ The `TableOfContents` component extracts `h2` and `h3` headings from the MDX ren
 - **Desktop (≥ 720px):** TOC stays visible in the left rail as secondary navigation
 - **Mobile (< 720px):** TOC is hidden so the reader reaches title and prose immediately
 - **Active section:** an `IntersectionObserver` tracks which heading is in the top 45% of the viewport and highlights the corresponding TOC link in amber
-- **Fade-out:** a second observer watches a sentinel element at the end of the article body; once the reader scrolls past it, the TOC fades to `opacity: 0` with `pointer-events: none`
 - **Smooth scroll:** TOC link clicks call `scrollIntoView()` and push the hash to `history` without a hard jump
 
 ### Reading Time
@@ -148,18 +147,19 @@ Tags are normalized into canonical slugs so CJK tags survive the transformation 
 
 ```typescript
 export function canonicalizeTagSlug(tag: string): string {
-  return tag
-    .normalize('NFKC')
-    .trim()
-    .toLowerCase()
+  const normalized = tag.normalize('NFKC').trim().toLowerCase();
+  const base = normalized
     .replace(/\s+/g, '-')
     .replace(/[^\p{L}\p{N}-]/gu, '')
     .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '');
+
+  return base || `tag-${hashText(normalized || tag)}`;
 }
 ```
 
 Unicode property escapes keep `機械学習` intact, while punctuation cleanup and hyphen collapsing make names like `TypeScript / JS` converge to a stable canonical route.
+When every character is stripped (e.g. a tag consisting only of punctuation), the function falls back to an FNV-1a hash to guarantee a routable slug.
 
 Tag archive pages are generated at `/tags/[tag]` via `getStaticPaths`.
 The `buildTagRoutes` utility centralises aggregation so the topic directory and per-tag listing pages share the same routing model:
@@ -176,9 +176,8 @@ Search is powered by [Pagefind](https://pagefind.app/), a static-site search lib
 
 The build pipeline:
 
-1. `astro build` generates the static HTML output in `dist/`
-2. `postbuild` runs `pagefind --site dist`, which crawls the HTML, indexes every `data-pagefind-body` element, and emits a binary search index alongside the static files
-3. On the client, Pagefind's WASM engine loads the index from the same CDN edge node that serves the page — zero extra round-trips
+1. `astro build` runs with the `astro-pagefind` integration, which automatically invokes Pagefind after the static HTML is generated in `dist/`. It crawls every `data-pagefind-body` element and emits a binary search index alongside the static files.
+2. On the client, Pagefind's WASM engine loads the index from the same CDN edge node that serves the page — zero extra round-trips
 
 The article body is annotated `data-pagefind-body` in `ArticleLayout.astro`:
 
@@ -222,7 +221,7 @@ The blog has first-class support for Japanese composition:
 - **`<ruby>` annotations** via the `RubyText` component — e.g. <RubyText base="情報処理" reading="じょうほうしょり" />
 - **`line-break: strict`** — prevents breaks before small kana (ぁぃぅぇぉ…) and other restricted characters
 - **`text-wrap: pretty`** — multi-line headings break at semantically reasonable points
-- **`font-feature-settings: 'palt'`** — proportional alternate spacing for punctuation (。、…) tightens the visual rhythm of CJK text
+- **`font-feature-settings: 'palt'`** — proportional alternate spacing for punctuation (。、…), applied to headings globally and to the prose body when `lang="ja"`, tightening the visual rhythm of CJK text
 - **`text-autospace: ideograph-alpha`** — automatic thin-space insertion between CJK and Latin characters, so `Astro 6` embedded in Japanese prose reads naturally
 
 ### Amber Accent
@@ -283,7 +282,8 @@ The site is deployed to Cloudflare's global network via [Wrangler](https://devel
 ```toml
 # wrangler.toml
 name = "length3"
-compatibility_date = "2025-01-01"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
 ```
 
 The `@astrojs/cloudflare` adapter wraps the Astro build output into a Worker bundle.
@@ -303,10 +303,10 @@ vite: {
 
 GitHub Actions runs two workflows:
 
-- **`ci.yml`** — on every push and PR: `astro check`, `biome check`, `vitest run`, `playwright test`
-- **`deploy.yml`** — on push to `main`: `astro build` → `pagefind --site dist` → `wrangler deploy`
+- **`ci.yml`** — on every push and PR, three jobs: (1) lint + type check + unit tests (`biome check`, `astro check`, `vitest run`), (2) build (uploads `dist/` as an artifact), (3) Playwright E2E (downloads the build artifact, runs `playwright test`). The build and E2E jobs are chained so Playwright always tests the exact build that was just produced.
+- **`deploy.yml`** — manually triggered via `workflow_dispatch` (automatic deploy on push to `main` is disabled pending Cloudflare secrets configuration): `astro build` → `wrangler deploy`
 
-The `postbuild` npm script ensures the Pagefind index is always generated immediately after the Astro build, keeping the deploy pipeline simple.
+Because Pagefind runs as an Astro integration, the search index is always generated as part of the build step with no separate post-processing required.
 
 ## Design Principles
 
