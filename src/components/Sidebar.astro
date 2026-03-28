@@ -23,12 +23,31 @@ const siteCopy = getSiteCopy(lang);
     <button
       type="button"
       id="search-trigger"
-      class="search-underline-btn"
+      class="search-trigger-btn"
       aria-haspopup="dialog"
       aria-expanded="false"
       aria-controls="search-modal"
     >
-      <span class="search-icon" aria-hidden="true">Q</span>
+      <svg
+        class="search-icon-svg"
+        aria-hidden="true"
+        focusable="false"
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"></circle>
+        <line
+          x1="10.5"
+          y1="10.5"
+          x2="14.5"
+          y2="14.5"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"></line>
+      </svg>
       <span class="search-placeholder">{copy.searchPlaceholder}</span>
       <kbd class="search-shortcut" aria-label={siteCopy.keyboardShortcutSlash}>/</kbd>
     </button>
@@ -63,10 +82,55 @@ const siteCopy = getSiteCopy(lang);
 >
   <div class="search-card">
     <div class="search-card-header">
-      <span class="search-q" aria-hidden="true">Q</span>
+      <svg
+        class="search-header-icon"
+        aria-hidden="true"
+        focusable="false"
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"></circle>
+        <line
+          x1="10.5"
+          y1="10.5"
+          x2="14.5"
+          y2="14.5"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"></line>
+      </svg>
       <p class="search-title">{copy.searchDialogLabel}</p>
       <button type="button" class="search-esc-btn" id="search-close" aria-label={copy.closeSearch}>
-        {siteCopy.close}
+        <svg
+          class="search-close-icon"
+          aria-hidden="true"
+          focusable="false"
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <line
+            x1="1"
+            y1="1"
+            x2="11"
+            y2="11"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"></line>
+          <line
+            x1="11"
+            y1="1"
+            x2="1"
+            y2="11"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"></line>
+        </svg>
       </button>
     </div>
     <p id="search-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -191,39 +255,45 @@ const siteCopy = getSiteCopy(lang);
     margin-bottom: 1.25rem;
   }
 
-  .search-underline-btn {
+  .search-trigger-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     width: 100%;
-    min-height: 2.75rem;
-    padding: 0.375rem 0 0.625rem;
-    border: none;
-    background: none;
-    box-shadow: inset 0 -0.0625rem 0 var(--surface-line);
+    min-height: 2.25rem;
+    padding: 0.375rem 0.625rem 0.375rem 0.5rem;
+    border: 0.0625rem solid var(--surface-border);
+    border-radius: 1.25rem;
+    background: var(--surface-fill);
     cursor: pointer;
     font-family: var(--font-mono);
     font-size: 0.75rem;
-    letter-spacing: 0.08em;
-    color: var(--ink-2);
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
     text-align: left;
     touch-action: manipulation;
     transition:
       border-color var(--transition-fast),
-      color var(--transition-fast);
+      background-color var(--transition-fast),
+      color var(--transition-fast),
+      box-shadow var(--transition-fast);
   }
 
-  .search-underline-btn:hover {
-    box-shadow:
-      inset 0 -0.0625rem 0 var(--surface-line),
-      inset 0 -0.125rem 0 rgba(212, 130, 10, 0.48);
-    color: var(--ink);
+  .search-trigger-btn:hover {
+    border-color: rgba(168, 151, 129, 0.55);
+    background: var(--surface-fill-strong);
+    color: var(--ink-2);
+    box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.06);
   }
 
-  .search-icon {
-    font-weight: 500;
-    color: var(--amber-text);
+  .search-icon-svg {
     flex-shrink: 0;
+    color: var(--amber-text);
+    transition: color var(--transition-fast);
+  }
+
+  .search-trigger-btn:hover .search-icon-svg {
+    color: var(--amber);
   }
 
   .search-overlay {
@@ -282,12 +352,9 @@ const siteCopy = getSiteCopy(lang);
     color: var(--ink-2);
   }
 
-  .search-q {
-    font-family: var(--font-mono);
-    font-size: 1rem;
-    font-weight: 500;
-    color: var(--amber-text);
+  .search-header-icon {
     flex-shrink: 0;
+    color: var(--amber-text);
   }
 
   .search-esc-btn {
@@ -296,21 +363,29 @@ const siteCopy = getSiteCopy(lang);
     align-items: center;
     justify-content: center;
     min-height: 2.75rem;
-    font-family: var(--font-mono);
-    font-size: var(--font-ui-xs);
-    padding: 0.45rem 0.75rem;
+    min-width: 2.75rem;
+    padding: 0.375rem;
     border: 0.0625rem solid var(--surface-line);
-    border-radius: 0.125rem;
+    border-radius: 0.25rem;
     background: var(--surface-fill);
     color: var(--ink-2);
     cursor: pointer;
     flex-shrink: 0;
     touch-action: manipulation;
-    transition: color var(--transition-fast);
+    transition:
+      color var(--transition-fast),
+      border-color var(--transition-fast),
+      background-color var(--transition-fast);
   }
 
   .search-esc-btn:hover {
     color: var(--ink);
+    border-color: var(--surface-border);
+    background: var(--surface-fill-strong);
+  }
+
+  .search-close-icon {
+    flex-shrink: 0;
   }
 
   .search-results {
@@ -440,6 +515,7 @@ const siteCopy = getSiteCopy(lang);
   }
 
   :global(#pagefind-ui .pagefind-ui__form) {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -449,7 +525,18 @@ const siteCopy = getSiteCopy(lang);
   }
 
   :global(#pagefind-ui .pagefind-ui__form::before) {
-    display: none;
+    content: '';
+    display: block;
+    position: absolute;
+    left: 1rem;
+    top: calc(0.9rem + 0.55rem / 2);
+    width: 1rem;
+    height: 1rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Ccircle cx='6.5' cy='6.5' r='5' stroke='%239a9690' stroke-width='1.5'/%3E%3Cline x1='10.5' y1='10.5' x2='14.5' y2='14.5' stroke='%239a9690' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: contain;
+    pointer-events: none;
+    transform: translateY(-50%);
   }
 
   :global(#pagefind-ui .pagefind-ui__search-input) {
@@ -460,7 +547,7 @@ const siteCopy = getSiteCopy(lang);
     font-family: var(--font-display);
     font-size: 1rem;
     color: var(--ink);
-    padding: 0 0 0.55rem;
+    padding: 0 0 0.55rem 1.75rem;
   }
 
   :global(#pagefind-ui .pagefind-ui__search-input:focus-visible) {
@@ -602,6 +689,10 @@ const siteCopy = getSiteCopy(lang);
       align-items: center;
       gap: 0.75rem;
       padding: 0.85rem 1rem;
+    }
+
+    :global(#pagefind-ui .pagefind-ui__form::before) {
+      top: 50%;
     }
 
     :global(#pagefind-ui .pagefind-ui__search-input) {
