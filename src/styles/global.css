@@ -74,6 +74,22 @@ body {
   flex-direction: column;
 }
 
+/* ─── Texture overlay ────────────────────────────────────────── */
+/* 768px contour-grain WebP tiled at very low opacity — adds tactile
+   paper quality uniformly across the entire viewport without
+   interfering with readability or pointer events. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url('../texture/length3-texture-transparent.webp');
+  background-repeat: repeat;
+  background-size: 768px 768px;
+  pointer-events: none;
+  z-index: 9998; /* above all content layers; below skip-link (9999) */
+  opacity: 0.04;
+}
+
 a {
   color: inherit;
   text-decoration: none;
