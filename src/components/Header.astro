@@ -13,7 +13,7 @@ const copy = getSiteCopy(lang);
 <header class="site-header">
   <div class="header-inner">
     <a href="/" class="site-title" aria-label={copy.home}>
-      Length<sup class="site-title-sup">3</sup>
+      <span>Length<sup class="site-title-sup">3</sup></span>
     </a>
     <nav class="header-nav" aria-label={copy.navigation}>
       <a href="/" aria-current={pathname === '/' ? 'page' : undefined}>({copy.articles})</a>
@@ -66,12 +66,8 @@ const copy = getSiteCopy(lang);
     background-clip: text;
     color: transparent;
     font-size: 0.6em;
-    /* <sup> is a flex item inside display:inline-flex — vertical-align has no
-       effect here. line-height:0 collapsed the element to zero height which
-       made background-clip:text paint nothing (invisible "3").
-       Use align-self + margin-top to reproduce the superscript position. */
-    align-self: flex-start;
-    margin-top: 0.6rem;
+    vertical-align: super;
+    line-height: 1;
   }
 
   @media (forced-colors: active) {
