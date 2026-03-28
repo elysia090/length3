@@ -40,8 +40,8 @@ const copy = getSiteCopy(lang);
 <style>
   .toc {
     transition:
-      opacity 200ms ease,
-      visibility 200ms ease;
+      opacity var(--transition-slow),
+      visibility var(--transition-slow);
   }
 
   /* Applied by JS when the reader scrolls past the end of the article body */
@@ -83,7 +83,7 @@ const copy = getSiteCopy(lang);
     border-left: 0.125rem solid transparent;
     transition:
       color var(--transition-fast),
-      opacity 200ms ease,
+      opacity var(--transition-slow),
       border-color var(--transition-fast);
   }
 
