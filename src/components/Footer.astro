@@ -14,7 +14,7 @@
   .site-footer {
     border-top: 0.0625rem solid var(--rule);
     margin-top: auto;
-    background-image: linear-gradient(180deg, rgba(249, 248, 245, 0.94), rgba(240, 237, 232, 0.96));
+    background: var(--bg);
   }
 
   .footer-inner {
@@ -33,30 +33,10 @@
   }
 
   .footer-sup {
-    display: inline-block;
-    background: linear-gradient(
-      180deg,
-      var(--agate-soft) 0%,
-      var(--agate-core) 52%,
-      var(--amber-deep) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
     font-size: 0.6em;
     vertical-align: super;
-    /* line-height:0 collapsed the inline-block to zero height, making
-       background-clip:text paint nothing and the "3" invisible. */
     line-height: 1;
-  }
-
-  @media (forced-colors: active) {
-    .footer-sup {
-      background: none;
-      -webkit-background-clip: border-box;
-      background-clip: border-box;
-      color: currentColor;
-    }
+    color: var(--amber-text);
   }
 
   .footer-sep {

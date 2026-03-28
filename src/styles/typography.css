@@ -149,9 +149,7 @@
 .prose hr {
   border: none;
   height: 0.125rem;
-  background:
-    linear-gradient(90deg, rgba(255, 244, 229, 0.26), transparent 32%),
-    linear-gradient(90deg, var(--amber-deep) 0%, var(--agate-core) 40%, var(--agate-soft) 100%);
+  background: var(--amber-deep);
   width: 3rem;
   margin: 1.5rem 0 2rem;
 }
@@ -252,9 +250,7 @@ rt {
   color: var(--ink);
   padding: 0.55rem 0.75rem 0.55rem 1rem;
   margin-bottom: 0;
-  background:
-    linear-gradient(90deg, rgba(212, 130, 10, 0.1), rgba(212, 130, 10, 0.03) 32%, transparent 80%),
-    linear-gradient(130deg, rgba(255, 255, 255, 0.28), rgba(240, 237, 232, 0.1));
+  background: rgba(212, 130, 10, 0.06);
   border-radius: 0 0.45rem 0.45rem 0;
 }
 
@@ -265,8 +261,7 @@ rt {
   bottom: 0.3rem;
   left: 0;
   width: 0.0625rem;
-  background:
-    linear-gradient(180deg, var(--agate-soft) 0%, var(--agate-core) 52%, var(--amber-deep) 100%);
+  background: var(--amber-text);
 }
 
 @media (min-width: 45rem) {

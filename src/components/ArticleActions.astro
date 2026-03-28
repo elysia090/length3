@@ -72,9 +72,7 @@ const copy = getSiteCopy(lang);
     left: 0;
     height: 0.125rem;
     width: var(--progress, 0%);
-    background:
-      linear-gradient(90deg, rgba(255, 244, 229, 0.3), transparent 28%),
-      linear-gradient(90deg, var(--amber-deep) 0%, var(--agate-core) 42%, var(--agate-soft) 100%);
+    background: var(--amber-deep);
     /* SC 2.4.11: lowered from 200 so it cannot obscure focus rings of interactive elements */
     z-index: 10;
     transition: width 150ms linear;
