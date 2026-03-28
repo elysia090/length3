@@ -7,20 +7,29 @@ import {
 } from './ui-copy';
 
 describe('getSiteCopy', () => {
-  it('returns Japanese shared UI labels for Japanese pages', () => {
+  it('returns English UI labels for Japanese pages', () => {
     const copy = getSiteCopy('ja');
 
     expect(copy.skipToMainContent).toBe('本文へ移動');
     expect(copy.tableOfContents).toBe('目次');
-    expect(copy.copyLink).toBe('リンクをコピー');
+    expect(copy.copyLink).toBe('Copy link');
+    expect(copy.articles).toBe('Articles');
+    expect(copy.about).toBe('About');
+    expect(copy.updatedPrefix).toBe('upd.');
+    expect(copy.read).toBe('read');
+    expect(copy.left).toBe('left');
+    expect(copy.total).toBe('total');
+    expect(copy.share).toBe('Share');
   });
 });
 
 describe('reading time formatters', () => {
-  it('formats Japanese reading time copy', () => {
-    expect(formatCompactReadingTime(8, 'ja')).toBe('8分');
-    expect(formatArticleReadingTime(8, 'ja')).toBe('8分で読める');
-    expect(formatRemainingReadingTime(6, 'ja')).toBe('約6分');
-    expect(formatRemainingReadingTime(0, 'ja')).toBe('1分未満');
+  it('formats reading time in English regardless of language', () => {
+    expect(formatCompactReadingTime(8, 'ja')).toBe('8 min');
+    expect(formatArticleReadingTime(8, 'ja')).toBe('8 min read');
+    expect(formatRemainingReadingTime(6, 'ja')).toBe('~6 min');
+    expect(formatRemainingReadingTime(0, 'ja')).toBe('< 1 min');
+    expect(formatCompactReadingTime(8, 'en')).toBe('8 min');
+    expect(formatArticleReadingTime(8, 'en')).toBe('8 min read');
   });
 });
