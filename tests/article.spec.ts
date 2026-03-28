@@ -14,7 +14,9 @@ test('article route smoke', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('reading progress stays pinned to the viewport and toc remains visible while scrolling', async ({ page }) => {
+test('reading progress stays pinned to the viewport and toc remains visible while scrolling', async ({
+  page,
+}) => {
   const errors = trackBrowserErrors(page);
 
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -42,8 +44,9 @@ test('reading progress stays pinned to the viewport and toc remains visible whil
   await page.evaluate(() => {
     window.scrollTo(0, Math.round(document.body.scrollHeight * 0.5));
   });
-  await page.waitForFunction(() =>
-    Number(document.getElementById('reading-progress')?.getAttribute('aria-valuenow') ?? 0) > 0,
+  await page.waitForFunction(
+    () =>
+      Number(document.getElementById('reading-progress')?.getAttribute('aria-valuenow') ?? 0) > 0,
   );
 
   const midScroll = await progress.evaluate((element) => ({
@@ -64,4 +67,3 @@ test('reading progress stays pinned to the viewport and toc remains visible whil
   expect(Math.abs(endTop)).toBeLessThan(1);
   expect(errors).toEqual([]);
 });
-
