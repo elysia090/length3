@@ -172,7 +172,7 @@ describe('formatDate', () => {
   const explicitUtcValue = new Date('2026-03-20T18:30:00Z');
 
   it('formats date-only values in UTC for en locale', () => {
-    expect(formatDate(dateOnlyValue, 'en')).toBe('2026-03-20');
+    expect(formatDate(dateOnlyValue, 'en')).toBe('2026/03/20');
   });
 
   it('formats date-only values in UTC for ja locale', () => {
@@ -180,7 +180,7 @@ describe('formatDate', () => {
   });
 
   it('keeps explicit UTC timestamps stable for en locale', () => {
-    expect(formatDate(explicitUtcValue, 'en')).toBe('2026-03-20');
+    expect(formatDate(explicitUtcValue, 'en')).toBe('2026/03/20');
   });
 
   it('keeps explicit UTC timestamps stable for ja locale', () => {

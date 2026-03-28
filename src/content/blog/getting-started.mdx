@@ -2,7 +2,7 @@
 title: 'Length³: A Technical Blog Built on Astro 6 and Cloudflare Workers'
 description: A deep dive into how this blog is built — Astro 6, MDX content collections, Pagefind search, and Japanese typography, all deployed at the edge.
 publishDate: 2026-03-20
-updatedDate: 2026-03-23
+updatedDate: 2026-03-28
 tags: [astro, cloudflare, mdx, typescript, 'TypeScript / JS', pagefind, typography]
 draft: false
 lang: en
@@ -51,7 +51,7 @@ const blog = defineCollection({
 });
 ```
 
-The `z.coerce.date()` call lets you write `2026-03-20` in frontmatter and get a native `Date` object — no manual parsing.
+The `z.coerce.date()` call lets you write `2026-03-28` in frontmatter and get a native `Date` object — no manual parsing.
 `draft: true` excludes a post from all listing pages via a shared predicate:
 
 ```typescript
@@ -66,8 +66,8 @@ const allPosts = await getCollection('blog', notDraft);
 | ------------- | -------------- | --------------------------------------------------------- |
 | `title`       | `string`       | Required. Article heading and `<title>`                   |
 | `description` | `string`       | Required. Lead paragraph and meta description             |
-| `publishDate` | `YYYY-MM-DD`   | Required. Shown in article header and sort order          |
-| `updatedDate` | `YYYY-MM-DD`   | Optional. Shown as "(upd. …)" next to publish date        |
+| `publishDate` | `YYYY/MM/DD`   | Required. Shown in article header and sort order          |
+| `updatedDate` | `YYYY/MM/DD`   | Optional. Shown as "(upd. …)" next to publish date        |
 | `tags`        | `string[]`     | Routed to `/tags/[slug]`, CJK-safe slugification          |
 | `draft`       | `boolean`      | Defaults `false`. `true` hides the post from all listings |
 | `lang`        | `'en' \| 'ja'` | Controls date format and `lang` attribute                 |
