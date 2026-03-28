@@ -275,15 +275,13 @@ const siteCopy = getSiteCopy(lang);
     transition:
       border-color var(--transition-fast),
       background-color var(--transition-fast),
-      color var(--transition-fast),
-      box-shadow var(--transition-fast);
+      color var(--transition-fast);
   }
 
   .search-trigger-btn:hover {
-    border-color: rgba(168, 151, 129, 0.55);
+    border-color: var(--surface-separator);
     background: var(--surface-fill-strong);
     color: var(--ink-2);
-    box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.06);
   }
 
   .search-icon-svg {
@@ -328,7 +326,7 @@ const siteCopy = getSiteCopy(lang);
     flex-direction: column;
     background: var(--bg);
     border: 0.0625rem solid var(--surface-border);
-    border-radius: 0.65rem;
+    border-radius: 0.625rem;
     overflow: hidden;
     box-shadow: var(--shadow-card);
   }
@@ -336,8 +334,8 @@ const siteCopy = getSiteCopy(lang);
   .search-card-header {
     display: flex;
     align-items: center;
-    gap: 0.65rem;
-    padding: 0.85rem 1rem 0.75rem;
+    gap: 0.625rem;
+    padding: 0.875rem 1rem;
     border-bottom: 0.0625rem solid var(--rule);
   }
 
@@ -345,7 +343,7 @@ const siteCopy = getSiteCopy(lang);
     margin: 0;
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--ink-2);
   }
@@ -406,7 +404,7 @@ const siteCopy = getSiteCopy(lang);
     align-items: center;
     gap: 0.75rem;
     flex-wrap: wrap;
-    padding: 0.55rem 0.85rem;
+    padding: 0.5rem 1rem;
     border-top: 0.0625rem solid var(--rule);
     background: var(--surface-fill-strong);
   }
@@ -480,7 +478,7 @@ const siteCopy = getSiteCopy(lang);
     border-bottom: 0.0625rem solid var(--rule);
     font-family: var(--font-mono);
     font-size: 0.75rem;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     color: var(--ink);
     touch-action: manipulation;
     transition: color var(--transition-fast);
@@ -507,7 +505,7 @@ const siteCopy = getSiteCopy(lang);
   :global(.search-unavailable),
   :global(.search-loading),
   :global(.search-error) {
-    padding: 1rem 1rem 1.1rem;
+    padding: 1rem;
     font-size: 0.875rem;
     color: var(--ink-2);
   }
@@ -605,8 +603,8 @@ const siteCopy = getSiteCopy(lang);
     min-height: 6.5rem;
     display: grid;
     align-content: center;
-    gap: 0.45rem;
-    padding: 1rem 1rem 1.1rem;
+    gap: 0.5rem;
+    padding: 1rem;
   }
 
   .search-empty-title {
@@ -658,7 +656,7 @@ const siteCopy = getSiteCopy(lang);
 
   :global(mark) {
     background: none;
-    color: var(--amber-text);
+    color: var(--amber-deep); /* amber-text 4.30:1 on bg-2 → amber-deep 6.21:1 */
     font-style: italic;
   }
 
