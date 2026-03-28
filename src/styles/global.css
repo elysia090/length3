@@ -202,11 +202,13 @@ img {
 .prose-area {
   grid-area: prose;
   min-width: 0;
-  /* テクスチャ (body::before z-index:9998) の上に背景を重ねて
-     読み取り列のノイズを除去する。テクスチャはTOC・余白列に残る。 */
+  /* テクスチャ (body::before z-index:9998) の上にフロストガラス面を重ねて
+     読み取り列のノイズを抑えつつテクスチャを透かす。 */
   position: relative;
   z-index: 9999;
-  background: var(--bg);
+  background: var(--paper); /* rgba(249,248,245,0.9) — 90% opacity */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* Hide the deliberate empty right margin until the viewport can afford it. */
@@ -253,6 +255,10 @@ img {
     max-height: calc(100dvh - 4rem);
     overflow-y: auto;
     padding-top: 2rem;
+    z-index: 9999; /* テクスチャ (9998) より前面に出てテキスト可読性を確保 */
+    background: rgba(249, 248, 245, 0.75); /* prose-areaより薄く階層差を出す */
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
 }
 
