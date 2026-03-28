@@ -129,47 +129,17 @@ describe('initializeTableOfContents', () => {
     expect(pushState).toHaveBeenCalledWith(null, '', '#second');
   });
 
-  it('fades the toc only after the user has scrolled past the article body', () => {
-    const { articleBody, tocNav } = createTocDom();
+  it('does not append an article-end sentinel or create a second observer', () => {
+    const { articleBody, secondHeading, tocNav } = createTocDom();
     const { observers } = mockBrowserApis();
 
     initializeTableOfContents();
 
-    const sentinel = articleBody.lastElementChild;
-    expect(sentinel).not.toBeNull();
-
-    observers[1]?.callback(
-      [
-        {
-          boundingClientRect: { top: -1 } as DOMRectReadOnly,
-          intersectionRatio: 0,
-          intersectionRect: {} as DOMRectReadOnly,
-          isIntersecting: false,
-          rootBounds: null,
-          target: sentinel as Element,
-          time: 0,
-        },
-      ],
-      {} as IntersectionObserver,
-    );
-    expect(tocNav.classList.contains('toc--hidden')).toBe(false);
+    expect(articleBody.lastElementChild).toBe(secondHeading);
+    expect(observers).toHaveLength(1);
 
     window.dispatchEvent(new Event('scroll'));
-    observers[1]?.callback(
-      [
-        {
-          boundingClientRect: { top: -1 } as DOMRectReadOnly,
-          intersectionRatio: 0,
-          intersectionRect: {} as DOMRectReadOnly,
-          isIntersecting: false,
-          rootBounds: null,
-          target: sentinel as Element,
-          time: 0,
-        },
-      ],
-      {} as IntersectionObserver,
-    );
-    expect(tocNav.classList.contains('toc--hidden')).toBe(true);
+    expect(tocNav.classList.contains('toc--hidden')).toBe(false);
   });
 });
 

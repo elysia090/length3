@@ -44,15 +44,13 @@
   font-weight: 400;                    /* spec §2 */
   line-height: 1.3;
   letter-spacing: -0.02em;
-  margin-top: 3.5rem;
+  margin-top: 3rem;
   margin-bottom: 1rem;
-  padding-top: 1.5rem;
-  border-top: 0.0625rem solid var(--rule); /* 長文セクション境界: チャプター感を明示 */
   text-wrap: balance;                  /* spec §2: even distribution on multi-line */
 }
 
 .prose h2[id] {
-  scroll-margin-top: 4rem;  /* spec §5 — ナビゲーション時にヘッダーが確実に見えるよう拡大 */
+  scroll-margin-top: 2rem;  /* spec §5 */
 }
 
 .prose h3 {
