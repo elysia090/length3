@@ -202,6 +202,11 @@ img {
 .prose-area {
   grid-area: prose;
   min-width: 0;
+  /* テクスチャ (body::before z-index:9998) の上に背景を重ねて
+     読み取り列のノイズを除去する。テクスチャはTOC・余白列に残る。 */
+  position: relative;
+  z-index: 9999;
+  background: var(--bg);
 }
 
 /* Hide the deliberate empty right margin until the viewport can afford it. */
