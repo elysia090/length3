@@ -87,7 +87,6 @@ body::before {
   background-size: 768px 768px;
   pointer-events: none;
   z-index: 9998; /* above all content layers; below skip-link (9999) */
-  opacity: 0.04;
 }
 
 a {
