@@ -418,8 +418,15 @@ img {
 }
 
 @media (pointer: coarse) {
+  /* 視覚サイズはそのまま保ち、::before でタッチターゲット 44px を確保する。
+     min-height で pill 全体を膨らませると見た目が重くなる。 */
   .tag-pill:not(.tag-pill--quiet) {
-    min-height: 2.75rem;
+    min-height: 1.375rem; /* base に戻す */
+  }
+  .tag-pill:not(.tag-pill--quiet)::before {
+    content: '';
+    position: absolute;
+    inset: -0.75rem -0.25rem; /* 上下 12px 拡張 → 合計 ~46px */
   }
 }
 
