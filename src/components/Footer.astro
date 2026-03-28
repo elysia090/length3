@@ -45,7 +45,9 @@
     color: transparent;
     font-size: 0.6em;
     vertical-align: super;
-    line-height: 0;
+    /* line-height:0 collapsed the inline-block to zero height, making
+       background-clip:text paint nothing and the "3" invisible. */
+    line-height: 1;
   }
 
   @media (forced-colors: active) {

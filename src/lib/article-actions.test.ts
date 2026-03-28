@@ -53,7 +53,7 @@ describe('calculateReadingProgress', () => {
     });
   });
 
-  it('formats remaining time in Japanese when requested', () => {
+  it('formats remaining time in English even for Japanese language', () => {
     expect(
       calculateReadingProgress({
         language: 'ja',
@@ -65,7 +65,7 @@ describe('calculateReadingProgress', () => {
     ).toEqual({
       ariaValueNow: '25',
       minutesLeft: 6,
-      minutesLeftLabel: '約6分',
+      minutesLeftLabel: '~6 min',
       percentRead: 25,
       progressValue: '25%',
     });

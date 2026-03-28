@@ -407,6 +407,60 @@ describe('createPagefindSearchController', () => {
     expect(status.textContent).toBe('2 search results available.');
   });
 
+  // Regression: the primary index may emit "No results" before the merged index
+  // resolves with actual results. During that window Pagefind briefly clears the
+  // message text. A stale searchMessageSource must not keep the empty state shown
+  // alongside the results that arrive from the merged index.
+  it('does not show the empty state when a merged-index result arrives after a transient blank message', async () => {
+    const { emptyState, mount, status } = createSearchDom();
+    setMatchMedia(true);
+    const PagefindUI = vi.fn(function PagefindUI(this: unknown) {
+      mount.innerHTML = `
+        <div class="pagefind-ui">
+          <input class="pagefind-ui__search-input" />
+          <ol class="pagefind-ui__results">
+            <li class="pagefind-ui__result"></li>
+          </ol>
+        </div>
+      `;
+    }) as unknown as PagefindUIConstructor;
+    const controller = createPagefindSearchController(
+      createOptions({ getPagefindUI: () => PagefindUI, mount, status }),
+    );
+
+    await expect(controller.open()).resolves.toEqual({ kind: 'ready' });
+
+    // Primary index returns no results — empty state shown
+    mount.innerHTML = `
+      <div class="pagefind-ui">
+        <input class="pagefind-ui__search-input" />
+        <p class="pagefind-ui__message">No results for "ウェブ"</p>
+      </div>
+    `;
+    await flushMutationObserver();
+    expect(emptyState.hidden).toBe(false);
+
+    // Pagefind clears the message text while the merged index is still resolving
+    const blankMsg = mount.querySelector<HTMLElement>('.pagefind-ui__message');
+    if (blankMsg) blankMsg.textContent = '';
+    await flushMutationObserver();
+
+    // Empty state must not persist due to the stale searchMessageSource
+    expect(emptyState.hidden).toBe(true);
+
+    // Merged index delivers a result
+    mount
+      .querySelector('.pagefind-ui')
+      ?.insertAdjacentHTML(
+        'beforeend',
+        `<ol class="pagefind-ui__results"><li class="pagefind-ui__result"></li></ol>`,
+      );
+    await flushMutationObserver();
+
+    expect(emptyState.hidden).toBe(true);
+    expect(status.textContent).toBe('1 search result available.');
+  });
+
   it('stops reacting to Pagefind DOM mutations after close', async () => {
     const { emptyState, mount, status } = createSearchDom();
     setMatchMedia(true);
@@ -460,6 +514,56 @@ describe('decorateSearchUi', () => {
     expect(emptyState?.textContent).toContain('より広い語句やトピック名で試してください。');
     expect(emptyState.hidden).toBe(false);
     expect(mount.querySelector<HTMLElement>('.pagefind-ui__message')?.hidden).toBe(true);
+  });
+
+  // Regression: merged-index updates briefly clear message text before setting
+  // the next value. A stale searchMessageSource dataset attribute must not cause
+  // the empty state to persist once the message text has been cleared.
+  it('hides the empty state and clears the stale source when message text is blanked', () => {
+    const { emptyState, mount } = createSearchDom();
+    mount.innerHTML = `
+      <div class="pagefind-ui">
+        <input class="pagefind-ui__search-input" />
+        <p class="pagefind-ui__message">No results for "astro"</p>
+      </div>
+    `;
+    decorateSearchUi(mount, getSearchCopy('en'), emptyState);
+    expect(emptyState.hidden).toBe(false);
+
+    // Pagefind clears the message text (transient blank between merged-index updates)
+    const blankMsg = mount.querySelector<HTMLElement>('.pagefind-ui__message');
+    if (blankMsg) blankMsg.textContent = '';
+    decorateSearchUi(mount, getSearchCopy('en'), emptyState);
+
+    expect(emptyState.hidden).toBe(true);
+  });
+
+  // Regression: when a merged index resolves results after the primary index
+  // returned "No results", the empty state must not remain visible alongside
+  // the result list (the scenario visible in the reported screenshot).
+  it('hides the empty state when results appear after a transient blank message', () => {
+    const { emptyState, mount } = createSearchDom();
+    mount.innerHTML = `
+      <div class="pagefind-ui">
+        <input class="pagefind-ui__search-input" />
+        <p class="pagefind-ui__message">No results for "ウェブ"</p>
+      </div>
+    `;
+    decorateSearchUi(mount, getSearchCopy('en'), emptyState);
+    expect(emptyState.hidden).toBe(false);
+
+    // Pagefind clears message while results from the merged index arrive
+    const blankMsg2 = mount.querySelector<HTMLElement>('.pagefind-ui__message');
+    if (blankMsg2) blankMsg2.textContent = '';
+    mount
+      .querySelector('.pagefind-ui')
+      ?.insertAdjacentHTML(
+        'beforeend',
+        `<ol class="pagefind-ui__results"><li class="pagefind-ui__result"></li></ol>`,
+      );
+    decorateSearchUi(mount, getSearchCopy('en'), emptyState);
+
+    expect(emptyState.hidden).toBe(true);
   });
 });
 

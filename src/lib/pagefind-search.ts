@@ -483,6 +483,11 @@ function decorateSearchMessage(message: HTMLElement | null, emptyState: HTMLElem
   const currentText = message.textContent?.trim() ?? '';
   if (currentText) {
     message.dataset.searchMessageSource = currentText;
+  } else {
+    // Message text was cleared by Pagefind (e.g. between merged-index updates).
+    // Discard any stale source so the previous "No results" label cannot
+    // re-trigger the empty state while results are arriving.
+    delete message.dataset.searchMessageSource;
   }
 
   const sourceText = message.dataset.searchMessageSource ?? currentText;
