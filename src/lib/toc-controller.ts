@@ -4,15 +4,12 @@ export function initializeTableOfContents() {
   cleanupTableOfContents?.();
   cleanupTableOfContents = null;
 
-  const articleBody = document.querySelector<HTMLElement>('article[data-pagefind-body]');
   const headingEls = [...document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]')];
   const links = [...document.querySelectorAll<HTMLAnchorElement>('.toc-link')];
-  const tocNav = document.querySelector<HTMLElement>('.toc');
   const cleanups: Array<() => void> = [];
 
   bindLinkClicks(links, cleanups);
   observeActiveHeading(links, headingEls, cleanups);
-  observeArticleEnd(tocNav, articleBody, cleanups);
 
   cleanupTableOfContents = () => {
     while (cleanups.length > 0) {
@@ -117,43 +114,6 @@ function observeActiveHeading(
   }
 
   cleanups.push(() => observer.disconnect());
-}
-
-function observeArticleEnd(
-  tocNav: HTMLElement | null,
-  articleBody: HTMLElement | null,
-  cleanups: Array<() => void>,
-) {
-  if (!tocNav || !articleBody || typeof IntersectionObserver !== 'function') return;
-
-  const sentinel = articleBody.ownerDocument.createElement('div');
-  sentinel.setAttribute('aria-hidden', 'true');
-  articleBody.appendChild(sentinel);
-
-  let userHasScrolled = false;
-  const onFirstScroll = () => {
-    userHasScrolled = true;
-  };
-  window.addEventListener('scroll', onFirstScroll, { once: true, passive: true });
-
-  const observer = new IntersectionObserver(
-    ([entry]) => {
-      if (!userHasScrolled) return;
-
-      const pastArticleBody = Boolean(
-        entry && !entry.isIntersecting && entry.boundingClientRect.top < 0,
-      );
-      tocNav.classList.toggle('toc--hidden', pastArticleBody);
-    },
-    { threshold: 0 },
-  );
-
-  observer.observe(sentinel);
-  cleanups.push(() => {
-    window.removeEventListener('scroll', onFirstScroll);
-    observer.disconnect();
-    sentinel.remove();
-  });
 }
 
 function prefersReducedMotion() {
