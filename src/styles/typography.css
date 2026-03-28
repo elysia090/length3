@@ -2,7 +2,7 @@
 .prose {
   max-width: var(--measure);
   font-size: 1rem;        /* spec §2: 16px base, not 1.0625rem */
-  line-height: 1.95;      /* spec §2 */
+  line-height: 1.8;
   color: var(--ink);
   /* Japanese typography */
   line-break: strict;
@@ -17,7 +17,7 @@
 .prose h1 {
   font-family: var(--font-display);
   font-size: 1.75rem;          /* spec §2: 28px */
-  font-weight: 300;            /* spec §2 */
+  font-weight: 400;
   line-height: 1.25;
   letter-spacing: -0.02em;
   margin-bottom: 1rem;         /* bumped from 0.75rem for stronger presence */
@@ -74,12 +74,15 @@
 .prose a {
   color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
   text-decoration: underline;
+  text-decoration-color: rgba(180, 83, 9, 0.4); /* amber-text @ 40% — 常時視認可能 */
   text-decoration-thickness: 0.0625rem;
-  text-underline-offset: 0.125rem;
+  text-underline-offset: 0.2em;
+  transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
 }
 
 .prose a:hover {
   color: var(--ink);
+  text-decoration-color: var(--rule);
 }
 
 /* ─── Code ───────────────────────────────────────────────────── */
@@ -230,13 +233,14 @@ rt {
 }
 
 .article-header h1 {
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   max-width: 18ch;
 }
 
 /* margin only — shape is provided by .amber-rule (global.css) */
+/* h1 との距離を縮め、lead との距離を広くすることで「rule はh1グループ」を明確化 */
 .article-header-hr {
-  margin: 0 0 1rem;
+  margin: 0 0 1.5rem;
 }
 
 /* Lead paragraph — spec §3: 1px left-border in amber */
@@ -257,8 +261,8 @@ rt {
 .article-header-lead::before {
   content: '';
   position: absolute;
-  top: 0.3rem;
-  bottom: 0.3rem;
+  top: 0;
+  bottom: 0;
   left: 0;
   width: 0.0625rem;
   background: var(--amber-text);
@@ -275,11 +279,11 @@ rt {
 
   .article-header h1 {
     max-width: 22ch;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
   }
 
   .article-header-hr {
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.5rem;
   }
 
   .article-header-lead {

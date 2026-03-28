@@ -41,14 +41,14 @@ const copy = getSiteCopy(lang);
       <ul class="card-tags tag-pill-list" aria-label={copy.tags}>
         {visibleTagLinks.map((tag) => (
           <li>
-            <a href={tag.href} class="card-tag tag-pill">
+            <a href={tag.href} class="tag-pill">
               #{tag.name}
             </a>
           </li>
         ))}
         {hiddenTagCount > 0 && (
           <li>
-            <span class="card-tag card-tag-overflow tag-pill tag-pill-overflow">
+            <span class="tag-pill tag-pill-overflow">
               +{hiddenTagCount}
             </span>
           </li>
@@ -134,40 +134,9 @@ const copy = getSiteCopy(lang);
     overflow: hidden;
   }
 
-  /* Tags — bottom of card, bordered pills */
+  /* Tags — global .tag-pill が基底。カード固有の上書きのみここで定義 */
   .card-tags {
     margin: 0;
-  }
-
-  .card-tag {
-    min-height: 1.5rem;
-    padding: 0.25rem 0.5rem;
-    border: 0.0625rem solid var(--rule);
-    border-radius: 0.125rem;
-    background: none;
-    box-shadow: none;
-    font-size: 0.75rem;
-    line-height: 1.2;
-    letter-spacing: 0;
-    color: var(--amber-text);
-  }
-
-  .card-tag:hover,
-  .card-tag:active {
-    color: var(--amber-text);
-    border-color: var(--amber-text);
-    background: none;
-  }
-
-  .card-tag-overflow {
-    border-color: var(--rule);
-    color: var(--ink-2);
-  }
-
-  .card-tag-overflow:hover,
-  .card-tag-overflow:active {
-    border-color: var(--rule);
-    color: var(--ink-2);
   }
 
   @media (min-width: 40rem) {
