@@ -110,7 +110,9 @@ describe('initializeTableOfContents', () => {
     );
 
     expect(links[0]?.classList.contains('active')).toBe(true);
+    expect(links[0]?.getAttribute('aria-current')).toBe('location');
     expect(links[1]?.classList.contains('active')).toBe(false);
+    expect(links[1]?.hasAttribute('aria-current')).toBe(false);
   });
 
   it('smooth-scrolls, focuses the heading, and updates the hash on click', () => {

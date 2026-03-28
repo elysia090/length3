@@ -73,8 +73,7 @@ const copy = getSiteCopy(lang);
     height: 0.125rem;
     width: var(--progress, 0%);
     background: var(--amber-deep);
-    /* SC 2.4.11: lowered from 200 so it cannot obscure focus rings of interactive elements */
-    z-index: 10;
+    z-index: var(--z-elevated);
     transition: width 150ms linear;
     pointer-events: none;
   }

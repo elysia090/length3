@@ -28,12 +28,6 @@ export default defineConfig({
     rehypePlugins: [],
   },
 
-  image: {
-    service: {
-      entrypoint: 'astro/assets/services/compile',
-    },
-  },
-
   vite: {
     ssr: {
       target: 'webworker',

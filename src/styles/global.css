@@ -47,8 +47,24 @@
   --layout-gap:          clamp(2rem, 4vw, 2.5rem);
   --page-gutter:         clamp(1.25rem, 4vw, 1.5rem);
 
+  /* Border radius scale */
+  --radius-xs:   0.125rem;  /*  2px — 画像・細部アクセント */
+  --radius-sm:   0.1875rem; /*  3px — タグ・インラインコード */
+  --radius-md:   0.25rem;   /*  4px — ボタン・小パネル */
+  --radius-lg:   0.5rem;    /*  8px — カード・リードブロック */
+  --radius-xl:   0.625rem;  /* 10px — モーダルカード */
+  --radius-pill: 999px;     /* pill形状（検索バー等） */
+
   /* Motion */
-  --transition-fast: 80ms ease; /* interactive micro-transitions site-wide */
+  --transition-fast:  80ms ease;                        /* インタラクティブな即時フィードバック */
+  --transition-slow: 200ms ease;                        /* 状態遷移・フェード（TOC等） */
+  --easing-reveal: cubic-bezier(0.2, 0.8, 0.2, 1);     /* コンテンツ登場アニメーション */
+
+  /* Z-index layers — 追加時はこのスケール内に収める */
+  --z-elevated: 10;   /* 固定UI部品（reading progress bar） */
+  --z-texture:  20;   /* テクスチャオーバーレイ (body::before) */
+  --z-surface:  30;   /* テクスチャより前面の読取面 (prose-area, toc-aside) */
+  --z-skip:     40;   /* スキップリンク — 最前面 */
 }
 
 /* ─── Reset ──────────────────────────────────────────────────── */
@@ -64,8 +80,6 @@ html {
   font-size: 100%;
   color: var(--ink);
   background-color: var(--bg);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -86,7 +100,7 @@ body::before {
   background-repeat: repeat;
   background-size: 768px 768px;
   pointer-events: none;
-  z-index: 9998; /* above all content layers; below skip-link (9999) */
+  z-index: var(--z-texture);
 }
 
 a {
@@ -120,8 +134,8 @@ img {
   color: var(--bg);
   font-family: var(--font-mono);
   font-size: 0.8125rem;
-  border-radius: 0 0 0.25rem 0.25rem;
-  z-index: 9999;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  z-index: var(--z-skip);
   text-decoration: none;
   transition: none; /* instant — no delay when keyboard user needs it */
 }
@@ -202,11 +216,13 @@ img {
 .prose-area {
   grid-area: prose;
   min-width: 0;
-  /* テクスチャ (body::before z-index:9998) の上に背景を重ねて
-     読み取り列のノイズを除去する。テクスチャはTOC・余白列に残る。 */
+  /* テクスチャ (body::before z-index:9998) の上にフロストガラス面を重ねて
+     読み取り列のノイズを抑えつつテクスチャを透かす。 */
   position: relative;
-  z-index: 9999;
-  background: var(--bg);
+  z-index: var(--z-surface);
+  background: var(--paper); /* rgba(249,248,245,0.9) — 90% opacity */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* Hide the deliberate empty right margin until the viewport can afford it. */
@@ -253,6 +269,10 @@ img {
     max-height: calc(100dvh - 4rem);
     overflow-y: auto;
     padding-top: 2rem;
+    z-index: var(--z-surface); /* --z-texture より前面に出てテキスト可読性を確保 */
+    background: rgba(249, 248, 245, 0.75); /* prose-areaより薄く階層差を出す */
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
 }
 
@@ -354,7 +374,7 @@ img {
   min-height: 1.375rem;
   padding: 0.1875rem 0.5rem;
   border: 0.0625rem solid var(--surface-border);
-  border-radius: 0.1875rem;
+  border-radius: var(--radius-sm);
   background: var(--surface-fill);
   font-family: var(--font-mono);
   font-size: 0.6875rem;
@@ -412,8 +432,15 @@ img {
 }
 
 @media (pointer: coarse) {
+  /* 視覚サイズはそのまま保ち、::before でタッチターゲット 44px を確保する。
+     min-height で pill 全体を膨らませると見た目が重くなる。 */
   .tag-pill:not(.tag-pill--quiet) {
-    min-height: 2.75rem;
+    min-height: 1.375rem; /* base に戻す */
+  }
+  .tag-pill:not(.tag-pill--quiet)::before {
+    content: '';
+    position: absolute;
+    inset: -0.75rem -0.25rem; /* 上下 12px 拡張 → 合計 ~46px */
   }
 }
 

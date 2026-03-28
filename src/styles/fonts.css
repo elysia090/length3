@@ -1,22 +1,16 @@
 /*
  * @font-face declarations for Fraunces variable font.
  *
- * Font files should be WOFF2 (primary) with TTF as fallback.
- * To generate WOFF2 from the source TTF:
- *   python3 -c "from fontTools.ttLib import TTFont; f = TTFont('Fraunces-Variable.ttf'); f.flavor = 'woff2'; f.save('Fraunces-Variable.woff2')"
- *
- * Font files in /public/fonts/ are real Fraunces variable fonts (woff2 + ttf).
+ * WOFF2 のみ宣言。WOFF2 は 2014 年以降の全モダンブラウザでサポート済みであり、
+ * TTF fallback を維持することは dist/client に 757 KiB の未使用ファイルを
+ * コピーするだけで実際にダウンロードされることがない。TTF ファイルは
+ * public/fonts/ から削除済み。
  *
  * font-display: optional
  *   Gives the browser a 100 ms window to load from cache.
  *   If not available in time, uses the system fallback and never swaps —
  *   eliminating FOUT and CLS on first load. Repeat visitors get the
  *   custom font instantly from cache.
- *
- * unicode-range: U+0000-04FF
- *   Fraunces covers Latin, Latin Extended, and Cyrillic ranges.
- *   Limiting to U+0000-04FF prevents the browser from downloading
- *   this display font for pages that only render CJK content.
  *
  * Fraunces is fully self-hosted from /public/fonts/.
  * tests/helpers/fonts.ts explicitly loads it in headless browser runs where
@@ -26,9 +20,7 @@
 
 @font-face {
   font-family: 'Fraunces';
-  src:
-    url('/fonts/Fraunces-Variable.woff2') format('woff2') tech('variations'),
-    url('/fonts/Fraunces-Variable.ttf') format('truetype') tech('variations');
+  src: url('/fonts/Fraunces-Variable.woff2') format('woff2') tech('variations');
   font-weight: 100 900;
   font-style: normal;
   font-display: optional;
@@ -39,9 +31,7 @@
 
 @font-face {
   font-family: 'Fraunces';
-  src:
-    url('/fonts/Fraunces-Italic-Variable.woff2') format('woff2') tech('variations'),
-    url('/fonts/Fraunces-Italic-Variable.ttf') format('truetype') tech('variations');
+  src: url('/fonts/Fraunces-Italic-Variable.woff2') format('woff2') tech('variations');
   font-weight: 100 900;
   font-style: italic;
   font-display: optional;

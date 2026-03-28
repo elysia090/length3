@@ -16,10 +16,9 @@
     "format": "biome format --write . && prettier --write \"src/**/*.astro\"",
     "test:unit": "vitest run",
     "test:e2e": "env -u NO_COLOR FORCE_COLOR=0 playwright test --config=playwright.config.ts --project=chromium",
-    "test": "pnpm run test:unit && pnpm run test:e2e",
+    "test": "pnpm run check && pnpm run test:unit && pnpm run test:e2e",
     "bench": "node ./scripts/bench/run.mjs",
     "screenshots": "env -u NO_COLOR FORCE_COLOR=0 playwright test --config=playwright.config.ts --project=screenshots",
-    "postbuild": "pagefind --site dist",
     "prepare": "husky"
   },
   "dependencies": {
