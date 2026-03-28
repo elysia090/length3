@@ -66,8 +66,12 @@ const copy = getSiteCopy(lang);
     background-clip: text;
     color: transparent;
     font-size: 0.6em;
-    vertical-align: super;
-    line-height: 0;
+    /* <sup> is a flex item inside display:inline-flex — vertical-align has no
+       effect here. line-height:0 collapsed the element to zero height which
+       made background-clip:text paint nothing (invisible "3").
+       Use align-self + margin-top to reproduce the superscript position. */
+    align-self: flex-start;
+    margin-top: 0.6rem;
   }
 
   @media (forced-colors: active) {
