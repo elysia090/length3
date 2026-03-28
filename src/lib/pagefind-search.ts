@@ -1,27 +1,41 @@
 import type { SearchBootstrapResult } from './types';
 
+export interface PagefindUIOptions {
+  autofocus?: boolean;
+  element: string;
+  mergeIndex?: PagefindMergeIndex[];
+  processTerm?: (term: string) => string;
+  processResult?: (result: PagefindSearchResult) => PagefindSearchResult;
+  showImages?: boolean;
+  showSubResults?: boolean;
+  translations?: Record<string, string>;
+}
+
 export interface PagefindUIConstructor {
-  new (options: {
-    autofocus?: boolean;
-    element: string;
-    mergeIndex?: PagefindMergeIndex[];
-    processTerm?: (term: string) => string;
-    processResult?: (result: PagefindSearchResult) => PagefindSearchResult;
-    showImages?: boolean;
-    showSubResults?: boolean;
-    translations?: Record<string, string>;
-  }): unknown;
+  new (options: PagefindUIOptions): unknown;
 }
 
 interface PagefindWindow extends Window {
   PagefindUI?: PagefindUIConstructor;
 }
 
+export interface PagefindResultMeta {
+  [key: string]: string | undefined;
+  url?: string;
+}
+
+export interface PagefindSearchSubResult {
+  excerpt?: string;
+  meta?: PagefindResultMeta;
+  title?: string;
+  url?: string;
+}
+
 export interface PagefindSearchResult {
   excerpt?: string;
   filters?: Record<string, string[]>;
-  meta?: Record<string, string | undefined>;
-  sub_results?: unknown[];
+  meta?: PagefindResultMeta;
+  sub_results?: PagefindSearchSubResult[];
   url: string;
 }
 
@@ -133,6 +147,11 @@ const SEARCH_COPY_BY_LANGUAGE: Record<SiteLanguage, SearchCopy> = {
 export const SEARCH_INPUT_SELECTOR = '.pagefind-ui__search-input';
 export const searchUnavailableMessage = SEARCH_COPY_BY_LANGUAGE.en.unavailable;
 export const searchErrorMessage = SEARCH_COPY_BY_LANGUAGE.en.error;
+
+const SEARCH_CLEAR_SELECTOR = '.pagefind-ui__search-clear';
+const SEARCH_FORM_SELECTOR = '.pagefind-ui__form';
+const SEARCH_RESULTS_AREA_SELECTOR = '.pagefind-ui__results-area';
+const SEARCH_RESULTS_DRAWER_SELECTOR = '.pagefind-ui__drawer';
 
 export function getSearchCopy(language: SiteLanguage | null | undefined): SearchCopy {
   if (language === 'ja') {
@@ -304,8 +323,13 @@ export function decorateSearchField(field: HTMLInputElement | null, copy: Search
 
   field.setAttribute('aria-label', copy.searchLabel);
   field.setAttribute('autocomplete', 'off');
+  field.setAttribute('enterkeyhint', 'search');
+  field.setAttribute('inputmode', 'search');
   field.setAttribute('name', 'search');
   field.setAttribute('placeholder', copy.searchPlaceholder);
+  field.setAttribute('spellcheck', 'false');
+  field.dataset.searchRegion = 'input';
+  field.style.paddingRight = '1rem';
 }
 
 export function decorateSearchUi(
@@ -314,6 +338,7 @@ export function decorateSearchUi(
   emptyState?: HTMLElement | null,
 ) {
   clearBootstrapMessages(mount);
+  decorateSearchLayout(mount);
   decorateSearchField(getSearchField(mount), copy);
   decorateSearchMessage(
     mount.querySelector<HTMLElement>('.pagefind-ui__message'),
@@ -408,60 +433,79 @@ export function canonicalizePagefindResultUrl(url: string, origin: string) {
 
 export function canonicalizePagefindResult(result: PagefindSearchResult, origin: string) {
   const normalizedUrl = canonicalizePagefindResultUrl(result.url, origin);
-  const normalizedMetaUrl = result.meta?.url
-    ? canonicalizePagefindResultUrl(result.meta.url, origin)
-    : undefined;
+  const normalizedMeta = canonicalizePagefindMeta(result.meta, origin);
   const normalizedSubResults = result.sub_results?.map((subResult) =>
     canonicalizePagefindSubResult(subResult, origin),
   );
 
   return {
     ...result,
-    meta:
-      normalizedMetaUrl || result.meta
-        ? {
-            ...result.meta,
-            ...(normalizedMetaUrl ? { url: normalizedMetaUrl } : {}),
-          }
-        : result.meta,
+    meta: normalizedMeta,
     sub_results: normalizedSubResults ?? result.sub_results,
     url: normalizedUrl,
   };
 }
 
-function canonicalizePagefindSubResult(subResult: unknown, origin: string) {
-  if (!subResult || typeof subResult !== 'object') {
-    return subResult;
+function canonicalizePagefindMeta(meta: PagefindResultMeta | undefined, origin: string) {
+  if (!meta) {
+    return meta;
   }
 
-  const candidate = subResult as {
-    meta?: Record<string, string | undefined>;
-    url?: string;
-  };
-  const normalizedUrl =
-    typeof candidate.url === 'string'
-      ? canonicalizePagefindResultUrl(candidate.url, origin)
-      : undefined;
-  const normalizedMetaUrl =
-    typeof candidate.meta?.url === 'string'
-      ? canonicalizePagefindResultUrl(candidate.meta.url, origin)
-      : undefined;
+  if (typeof meta.url !== 'string') {
+    return meta;
+  }
 
   return {
-    ...candidate,
-    meta:
-      normalizedMetaUrl || candidate.meta
-        ? {
-            ...candidate.meta,
-            ...(normalizedMetaUrl ? { url: normalizedMetaUrl } : {}),
-          }
-        : candidate.meta,
+    ...meta,
+    url: canonicalizePagefindResultUrl(meta.url, origin),
+  };
+}
+
+function canonicalizePagefindSubResult(subResult: PagefindSearchSubResult, origin: string) {
+  const normalizedUrl =
+    typeof subResult.url === 'string'
+      ? canonicalizePagefindResultUrl(subResult.url, origin)
+      : subResult.url;
+
+  return {
+    ...subResult,
+    meta: canonicalizePagefindMeta(subResult.meta, origin),
     ...(normalizedUrl ? { url: normalizedUrl } : {}),
   };
 }
 
 function getSearchField(mount: ParentNode) {
   return mount.querySelector<HTMLInputElement>(SEARCH_INPUT_SELECTOR);
+}
+
+function getSearchClearButton(mount: ParentNode) {
+  return mount.querySelector<HTMLButtonElement>(SEARCH_CLEAR_SELECTOR);
+}
+
+function getSearchForm(mount: ParentNode) {
+  return mount.querySelector<HTMLFormElement>(SEARCH_FORM_SELECTOR);
+}
+
+function getSearchResultsArea(mount: ParentNode) {
+  return mount.querySelector<HTMLElement>(SEARCH_RESULTS_AREA_SELECTOR);
+}
+
+function getSearchResultsDrawer(mount: ParentNode) {
+  return mount.querySelector<HTMLElement>(SEARCH_RESULTS_DRAWER_SELECTOR);
+}
+
+function decorateSearchLayout(mount: ParentNode) {
+  getSearchForm(mount)?.setAttribute('data-search-layout', 'stack');
+  getSearchClearButton(mount)?.setAttribute('data-search-region', 'clear');
+  getSearchResultsArea(mount)?.setAttribute('data-search-region', 'results-area');
+
+  const resultsDrawer = getSearchResultsDrawer(mount);
+  if (!resultsDrawer) {
+    return;
+  }
+
+  resultsDrawer.dataset.searchRegion = 'results';
+  resultsDrawer.dataset.searchScrollable = 'true';
 }
 
 function clearBootstrapMessages(mount: ParentNode) {

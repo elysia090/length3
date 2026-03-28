@@ -7,8 +7,8 @@ import {
   getSearchCopy,
   normalizePagefindSearchTerm,
   type PagefindSearchControllerOptions,
-  type PagefindSearchResult,
   type PagefindUIConstructor,
+  type PagefindUIOptions,
   searchErrorMessage,
   searchUnavailableMessage,
   summarizeSearchStatus,
@@ -118,7 +118,7 @@ describe('createPagefindSearchController', () => {
   it('decorates the generated search input and reports result count on desktop', async () => {
     const { mount, status } = createSearchDom();
     setMatchMedia(true);
-    const PagefindUIMock = vi.fn(function PagefindUI(this: unknown) {
+    const PagefindUIMock = vi.fn(function PagefindUI(this: unknown, _options: PagefindUIOptions) {
       mount.innerHTML = `
         <input class="pagefind-ui__search-input" />
         <ol class="pagefind-ui__results">
@@ -159,16 +159,20 @@ describe('createPagefindSearchController', () => {
     expect(input).not.toBeNull();
     expect(input?.getAttribute('name')).toBe('search');
     expect(input?.getAttribute('aria-label')).toBe('Search articles');
+    expect(input?.getAttribute('enterkeyhint')).toBe('search');
+    expect(input?.getAttribute('inputmode')).toBe('search');
     expect(input?.getAttribute('placeholder')).toBe('Search articles…');
+    expect(input?.getAttribute('spellcheck')).toBe('false');
     expect(document.activeElement).toBe(input);
     expect(status.textContent).toBe('2 search results available.');
 
-    const [pagefindOptions] = PagefindUIMock.mock.calls[0] as unknown as [
-      {
-        processTerm?: (term: string) => string;
-        processResult?: (result: PagefindSearchResult) => PagefindSearchResult;
-      },
-    ];
+    const pagefindCall = PagefindUIMock.mock.calls[0];
+    expect(pagefindCall).toBeDefined();
+    if (!pagefindCall) {
+      throw new Error('Expected PagefindUI to be called.');
+    }
+
+    const [pagefindOptions] = pagefindCall;
     const processTerm = pagefindOptions.processTerm;
     const processResult = pagefindOptions.processResult;
     expect(processTerm?.('日本語タイポグラフィ')).toBe('日本語 タイポグラフィ');
@@ -331,6 +335,53 @@ describe('createPagefindSearchController', () => {
         },
       }),
     );
+  });
+
+  it('applies layout hooks and branded empty-state copy to a realistic Pagefind shell', async () => {
+    const { emptyState, mount, status } = createSearchDom();
+    setMatchMedia(true);
+    const PagefindUI = vi.fn(function PagefindUI(this: unknown, _options: PagefindUIOptions) {
+      mount.innerHTML = `
+        <div class="pagefind-ui">
+          <form class="pagefind-ui__form">
+            <input class="pagefind-ui__search-input" style="padding-right: 107px" value="astro" />
+            <button class="pagefind-ui__search-clear">Clear search</button>
+            <div class="pagefind-ui__drawer">
+              <div class="pagefind-ui__results-area">
+                <p class="pagefind-ui__message">No results for "astro"</p>
+              </div>
+            </div>
+          </form>
+        </div>
+      `;
+    }) as unknown as PagefindUIConstructor;
+    const controller = createPagefindSearchController(
+      createOptions({
+        getPagefindUI: () => PagefindUI,
+        mount,
+        status,
+      }),
+    );
+
+    await expect(controller.open()).resolves.toEqual({ kind: 'ready' });
+
+    const form = mount.querySelector<HTMLFormElement>('.pagefind-ui__form');
+    const input = mount.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
+    const clearButton = mount.querySelector<HTMLButtonElement>('.pagefind-ui__search-clear');
+    const drawer = mount.querySelector<HTMLElement>('.pagefind-ui__drawer');
+    const resultsArea = mount.querySelector<HTMLElement>('.pagefind-ui__results-area');
+
+    expect(form?.dataset.searchLayout).toBe('stack');
+    expect(input?.dataset.searchRegion).toBe('input');
+    expect(input?.style.paddingRight).toBe('1rem');
+    expect(input?.value).toBe('astro');
+    expect(clearButton?.dataset.searchRegion).toBe('clear');
+    expect(drawer?.dataset.searchRegion).toBe('results');
+    expect(drawer?.dataset.searchScrollable).toBe('true');
+    expect(resultsArea?.dataset.searchRegion).toBe('results-area');
+    expect(emptyState.hidden).toBe(false);
+    expect(status.textContent).toBe('No matching articles. Try a broader term or a topic label.');
+    expect(mount.querySelector<HTMLElement>('.pagefind-ui__message')?.hidden).toBe(true);
   });
 
   it('updates the external empty state when Pagefind mutates the search message after bootstrap', async () => {
@@ -500,6 +551,37 @@ describe('createPagefindSearchController', () => {
 });
 
 describe('decorateSearchUi', () => {
+  it('adds stable layout hooks and resets Pagefind inline input padding', () => {
+    const { mount } = createSearchDom();
+    mount.innerHTML = `
+      <div class="pagefind-ui">
+        <form class="pagefind-ui__form">
+          <input class="pagefind-ui__search-input" style="padding-right: 107px" />
+          <button class="pagefind-ui__search-clear">Clear search</button>
+          <div class="pagefind-ui__drawer">
+            <div class="pagefind-ui__results-area"></div>
+          </div>
+        </form>
+      </div>
+    `;
+
+    decorateSearchUi(mount, getSearchCopy('en'));
+
+    const form = mount.querySelector<HTMLFormElement>('.pagefind-ui__form');
+    const input = mount.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
+    const clearButton = mount.querySelector<HTMLButtonElement>('.pagefind-ui__search-clear');
+    const drawer = mount.querySelector<HTMLElement>('.pagefind-ui__drawer');
+    const resultsArea = mount.querySelector<HTMLElement>('.pagefind-ui__results-area');
+
+    expect(form?.dataset.searchLayout).toBe('stack');
+    expect(input?.dataset.searchRegion).toBe('input');
+    expect(input?.style.paddingRight).toBe('1rem');
+    expect(clearButton?.dataset.searchRegion).toBe('clear');
+    expect(drawer?.dataset.searchRegion).toBe('results');
+    expect(drawer?.dataset.searchScrollable).toBe('true');
+    expect(resultsArea?.dataset.searchRegion).toBe('results-area');
+  });
+
   it('renders a real localized empty state in the DOM', () => {
     const { emptyState, mount } = createSearchDom('ja');
     mount.innerHTML = `

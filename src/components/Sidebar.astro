@@ -389,14 +389,18 @@ const siteCopy = getSiteCopy(lang);
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   :global(#pagefind-ui),
   :global(#pagefind-ui .pagefind-ui) {
     flex: 1 1 auto;
+    min-width: 0;
     min-height: 0;
+    width: 100%;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .search-footer {
@@ -510,67 +514,74 @@ const siteCopy = getSiteCopy(lang);
     color: var(--ink-2);
   }
 
-  :global(#pagefind-ui .pagefind-ui__form) {
+  :global(#pagefind-ui .pagefind-ui__form[data-search-layout='stack']) {
     position: relative;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.625rem;
-    padding: 0.75rem 1rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'input'
+      'clear'
+      'results';
+    align-items: start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem 1rem;
     border-bottom: 0.0625rem solid var(--rule);
+    overflow: hidden;
   }
 
   :global(#pagefind-ui .pagefind-ui__form::before) {
-    content: '';
-    display: block;
-    position: absolute;
-    left: 1.5rem;
-    top: 50%;
-    width: 1rem;
-    height: 1rem;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Ccircle cx='6.5' cy='6.5' r='5' stroke='%239a9690' stroke-width='1.5'/%3E%3Cline x1='10.5' y1='10.5' x2='14.5' y2='14.5' stroke='%239a9690' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-size: contain;
-    pointer-events: none;
-    transform: translateY(-50%);
+    content: none;
   }
 
-  :global(#pagefind-ui .pagefind-ui__search-input) {
-    flex: 1;
+  :global(#pagefind-ui .pagefind-ui__search-input[data-search-region='input']) {
+    grid-area: input;
+    width: 100%;
     min-width: 0;
+    min-height: 2.75rem;
     border: 0.0625rem solid var(--surface-border);
     border-radius: 1.5rem;
-    background: var(--surface-fill);
+    background-color: var(--surface-fill);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Ccircle cx='6.5' cy='6.5' r='5' stroke='%239a9690' stroke-width='1.5'/%3E%3Cline x1='10.5' y1='10.5' x2='14.5' y2='14.5' stroke='%239a9690' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-position: 0.875rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem 1rem;
     box-shadow: none;
     font-family: var(--font-display);
     font-size: 1rem;
     color: var(--ink);
-    padding: 0.5rem 1rem 0.5rem 2.5rem;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    padding-right: 1rem;
   }
 
-  :global(#pagefind-ui .pagefind-ui__search-input:focus-visible) {
+  :global(#pagefind-ui .pagefind-ui__search-input[data-search-region='input']:focus-visible) {
     outline: none;
     border-color: var(--amber-text);
     box-shadow: var(--focus-halo);
   }
 
-  :global(#pagefind-ui .pagefind-ui__search-input::placeholder) {
+  :global(#pagefind-ui .pagefind-ui__search-input[data-search-region='input']::placeholder) {
     color: var(--ink-2);
     font-family: var(--font-mono);
     font-size: 0.875rem;
   }
 
-  :global(#pagefind-ui .pagefind-ui__search-clear) {
+  :global(#pagefind-ui .pagefind-ui__search-clear[data-search-region='clear']) {
+    grid-area: clear;
+    justify-self: end;
     flex-shrink: 0;
-    align-self: center;
+    align-self: stretch;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: unset;
-    height: 2rem;
+    min-height: 2.75rem;
+    height: auto;
     font-family: var(--font-mono);
     font-size: var(--font-ui-xs);
-    padding: 0 0.75rem;
+    padding: 0 0.875rem;
     border: 0.0625rem solid var(--surface-line);
     border-radius: 1rem;
     background: var(--surface-fill);
@@ -579,16 +590,29 @@ const siteCopy = getSiteCopy(lang);
     touch-action: manipulation;
   }
 
-  :global(#pagefind-ui .pagefind-ui__search-clear:hover) {
+  :global(#pagefind-ui .pagefind-ui__search-clear[data-search-region='clear']:hover) {
     color: var(--ink);
   }
 
-  :global(#pagefind-ui .pagefind-ui__drawer) {
-    flex: 1 1 auto;
+  :global(#pagefind-ui .pagefind-ui__results-area[data-search-region='results-area']) {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+  }
+
+  :global(
+    #pagefind-ui .pagefind-ui__drawer[data-search-region='results'][data-search-scrollable='true']
+  ) {
+    grid-area: results;
+    min-width: 0;
     min-height: 0;
+    width: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 0.25rem 0 0.45rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    border-top: 0.0625rem solid var(--rule);
+    padding: 0.25rem 0 max(0.75rem, env(safe-area-inset-bottom));
   }
 
   :global(#pagefind-ui .pagefind-ui__message) {
@@ -646,12 +670,29 @@ const siteCopy = getSiteCopy(lang);
     font-family: var(--font-display);
     font-size: 0.9375rem;
     color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+
+  :global(.pagefind-ui__result-link) {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  :global(.pagefind-ui__result-link:hover) {
+    color: var(--amber-text);
+  }
+
+  :global(.pagefind-ui__result-link:focus-visible) {
+    outline: none;
+    box-shadow: var(--focus-halo);
+    border-radius: 0.125rem;
   }
 
   :global(.pagefind-ui__result-excerpt) {
     font-size: 0.8125rem;
     color: var(--ink-2);
     margin-top: 0.25rem;
+    overflow-wrap: anywhere;
   }
 
   :global(mark) {
@@ -667,8 +708,18 @@ const siteCopy = getSiteCopy(lang);
     }
 
     .search-card {
-      width: min(36rem, calc(100vw - 2rem));
+      width: min(42rem, calc(100vw - 2rem));
       max-height: calc(100dvh - clamp(1rem, 6vh, 3.5rem) - 2rem);
+    }
+
+    :global(#pagefind-ui .pagefind-ui__form[data-search-layout='stack']) {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-areas:
+        'input clear'
+        'results results';
+      column-gap: 0.625rem;
+      row-gap: 0.75rem;
     }
 
     .search-hint--desktop {
