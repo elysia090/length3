@@ -150,5 +150,5 @@ export function formatDate(date: Date, locale: 'en' | 'ja'): string {
   const month = parts.find((part) => part.type === 'month')?.value ?? '';
   const day = parts.find((part) => part.type === 'day')?.value ?? '';
 
-  return locale === 'ja' ? `${year}/${month}/${day}` : `${year}-${month}-${day}`;
+  return `${year}/${month}/${day}`;
 }
