@@ -37,7 +37,7 @@ const copy = getSiteCopy(lang);
 
 <style>
   .toc {
-    transition: opacity 200ms ease; /* spec §5: TOC disappearance 200ms */
+    transition: opacity 200ms ease, visibility 200ms ease;
   }
 
   /* Applied by JS when the reader scrolls past the end of the article body */
@@ -49,8 +49,8 @@ const copy = getSiteCopy(lang);
 
   .toc-label {
     font-family: var(--font-mono);
-    font-size: 0.8rem;
-    letter-spacing: 0.14em;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
     color: var(--ink-2);
     text-transform: uppercase;
     margin-bottom: 1rem;
@@ -76,7 +76,7 @@ const copy = getSiteCopy(lang);
     padding: 0.375rem 0 0.375rem 0.5rem;
     color: var(--ink-2);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     line-height: 1.5;
     border-left: 0.125rem solid transparent;
     transition:
