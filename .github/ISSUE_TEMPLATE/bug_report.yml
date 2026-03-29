@@ -38,7 +38,7 @@ body:
     id: url
     attributes:
       label: URL (if applicable)
-      placeholder: https://length3.pages.dev/...
+      placeholder: https://your-site.example/...
 
   - type: dropdown
     id: browser

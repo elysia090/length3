@@ -61,22 +61,27 @@ async function main() {
 
 async function runBuild() {
   const started = performance.now();
-  const { output } = await runCommand('pnpm', ['run', 'build'], { captureOutput: true });
+  const { lines } = await runCommand('pnpm', ['run', 'build'], { captureOutput: true });
   const durationMs = Math.round(performance.now() - started);
-  const phases = parseBuildPhases(output);
+  const phases = parseBuildPhases(lines, durationMs);
+  const postServerBuildMs =
+    phases.timeline?.postBuildCompleteMs ??
+    (phases.astroReportedTotalMs ? Math.max(0, durationMs - phases.astroReportedTotalMs) : null);
 
   return {
     durationMs,
     phases,
-    postServerBuildMs: phases.astroReportedTotalMs
-      ? Math.max(0, durationMs - phases.astroReportedTotalMs)
-      : null,
+    postServerBuildMs,
   };
 }
 
 function runCommand(command, args, options = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const output = [];
+    const lines = [];
+    const startedAt = performance.now();
+    const stdoutLines = createLineCollector(lines, startedAt);
+    const stderrLines = createLineCollector(lines, startedAt);
     const child = spawn(command, args, {
       cwd: rootDir,
       env: process.env,
@@ -87,25 +92,62 @@ function runCommand(command, args, options = {}) {
       child.stdout?.on('data', (chunk) => {
         const text = chunk.toString();
         output.push(text);
+        stdoutLines.push(text);
         process.stdout.write(text);
       });
       child.stderr?.on('data', (chunk) => {
         const text = chunk.toString();
         output.push(text);
+        stderrLines.push(text);
         process.stderr.write(text);
       });
     }
 
     child.on('error', rejectPromise);
     child.on('exit', (code) => {
+      stdoutLines.finish();
+      stderrLines.finish();
       if (code === 0) {
-        resolvePromise({ output: output.join('') });
+        resolvePromise({ output: output.join(''), lines });
         return;
       }
 
       rejectPromise(new Error(`${command} ${args.join(' ')} exited with code ${code ?? 'null'}.`));
     });
   });
+}
+
+function createLineCollector(lines, startedAt) {
+  let pending = '';
+
+  return {
+    push(text) {
+      pending += text.replace(/\r(?!\n)/g, '\n');
+      const parts = pending.split('\n');
+      pending = parts.pop() ?? '';
+      const atMs = Math.round(performance.now() - startedAt);
+
+      for (const part of parts) {
+        const line = stripAnsi(part).trimEnd();
+        if (!line) continue;
+        lines.push({ atMs, line });
+      }
+    },
+
+    finish() {
+      const line = stripAnsi(pending).trimEnd();
+      if (!line) return;
+      lines.push({
+        atMs: Math.round(performance.now() - startedAt),
+        line,
+      });
+      pending = '';
+    },
+  };
+}
+
+function stripAnsi(text) {
+  return text.replace(/\u001B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
 }
 
 async function collectAssetInventory() {
@@ -309,17 +351,45 @@ function getContentType(path) {
 
 async function measurePage(browser, baseUrl, route) {
   const page = await browser.newPage();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Performance.enable');
   await page.addInitScript(() => {
     window.__benchWebVitals = {
       cls: 0,
+      fcpMs: 0,
+      fpMs: 0,
       inpMs: 0,
       lcpMs: 0,
+      longTaskCount: 0,
+      longTaskMaxMs: 0,
+      longTaskTotalMs: 0,
+    };
+    window.__length3BenchProfile = {
+      enabled: true,
+      entries: [],
+    };
+    window.__benchLcpElement = null;
+
+    const describeBenchElement = (element) => {
+      if (!(element instanceof Element)) return null;
+
+      const rect = element.getBoundingClientRect();
+      const textSample = element.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      return {
+        tag: element.tagName.toLowerCase(),
+        id: element.id || null,
+        classes: [...element.classList].slice(0, 3),
+        textSample: textSample ? textSample.slice(0, 80) : null,
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
     };
 
     try {
       new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           window.__benchWebVitals.lcpMs = Math.round(entry.startTime);
+          window.__benchLcpElement = describeBenchElement(entry.element);
         }
       }).observe({ type: 'largest-contentful-paint', buffered: true });
     } catch {
@@ -334,6 +404,37 @@ async function measurePage(browser, baseUrl, route) {
           }
         }
       }).observe({ type: 'layout-shift', buffered: true });
+    } catch {
+      // Ignore metrics not supported by this browser build.
+    }
+
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.name === 'first-paint') {
+            window.__benchWebVitals.fpMs = Math.round(entry.startTime);
+          }
+          if (entry.name === 'first-contentful-paint') {
+            window.__benchWebVitals.fcpMs = Math.round(entry.startTime);
+          }
+        }
+      }).observe({ type: 'paint', buffered: true });
+    } catch {
+      // Ignore metrics not supported by this browser build.
+    }
+
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const duration = Math.round(entry.duration);
+          window.__benchWebVitals.longTaskCount += 1;
+          window.__benchWebVitals.longTaskTotalMs += duration;
+          window.__benchWebVitals.longTaskMaxMs = Math.max(
+            window.__benchWebVitals.longTaskMaxMs,
+            duration,
+          );
+        }
+      }).observe({ type: 'longtask', buffered: true });
     } catch {
       // Ignore metrics not supported by this browser build.
     }
@@ -374,8 +475,22 @@ async function measurePage(browser, baseUrl, route) {
   const started = performance.now();
   await page.goto(`${baseUrl}${route}`, { waitUntil: 'load' });
   await page.waitForLoadState('networkidle');
+  const initialResources = resources.slice();
+  const initialRenderProfileEntries = await takeBenchProfileSnapshot(page);
+  const initialWebVitals = await readBenchWebVitals(page);
+  const initialChromeMetrics = await readChromePerformanceMetrics(cdp);
+  const initialDomSnapshot = await readBenchDomSnapshot(page);
+  const initialLcpElement = await readBenchLcpElement(page);
+  await resetBenchInteractionMetrics(page);
   const interaction = await performInteraction(page, route);
   await page.waitForTimeout(100);
+  const interactionResources = resources.slice(initialResources.length);
+  const interactionProfileEntries = await takeBenchProfileSnapshot(page);
+  const interactionWebVitals = await readBenchWebVitals(page);
+  const interactionChromeMetrics = diffBenchMetrics(
+    await readChromePerformanceMetrics(cdp),
+    initialChromeMetrics,
+  );
   const totalDurationMs = Math.round(performance.now() - started);
   const navigation = await page.evaluate(() => {
     const entry = performance.getEntriesByType('navigation')[0];
@@ -389,32 +504,57 @@ async function measurePage(browser, baseUrl, route) {
       encodedBodySize: entry.encodedBodySize,
     };
   });
-  const webVitals = await page.evaluate(() => ({
-    cls: Number(window.__benchWebVitals?.cls ?? 0),
-    inpMs: Number(window.__benchWebVitals?.inpMs ?? 0),
-    lcpMs: Number(window.__benchWebVitals?.lcpMs ?? 0),
-  }));
   page.off('response', onResponse);
+  await cdp.detach().catch(() => {});
   await page.close();
 
   return {
+    chromeMetrics: initialChromeMetrics,
+    domSnapshot: initialDomSnapshot,
+    initialRequestCount: initialResources.length,
+    initialResourceBytesByType: sumBytesBy(initialResources, 'resourceType'),
+    initialTotalBytes: initialResources.reduce((sum, resource) => sum + resource.bytes, 0),
     interaction,
+    interactionChromeMetrics,
+    interactionMainThread: {
+      inpMs: interactionWebVitals.inpMs,
+      longTaskCount: interactionWebVitals.longTaskCount,
+      longTaskMaxMs: interactionWebVitals.longTaskMaxMs,
+      longTaskTotalMs: interactionWebVitals.longTaskTotalMs,
+    },
+    interactionProfile: summarizeBenchProfileEntries(interactionProfileEntries),
+    interactionRequestCount: interactionResources.length,
+    interactionResourceBytesByType: sumBytesBy(interactionResources, 'resourceType'),
+    interactionTotalBytes: interactionResources.reduce((sum, resource) => sum + resource.bytes, 0),
+    lcpElement: initialLcpElement,
     route,
+    renderProfile: summarizeBenchProfileEntries(initialRenderProfileEntries),
     totalDurationMs,
     navigation,
     requestCount: resources.length,
     totalBytes: resources.reduce((sum, resource) => sum + resource.bytes, 0),
     resourceBytesByType: sumBytesBy(resources, 'resourceType'),
     webVitals: {
-      cls: Number(webVitals.cls.toFixed(3)),
-      inpMs: webVitals.inpMs,
-      lcpMs: webVitals.lcpMs,
+      cls: Number(initialWebVitals.cls.toFixed(3)),
+      fcpMs: initialWebVitals.fcpMs,
+      fpMs: initialWebVitals.fpMs,
+      inpMs: interactionWebVitals.inpMs,
+      lcpMs: initialWebVitals.lcpMs,
+      longTaskCount: initialWebVitals.longTaskCount,
+      longTaskMaxMs: initialWebVitals.longTaskMaxMs,
+      longTaskTotalMs: initialWebVitals.longTaskTotalMs,
     },
   };
 }
 
 async function measureSearch(browser, baseUrl) {
   const page = await browser.newPage();
+  await page.addInitScript(() => {
+    window.__length3BenchProfile = {
+      enabled: true,
+      entries: [],
+    };
+  });
   const pagefindResponses = [];
   const onResponse = async (response) => {
     const url = response.url();
@@ -435,21 +575,158 @@ async function measureSearch(browser, baseUrl) {
   page.on('response', onResponse);
   await page.goto(baseUrl, { waitUntil: 'load' });
   await page.waitForLoadState('networkidle');
+  await clearBenchProfile(page);
 
   const started = performance.now();
   await page.locator('#search-trigger').click();
   await page.locator('.pagefind-ui__search-input').waitFor({ state: 'visible' });
   await page.waitForLoadState('networkidle');
   const openToReadyMs = Math.round(performance.now() - started);
+  const profileEntries = await takeBenchProfileSnapshot(page);
 
   page.off('response', onResponse);
   await page.close();
 
   return {
     openToReadyMs,
+    profile: summarizeBenchProfileEntries(profileEntries),
     requestCount: pagefindResponses.length,
     totalBytes: pagefindResponses.reduce((sum, resource) => sum + resource.bytes, 0),
     paths: pagefindResponses.map((resource) => resource.path),
+  };
+}
+
+async function clearBenchProfile(page) {
+  await page.evaluate(() => {
+    if (window.__length3BenchProfile?.enabled) {
+      window.__length3BenchProfile.entries = [];
+    }
+  });
+}
+
+async function readBenchDomSnapshot(page) {
+  return page.evaluate(() => {
+    const count = (selector) => document.querySelectorAll(selector).length;
+    return {
+      articleActionsElements: count('.article-actions *'),
+      articleElements: count('article *'),
+      articleListElements: count('.article-list *'),
+      codeBlockCount: count('pre'),
+      headingCount: count('article h2[id], article h3[id]'),
+      mainElements: count('main *'),
+      proseAreaElements: count('.prose-area *'),
+      sidebarElements: count('.sidebar *'),
+      tocElements: count('.toc *'),
+      totalElements: document.getElementsByTagName('*').length,
+    };
+  });
+}
+
+async function readBenchLcpElement(page) {
+  return page.evaluate(() => window.__benchLcpElement ?? null);
+}
+
+async function readBenchWebVitals(page) {
+  return page.evaluate(() => ({
+    cls: Number(window.__benchWebVitals?.cls ?? 0),
+    fcpMs: Number(window.__benchWebVitals?.fcpMs ?? 0),
+    fpMs: Number(window.__benchWebVitals?.fpMs ?? 0),
+    inpMs: Number(window.__benchWebVitals?.inpMs ?? 0),
+    lcpMs: Number(window.__benchWebVitals?.lcpMs ?? 0),
+    longTaskCount: Number(window.__benchWebVitals?.longTaskCount ?? 0),
+    longTaskMaxMs: Number(window.__benchWebVitals?.longTaskMaxMs ?? 0),
+    longTaskTotalMs: Number(window.__benchWebVitals?.longTaskTotalMs ?? 0),
+  }));
+}
+
+async function resetBenchInteractionMetrics(page) {
+  await page.evaluate(() => {
+    if (!window.__benchWebVitals) return;
+    window.__benchWebVitals.inpMs = 0;
+    window.__benchWebVitals.longTaskCount = 0;
+    window.__benchWebVitals.longTaskMaxMs = 0;
+    window.__benchWebVitals.longTaskTotalMs = 0;
+  });
+}
+
+async function readChromePerformanceMetrics(cdp) {
+  const { metrics } = await cdp.send('Performance.getMetrics');
+  const byName = Object.fromEntries(metrics.map(({ name, value }) => [name, value]));
+  const toMs = (value) => Number((((value ?? 0) * 1000)).toFixed(1));
+
+  return {
+    documents: Math.round(byName.Documents ?? 0),
+    eventListeners: Math.round(byName.JSEventListeners ?? 0),
+    frames: Math.round(byName.Frames ?? 0),
+    jsHeapTotalBytes: Math.round(byName.JSHeapTotalSize ?? 0),
+    jsHeapUsedBytes: Math.round(byName.JSHeapUsedSize ?? 0),
+    layoutCount: Math.round(byName.LayoutCount ?? 0),
+    layoutDurationMs: toMs(byName.LayoutDuration),
+    nodes: Math.round(byName.Nodes ?? 0),
+    recalcStyleCount: Math.round(byName.RecalcStyleCount ?? 0),
+    recalcStyleDurationMs: toMs(byName.RecalcStyleDuration),
+    scriptDurationMs: toMs(byName.ScriptDuration),
+    taskDurationMs: toMs(byName.TaskDuration),
+  };
+}
+
+function diffBenchMetrics(after, before) {
+  return Object.fromEntries(
+    Object.entries(after).map(([key, value]) => [
+      key,
+      typeof value === 'number' ? Number((value - (before[key] ?? 0)).toFixed(1)) : value,
+    ]),
+  );
+}
+
+async function takeBenchProfileSnapshot(page) {
+  return page.evaluate(() => {
+    const entries = Array.isArray(window.__length3BenchProfile?.entries)
+      ? window.__length3BenchProfile.entries.slice()
+      : [];
+
+    if (window.__length3BenchProfile?.enabled) {
+      window.__length3BenchProfile.entries = [];
+    }
+
+    return entries;
+  });
+}
+
+function summarizeBenchProfileEntries(entries) {
+  const totalsByName = new Map();
+
+  for (const entry of entries) {
+    const current =
+      totalsByName.get(entry.name) ?? {
+        avgDurationMs: 0,
+        count: 0,
+        maxDurationMs: 0,
+        name: entry.name,
+        totalDurationMs: 0,
+      };
+
+    current.count += 1;
+    current.maxDurationMs = Math.max(current.maxDurationMs, Number(entry.durationMs) || 0);
+    current.totalDurationMs += Number(entry.durationMs) || 0;
+    totalsByName.set(entry.name, current);
+  }
+
+  const summary = [...totalsByName.values()]
+    .map((entry) => ({
+      ...entry,
+      avgDurationMs: Number((entry.totalDurationMs / Math.max(1, entry.count)).toFixed(3)),
+      maxDurationMs: Number(entry.maxDurationMs.toFixed(3)),
+      totalDurationMs: Number(entry.totalDurationMs.toFixed(3)),
+    }))
+    .sort((a, b) => b.totalDurationMs - a.totalDurationMs);
+
+  return {
+    entries,
+    summary,
+    totalDurationMs: Number(
+      summary.reduce((sum, entry) => sum + entry.totalDurationMs, 0).toFixed(3),
+    ),
   };
 }
 
@@ -479,15 +756,32 @@ async function performInteraction(page, route) {
   return 'tap body';
 }
 
-function parseBuildPhases(output) {
+function parseBuildPhases(lines, totalDurationMs) {
   const durationsMs = {};
+  const wallDurationsMs = {};
   const viteBuildsMs = [];
+  const markersMs = {};
   let astroReportedTotalMs = null;
   let activePhase = null;
   let inServerBuild = false;
   let reoptimizeCount = 0;
 
-  for (const line of output.split(/\r?\n/)) {
+  const mark = (name, atMs) => {
+    if (atMs === null || atMs === undefined) return;
+    markersMs[name] = atMs;
+  };
+
+  const completeActivePhase = (atMs, phaseName = activePhase?.name) => {
+    if (!activePhase || !phaseName) return;
+    if (activePhase.startedAtMs !== null && activePhase.startedAtMs !== undefined) {
+      wallDurationsMs[phaseName] = Math.max(0, atMs - activePhase.startedAtMs);
+    }
+    mark(`${phaseName}End`, atMs);
+    activePhase = null;
+  };
+
+  for (const entry of lines) {
+    const { atMs, line } = entry;
     if (line.includes('Re-optimizing dependencies because vite config has changed')) {
       reoptimizeCount += 1;
     }
@@ -495,29 +789,37 @@ function parseBuildPhases(output) {
     const typesMatch = line.match(/\[types\] Generated ([\d.]+(?:ms|s))/);
     if (typesMatch) {
       durationsMs.types = parseDurationMs(typesMatch[1]);
+      mark('typesGenerated', atMs);
       continue;
     }
 
     if (line.includes('[build] Collecting build info')) {
-      activePhase = 'collectingBuildInfo';
+      activePhase = { name: 'collectingBuildInfo', startedAtMs: atMs };
+      mark('collectingBuildInfoStart', atMs);
       continue;
     }
 
     if (line.includes('[build] Building server entrypoints')) {
-      activePhase = 'buildingServerEntrypoints';
+      completeActivePhase(atMs);
+      activePhase = { name: 'buildingServerEntrypoints', startedAtMs: atMs };
       inServerBuild = true;
+      mark('buildEnvironmentsStart', atMs);
+      mark('buildingServerEntrypointsStart', atMs);
       continue;
     }
 
     if (line.includes('prerendering static routes')) {
-      activePhase = 'prerenderingRoutes';
+      completeActivePhase(atMs);
+      activePhase = { name: 'prerenderingRoutes', startedAtMs: atMs };
       inServerBuild = false;
+      mark('prerenderingRoutesStart', atMs);
       continue;
     }
 
     if (line.includes('[build] Rearranging server assets')) {
-      activePhase = 'rearrangingServerAssets';
+      completeActivePhase(atMs);
       inServerBuild = false;
+      mark('rearrangingServerAssetsLogged', atMs);
       continue;
     }
 
@@ -534,21 +836,82 @@ function parseBuildPhases(output) {
 
     const phaseMatch = line.match(/✓ Completed in ([\d.]+(?:ms|s))\./);
     if (phaseMatch && activePhase) {
-      durationsMs[activePhase] = parseDurationMs(phaseMatch[1]);
-      activePhase = null;
+      durationsMs[activePhase.name] = parseDurationMs(phaseMatch[1]);
+      completeActivePhase(atMs, activePhase.name);
+    } else if (
+      phaseMatch &&
+      line.includes('[build]') &&
+      markersMs.buildEnvironmentsStart !== undefined &&
+      markersMs.buildEnvironmentsEnd === undefined
+    ) {
+      durationsMs.buildEnvironmentsTotal = parseDurationMs(phaseMatch[1]);
+      mark('buildEnvironmentsEnd', atMs);
     }
 
     const totalMatch = line.match(/\[build\] Server built in ([\d.]+(?:ms|s))/);
     if (totalMatch) {
       astroReportedTotalMs = parseDurationMs(totalMatch[1]);
+      mark('serverBuilt', atMs);
+      completeActivePhase(atMs);
+    }
+
+    if (line.includes('[pagefind] Pagefind indexed')) {
+      mark('pagefindIndexed', atMs);
+    }
+
+    if (line.includes('[pagefind] Pagefind wrote index')) {
+      mark('pagefindWroteIndex', atMs);
+    }
+
+    if (line.includes('[build] Complete!')) {
+      mark('buildComplete', atMs);
     }
   }
+
+  const timeline = summarizeBuildTimeline(markersMs, totalDurationMs);
 
   return {
     astroReportedTotalMs,
     durationsMs,
     reoptimizeCount,
     viteBuildsMs,
+    wallDurationsMs,
+    markersMs,
+    timeline,
+  };
+}
+
+function summarizeBuildTimeline(markersMs, totalDurationMs) {
+  const rearrangingServerAssetsLoggedAtMs = markersMs.rearrangingServerAssetsLogged ?? null;
+  const buildEnvironmentsEndAtMs = markersMs.buildEnvironmentsEnd ?? null;
+  const pagefindIndexedAtMs = markersMs.pagefindIndexed ?? null;
+  const pagefindWroteIndexAtMs = markersMs.pagefindWroteIndex ?? null;
+  const buildCompleteAtMs = markersMs.buildComplete ?? markersMs.serverBuilt ?? null;
+
+  return {
+    rearrangingServerAssetsLoggedAtMs,
+    buildEnvironmentsEndAtMs,
+    pagefindIndexedAtMs,
+    pagefindWroteIndexAtMs,
+    buildCompleteAtMs,
+    afterRearrangingLogMs:
+      rearrangingServerAssetsLoggedAtMs !== null && buildEnvironmentsEndAtMs !== null
+        ? Math.max(0, buildEnvironmentsEndAtMs - rearrangingServerAssetsLoggedAtMs)
+        : null,
+    pagefindIndexingMs:
+      buildEnvironmentsEndAtMs !== null && pagefindIndexedAtMs !== null
+        ? Math.max(0, pagefindIndexedAtMs - buildEnvironmentsEndAtMs)
+        : null,
+    pagefindWriteMs:
+      pagefindIndexedAtMs !== null && pagefindWroteIndexAtMs !== null
+        ? Math.max(0, pagefindWroteIndexAtMs - pagefindIndexedAtMs)
+        : null,
+    postPagefindWriteMs:
+      pagefindWroteIndexAtMs !== null && buildCompleteAtMs !== null
+        ? Math.max(0, buildCompleteAtMs - pagefindWroteIndexAtMs)
+        : null,
+    postBuildCompleteMs:
+      buildCompleteAtMs !== null ? Math.max(0, totalDurationMs - buildCompleteAtMs) : null,
   };
 }
 
@@ -561,8 +924,17 @@ function parseDurationMs(value) {
 function summarizeCriticalPath({ assetInventory, browserBench, htmlBreakdown }) {
   const largestHtml = [...htmlBreakdown].sort((a, b) => b.htmlBytes - a.htmlBytes)[0] ?? null;
   const slowestPage = [...browserBench.pages].sort((a, b) => b.totalDurationMs - a.totalDurationMs)[0] ?? null;
+  const slowestRenderPage = [...browserBench.pages].sort(
+    (a, b) => (b.renderProfile?.totalDurationMs ?? 0) - (a.renderProfile?.totalDurationMs ?? 0),
+  )[0] ?? null;
+  const worstFcpPage = [...browserBench.pages].sort(
+    (a, b) => (b.webVitals?.fcpMs ?? 0) - (a.webVitals?.fcpMs ?? 0),
+  )[0] ?? null;
   const worstLcpPage = [...browserBench.pages].sort(
     (a, b) => (b.webVitals?.lcpMs ?? 0) - (a.webVitals?.lcpMs ?? 0),
+  )[0] ?? null;
+  const worstLongTaskPage = [...browserBench.pages].sort(
+    (a, b) => (b.webVitals?.longTaskTotalMs ?? 0) - (a.webVitals?.longTaskTotalMs ?? 0),
   )[0] ?? null;
   const worstInpPage = [...browserBench.pages].sort(
     (a, b) => (b.webVitals?.inpMs ?? 0) - (a.webVitals?.inpMs ?? 0),
@@ -575,12 +947,16 @@ function summarizeCriticalPath({ assetInventory, browserBench, htmlBreakdown }) 
     duplicatePagefindBytes: assetInventory.orphanedRootPagefindBytes,
     largestHtml,
     searchOpenToReadyMs: browserBench.search.openToReadyMs,
+    searchProfile: browserBench.search.profile,
     searchRequestCount: browserBench.search.requestCount,
     slowestPage,
+    slowestRenderPage,
     serverBytes: assetInventory.serverBytes,
     worstClsPage,
+    worstFcpPage,
     worstInpPage,
     worstLcpPage,
+    worstLongTaskPage,
   };
 }
 
@@ -596,8 +972,20 @@ function printSummary(report) {
       console.log(`  - ${phase}: ${durationMs} ms`);
     }
     console.log(`  - vite re-optimizations: ${build.phases.reoptimizeCount}`);
+    if (build.phases.timeline?.afterRearrangingLogMs !== null) {
+      console.log(`  - after 'Rearranging server assets' log to env-build complete: ${build.phases.timeline.afterRearrangingLogMs} ms`);
+    }
+    if (build.phases.timeline?.pagefindIndexingMs !== null) {
+      console.log(`  - pagefind indexing after env-build complete: ${build.phases.timeline.pagefindIndexingMs} ms`);
+    }
+    if (build.phases.timeline?.pagefindWriteMs !== null) {
+      console.log(`  - pagefind writeFiles: ${build.phases.timeline.pagefindWriteMs} ms`);
+    }
+    if (build.phases.timeline?.postPagefindWriteMs !== null) {
+      console.log(`  - post-pagefind write to build complete: ${build.phases.timeline.postPagefindWriteMs} ms`);
+    }
     if (build.postServerBuildMs !== null) {
-      console.log(`  - post-build tail (pagefind/assets): ${build.postServerBuildMs} ms`);
+      console.log(`  - post-build complete tail: ${build.postServerBuildMs} ms`);
     }
     console.log('  - note: Astro phase timers overlap; compare them individually, not as a sum');
   }
@@ -607,6 +995,11 @@ function printSummary(report) {
   console.log(
     `- Search bootstrap: ${criticalPath.searchOpenToReadyMs} ms across ${criticalPath.searchRequestCount} Pagefind request(s)`,
   );
+  if (criticalPath.searchProfile?.summary?.length) {
+    console.log(
+      `  - search phases: ${formatBenchProfileSummary(criticalPath.searchProfile.summary, 4)}`,
+    );
+  }
 
   for (const page of htmlBreakdown) {
     console.log(
@@ -619,9 +1012,27 @@ function printSummary(report) {
       `- ${page.route} loaded ${formatBytes(page.totalBytes)} across ${page.requestCount} request(s) in ${page.totalDurationMs} ms`,
     );
     console.log(
-      `  vitals: LCP ${page.webVitals.lcpMs} ms, INP ${page.webVitals.inpMs} ms, CLS ${page.webVitals.cls.toFixed(3)} (${page.interaction})`,
+      `  vitals: FP ${page.webVitals.fpMs} ms, FCP ${page.webVitals.fcpMs} ms, LCP ${page.webVitals.lcpMs} ms, CLS ${page.webVitals.cls.toFixed(3)} (${page.interaction})`,
     );
+    console.log(
+      `  render main thread: long tasks ${page.webVitals.longTaskCount}, total ${page.webVitals.longTaskTotalMs} ms, max ${page.webVitals.longTaskMaxMs} ms`,
+    );
+    if (page.renderProfile?.summary?.length) {
+      console.log(`  render init: ${formatBenchProfileSummary(page.renderProfile.summary, 4)}`);
+    }
+    if (page.interactionProfile?.summary?.length || page.interactionMainThread?.longTaskCount || page.interactionMainThread?.inpMs) {
+      console.log(
+        `  interaction: INP ${page.interactionMainThread.inpMs} ms, long tasks ${page.interactionMainThread.longTaskCount}, total ${page.interactionMainThread.longTaskTotalMs} ms, max ${page.interactionMainThread.longTaskMaxMs} ms${page.interactionProfile?.summary?.length ? `, phases ${formatBenchProfileSummary(page.interactionProfile.summary, 3)}` : ''}`,
+      );
+    }
   }
+}
+
+function formatBenchProfileSummary(summary, limit) {
+  return summary
+    .slice(0, limit)
+    .map((entry) => `${entry.name} ${entry.totalDurationMs} ms${entry.count > 1 ? ` x${entry.count}` : ''}`)
+    .join(', ');
 }
 
 function formatBytes(bytes) {

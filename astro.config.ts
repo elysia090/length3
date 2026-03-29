@@ -1,16 +1,14 @@
-// @ts-check
 import cloudflare from '@astrojs/cloudflare';
 import mdx from '@astrojs/mdx';
 import { defineConfig } from 'astro/config';
-import pagefind from 'astro-pagefind';
+import segmentedPagefind from './src/integrations/segmented-pagefind';
 
 export default defineConfig({
   output: 'static',
   adapter: cloudflare({
-    imageService: 'compile',
+    imageService: 'passthrough',
+    prerenderEnvironment: 'node',
   }),
-
-  site: 'https://length3.pages.dev',
 
   integrations: [
     mdx({
@@ -19,7 +17,7 @@ export default defineConfig({
       gfm: true,
       smartypants: false,
     }),
-    pagefind(),
+    segmentedPagefind(),
   ],
 
   markdown: {
@@ -33,7 +31,7 @@ export default defineConfig({
       target: 'webworker',
     },
     optimizeDeps: {
-      exclude: ['pagefind'],
+      exclude: ['pagefind', '@astrojs/cloudflare/entrypoints/server'],
     },
     build: {
       chunkSizeWarningLimit: 1024,

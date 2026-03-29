@@ -1,21 +1,44 @@
+import { startBenchProfile } from './bench-profile';
+
 let cleanupTableOfContents: (() => void) | null = null;
 
 export function initializeTableOfContents() {
-  cleanupTableOfContents?.();
-  cleanupTableOfContents = null;
+  const finishProfile = startBenchProfile('toc.init');
 
-  const headingEls = [...document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]')];
-  const links = [...document.querySelectorAll<HTMLAnchorElement>('.toc-link')];
-  const cleanups: Array<() => void> = [];
+  try {
+    cleanupTableOfContents?.();
+    cleanupTableOfContents = null;
 
-  bindLinkClicks(links, cleanups);
-  observeActiveHeading(links, headingEls, cleanups);
+    const headingEls = [
+      ...document.querySelectorAll<HTMLElement>('article h2[id], article h3[id]'),
+    ];
+    const links = [...document.querySelectorAll<HTMLAnchorElement>('.toc-link')];
+    const cleanups: Array<() => void> = [];
 
-  cleanupTableOfContents = () => {
-    while (cleanups.length > 0) {
-      cleanups.pop()?.();
+    const finishBindLinks = startBenchProfile('toc.bindLinkClicks', { linkCount: links.length });
+    try {
+      bindLinkClicks(links, cleanups);
+    } finally {
+      finishBindLinks();
     }
-  };
+    const finishObserverSetup = startBenchProfile('toc.observeSetup', {
+      headingCount: headingEls.length,
+      linkCount: links.length,
+    });
+    try {
+      observeActiveHeading(links, headingEls, cleanups);
+    } finally {
+      finishObserverSetup();
+    }
+
+    cleanupTableOfContents = () => {
+      while (cleanups.length > 0) {
+        cleanups.pop()?.();
+      }
+    };
+  } finally {
+    finishProfile();
+  }
 }
 
 export function focusHeadingTarget(target: HTMLElement) {

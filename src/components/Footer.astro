@@ -9,37 +9,3 @@
     <span class="footer-copy">&copy; {new Date().getFullYear()}</span>
   </div>
 </footer>
-
-<style>
-  .site-footer {
-    border-top: 0.0625rem solid var(--rule);
-    margin-top: auto;
-    background: var(--bg);
-  }
-
-  .footer-inner {
-    max-width: var(--layout-max-width);
-    margin: 0 auto;
-    padding-block: 1rem;
-    padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
-      max(var(--page-gutter), env(safe-area-inset-right));
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    font-family: var(--font-mono);
-    font-size: var(--font-ui-xs);
-    color: var(--ink-2);
-  }
-
-  .footer-sup {
-    font-size: 0.6em;
-    vertical-align: super;
-    line-height: 1;
-    color: var(--amber-text);
-  }
-
-  .footer-sep {
-    color: var(--rule);
-  }
-</style>

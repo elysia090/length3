@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [".astro/types.d.ts", "vitest.config.ts", "src/**/*.test.ts", "src/**/*.dom.test.ts"],
+  "compilerOptions": {
+    "noEmit": true
+  }
+}

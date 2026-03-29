@@ -6,6 +6,7 @@ import {
   getPageLanguage,
   getSearchCopy,
   normalizePagefindSearchTerm,
+  restoreSegmentedJapaneseText,
 } from './pagefind-search';
 
 describe('normalizePagefindSearchTerm', () => {
@@ -27,6 +28,22 @@ describe('normalizePagefindSearchTerm', () => {
   });
 });
 
+describe('restoreSegmentedJapaneseText', () => {
+  it('removes segmentation spaces from Japanese display strings', () => {
+    expect(restoreSegmentedJapaneseText('ウェブ における 日本語 タイポグラフィ')).toBe(
+      'ウェブにおける日本語タイポグラフィ',
+    );
+    expect(restoreSegmentedJapaneseText('日本語 <mark>タイポグラフィ</mark>')).toBe(
+      '日本語<mark>タイポグラフィ</mark>',
+    );
+    expect(restoreSegmentedJapaneseText('「 日本語 」')).toBe('「日本語」');
+  });
+
+  it('keeps non-Japanese spacing intact', () => {
+    expect(restoreSegmentedJapaneseText('astro pagefind')).toBe('astro pagefind');
+  });
+});
+
 describe('getPageLanguage', () => {
   it('extracts supported site languages from html lang values', () => {
     expect(getPageLanguage('en')).toBe('en');
@@ -38,16 +55,13 @@ describe('getPageLanguage', () => {
 });
 
 describe('buildMergedPagefindIndexes', () => {
-  it('merges the other site language into the current search UI', () => {
+  it('uses a single shared index for every page language', () => {
     expect(
       buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'en'),
-    ).toEqual([{ bundlePath: 'https://example.test/pagefind/', language: 'ja' }]);
+    ).toEqual([]);
     expect(
       buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'ja'),
-    ).toEqual([{ bundlePath: 'https://example.test/pagefind/', language: 'en' }]);
-  });
-
-  it('skips merging when the page language is unknown', () => {
+    ).toEqual([]);
     expect(
       buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', null),
     ).toEqual([]);
@@ -92,18 +106,21 @@ describe('canonicalizePagefindResultUrl', () => {
       '/tags/astro?tab=latest#results',
     );
   });
-  it('normalizes the primary url and metadata url together', () => {
+
+  it('normalizes urls and restores Japanese display strings together', () => {
     expect(
       canonicalizePagefindResult(
         {
+          excerpt: 'ウェブ における <mark>日本語</mark> タイポグラフィ',
           meta: {
-            title: 'Astro',
-            url: '/tags/astro.html',
+            title: 'ウェブ における 日本語 タイポグラフィ',
+            url: '/japanese-test.html',
           },
           sub_results: [
             {
+              excerpt: '日本語 <mark>タイポグラフィ</mark>',
               meta: { url: '/getting-started.html#section' },
-              title: 'Section',
+              title: '日本語 タイポグラフィ',
               url: '/getting-started.html#section',
             },
           ],
@@ -112,14 +129,16 @@ describe('canonicalizePagefindResultUrl', () => {
         origin,
       ),
     ).toEqual({
+      excerpt: 'ウェブにおける<mark>日本語</mark>タイポグラフィ',
       meta: {
-        title: 'Astro',
-        url: '/tags/astro',
+        title: 'ウェブにおける日本語タイポグラフィ',
+        url: '/japanese-test',
       },
       sub_results: [
         {
+          excerpt: '日本語<mark>タイポグラフィ</mark>',
           meta: { url: '/getting-started#section' },
-          title: 'Section',
+          title: '日本語タイポグラフィ',
           url: '/getting-started#section',
         },
       ],

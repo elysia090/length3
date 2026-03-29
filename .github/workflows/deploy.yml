@@ -1,11 +1,8 @@
 name: Deploy
 
-# Automatic deploy is disabled until Cloudflare secrets are configured.
-# To re-enable: restore `push: branches: [main]` and remove `workflow_dispatch`.
 on:
   workflow_dispatch:
 
-# Only one deploy runs at a time; new pushes cancel in-flight deploys.
 concurrency:
   group: deploy-production
   cancel-in-progress: true
@@ -16,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://length3.pages.dev
     permissions:
       contents: read
       deployments: write
@@ -28,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile

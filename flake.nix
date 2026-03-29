@@ -2,7 +2,7 @@
   description = "length3 development shell";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   };
 
   outputs = { nixpkgs, ... }:
@@ -64,7 +64,7 @@
 
           pnpm = pkgs.writeShellApplication {
             name = "pnpm";
-            runtimeInputs = [ pkgs.nodejs_22 ];
+            runtimeInputs = [ pkgs.nodejs_24 ];
             text = ''
               export COREPACK_HOME="''${COREPACK_HOME:-$PWD/.cache/corepack}"
               exec corepack pnpm "$@"
@@ -74,7 +74,7 @@
         {
           default = pkgs.mkShell {
             packages = [
-              pkgs.nodejs_22
+              pkgs.nodejs_24
               pnpm
               python
             ] ++ playwrightLibs;

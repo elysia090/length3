@@ -89,14 +89,18 @@ body {
 }
 
 /* ─── Texture overlay ────────────────────────────────────────── */
-/* 768px contour-grain WebP tiled at very low opacity — adds tactile
-   paper quality uniformly across the entire viewport without
-   interfering with readability or pointer events. */
+/* 768px contour-grain AVIF with WebP fallback tiled at very low opacity
+   — adds tactile paper quality uniformly across the entire viewport
+   without interfering with readability or pointer events. */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background-image: url('../texture/length3-texture-transparent.webp');
+  background-image: image-set(
+    url('../texture/length3-texture-transparent.avif') type('image/avif'),
+    url('../texture/length3-texture-transparent.webp') type('image/webp')
+  );
   background-repeat: repeat;
   background-size: 768px 768px;
   pointer-events: none;
