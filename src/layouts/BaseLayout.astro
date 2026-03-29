@@ -1,6 +1,7 @@
 ---
 import '../styles/fonts.css';
 import '../styles/global.css';
+import '../styles/components.css';
 import '../styles/typography.css';
 import { getSiteCopy } from '../lib/ui-copy';
 
@@ -13,6 +14,7 @@ interface Props {
 
 const { title, description = 'A technical blog.', ogImage, lang = 'en' } = Astro.props;
 const copy = getSiteCopy(lang);
+const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : undefined;
 ---
 
 <!doctype html>
@@ -29,7 +31,7 @@ const copy = getSiteCopy(lang);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content={Astro.url.href} />
+    {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
   </head>
   <body>
     <!-- SC 2.4.1: skip link — first focusable element, targets #main-content on each page -->

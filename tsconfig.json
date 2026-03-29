@@ -1,7 +1,15 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist", "node_modules"],
+  "include": [".astro/types.d.ts", "astro.config.ts", "src/**/*"],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "src/**/*.test.*",
+    "src/**/*.dom.test.ts",
+    "tests",
+    "playwright.config.ts",
+    "vitest.config.ts"
+  ],
   "compilerOptions": {
     "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,

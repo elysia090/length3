@@ -1,3 +1,4 @@
+import { startBenchProfile } from './bench-profile';
 import { formatRemainingReadingTime, getSiteCopy } from './ui-copy';
 
 export interface ReadingProgressState {
@@ -41,85 +42,98 @@ export const articleActionMessages = {
 let cleanupArticleActions: (() => void) | null = null;
 
 export function initializeArticleActions() {
-  cleanupArticleActions?.();
-  cleanupArticleActions = null;
+  const finishProfile = startBenchProfile('articleActions.init');
 
-  const elements = getArticleActionsElements(document);
-  if (!elements) {
-    return;
-  }
+  try {
+    cleanupArticleActions?.();
+    cleanupArticleActions = null;
 
-  const readingTime = Number(elements.container.dataset.readingTime) || 5;
-  const copy = getSiteCopy(elements.language);
-  let framePending = false;
-
-  const onCopyClick = () => {
-    writeClipboardText(window.location.href)
-      .then(() => {
-        flash(elements.copyLabel, elements.copyTemporaryLabel, elements.copyRestoreLabel);
-        announce(elements.status, copy.copySuccess);
-      })
-      .catch((error) => {
-        warn('copy-link', error);
-        flash(elements.copyLabel, elements.failureTemporaryLabel, elements.copyRestoreLabel);
-        announce(elements.status, copy.copyFailure);
-      });
-  };
-
-  const onShareClick = () => {
-    const share = getShare();
-    if (share) {
-      share({
-        title: document.title,
-        url: window.location.href,
-      })
-        .then(() => {
-          announce(elements.status, copy.shareSuccess);
-        })
-        .catch((error) => {
-          if (error instanceof Error && error.name === 'AbortError') {
-            return;
-          }
-
-          warn('share', error);
-          flash(elements.shareLabel, elements.failureTemporaryLabel, elements.shareRestoreLabel);
-          announce(elements.status, copy.shareFailure);
-        });
+    const elements = getArticleActionsElements(document);
+    if (!elements) {
       return;
     }
 
-    writeClipboardText(window.location.href)
-      .then(() => {
-        flash(elements.shareLabel, elements.copyTemporaryLabel, elements.shareRestoreLabel);
-        announce(elements.status, copy.copySuccess);
-      })
-      .catch((error) => {
-        warn('share-fallback', error);
-        flash(elements.shareLabel, elements.failureTemporaryLabel, elements.shareRestoreLabel);
-        announce(elements.status, copy.shareFailure);
+    const readingTime = Number(elements.container.dataset.readingTime) || 5;
+    const copy = getSiteCopy(elements.language);
+    let framePending = false;
+
+    const onCopyClick = () => {
+      writeClipboardText(window.location.href)
+        .then(() => {
+          flash(elements.copyLabel, elements.copyTemporaryLabel, elements.copyRestoreLabel);
+          announce(elements.status, copy.copySuccess);
+        })
+        .catch((error) => {
+          warn('copy-link', error);
+          flash(elements.copyLabel, elements.failureTemporaryLabel, elements.copyRestoreLabel);
+          announce(elements.status, copy.copyFailure);
+        });
+    };
+
+    const onShareClick = () => {
+      const share = getShare();
+      if (share) {
+        share({
+          title: document.title,
+          url: window.location.href,
+        })
+          .then(() => {
+            announce(elements.status, copy.shareSuccess);
+          })
+          .catch((error) => {
+            if (error instanceof Error && error.name === 'AbortError') {
+              return;
+            }
+
+            warn('share', error);
+            flash(elements.shareLabel, elements.failureTemporaryLabel, elements.shareRestoreLabel);
+            announce(elements.status, copy.shareFailure);
+          });
+        return;
+      }
+
+      writeClipboardText(window.location.href)
+        .then(() => {
+          flash(elements.shareLabel, elements.copyTemporaryLabel, elements.shareRestoreLabel);
+          announce(elements.status, copy.copySuccess);
+        })
+        .catch((error) => {
+          warn('share-fallback', error);
+          flash(elements.shareLabel, elements.failureTemporaryLabel, elements.shareRestoreLabel);
+          announce(elements.status, copy.shareFailure);
+        });
+    };
+
+    const onScroll = () => {
+      if (framePending) return;
+
+      framePending = true;
+      window.requestAnimationFrame(() => {
+        framePending = false;
+        updateReadingProgress(elements, readingTime);
       });
-  };
+    };
 
-  const onScroll = () => {
-    if (framePending) return;
-
-    framePending = true;
-    window.requestAnimationFrame(() => {
-      framePending = false;
-      updateReadingProgress(elements, readingTime);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    elements.copyButton.addEventListener('click', onCopyClick);
+    elements.shareButton.addEventListener('click', onShareClick);
+    const finishInitialRender = startBenchProfile('articleActions.initialProgress', {
+      readingTime,
     });
-  };
+    try {
+      updateReadingProgress(elements, readingTime);
+    } finally {
+      finishInitialRender();
+    }
 
-  window.addEventListener('scroll', onScroll, { passive: true });
-  elements.copyButton.addEventListener('click', onCopyClick);
-  elements.shareButton.addEventListener('click', onShareClick);
-  updateReadingProgress(elements, readingTime);
-
-  cleanupArticleActions = () => {
-    window.removeEventListener('scroll', onScroll);
-    elements.copyButton.removeEventListener('click', onCopyClick);
-    elements.shareButton.removeEventListener('click', onShareClick);
-  };
+    cleanupArticleActions = () => {
+      window.removeEventListener('scroll', onScroll);
+      elements.copyButton.removeEventListener('click', onCopyClick);
+      elements.shareButton.removeEventListener('click', onShareClick);
+    };
+  } finally {
+    finishProfile();
+  }
 }
 
 export function calculateReadingProgress({

@@ -1,6 +1,6 @@
 ## Tech Stack
 
-This blog is built on Astro 6,with TypeScript in strict mode, MDX, and Content Collections (Content Layer API) for content management.The runtime environment is Node.js 22.12+, and the package manager is pnpm, pinned via Corepack. It is deployed on Cloudflare Workers, uses `astro:assets` for image optimization, and adopts Pagefind for on-site search.Formatting and static checks are handled with Prettier, `prettier-plugin-astro`, Biome, and `astro check`,while Playwright is used for end-to-end testing. Code blocks in articles are powered by CodeMirror 6,and Japanese typography is handled with `<ruby>`, `line-break`, and `text-wrap`.A Git-backed editor, where Git is the single source of truth, not the CMS.
+This blog is built on Astro 6 with strict TypeScript, MDX, and Content Collections for content management. The runtime environment is Node.js 24.14+, the package manager is pnpm via Corepack, and deployment targets Cloudflare Workers through the official Astro adapter. Search is powered by Pagefind, while formatting and static checks are handled with Prettier, `prettier-plugin-astro`, Biome, and `astro check`. Playwright covers end-to-end testing, and Japanese typography relies on `<ruby>`, `line-break`, and `text-wrap`.
 
 ## UI Design
 
@@ -10,4 +10,4 @@ The index page uses a two-column layout, with articles in the main column and su
 
 The editor view extends the same idea into the writing experience. A dark MDX editor sits beside a light live preview, allowing the author to compare source and presentation at the same time. This creates a strong contrast between drafting and reading while keeping both in a single coherent interface. The search modal is similarly minimal, centered, and compact, behaving more like a quiet command palette than a separate page.
 
-At its core, the UI is not just styled for a blog; it is designed as an interface for reading, writing, and exploring technical texts with care. Its character comes less from decoration than from spacing, typography, and the treatment of Japanese text, including support for `<ruby>`, `line-break`, and `text-wrap`.
+At its core, the UI is not just styled for a blog; it is designed as an interface for reading, writing, and exploring technical texts with care. Its character comes less from decoration than from spacing, typography, and the treatment of Japanese text.

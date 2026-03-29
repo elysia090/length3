@@ -15,7 +15,7 @@ pnpm exec playwright install chromium
 
 The shell provides:
 
-- Node 22
+- Node 24.14 LTS
 - `pnpm` via Corepack using the version pinned in `package.json`
 - Python 3 with `fonttools` and `brotli` for font conversion
 
@@ -24,3 +24,17 @@ the `XDG_CACHE_HOME=$PWD/.cache` prefix shown above.
 
 Playwright browsers, Corepack downloads, pnpm caches, and the optional Nix
 cache are redirected into the repository under `.cache/` and `.pnpm-store/`.
+
+## Deployment
+
+Production deploys target a Cloudflare Worker named `length3` via Wrangler.
+This account currently has no Cloudflare Pages project, no `workers.dev`
+subdomain, and no Worker custom domain configured, so the repository does not
+hardcode a canonical site URL.
+
+Use the generated Worker config from Astro when deploying:
+
+```sh
+pnpm build
+pnpm exec wrangler deploy --config dist/server/wrangler.json
+```

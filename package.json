@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.0.1",
   "engines": {
-    "node": ">=22.12.0",
+    "node": ">=24.14.0",
     "pnpm": ">=9"
   },
   "packageManager": "pnpm@9.15.4",
@@ -11,13 +11,14 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check",
+    "check": "astro check && pnpm run check:tests",
+    "check:tests": "tsc -p tsconfig.test.json --noEmit",
     "lint": "biome check . && prettier --check \"src/**/*.astro\"",
     "format": "biome format --write . && prettier --write \"src/**/*.astro\"",
     "test:unit": "vitest run",
     "test:e2e": "env -u NO_COLOR FORCE_COLOR=0 playwright test --config=playwright.config.ts --project=chromium",
     "test": "pnpm run check && pnpm run test:unit && pnpm run test:e2e",
-    "bench": "node ./scripts/bench/run.mjs",
+    "bench": "node ./scripts/bench/run.ts",
     "screenshots": "env -u NO_COLOR FORCE_COLOR=0 playwright test --config=playwright.config.ts --project=screenshots",
     "prepare": "husky"
   },
