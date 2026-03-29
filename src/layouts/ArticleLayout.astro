@@ -90,10 +90,7 @@ const copy = getSiteCopy(lang);
               {description && <p class="article-header-lead">{description}</p>}
               {
                 tags.length > 0 && (
-                  <ul
-                    class="article-header-tags tag-pill-list"
-                    aria-label={copy.tags}
-                  >
+                  <ul class="article-header-tags tag-pill-list" aria-label={copy.tags}>
                     {tags.map((tag) => (
                       <li>
                         <a href={tag.href} class="article-header-tag tag-pill">
