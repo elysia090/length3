@@ -1,5 +1,9 @@
 import { startBenchProfile } from './bench-profile';
-import { createPagefindSearchController } from './pagefind-search';
+import { createPagefindSearchController, type PagefindSearchController } from './pagefind-search';
+
+interface SearchModalRuntime {
+  searchController: PagefindSearchController;
+}
 
 export function initializeSidebarSearch(browserDocument: Document = document) {
   const finishProfile = startBenchProfile('sidebar.init', {
@@ -10,71 +14,102 @@ export function initializeSidebarSearch(browserDocument: Document = document) {
     const browserWindow = browserDocument.defaultView ?? window;
     const trigger = browserDocument.getElementById('search-trigger');
     const modal = browserDocument.getElementById('search-modal');
-    const closeButton = browserDocument.getElementById('search-close');
-    const pagefindMount = browserDocument.getElementById('pagefind-ui');
-    const emptyState = browserDocument.getElementById('search-empty-state');
-    const status = browserDocument.getElementById('search-status');
 
-    if (
-      !(trigger instanceof HTMLButtonElement) ||
-      !(modal instanceof HTMLDialogElement) ||
-      !(closeButton instanceof HTMLButtonElement) ||
-      !(pagefindMount instanceof HTMLElement) ||
-      !(status instanceof HTMLElement)
-    ) {
+    if (!(trigger instanceof HTMLButtonElement) || !(modal instanceof HTMLDialogElement)) {
       return;
     }
 
-    if (modal.dataset.searchInitialized === 'true') {
+    const searchTrigger = trigger;
+    const searchModal = modal;
+
+    if (searchModal.dataset.searchInitialized === 'true') {
       return;
     }
-    modal.dataset.searchInitialized = 'true';
+    searchModal.dataset.searchInitialized = 'true';
 
-    const modalLanguage = modal.dataset.searchLang === 'ja' ? 'ja' : null;
-    const searchController = createPagefindSearchController({
-      browserWindow,
-      emptyState: emptyState instanceof HTMLElement ? emptyState : null,
-      focusMode: 'desktop-only',
-      language: modalLanguage,
-      mount: pagefindMount,
-      mountSelector: '#pagefind-ui',
-      status,
-    });
+    let modalRuntime: SearchModalRuntime | null = null;
 
-    const openSearch = () => {
-      setExpandedState(trigger, true);
-      if (!modal.open) {
-        modal.showModal();
+    function ensureModalRuntime() {
+      if (modalRuntime) {
+        return modalRuntime;
       }
-      void searchController.open();
-    };
 
-    const closeSearch = () => {
-      setExpandedState(trigger, false);
-      searchController.close();
-      if (modal.open) {
-        modal.close();
+      const template = browserDocument.getElementById('search-modal-template');
+      if (!(template instanceof HTMLTemplateElement)) {
+        return null;
       }
-    };
 
-    trigger.addEventListener('click', openSearch);
-    closeButton.addEventListener('click', closeSearch);
-    modal.addEventListener('click', (event) => {
-      if (event.target === modal) {
-        modal.close();
+      searchModal.replaceChildren(template.content.cloneNode(true));
+
+      const closeButton = browserDocument.getElementById('search-close');
+      const pagefindMount = browserDocument.getElementById('pagefind-ui');
+      const emptyState = browserDocument.getElementById('search-empty-state');
+      const status = browserDocument.getElementById('search-status');
+
+      if (
+        !(closeButton instanceof HTMLButtonElement) ||
+        !(pagefindMount instanceof HTMLElement) ||
+        !(status instanceof HTMLElement)
+      ) {
+        return null;
+      }
+
+      const modalLanguage = searchModal.dataset.searchLang === 'ja' ? 'ja' : null;
+      const searchController = createPagefindSearchController({
+        browserWindow,
+        emptyState: emptyState instanceof HTMLElement ? emptyState : null,
+        focusMode: 'desktop-only',
+        language: modalLanguage,
+        mount: pagefindMount,
+        mountSelector: '#pagefind-ui',
+        status,
+      });
+
+      closeButton.addEventListener('click', closeSearch);
+      modalRuntime = { searchController };
+      return modalRuntime;
+    }
+
+    function openSearch() {
+      const runtime = ensureModalRuntime();
+      if (!runtime) {
+        return;
+      }
+
+      setExpandedState(searchTrigger, true);
+      if (!searchModal.open) {
+        searchModal.showModal();
+      }
+      void runtime.searchController.open();
+    }
+
+    function closeSearch() {
+      setExpandedState(searchTrigger, false);
+      modalRuntime?.searchController.close();
+      if (searchModal.open) {
+        searchModal.close();
+      }
+    }
+
+    searchTrigger.addEventListener('click', openSearch);
+    searchModal.addEventListener('click', (event) => {
+      if (event.target === searchModal) {
+        searchModal.close();
       }
     });
-    modal.addEventListener('cancel', () => {
-      setExpandedState(trigger, false);
-      searchController.close();
+    searchModal.addEventListener('cancel', () => {
+      setExpandedState(searchTrigger, false);
+      modalRuntime?.searchController.close();
     });
-    modal.addEventListener('close', () => {
-      setExpandedState(trigger, false);
-      searchController.close();
-      trigger.focus();
+    searchModal.addEventListener('close', () => {
+      setExpandedState(searchTrigger, false);
+      modalRuntime?.searchController.close();
+      searchTrigger.focus();
     });
     browserDocument.addEventListener('keydown', (event) => {
-      if (!shouldOpenSearchFromKeydown(event.key, modal.open, browserDocument.activeElement)) {
+      if (
+        !shouldOpenSearchFromKeydown(event.key, searchModal.open, browserDocument.activeElement)
+      ) {
         return;
       }
 

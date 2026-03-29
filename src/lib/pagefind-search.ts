@@ -359,7 +359,7 @@ export function normalizePagefindSearchTerm(term: string) {
 }
 
 export function restoreSegmentedJapaneseText(value: string | undefined) {
-  if (!value || !value.includes(' ') || !JAPANESE_QUERY_PATTERN.test(value)) {
+  if (!value?.includes(' ') || !JAPANESE_QUERY_PATTERN.test(value)) {
     return value;
   }
 
