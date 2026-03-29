@@ -1,6 +1,6 @@
 import cloudflare from '@astrojs/cloudflare';
 import mdx from '@astrojs/mdx';
-import { defineConfig } from 'astro/config';
+import { defineConfig, sessionDrivers } from 'astro/config';
 import segmentedPagefind from './src/integrations/segmented-pagefind';
 
 export default defineConfig({
@@ -44,4 +44,11 @@ export default defineConfig({
   },
 
   trailingSlash: 'never',
+
+  session: {
+    // This site is fully prerendered and does not use runtime sessions.
+    // Keep the config first-party, but avoid the Cloudflare adapter's
+    // default KV session provisioning during static builds.
+    driver: sessionDrivers.lruCache(),
+  },
 });

@@ -79,6 +79,11 @@
   text-wrap: balance;
 }
 
+.prose > :where(h2, h3, h4, p, pre, blockquote, ul, ol, hr, table, figure, details) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 10rem;
+}
+
 /* ─── Text ───────────────────────────────────────────────────── */
 .prose p {
   margin-bottom: 1.5rem;

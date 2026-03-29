@@ -92,6 +92,10 @@ function createBrowserMocks() {
   };
 }
 
+function flushInitialProgressFrame(frameQueue: Array<() => void>) {
+  frameQueue.shift()?.();
+}
+
 afterEach(() => {
   document.body.innerHTML = '';
   initializeArticleActions();
@@ -104,6 +108,7 @@ describe('initializeArticleActions', () => {
     const { frameQueue, timeoutQueue } = createBrowserMocks();
 
     initializeArticleActions();
+    flushInitialProgressFrame(frameQueue);
     elements.copyButton.click();
     await flushPromises();
 
@@ -120,6 +125,7 @@ describe('initializeArticleActions', () => {
     const { frameQueue, timeoutQueue } = createBrowserMocks();
 
     initializeArticleActions();
+    flushInitialProgressFrame(frameQueue);
     elements.shareButton.click();
     await flushPromises();
 
@@ -143,6 +149,7 @@ describe('initializeArticleActions', () => {
     });
 
     initializeArticleActions();
+    flushInitialProgressFrame(failing.frameQueue);
     elements.shareButton.click();
     await flushPromises();
 
@@ -169,6 +176,7 @@ describe('initializeArticleActions', () => {
     });
 
     initializeArticleActions();
+    flushInitialProgressFrame(frameQueue);
     elements.shareButton.click();
     await flushPromises();
 
@@ -183,6 +191,8 @@ describe('initializeArticleActions', () => {
 
     setScrollY(250);
     initializeArticleActions();
+    expect(frameQueue).toHaveLength(1);
+    flushInitialProgressFrame(frameQueue);
     expect(elements.percentRead.textContent).toBe('25%');
     expect(elements.minutesLeft.textContent).toBe('~6 min');
     expect(elements.progressBar.getAttribute('aria-valuenow')).toBe('25');

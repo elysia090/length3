@@ -73,13 +73,15 @@ const siteCopy = getSiteCopy(lang);
   }
 </aside>
 
-<!-- Search modal — native <dialog> keeps focus trapping and Escape behaviour built in -->
 <dialog
   id="search-modal"
   class="search-overlay"
   aria-label={copy.searchDialogLabel}
   data-search-lang={lang}
 >
+</dialog>
+
+<template id="search-modal-template">
   <div class="search-card">
     <div class="search-card-header">
       <svg
@@ -154,7 +156,7 @@ const siteCopy = getSiteCopy(lang);
       <span class="search-powered">Pagefind</span>
     </div>
   </div>
-</dialog>
+</template>
 
 <script>
   import { initializeSidebarSearch } from '../lib/sidebar-search';

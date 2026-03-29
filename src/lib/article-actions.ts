@@ -114,19 +114,25 @@ export function initializeArticleActions() {
       });
     };
 
+    let initialProgressFrame = 0;
+
     window.addEventListener('scroll', onScroll, { passive: true });
     elements.copyButton.addEventListener('click', onCopyClick);
     elements.shareButton.addEventListener('click', onShareClick);
-    const finishInitialRender = startBenchProfile('articleActions.initialProgress', {
-      readingTime,
+
+    initialProgressFrame = window.requestAnimationFrame(() => {
+      const finishInitialRender = startBenchProfile('articleActions.initialProgress', {
+        readingTime,
+      });
+      try {
+        updateReadingProgress(elements, readingTime);
+      } finally {
+        finishInitialRender();
+      }
     });
-    try {
-      updateReadingProgress(elements, readingTime);
-    } finally {
-      finishInitialRender();
-    }
 
     cleanupArticleActions = () => {
+      window.cancelAnimationFrame(initialProgressFrame);
       window.removeEventListener('scroll', onScroll);
       elements.copyButton.removeEventListener('click', onCopyClick);
       elements.shareButton.removeEventListener('click', onShareClick);
