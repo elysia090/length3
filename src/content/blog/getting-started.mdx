@@ -2,7 +2,7 @@
 title: 'Length³: A Technical Blog Built on Astro 6 and Cloudflare Workers'
 description: A deep dive into how this blog is built — Astro 6, MDX content collections, Pagefind search, and Japanese typography, all deployed at the edge.
 publishDate: 2026-03-20
-updatedDate: 2026-03-28
+updatedDate: 2026-03-29
 tags: [astro, cloudflare, mdx, typescript, 'TypeScript / JS', pagefind, typography]
 draft: false
 lang: en
@@ -11,7 +11,7 @@ lang: en
 import RubyText from '../../components/RubyText.astro';
 
 **Length³** is a technical blog engineered as a portfolio piece: every architectural decision is deliberate, every dependency earns its place, and the reading experience is treated as a first-class concern.
-This article documents the full stack — from content pipeline to edge deployment — so you can understand what was built and why.
+This post documents the full stack — from content pipeline to edge deployment — so you can understand what was built and why.
 
 ## Architecture Overview
 
@@ -24,7 +24,7 @@ The stack has three layers:
 | Runtime   | Cloudflare Workers (edge-native)             |
 
 The blog is statically generated at build time (`output: 'static'`).
-Static pages, fonts, and the Pagefind index are served as Cloudflare Pages assets at the edge.
+Static assets — HTML pages, fonts, and the Pagefind index — are bundled into the Worker and served from Cloudflare's edge network with no origin server.
 
 ## Content System
 
@@ -51,7 +51,7 @@ const blog = defineCollection({
 });
 ```
 
-The `z.coerce.date()` call lets you write `2026-03-28` in frontmatter and get a native `Date` object — no manual parsing.
+`z.coerce.date()` lets you write `2026-03-28` in frontmatter and receive a native `Date` object in templates — no manual parsing.
 `draft: true` excludes a post from all listing pages via a shared predicate:
 
 ```typescript
@@ -112,8 +112,8 @@ The article page uses a CSS grid with three columns:
 [ TOC (sticky) ] [ prose (680px measure) ] [ empty right margin ]
 ```
 
-The right column is deliberately empty — no widgets, no related posts, no ads.
-Hierarchy comes from spacing and typography alone, following a print-editorial model.
+The right column is intentionally empty — no widgets, no related posts, no ads.
+Hierarchy is communicated through spacing and typography alone, following a print-editorial model.
 
 ### Table of Contents
 
@@ -143,7 +143,7 @@ The implementation keeps the rules simple: CJK characters are counted directly, 
 
 ## Tag System
 
-Tags are normalized into canonical slugs so CJK tags survive the transformation and punctuation-heavy names stay routable:
+Tags are normalised into canonical slugs so that CJK tags survive the transformation and punctuation-heavy names remain routable:
 
 ```typescript
 export function canonicalizeTagSlug(tag: string): string {
@@ -158,11 +158,11 @@ export function canonicalizeTagSlug(tag: string): string {
 }
 ```
 
-Unicode property escapes keep `機械学習` intact, while punctuation cleanup and hyphen collapsing make names like `TypeScript / JS` converge to a stable canonical route.
-When every character is stripped (e.g. a tag consisting only of punctuation), the function falls back to an FNV-1a hash to guarantee a routable slug.
+Unicode property escapes keep `機械学習` intact, while punctuation cleanup and hyphen collapsing normalise names like `TypeScript / JS` to a stable canonical route.
+When every character is stripped (e.g. a tag consisting entirely of punctuation), the function falls back to an FNV-1a hash to guarantee a routable slug.
 
 Tag archive pages are generated at `/tags/[tag]` via `getStaticPaths`.
-The `buildTagRoutes` utility centralises aggregation so the topic directory and per-tag listing pages share the same routing model:
+The `buildTagRoutes` utility centralises aggregation so the topic directory and per-tag listing pages share exactly the same routing model:
 
 ```typescript
 export function buildTagRoutes(posts: BlogPost[]): TagRoute[] {
@@ -174,10 +174,41 @@ export function buildTagRoutes(posts: BlogPost[]): TagRoute[] {
 
 Search is powered by [Pagefind](https://pagefind.app/), a static-site search library that runs entirely at the edge with no external service.
 
-The build pipeline:
+### Custom `segmented-pagefind` Integration
 
-1. `astro build` runs with the `astro-pagefind` integration, which automatically invokes Pagefind after the static HTML is generated in `dist/`. It crawls every `data-pagefind-body` element and emits a binary search index alongside the static files.
-2. On the client, Pagefind's WASM engine loads the index from the same CDN edge node that serves the page — zero extra round-trips
+Rather than using the off-the-shelf `astro-pagefind` npm package, the site ships a bespoke integration (`src/integrations/segmented-pagefind.ts`) that solves a fundamental limitation: Pagefind's WASM tokenizer was designed for space-delimited languages and does not recognise Japanese word boundaries.
+Indexing raw Japanese HTML would produce a single unsplittable token per sentence, making any non-trivial query unreliable.
+
+The integration works in two phases:
+
+**Build phase (`astro:build:done`):**
+
+1. After `astro build` produces static HTML, the integration scans the output and identifies only article pages (matched against the `src/content/blog/` source files).
+2. For each Japanese article (`<html lang="ja">`), `buildSyntheticSearchHtml` is called: JSDOM parses the page, every text node inside `[data-pagefind-body]` that contains Han/Hiragana/Katakana characters is visited, and `Intl.Segmenter` inserts spaces at morpheme boundaries.
+3. The rewritten HTML — with `lang` forced to `en` so Pagefind routes through its Latin tokenizer — is fed to Pagefind's Node.js API (`createIndex` / `addHTMLFile`).
+4. A single unified index is written to `dist/pagefind/`.
+
+```typescript
+// Segment Japanese text before handing it to Pagefind's Latin tokenizer
+export function segmentJapaneseSearchText(value: string): string {
+  let result = '';
+  let lastWasSearchable = false;
+  for (const segment of SEGMENTER.segment(value)) {
+    const isSearchable =
+      segment.isWordLike ||
+      JAPANESE_SCRIPT_PATTERN.test(segment.segment) ||
+      WORDLIKE_PATTERN.test(segment.segment);
+    if (isSearchable && lastWasSearchable && !result.endsWith(' ')) result += ' ';
+    result += segment.segment;
+    lastWasSearchable = isSearchable;
+  }
+  return result;
+}
+```
+
+**Dev-server phase (`astro:server:setup`):**
+
+A Vite dev-server middleware intercepts `/pagefind/*` requests and serves files from the last written index directory, so search remains functional during `astro dev` without re-indexing on every hot reload.
 
 The article body is annotated `data-pagefind-body` in `ArticleLayout.astro`:
 
@@ -185,18 +216,16 @@ The article body is annotated `data-pagefind-body` in `ArticleLayout.astro`:
 <article class="prose" data-pagefind-body lang={lang}></article>
 ```
 
-This scopes indexing to article content, excluding header, footer, and sidebar noise.
+This scopes the index to article content, excluding header, footer, and sidebar noise.
 
-Because the site ships both English and Japanese articles, the modal merges the `en` and `ja`
-Pagefind indexes at runtime and normalizes Japanese queries with `Intl.Segmenter`, keeping
-cross-language search fully static with no Worker-side search service.
+On the client, Pagefind's WASM engine loads the unified index from the same edge node that served the page — no extra round-trips, no Worker-side search service.
 
 ## Typography
 
 ### Fraunces Variable Font
 
-Display headings use [Fraunces](https://github.com/undercasetype/Fraunces), a variable optical-size serif with a distinctive softness.
-The font files (`Fraunces-Variable.woff2`, `Fraunces-Italic-Variable.woff2`) are self-hosted under `public/fonts/` and declared with `font-display: optional` so first paint can fall back immediately while repeat visits reuse the cached face.
+Display headings use [Fraunces](https://github.com/undercasetype/Fraunces), a variable optical-size serif with a distinctively soft character.
+Both files (`Fraunces-Variable.woff2`, `Fraunces-Italic-Variable.woff2`) are self-hosted under `public/fonts/` and declared with `font-display: optional`, so first paint falls back immediately while repeat visits reuse the cached face.
 
 ### Font Stack
 
@@ -211,8 +240,8 @@ The font files (`Fraunces-Variable.woff2`, `Fraunces-Italic-Variable.woff2`) are
   'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', monospace;
 ```
 
-Japanese mincho fallbacks are placed _before_ `Georgia` in the display stack so that CJK characters in headings render in a matching serif/mincho style.
-Japanese sans-serif fonts are listed _before_ `system-ui` so that CJK body text still resolves cleanly on machines that only have local Japanese fonts installed.
+Japanese mincho fallbacks are placed _before_ `Georgia` in the display stack so that CJK characters in headings resolve to a matching serif/mincho face.
+Japanese sans-serif fonts are listed _before_ `system-ui` so that CJK body text resolves correctly on machines that have only local Japanese fonts installed.
 
 ### Japanese Typography Features
 
@@ -226,16 +255,16 @@ The blog has first-class support for Japanese composition:
 
 ### Amber Accent
 
-The single accent colour throughout the UI is amber (`#d4820a` for decorative elements, `#b45309` for text/interactive elements to meet WCAG AA at 4.5:1).
-It appears on: the amber rule under article titles, TOC active-section indicators, tag links, and dates.
-Everything else is ink (`#1c1a18`) and paper (`#f9f8f5`).
+The single accent colour throughout the UI is amber — `#d4820a` for decorative elements and `#b45309` for text and interactive elements (4.5:1 contrast, WCAG AA).
+It appears on the rule below article titles, TOC active-section indicators, tag links, and dates.
+Everything else is ink (`#1c1a18`) on paper (`#f9f8f5`).
 
 ## Developer Experience
 
 ### TypeScript in Strict Mode
 
 `tsconfig.json` enables `strict: true`.
-All content collection types flow from `CollectionEntry<'blog'>` through `ProcessedPost` to each page component — there is no `any` in the data path.
+All content collection types flow from `CollectionEntry<'blog'>` through `ProcessedPost` into each page component — there is no `any` in the data path.
 
 ### Biome and Prettier
 
@@ -246,7 +275,7 @@ Linting and formatting use two tools with complementary scopes:
 | [Biome](https://biomejs.dev/)                              | `*.ts`, `*.tsx` — lint + format |
 | [Prettier](https://prettier.io/) + `prettier-plugin-astro` | `*.astro` — format only         |
 
-Biome keeps TypeScript linting and formatting in one tool, while Prettier handles Astro templates.
+Biome handles TypeScript linting and formatting in a single binary; Prettier covers Astro template formatting via `prettier-plugin-astro`.
 
 ### Husky Pre-commit Hooks
 
@@ -260,7 +289,7 @@ Biome keeps TypeScript linting and formatting in one tool, while Prettier handle
 }
 ```
 
-This guarantees that no unformatted code reaches the repository without interrupting the development flow for in-progress files.
+This guarantees that no unformatted or unlinted code reaches the repository, without interrupting work on in-progress files.
 
 ### Testing
 
@@ -269,53 +298,78 @@ This guarantees that no unformatted code reaches the repository without interrup
 | Unit       | Vitest 4   | `estimateReadingTime`, canonical tag routing, `TagResolver`, `formatDate`      |
 | End-to-end | Playwright | Route smoke, search modal bootstrap, tag navigation |
 
-Vitest shares the Vite config and runs in `node` environment, which means TypeScript compilation is handled by the same pipeline as the main build.
-Playwright is kept as a smoke suite against the dev server, while browser interaction logic is covered in Vitest with `jsdom`.
-During `astro dev`, Pagefind search reuses the last built index from `dist/client/pagefind`, so run `pnpm build` after content changes when you need fresh search results.
+Vitest shares the Vite config and runs in the `node` environment, so TypeScript compilation goes through the same pipeline as the main build.
+Playwright is a smoke suite that runs against the built `dist/` artifact (downloaded from the CI `build` job artifact), while browser interaction logic is covered in Vitest with `jsdom`.
+During `astro dev`, Pagefind search reuses the last written index, so run `pnpm build` after content changes to get fresh search results.
 
 ## Deployment
 
-### Cloudflare Workers + Pages
+### Cloudflare Workers
 
-The site is deployed to Cloudflare's global network via [Wrangler](https://developers.cloudflare.com/workers/wrangler/):
+The site is deployed to Cloudflare's global network via [Wrangler](https://developers.cloudflare.com/workers/wrangler/) as a named Worker (`length3`) — there is no Cloudflare Pages project.
+There is no hand-authored `wrangler.toml` in the repository either; the `@astrojs/cloudflare` adapter generates `dist/server/wrangler.json` at build time, derived directly from the Astro config.
+Deployment runs against that generated config directly:
 
-```toml
-# wrangler.toml
-name = "length3"
-compatibility_date = "2025-09-01"
-compatibility_flags = ["nodejs_compat"]
+```sh
+pnpm build
+pnpm exec wrangler deploy --config dist/server/wrangler.json
 ```
 
-The `@astrojs/cloudflare` adapter wraps the Astro build output into a Worker bundle.
-Static assets (HTML, CSS, fonts, Pagefind index) are uploaded as Cloudflare Pages assets.
+The adapter is configured with `prerenderEnvironment: 'node'` so that Astro's prerender phase runs under Node.js (faster, full API surface) while the final Worker bundle remains edge-native:
 
-The Vite SSR target is set to `'webworker'` so that Node.js-specific modules (like `fs`) are excluded from the bundle:
+```typescript
+adapter: cloudflare({
+  imageService: 'passthrough',
+  prerenderEnvironment: 'node',
+})
+```
+
+The Vite SSR target is set to `'webworker'` so Node.js-specific modules are excluded from the bundle.
+Pagefind's WASM module and the Cloudflare adapter server entrypoint are excluded from Vite's dep-optimizer to prevent double-bundling:
 
 ```javascript
 vite: {
   ssr: {
     target: 'webworker',
   },
+  optimizeDeps: {
+    exclude: ['pagefind', '@astrojs/cloudflare/entrypoints/server'],
+  },
+  build: {
+    chunkSizeWarningLimit: 1024,
+  },
 }
 ```
+
+Two `build` options keep output tidy and fast: `format: 'file'` generates flat `slug.html` files (no `slug/index.html` nesting), and `concurrency: 4` parallelises page rendering across the static build.
+
+Because the site is fully prerendered and never uses runtime sessions, the Cloudflare adapter's default KV session provisioning is bypassed with an in-process LRU driver:
+
+```typescript
+session: {
+  driver: sessionDrivers.lruCache(),
+}
+```
+
+This prevents Wrangler from requiring a KV namespace binding during `wrangler deploy` for a site that has no dynamic routes.
 
 ### CI/CD
 
 GitHub Actions runs two workflows:
 
 - **`ci.yml`** — on every push and PR, three jobs: (1) lint + type check + unit tests (`biome check`, `astro check`, `vitest run`), (2) build (uploads `dist/` as an artifact), (3) Playwright E2E (downloads the build artifact, runs `playwright test`). The build and E2E jobs are chained so Playwright always tests the exact build that was just produced.
-- **`deploy.yml`** — manually triggered via `workflow_dispatch` (automatic deploy on push to `main` is disabled pending Cloudflare secrets configuration): `astro build` → `wrangler deploy`
+- **`deploy.yml`** — manually triggered via `workflow_dispatch`: `astro build` → `wrangler deploy --config dist/server/wrangler.json`. Deployment credentials are injected as repository secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). Manual dispatch keeps production deploys deliberate and decoupled from CI merges.
 
-Because Pagefind runs as an Astro integration, the search index is always generated as part of the build step with no separate post-processing required.
+Because Pagefind indexing is handled inside the `astro:build:done` hook, the search index is always produced as part of the single `pnpm build` step — no separate post-processing pass required.
 
 ## Design Principles
 
 Length³ is designed as a **reading-first** interface.
-Rather than feeling like a typical web app, it leans toward an editorial, print-like structure:
+Rather than feeling like a typical web application, it leans toward an editorial, print-like structure:
 
 - **Restrained typography** — two weights of two typefaces, one accent colour
-- **Generous whitespace** — hierarchy from spacing alone, not decorative borders
-- **No sidebar on article pages** — the right column is intentionally empty
-- **680 px prose measure** — optimised for comfortable line length across viewport sizes
+- **Generous whitespace** — hierarchy communicated through spacing alone, not decorative borders
+- **No sidebar on article pages** — the right column is intentionally left empty
+- **680 px prose measure** — optimised for a comfortable line length across all viewport sizes
 
-The result is an interface whose character comes from spacing and type treatment rather than decoration.
+The result is an interface whose character comes entirely from spacing and type treatment, not from decoration.
