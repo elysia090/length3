@@ -1,0 +1,272 @@
+---
+title: PagefindとIntl.Segmenterで実現する日本語全文検索
+description: スペース区切りを前提とするPagefindのWASMトークナイザーを、Intl.Segmenterによるビルド時分かち書きとクエリ正規化で日本語に対応させる実装を解説する。
+publishDate: 2026-03-31
+tags: [pagefind, japanese, astro, typescript, search]
+draft: false
+lang: ja
+---
+
+[Pagefind](https://pagefind.app/) は静的サイト向けの全文検索ライブラリで、外部サービス不要でエッジから動作する。
+ただし、その WASM トークナイザーはスペース区切りを前提に設計されており、日本語のように単語境界がない言語ではそのままでは使えない。
+
+このブログでは `segmented-pagefind` というカスタム Astro インテグレーションで問題を解決している。
+対処は三段階に分かれる: **ビルド時の分かち書き** · **クエリの正規化** · **表示時の復元**。
+
+## なぜ日本語が難しいか
+
+英語の "static site search" は空白で区切られており、Pagefind のトークナイザーは `["static", "site", "search"]` に分割できる。
+一方、日本語の「静的サイト検索」にはスペースがない。Pagefind はこれを単一のトークンとして扱い、部分一致クエリがほぼ機能しなくなる。
+
+```
+英語: "static site search"  →  ["static", "site", "search"]
+日本語: "静的サイト検索"    →  ["静的サイト検索"]  ← 分割されない
+```
+
+解決策は、Pagefind がインデックスを構築する前に日本語テキストを形態素単位に分割してスペースを挿入しておくことだ。
+
+## ビルド時: `segmented-pagefind` インテグレーション
+
+### 処理の流れ
+
+Astro の `astro:build:done` フックで動作する。ビルド後の静的 HTML を読み込み、日本語記事だけ合成 HTML を生成してから Pagefind Node.js API に渡す:
+
+1. ビルド後 HTML ファイルから記事ページだけを絞り込む
+2. `<html lang="ja">` の記事を JSDOM でパース
+3. `[data-pagefind-body]` 内のテキストノードを巡回し、`Intl.Segmenter` でスペースを挿入
+4. `document.documentElement.lang` を `"en"` に書き換え、Pagefind の Latin トークナイザーを通す
+5. `createIndex` / `addHTMLFile` で英日統合インデックスを生成
+
+### テキスト分割関数
+
+```typescript
+const SEGMENTER = new Intl.Segmenter('ja', { granularity: 'word' });
+const JAPANESE_SCRIPT_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+const WORDLIKE_PATTERN = /[\p{Letter}\p{Number}]/u;
+
+export function segmentJapaneseSearchText(value: string): string {
+  if (!JAPANESE_SCRIPT_PATTERN.test(value)) {
+    return value; // 日本語を含まない場合はそのまま返す
+  }
+
+  let result = '';
+  let lastWasSearchable = false;
+
+  for (const segment of SEGMENTER.segment(value)) {
+    const text = segment.segment;
+    if (!text) continue;
+
+    const isSearchable =
+      segment.isWordLike ||
+      JAPANESE_SCRIPT_PATTERN.test(text) ||
+      WORDLIKE_PATTERN.test(text);
+
+    // 検索対象セグメント同士の間にのみスペースを挿入
+    if (isSearchable && lastWasSearchable && !result.endsWith(' ')) {
+      result += ' ';
+    }
+
+    result += text;
+    lastWasSearchable = isSearchable;
+  }
+
+  return result;
+}
+```
+
+`Intl.Segmenter` は `granularity: 'word'` で形態素解析を行い、各セグメントに `isWordLike` フラグを付与する。
+句読点や記号は `isWordLike = false` となるため、スペース挿入の対象外になる。
+
+### DOM ツリーの書き換え
+
+JSDOM で HTML をパースし、テキストノードを巡回してインプレースで書き換える:
+
+```typescript
+export function buildSyntheticSearchHtml(html: string): string {
+  if (!isJapaneseLanguage(readDocumentLanguage(html))) {
+    return html;
+  }
+
+  const dom = new JSDOM(html);
+  const { document, NodeFilter } = dom.window;
+  const pagefindBody = document.querySelector('[data-pagefind-body]');
+  if (!pagefindBody) return html;
+
+  // Pagefind に Latin トークナイザーを使わせる
+  document.documentElement.lang = 'en';
+  if (document.title) {
+    document.title = segmentJapaneseSearchText(document.title);
+  }
+
+  const walker = document.createTreeWalker(pagefindBody, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest('[data-pagefind-ignore]')) return NodeFilter.FILTER_REJECT;
+      if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'].includes(parent.tagName))
+        return NodeFilter.FILTER_REJECT;
+      if (!node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+
+  const textNodes: Node[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    textNodes.push(n);
+  }
+
+  for (const node of textNodes) {
+    const value = node.textContent ?? '';
+    if (JAPANESE_SCRIPT_PATTERN.test(value)) {
+      node.textContent = segmentJapaneseSearchText(value);
+    }
+  }
+
+  return dom.serialize();
+}
+```
+
+`[data-pagefind-ignore]` が付いた要素はスキップするため、ヘッダーやサイドバーのノイズはインデックスに含まれない。
+`ArticleLayout.astro` では記事本文に `data-pagefind-body` を付与しており、これがインデックス対象の範囲を絞っている:
+
+```astro
+<article class="prose" data-pagefind-body lang={lang}></article>
+```
+
+### `forceLanguage: 'en'` の意味
+
+Pagefind の `createIndex` には `forceLanguage` オプションがある。
+DOM の `lang` 属性を書き換えるだけでなく、インデックス全体にも `forceLanguage: 'en'` を指定することで、Pagefind が日本語向けの処理パスに分岐するのを防ぐ:
+
+```typescript
+const { index } = await createIndex({
+  forceLanguage: 'en', // 常に Latin トークナイザーを使用
+});
+```
+
+英語と日本語のコンテンツが同一インデックスに統合されるため、インデックスのマージや言語切り替えが不要になる点もこの設計の利点だ。
+
+## 検索時: クエリの正規化
+
+ビルド時に挿入したスペースと一致させるため、ユーザーが入力したクエリにも同じ分割を施す必要がある。
+`PagefindUI` の `processTerm` オプションに正規化関数を渡す:
+
+```typescript
+new PagefindUI({
+  element: mountSelector,
+  processTerm: normalizePagefindSearchTerm,
+  // ...
+});
+```
+
+正規化関数の実装:
+
+```typescript
+const JAPANESE_QUERY_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+
+export function normalizePagefindSearchTerm(term: string): string {
+  const trimmed = term.trim();
+  if (!trimmed || !JAPANESE_QUERY_PATTERN.test(trimmed)) {
+    return trimmed; // Latin クエリはそのまま
+  }
+
+  // クォート付きフレーズ検索を維持する
+  const quoted = trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1;
+  const rawTerm = quoted ? trimmed.slice(1, -1).trim() : trimmed;
+  if (!rawTerm) return trimmed;
+
+  const segments = Array.from(
+    new Intl.Segmenter('ja', { granularity: 'word' }).segment(rawTerm),
+  )
+    .filter(s => s.isWordLike || /[\p{Letter}\p{Number}]/u.test(s.segment))
+    .map(s => s.segment.trim())
+    .filter(Boolean);
+
+  if (segments.length === 0) return trimmed;
+
+  const normalized = segments.join(' ');
+  return quoted ? `"${normalized}"` : normalized;
+}
+```
+
+たとえばユーザーが「日本語検索」と入力すると `"日本語 検索"` に正規化される。インデックス側の `"日本語 検索"` と一致するようになる。
+クォート付きフレーズ検索 `"完全一致"` はセグメント化した上でクォートを維持するため、フレーズ検索の意味論が崩れない。
+
+## 表示時: セグメント化テキストの復元
+
+Pagefind が返す検索結果の excerpt にはビルド時に挿入したスペースが残っている。
+そのまま表示すると「日本語 検索 の 実装」のように不自然に見える。
+`processResult` コールバック内で `restoreSegmentedJapaneseText` を使ってスペースを除去する:
+
+```typescript
+export function restoreSegmentedJapaneseText(value: string | undefined): string | undefined {
+  if (!value?.includes(' ') || !JAPANESE_QUERY_PATTERN.test(value)) {
+    return value;
+  }
+
+  return value
+    // CJK 文字同士の間のスペースを除去
+    .replace(
+      /(?<=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])\s+(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])/gu,
+      '',
+    )
+    // ハイライト <mark> タグをまたぐスペースも除去
+    .replace(/(?<=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])\s+(?=<mark\b)/gu, '')
+    .replace(/(?<=<\/mark>)\s+(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])/gu, '')
+    .replace(/(?<=<\/mark>)\s+(?=<mark\b)/gu, '')
+    // 閉じ括弧・句読点の前のスペースを除去
+    .replace(
+      /(?<=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])\s+(?=[、。，．！？：；」』）〉》】])/gu,
+      '',
+    )
+    // 開き括弧の後のスペースを除去
+    .replace(
+      /(?<=[「『（〈《【])\s+(?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])/gu,
+      '',
+    );
+}
+```
+
+正規表現の後読み・先読みアサーションを活用することで、CJK 文字に挟まれたスペースだけを対象にし、英語の単語間スペースは保持する。
+`<mark>` タグをまたぐケースを個別に処理しているため、Pagefind のハイライト表示が崩れない。
+
+## 開発サーバー対応
+
+`astro dev` では `astro:build:done` フックが呼ばれないため、インデックスが生成されない。
+`astro:server:setup` フックで Vite ミドルウェアを追加し、`/pagefind/*` リクエストを前回のビルド出力から serve する:
+
+```typescript
+'astro:server:setup': ({ server }) => {
+  const pagefindDir = path.join(outDir, 'pagefind');
+
+  server.middlewares.use(async (req, res, next) => {
+    if (!req.url?.startsWith('/pagefind/')) {
+      next();
+      return;
+    }
+
+    const assetPath = resolvePagefindAssetPath(pagefindDir, req.url);
+    if (!assetPath) { next(); return; }
+
+    const body = await fs.readFile(assetPath);
+    res.setHeader('Content-Type', getContentType(assetPath));
+    res.end(body);
+  });
+},
+```
+
+コンテンツを更新した場合は `pnpm build` を一度実行してインデックスを再生成する必要がある。
+ホットリロードのたびに再インデックスするのは重いため、この設計は意図的なトレードオフだ。
+
+## まとめ
+
+| フェーズ | 処理 | 主な関数 |
+|---|---|---|
+| ビルド時 | 日本語テキストに分かち書きスペースを挿入 | `segmentJapaneseSearchText` |
+| インデックス構築 | 合成 HTML を Pagefind に渡す | `buildSyntheticSearchHtml` |
+| 検索時 | クエリに同じ分割を適用 | `normalizePagefindSearchTerm` |
+| 表示時 | 挿入スペースを除去して自然な日本語に戻す | `restoreSegmentedJapaneseText` |
+
+`Intl.Segmenter` は Node.js 16 以降と主要ブラウザで標準実装されており、追加の npm パッケージが不要だ。
+ビルドパイプラインとクライアントの両方で同じ API を使うため、インデックスとクエリの分割単位が常に一致する。
+Pagefind の設計制約を外部依存なしで回避できるのが、この実装の核心にある強みだ。
