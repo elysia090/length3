@@ -102,7 +102,7 @@ body::before {
     url('../texture/length3-texture-transparent.webp') type('image/webp')
   );
   background-repeat: repeat;
-  background-size: 768px 768px;
+  background-size: 384px 384px;
   pointer-events: none;
   z-index: var(--z-texture);
 }
