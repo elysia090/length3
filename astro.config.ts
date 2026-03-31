@@ -41,6 +41,7 @@ export default defineConfig({
   build: {
     format: 'file',
     concurrency: 4,
+    inlineStylesheets: 'always',
   },
 
   trailingSlash: 'never',
