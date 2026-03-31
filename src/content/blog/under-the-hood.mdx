@@ -1,0 +1,477 @@
+---
+title: 'Length³ Under the Hood: Design Tokens, Accessibility, and Search Architecture'
+description: A deeper look at what the getting-started post skipped — the CSS token system, accessibility implementation, search state machine, performance patterns, and collision-safe tag routing.
+publishDate: 2026-03-31
+tags: [astro, css, accessibility, pagefind, typescript, 'TypeScript / JS', typography]
+draft: false
+lang: en
+---
+
+The [first post](/getting-started) covered the high-level architecture of this blog.
+This post goes deeper into the parts that didn't fit: the design-token system, the accessibility layer, the search modal state machine, performance patterns, and the collision-safe tag routing details.
+
+## Design Token System
+
+Everything visual in the UI is derived from a flat set of CSS custom properties declared on `:root` in `global.css`.
+There are no hard-coded colour values or magic numbers anywhere in the stylesheets.
+
+### Colour Palette
+
+The palette is intentionally minimal: one warm neutral scale, one accent.
+
+```css
+/* Amber accent scale */
+--amber:       #d4820a;               /* decorative — rules, markers */
+--amber-deep:  #9a4312;               /* stronger emphasis */
+--amber-text:  #b45309;               /* interactive text — 4.73:1 on --bg */
+--amber-lt:    #e8a030;               /* light variant */
+--amber-tint:  rgba(212, 130, 10, 0.06); /* 6% tint for backgrounds */
+
+/* Ink scale */
+--ink:   #1c1a18;   /* primary text */
+--ink-2: #52504a;   /* secondary / meta */
+--ink-3: #9a9690;   /* muted / disabled */
+
+/* Background scale */
+--bg:   #f9f8f5;    /* main background — warm off-white */
+--bg-2: #f0ede8;    /* secondary — code blocks, tags */
+
+/* Transparent surface tokens */
+--paper:              rgba(249, 248, 245, 0.90);
+--paper-strong:       rgba(249, 248, 245, 0.96);
+--surface-fill:       rgba(240, 237, 232, 0.72);
+--surface-fill-strong:rgba(240, 237, 232, 0.78);
+--surface-border:     rgba(168, 151, 129, 0.32);
+--surface-shine:      rgba(255, 255, 255, 0.42);
+--overlay-bg:         rgba(28, 26, 24, 0.60);  /* modal backdrop */
+```
+
+`--amber-text` achieves **4.73:1** contrast on `--bg` — just above the WCAG AA threshold of 4.5:1 for normal text.
+The deep and light variants handle contexts where contrast or visual weight needs adjusting without introducing new hues.
+
+### Spacing and Layout Tokens
+
+```css
+--layout-max-width: 75rem;       /* 1200px outer container */
+--measure:          42.5rem;     /* 680px prose measure */
+--sidebar-width:    17.5rem;     /* index sidebar */
+--toc-width:        12.5rem;     /* article TOC rail */
+
+/* Fluid gaps — scale with viewport */
+--layout-gap:  clamp(2rem, 4vw, 2.5rem);
+--page-gutter: clamp(1.25rem, 4vw, 1.5rem);
+```
+
+`--page-gutter` is used with `env(safe-area-inset-*)` throughout:
+
+```css
+padding-inline: max(var(--page-gutter), env(safe-area-inset-left));
+```
+
+This makes the layout notch-aware on iOS without any JavaScript.
+`--layout-gap` uses `clamp()` so column spacing scales fluidly rather than jumping at breakpoints.
+
+### Motion and Z-Index
+
+```css
+/* Transition tokens */
+--transition-fast: 80ms ease;     /* button hover, focus rings */
+--transition-slow: 200ms ease;    /* modal open/close, state changes */
+--easing-reveal:   cubic-bezier(0.2, 0.8, 0.2, 1); /* content reveal */
+
+/* Z-index layers */
+--z-skip:     40;   /* skip link — topmost */
+--z-elevated: 35;   /* reading progress bar */
+--z-surface:  30;   /* TOC, prose area */
+--z-texture:  20;   /* background texture overlay */
+```
+
+Named z-index tokens prevent the classic "add 9999 until it works" pattern — every stacking context maps to a documented layer.
+
+### Border Radius Scale
+
+```css
+--radius-xs:   0.125rem;   /* 2px  — subtle rounding */
+--radius-sm:   0.1875rem;  /* 3px  */
+--radius-md:   0.25rem;    /* 4px  — default UI */
+--radius-lg:   0.5rem;     /* 8px  — cards, panels */
+--radius-xl:   0.625rem;   /* 10px */
+--radius-pill: 999px;      /* tags, badges */
+```
+
+## Texture Overlay
+
+The paper-like background texture is a fixed-position overlay at `--z-texture: 20`, rendered at very low opacity:
+
+```css
+.texture {
+  background-image: image-set(
+    url('/texture/noise.avif') type('image/avif'),
+    url('/texture/noise.webp') type('image/webp')
+  );
+  background-size: 768px 768px;
+}
+```
+
+`image-set()` with `type()` hints lets the browser pick AVIF (better compression) when supported, and fall back to WebP otherwise.
+The texture file is tiny (a tiled noise pattern) so it repeats seamlessly and costs almost nothing in bytes.
+
+## Responsive Breakpoints
+
+The layout uses five named breakpoints, all defined in terms of `min-width` in `rem` units so they scale with the user's base font size:
+
+| Breakpoint | Value     | Effect                                          |
+| ---------- | --------- | ----------------------------------------------- |
+| `40rem`    | 640 px    | Secondary adjustments (wider tags, etc.)        |
+| `45rem`    | 720 px    | TOC rail appears; article goes to single column |
+| `48rem`    | 768 px    | Typography adjustments                          |
+| `52.5rem`  | 840 px    | Index sidebar activates                         |
+| `60rem`    | 960 px    | Empty right margin appears on article pages     |
+
+The TOC and empty right column are hidden on narrow viewports — the reader reaches the title and prose immediately.
+
+## Font Loading Strategy
+
+Both Fraunces variable font files are declared with `font-display: optional`:
+
+```css
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/Fraunces-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: optional;
+}
+```
+
+`optional` gives the browser a 100 ms cache window.
+On the first visit the page renders immediately with the system serif fallback; on subsequent visits the font is served from cache with no layout shift.
+This avoids both FOUT (flash of unstyled text) and CLS (cumulative layout shift) entirely, at the cost of the font not always rendering on a cold first visit — an acceptable trade-off for a text-heavy site.
+
+Only WOFF2 is declared. Dropping TTF and EOT saves around 257 KiB per font file with no real compatibility loss in 2026.
+
+### Unicode Range Declarations
+
+Each `@font-face` block includes `unicode-range` limited to Latin and common punctuation.
+This prevents the browser from downloading Fraunces for glyphs it cannot serve — CJK characters fall through to the Japanese mincho fallbacks in `--font-display` without triggering a Fraunces fetch.
+
+## Accessibility
+
+### Skip Link
+
+The very first focusable element on every page is a visually hidden "skip to main content" link (WCAG SC 2.4.1).
+It becomes visible only when focused:
+
+```css
+.skip-link {
+  position: fixed;
+  top: -100%;
+  left: var(--page-gutter);
+  z-index: var(--z-skip);
+}
+.skip-link:focus-visible {
+  top: 0;
+  outline: 0.125rem solid var(--amber-text);
+  outline-offset: 0.125rem;
+}
+```
+
+The negative `top` hides it off-screen without `display: none` — screen readers still see it in the accessibility tree, and keyboard users see it slide into view on Tab.
+
+### ARIA Roles and Labels
+
+Every interactive region carries explicit ARIA semantics:
+
+| Component        | ARIA annotation                                         |
+| ---------------- | ------------------------------------------------------- |
+| TOC `<nav>`      | `aria-label="Table of Contents"`                        |
+| TOC active link  | `aria-current="location"`                               |
+| Search trigger   | `aria-haspopup="dialog"`, `aria-expanded`, `aria-controls` |
+| Search modal     | `aria-label` (localised)                                |
+| Status region    | `role="status"` — announces loading / result counts     |
+| Reading progress | `role="progressbar"`, `aria-valuemin/max/now`           |
+| Results region   | `role="region"`, `aria-label` (localised)               |
+| Article cards    | `lang={lang}` on each card (WCAG SC 3.1.2)              |
+
+The `lang` attribute on individual cards matters because screen readers switch phonetic rules per element — a Japanese title inside an `lang="en"` page would be read with English pronunciation without it.
+
+### Focus Indicators
+
+All interactive elements use `:focus-visible` outlines rather than `:focus`, so the ring appears for keyboard users but not on mouse click:
+
+```css
+:focus-visible {
+  outline: 0.125rem solid var(--amber-text);
+  outline-offset: 0.1875rem;
+  box-shadow: 0 0 0 0.25rem var(--focus-halo);
+}
+```
+
+The box-shadow halo (`--focus-halo: rgba(180, 83, 9, 0.14)`) adds a soft glow that reinforces the outline without doubling its weight.
+
+### Touch Target Sizes
+
+Tags render at roughly 22 px tall — below the WCAG 2.5.8 minimum of 24 px.
+A `::before` pseudo-element extends the tap target without affecting layout:
+
+```css
+.tag::before {
+  content: '';
+  position: absolute;
+  inset: -0.75rem -0.25rem;  /* extends to ~46px touch target */
+}
+```
+
+### Reduced Motion
+
+All transitions and animations are suppressed globally for users who prefer reduced motion:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+```
+
+This applies to the progress bar transition, modal open/close animation, TOC active-state fade, and the scroll behaviour in the TOC controller.
+
+## Search Architecture
+
+### State Machine
+
+The search modal runs a six-state machine:
+
+```
+idle → loading → results
+                → empty
+                → error
+                → unavailable
+```
+
+`unavailable` occurs when the Pagefind WASM module cannot be loaded (e.g. the index was not built).
+`error` covers network or parse failures.
+Each state maps to a distinct set of visible DOM nodes so there is never a mix of "loading spinner + results" visible at once.
+
+### Keyboard Handling
+
+- `/` key opens the search modal (unless focus is inside a text input)
+- `Esc` closes the modal and returns focus to the trigger element
+- `Tab` / `Shift+Tab` cycles through results and the close button
+- `Enter` on a result navigates directly
+
+The trigger button carries `aria-expanded` and `aria-controls` so screen readers announce the modal's open/closed state.
+
+### Japanese Query Normalisation
+
+When a search query contains Han, Hiragana, or Katakana characters, the controller segments it through `Intl.Segmenter` before passing it to Pagefind:
+
+```typescript
+function normalizePagefindSearchTerm(term: string): string {
+  // Detect CJK content
+  if (!/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(term)) {
+    return term; // Latin query — pass through unchanged
+  }
+  // Segment and rejoin with spaces so Pagefind's Latin tokenizer
+  // can match against the pre-segmented index
+  const segmenter = new Intl.Segmenter('ja', { granularity: 'word' });
+  return [...segmenter.segment(term)]
+    .filter(s => s.isWordLike || /[\p{Script=Han}\p{Script=Hiragana}]/u.test(s.segment))
+    .map(s => s.segment)
+    .join(' ');
+}
+```
+
+Pagefind's WASM tokenizer was designed for space-delimited text.
+The index was built with spaces inserted between Japanese morphemes (by the `segmented-pagefind` integration at build time), so queries must go through the same segmentation step to produce matching tokens.
+
+### Search Result Text Restoration
+
+After Pagefind returns highlighted excerpts, the inserted spaces are stripped back out so displayed results look like natural Japanese:
+
+```typescript
+// Remove spaces between CJK characters
+text.replace(/(?<=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])\s+
+              (?=[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])/gu, '')
+// Remove spaces before closing punctuation
+    .replace(/(?<=[\p{Script=Han}...])\s+(?=[、。，．！？])/gu, '')
+// Remove spaces after opening punctuation
+    .replace(/(?<=[「『])\s+(?=[\p{Script=Han}...])/gu, '')
+```
+
+The replacement patterns handle `<mark>` tags in highlighted results correctly — spaces are only removed when the surrounding characters on both sides of the tag boundary are CJK.
+
+### Bilingual UI Copy
+
+All visible strings in the search modal are resolved through `getSearchCopy(lang)`:
+
+```typescript
+const copy = getSearchCopy(lang); // 'en' | 'ja'
+copy.searchPlaceholder    // "Search…" | "検索…"
+copy.emptyTitle           // "No results" | "結果なし"
+copy.resultCount(n)       // "3 results" | "3件"
+copy.searchHintOpen       // "/ to search" | "/ で検索"
+```
+
+The `lang` attribute on the `<article>` element flows through to the search trigger so every article page renders the modal in the article's language.
+
+## Performance Patterns
+
+### `content-visibility: auto`
+
+Heavy block-level elements in the prose column are marked for deferred layout:
+
+```css
+.prose > :where(h2, h3, h4, p, pre, blockquote, ul, ol, hr, table, figure, details) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 10rem;
+}
+```
+
+The browser skips layout and paint for content outside the viewport until the user scrolls to it.
+`contain-intrinsic-size: auto 10rem` provides a height estimate for the scrollbar so it doesn't jump as content is rendered — `auto` means the browser uses the last measured size on subsequent renders.
+
+### `requestAnimationFrame` Scroll Handling
+
+The reading progress bar updates on scroll.
+A frame-pending flag prevents multiple DOM writes per frame:
+
+```typescript
+let rafPending = false;
+
+window.addEventListener('scroll', () => {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => {
+    updateProgress();
+    rafPending = false;
+  });
+}, { passive: true });
+```
+
+`passive: true` tells the browser the handler will never call `preventDefault()`, allowing it to begin scrolling before the handler runs — critical for smooth scroll performance on mobile.
+
+### Build-Time Bench Profiling
+
+A lightweight profiling system is available via `window.__length3BenchProfile`:
+
+```typescript
+bench('toc.init', () => {
+  // expensive initialisation work
+});
+// Records: { name, startMs, endMs, durationMs, detail? }
+```
+
+Instrumented sites in the codebase include `toc.init`, `toc.observeSetup`, `articleActions.init`, and `search.open`.
+The store is opt-in — the profiler is a no-op unless the global flag is set — so it has no runtime cost in normal use.
+
+## Tag Routing: Collision Detection
+
+The getting-started post covered the basic slug canonicalization.
+What it omitted is the **collision detection pass**.
+
+When two different tag strings produce the same canonical slug — for example `"React"` and `"react"` both normalize to `react` — appending a short FNV-1a hash to one of them disambiguates the route:
+
+```typescript
+// Group tags by their base canonical slug
+const groups = Map<baseSlug, Tag[]>();
+
+for (const [baseSlug, members] of groups) {
+  if (members.length === 1) {
+    // No collision — use the clean slug
+    routes.push({ slug: baseSlug, tag: members[0] });
+  } else {
+    // Collision — append hash to each member
+    for (const tag of members) {
+      routes.push({ slug: `${baseSlug}-${hashText(tag.name)}`, tag });
+    }
+  }
+}
+```
+
+The FNV-1a implementation used throughout:
+
+```typescript
+function hashText(value: string): string {
+  let hash = 0x811c9dc5; // FNV offset basis (32-bit)
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193) >>> 0; // FNV prime, unsigned right shift
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+```
+
+`Math.imul` performs 32-bit integer multiplication without BigInt overhead.
+`>>> 0` coerces the result back to an unsigned 32-bit integer, preventing signed overflow.
+The output is always 8 hex digits — a stable, compact identifier that survives URL encoding.
+
+## SEO and Open Graph
+
+`BaseLayout.astro` wraps every page and emits all meta tags:
+
+```astro
+<!-- Canonical URL -->
+<link rel="canonical" href={new URL(Astro.url.pathname, Astro.site).href} />
+
+<!-- Open Graph -->
+<meta property="og:type"        content="article" />
+<meta property="og:title"       content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url"         content={canonicalUrl} />
+<meta property="og:image"       content={ogImage} />
+
+<!-- Theme colour for browser chrome -->
+<meta name="theme-color" content="#f9f8f5" />
+```
+
+The canonical URL is constructed from `Astro.site` (set in `astro.config.ts`) plus `Astro.url.pathname`, so it is always absolute and correct regardless of which environment produced the build.
+
+The favicon is a self-contained SVG — no raster PNGs required:
+
+```html
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+```
+
+SVG favicons scale cleanly to any size including retina displays and large browser tab icons.
+
+## Cloudflare Workers Observability
+
+The `wrangler.jsonc` at the project root enables Workers observability:
+
+```jsonc
+{
+  "compatibility_date": "2026-03-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true }
+}
+```
+
+`nodejs_compat` exposes Node.js built-in modules (`Buffer`, `crypto`, `stream`, etc.) inside the Worker runtime — required because the Astro Cloudflare adapter and some dependencies expect them.
+`observability.enabled` wires the Worker into Cloudflare's built-in logging and metrics dashboard, so request logs and exceptions are visible in the Cloudflare dashboard without a third-party sink.
+
+## Linting Rules Worth Noting
+
+Beyond the standard `strict: true` TypeScript config, Biome enforces a few rules that directly affect code quality in this codebase:
+
+| Rule                     | Level   | Why it matters here                                          |
+| ------------------------ | ------- | ------------------------------------------------------------ |
+| `noExplicitAny`          | `error` | Forces proper typing of content collection data             |
+| `noNonNullAssertion`     | `error` | Prevents unchecked `!` on potentially-undefined MDX imports |
+| `useImportType`          | `error` | Ensures `import type` for type-only imports (tree-shaking)  |
+| `noParameterAssign`      | `error` | Avoids mutation of function parameters in utility functions |
+| `useExhaustiveDependencies` | `warn` | Catches stale closures in `useEffect`-equivalent patterns |
+
+`useImportType` is particularly relevant in an Astro project because Astro strips type-only imports at build time — using `import` instead of `import type` for types can cause the Vite bundler to attempt resolving the import as a runtime module.
+
+## What Is Not Here (Yet)
+
+A few capabilities that would be natural next steps but are not currently implemented:
+
+- **RSS / Atom feed** — the content collection has all necessary fields, but no feed endpoint exists
+- **Sitemap** — `@astrojs/sitemap` is not installed; the blog is small enough that manual discovery is fine for now
+- **OGP image generation** — article cards render text-based previews; there is no Satori or Canvas-based image generation
+- **Dark mode** — the site uses a fixed light theme; the warm amber and paper background do not have dark variants
+
+Each of these is a deliberate omission rather than an oversight — the site was built to a readable, shippable state, not to a feature checklist.
