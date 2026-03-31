@@ -1,9 +1,9 @@
 ---
 title: 'Length³: A Technical Blog Built on Astro 6 and Cloudflare Workers'
-description: A deep dive into how this blog is built — Astro 6, MDX content collections, Pagefind search, and Japanese typography, all deployed at the edge.
+description: A quick overview of how this blog is built — Astro 6, MDX content collections, Pagefind search, and Japanese typography, all deployed at the edge.
 publishDate: 2026-03-20
-updatedDate: 2026-03-29
-tags: [astro, cloudflare, mdx, typescript, 'TypeScript / JS', pagefind, typography]
+updatedDate: 2026-03-31
+tags: [astro, cloudflare, mdx, typescript, pagefind, typography]
 draft: false
 lang: en
 ---
@@ -11,11 +11,8 @@ lang: en
 import RubyText from '../../components/RubyText.astro';
 
 **Length³** is a technical blog engineered as a portfolio piece: every architectural decision is deliberate, every dependency earns its place, and the reading experience is treated as a first-class concern.
-This post documents the full stack — from content pipeline to edge deployment — so you can understand what was built and why.
 
-## Architecture Overview
-
-The stack has three layers:
+## Stack at a Glance
 
 | Layer     | Technology                                   |
 | --------- | -------------------------------------------- |
@@ -23,353 +20,41 @@ The stack has three layers:
 | Content   | MDX + Content Layer API (Zod-validated)      |
 | Runtime   | Cloudflare Workers (edge-native)             |
 
-The blog is statically generated at build time (`output: 'static'`).
-Static assets — HTML pages, fonts, and the Pagefind index — are bundled into the Worker and served from Cloudflare's edge network with no origin server.
+The blog is statically generated at build time and served from Cloudflare's edge network — no origin server, no cold starts.
 
-## Content System
+## Content
 
-### Content Layer API and Zod Schema
+Articles live in `src/content/blog/` as `.md` or `.mdx` files.
+Frontmatter is validated with a Zod schema: `publishDate` is coerced to a native `Date`, `draft: true` hides a post from all listings, and `lang` switches date formatting and the document `lang` attribute between `en` and `ja`.
 
-Every article lives in `src/content/blog/` as either `.md` or `.mdx`.
-The collection is defined with a strict Zod schema:
+MDX lets you embed Astro components directly in prose.
+The `RubyText` component, for example, renders a proper `<ruby>` element — <RubyText base="東京" reading="とうきょう" />は日本の首都です。
 
-```typescript
-const blog = defineCollection({
-  loader: glob({
-    pattern: '**/*.{md,mdx}',
-    base: './src/content/blog',
-  }),
-  schema: z.object({
-    title: z.string(),
-    description: z.string(),
-    publishDate: z.coerce.date(),
-    updatedDate: z.coerce.date().optional(),
-    tags: z.array(z.string()).default([]),
-    draft: z.boolean().default(false),
-    lang: z.enum(['en', 'ja']).default('en'),
-  }),
-});
-```
+## Features
 
-`z.coerce.date()` lets you write `2026-03-28` in frontmatter and receive a native `Date` object in templates — no manual parsing.
-`draft: true` excludes a post from all listing pages via a shared predicate:
-
-```typescript
-export const notDraft = (entry: BlogPost) => !entry.data.draft;
-// Usage:
-const allPosts = await getCollection('blog', notDraft);
-```
-
-### Frontmatter Fields
-
-| Field         | Type           | Purpose                                                   |
-| ------------- | -------------- | --------------------------------------------------------- |
-| `title`       | `string`       | Required. Article heading and `<title>`                   |
-| `description` | `string`       | Required. Lead paragraph and meta description             |
-| `publishDate` | `YYYY-MM-DD`   | Required. Shown in article header and sort order          |
-| `updatedDate` | `YYYY-MM-DD`   | Optional. Shown as "(upd. …)" next to publish date        |
-| `tags`        | `string[]`     | Routed to `/tags/[slug]`, CJK-safe slugification          |
-| `draft`       | `boolean`      | Defaults `false`. `true` hides the post from all listings |
-| `lang`        | `'en' \| 'ja'` | Controls date format and `lang` attribute                 |
-
-### MDX and Component Imports
-
-MDX lets you import Astro components directly into article prose.
-The `RubyText` component, for example, wraps a base text and its phonetic reading into a proper `<ruby>` element:
-
-```astro
----
-interface Props {
-  base: string;
-  reading: string;
-}
-const { base, reading } = Astro.props;
----
-
-<ruby>{base}<rp>(</rp><rt>{reading}</rt><rp>)</rp></ruby>
-```
-
-In an article you write:
-
-```mdx
-import RubyText from '../../components/RubyText.astro';
-
-<RubyText base="東京" reading="とうきょう" />
-は日本の首都です。
-```
-
-Which renders as: <RubyText base="東京" reading="とうきょう" />は日本の首都です。
-
-The `<rp>` fallback parentheses are included so the annotation degrades gracefully in browsers or screen readers that do not support `<ruby>`.
-
-## Article Layout and Navigation
-
-### Three-Column Shell
-
-The article page uses a CSS grid with three columns:
-
-```
-[ TOC (sticky) ] [ prose (680px measure) ] [ empty right margin ]
-```
-
-The right column is intentionally empty — no widgets, no related posts, no ads.
-Hierarchy is communicated through spacing and typography alone, following a print-editorial model.
-
-### Table of Contents
-
-The `TableOfContents` component extracts `h2` and `h3` headings from the MDX render tree and renders an accessible `<nav>`:
-
-- **Desktop (≥ 720px):** TOC stays visible in the left rail as secondary navigation
-- **Mobile (< 720px):** TOC is hidden so the reader reaches title and prose immediately
-- **Active section:** an `IntersectionObserver` tracks which heading is in the top 45% of the viewport and highlights the corresponding TOC link in amber
-- **Smooth scroll:** TOC link clicks call `scrollIntoView()` and push the hash to `history` without a hard jump
-
-### Reading Time
-
-Reading time is estimated with a CJK-aware regex-based algorithm:
-
-```typescript
-export function estimateReadingTime(text: string): number {
-  const cjkChars = text.match(/[\u3000-\u9FFF\uF900-\uFAFF]/gu)?.length ?? 0;
-  const latinWords = text.replace(/[\u3000-\u9FFF\uF900-\uFAFF]/gu, ' ').match(/\S+/g)?.length ?? 0;
-
-  // CJK reading ~400 chars/min, Latin ~200 words/min
-  const minutes = cjkChars / 400 + latinWords / 200;
-  return Math.max(1, Math.ceil(minutes));
-}
-```
-
-The implementation keeps the rules simple: CJK characters are counted directly, non-CJK tokens are counted with a whitespace split, and the result is rounded up to a minimum of one minute.
-
-## Tag System
-
-Tags are normalised into canonical slugs so that CJK tags survive the transformation and punctuation-heavy names remain routable:
-
-```typescript
-export function canonicalizeTagSlug(tag: string): string {
-  const normalized = tag.normalize('NFKC').trim().toLowerCase();
-  const base = normalized
-    .replace(/\s+/g, '-')
-    .replace(/[^\p{L}\p{N}-]/gu, '')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  return base || `tag-${hashText(normalized || tag)}`;
-}
-```
-
-Unicode property escapes keep `機械学習` intact, while punctuation cleanup and hyphen collapsing normalise names like `TypeScript / JS` to a stable canonical route.
-When every character is stripped (e.g. a tag consisting entirely of punctuation), the function falls back to an FNV-1a hash to guarantee a routable slug.
-
-Tag archive pages are generated at `/tags/[tag]` via `getStaticPaths`.
-The `buildTagRoutes` utility centralises aggregation so the topic directory and per-tag listing pages share exactly the same routing model:
-
-```typescript
-export function buildTagRoutes(posts: BlogPost[]): TagRoute[] {
-  // Canonical slugs are collision-safe and deterministic.
-}
-```
-
-## Full-Text Search with Pagefind
-
-Search is powered by [Pagefind](https://pagefind.app/), a static-site search library that runs entirely at the edge with no external service.
-
-### Custom `segmented-pagefind` Integration
-
-Rather than using the off-the-shelf `astro-pagefind` npm package, the site ships a bespoke integration (`src/integrations/segmented-pagefind.ts`) that solves a fundamental limitation: Pagefind's WASM tokenizer was designed for space-delimited languages and does not recognise Japanese word boundaries.
-Indexing raw Japanese HTML would produce a single unsplittable token per sentence, making any non-trivial query unreliable.
-
-The integration works in two phases:
-
-**Build phase (`astro:build:done`):**
-
-1. After `astro build` produces static HTML, the integration scans the output and identifies only article pages (matched against the `src/content/blog/` source files).
-2. For each Japanese article (`<html lang="ja">`), `buildSyntheticSearchHtml` is called: JSDOM parses the page, every text node inside `[data-pagefind-body]` that contains Han/Hiragana/Katakana characters is visited, and `Intl.Segmenter` inserts spaces at morpheme boundaries.
-3. The rewritten HTML — with `lang` forced to `en` so Pagefind routes through its Latin tokenizer — is fed to Pagefind's Node.js API (`createIndex` / `addHTMLFile`).
-4. A single unified index is written to `dist/pagefind/`.
-
-```typescript
-// Segment Japanese text before handing it to Pagefind's Latin tokenizer
-export function segmentJapaneseSearchText(value: string): string {
-  let result = '';
-  let lastWasSearchable = false;
-  for (const segment of SEGMENTER.segment(value)) {
-    const isSearchable =
-      segment.isWordLike ||
-      JAPANESE_SCRIPT_PATTERN.test(segment.segment) ||
-      WORDLIKE_PATTERN.test(segment.segment);
-    if (isSearchable && lastWasSearchable && !result.endsWith(' ')) result += ' ';
-    result += segment.segment;
-    lastWasSearchable = isSearchable;
-  }
-  return result;
-}
-```
-
-**Dev-server phase (`astro:server:setup`):**
-
-A Vite dev-server middleware intercepts `/pagefind/*` requests and serves files from the last written index directory, so search remains functional during `astro dev` without re-indexing on every hot reload.
-
-The article body is annotated `data-pagefind-body` in `ArticleLayout.astro`:
-
-```astro
-<article class="prose" data-pagefind-body lang={lang}></article>
-```
-
-This scopes the index to article content, excluding header, footer, and sidebar noise.
-
-On the client, Pagefind's WASM engine loads the unified index from the same edge node that served the page — no extra round-trips, no Worker-side search service.
-
-## Typography
-
-### Fraunces Variable Font
-
-Display headings use [Fraunces](https://github.com/undercasetype/Fraunces), a variable optical-size serif with a distinctively soft character.
-Both files (`Fraunces-Variable.woff2`, `Fraunces-Italic-Variable.woff2`) are self-hosted under `public/fonts/` and declared with `font-display: optional`, so first paint falls back immediately while repeat visits reuse the cached face.
-
-### Font Stack
-
-```css
---font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, 'Noto Sans JP', serif;
-
---font-sans:
-  'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
-
---font-mono:
-  'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', 'Noto Sans JP',
-  'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', monospace;
-```
-
-Japanese mincho fallbacks are placed _before_ `Georgia` in the display stack so that CJK characters in headings resolve to a matching serif/mincho face.
-Japanese sans-serif fonts are listed _before_ `system-ui` so that CJK body text resolves correctly on machines that have only local Japanese fonts installed.
-
-### Japanese Typography Features
-
-The blog has first-class support for Japanese composition:
-
-- **`<ruby>` annotations** via the `RubyText` component — e.g. <RubyText base="情報処理" reading="じょうほうしょり" />
-- **`line-break: strict`** — prevents breaks before small kana (ぁぃぅぇぉ…) and other restricted characters
-- **`text-wrap: pretty`** — multi-line headings break at semantically reasonable points
-- **`font-feature-settings: 'palt'`** — proportional alternate spacing for punctuation (。、…), applied to headings globally and to the prose body when `lang="ja"`, tightening the visual rhythm of CJK text
-- **`text-autospace: ideograph-alpha`** — automatic thin-space insertion between CJK and Latin characters, so `Astro 6` embedded in Japanese prose reads naturally
-
-### Amber Accent
-
-The single accent colour throughout the UI is amber — `#d4820a` for decorative elements and `#b45309` for text and interactive elements (4.5:1 contrast, WCAG AA).
-It appears on the rule below article titles, TOC active-section indicators, tag links, and dates.
-Everything else is ink (`#1c1a18`) on paper (`#f9f8f5`).
-
-## Developer Experience
-
-### TypeScript in Strict Mode
-
-`tsconfig.json` enables `strict: true`.
-All content collection types flow from `CollectionEntry<'blog'>` through `ProcessedPost` into each page component — there is no `any` in the data path.
-
-### Biome and Prettier
-
-Linting and formatting use two tools with complementary scopes:
-
-| Tool                                                       | Target                          |
-| ---------------------------------------------------------- | ------------------------------- |
-| [Biome](https://biomejs.dev/)                              | `*.ts`, `*.tsx` — lint + format |
-| [Prettier](https://prettier.io/) + `prettier-plugin-astro` | `*.astro` — format only         |
-
-Biome handles TypeScript linting and formatting in a single binary; Prettier covers Astro template formatting via `prettier-plugin-astro`.
-
-### Husky Pre-commit Hooks
-
-`lint-staged` runs automatically on `git commit` via Husky:
-
-```json
-"lint-staged": {
-  "src/**/*.{ts,tsx}":  ["biome check --write", "biome format --write"],
-  "src/**/*.astro":     ["prettier --write"],
-  "*.{json,md}":        ["prettier --write"]
-}
-```
-
-This guarantees that no unformatted or unlinted code reaches the repository, without interrupting work on in-progress files.
-
-### Testing
-
-| Suite      | Tool       | Scope                                                                          |
-| ---------- | ---------- | ------------------------------------------------------------------------------ |
-| Unit       | Vitest 4   | `estimateReadingTime`, canonical tag routing, `TagResolver`, `formatDate`      |
-| End-to-end | Playwright | Route smoke, search modal bootstrap, tag navigation |
-
-Vitest shares the Vite config and runs in the `node` environment, so TypeScript compilation goes through the same pipeline as the main build.
-Playwright is a smoke suite that runs against the built `dist/` artifact (downloaded from the CI `build` job artifact), while browser interaction logic is covered in Vitest with `jsdom`.
-During `astro dev`, Pagefind search reuses the last written index, so run `pnpm build` after content changes to get fresh search results.
+- **Table of Contents** — extracted from the MDX heading tree, sticky on desktop, with IntersectionObserver-driven active-section highlighting
+- **Reading time** — CJK-aware: characters counted at 400 chars/min, Latin words at 200 words/min
+- **Tag archive** — Unicode-safe slug canonicalization; CJK tags survive the transform intact
+- **Full-text search** — Pagefind with a custom `segmented-pagefind` integration that uses `Intl.Segmenter` to insert word boundaries before indexing Japanese text
+- **Japanese typography** — `<ruby>` annotations, `line-break: strict`, `font-feature-settings: 'palt'`, `text-autospace: ideograph-alpha`
 
 ## Deployment
 
-### Cloudflare Workers
-
-The site is deployed to Cloudflare's global network via [Wrangler](https://developers.cloudflare.com/workers/wrangler/) as a named Worker (`length3`) — there is no Cloudflare Pages project.
-There is no hand-authored `wrangler.toml` in the repository either; the `@astrojs/cloudflare` adapter generates `dist/server/wrangler.json` at build time, derived directly from the Astro config.
-Deployment runs against that generated config directly:
+`pnpm build` produces a static `dist/` that is deployed directly as a Cloudflare Worker:
 
 ```sh
 pnpm build
 pnpm exec wrangler deploy --config dist/server/wrangler.json
 ```
 
-The adapter is configured with `prerenderEnvironment: 'node'` so that Astro's prerender phase runs under Node.js (faster, full API surface) while the final Worker bundle remains edge-native:
-
-```typescript
-adapter: cloudflare({
-  imageService: 'passthrough',
-  prerenderEnvironment: 'node',
-})
-```
-
-The Vite SSR target is set to `'webworker'` so Node.js-specific modules are excluded from the bundle.
-Pagefind's WASM module and the Cloudflare adapter server entrypoint are excluded from Vite's dep-optimizer to prevent double-bundling:
-
-```javascript
-vite: {
-  ssr: {
-    target: 'webworker',
-  },
-  optimizeDeps: {
-    exclude: ['pagefind', '@astrojs/cloudflare/entrypoints/server'],
-  },
-  build: {
-    chunkSizeWarningLimit: 1024,
-  },
-}
-```
-
-Two `build` options keep output tidy and fast: `format: 'file'` generates flat `slug.html` files (no `slug/index.html` nesting), and `concurrency: 4` parallelises page rendering across the static build.
-
-Because the site is fully prerendered and never uses runtime sessions, the Cloudflare adapter's default KV session provisioning is bypassed with an in-process LRU driver:
-
-```typescript
-session: {
-  driver: sessionDrivers.lruCache(),
-}
-```
-
-This prevents Wrangler from requiring a KV namespace binding during `wrangler deploy` for a site that has no dynamic routes.
-
-### CI/CD
-
-GitHub Actions runs two workflows:
-
-- **`ci.yml`** — on every push and PR, three jobs: (1) lint + type check + unit tests (`biome check`, `astro check`, `vitest run`), (2) build (uploads `dist/` as an artifact), (3) Playwright E2E (downloads the build artifact, runs `playwright test`). The build and E2E jobs are chained so Playwright always tests the exact build that was just produced.
-- **`deploy.yml`** — manually triggered via `workflow_dispatch`: `astro build` → `wrangler deploy --config dist/server/wrangler.json`. Deployment credentials are injected as repository secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). Manual dispatch keeps production deploys deliberate and decoupled from CI merges.
-
-Because Pagefind indexing is handled inside the `astro:build:done` hook, the search index is always produced as part of the single `pnpm build` step — no separate post-processing pass required.
+CI (GitHub Actions) runs lint → build → Playwright E2E on every push.
+Production deploys are manual via `workflow_dispatch` — deliberate, decoupled from CI merges.
 
 ## Design Principles
 
-Length³ is designed as a **reading-first** interface.
-Rather than feeling like a typical web application, it leans toward an editorial, print-like structure:
+**Reading-first.** Two weights of two typefaces, one amber accent colour, 680 px prose measure, empty right column on article pages.
+Hierarchy comes from spacing and type, not decoration.
 
-- **Restrained typography** — two weights of two typefaces, one accent colour
-- **Generous whitespace** — hierarchy communicated through spacing alone, not decorative borders
-- **No sidebar on article pages** — the right column is intentionally left empty
-- **680 px prose measure** — optimised for a comfortable line length across all viewport sizes
+---
 
-The result is an interface whose character comes entirely from spacing and type treatment, not from decoration.
+For a deeper look at the implementation decisions and patterns behind each feature, see [Best Practices for the Length³ Stack](/blog/best-practices).

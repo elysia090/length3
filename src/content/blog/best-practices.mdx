@@ -1,0 +1,378 @@
+---
+title: 'Best Practices for the Length³ Stack'
+description: Implementation patterns and lessons learned building a multilingual static blog on Astro 6 and Cloudflare Workers — content pipelines, edge deployment, Japanese search, and more.
+publishDate: 2026-03-31
+tags: [astro, cloudflare, mdx, typescript, pagefind, typography, japanese]
+draft: false
+lang: en
+---
+
+import RubyText from '../../components/RubyText.astro';
+
+This post documents the detailed implementation decisions behind [Length³](/blog/getting-started): the patterns that worked, the trade-offs that were made, and the specific techniques worth carrying forward into future projects.
+
+## Content Pipeline
+
+### Design the Zod Schema First
+
+Before writing a single article, define the full frontmatter schema and let it drive the rest of the codebase.
+Zod's `z.coerce.date()` is particularly useful here — frontmatter authors write `2026-03-28` and templates receive a native `Date` object with no manual parsing:
+
+```typescript
+const blog = defineCollection({
+  loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/blog' }),
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    publishDate: z.coerce.date(),
+    updatedDate: z.coerce.date().optional(),
+    tags: z.array(z.string()).default([]),
+    draft: z.boolean().default(false),
+    lang: z.enum(['en', 'ja']).default('en'),
+  }),
+});
+```
+
+Schema-first development means build errors surface at compile time rather than at runtime in the browser.
+Any frontmatter typo that would previously produce a `undefined` in a template now throws with a precise field-level message.
+
+### Use a Shared Draft Predicate
+
+Every listing page — index, tag archives, site maps — must exclude draft posts.
+Centralise this in a single predicate rather than repeating the condition everywhere:
+
+```typescript
+export const notDraft = (entry: BlogPost) => !entry.data.draft;
+
+// Consistent across all pages:
+const posts = await getCollection('blog', notDraft);
+```
+
+When you later add more exclusion conditions (e.g. future-dated posts, locale filtering), there is exactly one place to update.
+
+### Type-Narrow the Full Data Path
+
+Astro's `CollectionEntry<'blog'>` flows into a `ProcessedPost` shape that pages consume.
+Keep `any` out of this path entirely — the type system should catch mismatches before they become rendering bugs:
+
+```typescript
+type ProcessedPost = {
+  slug: string;
+  title: string;
+  description: string;
+  publishDate: Date;
+  updatedDate?: Date;
+  tags: string[];
+  readingTime: number;
+  lang: 'en' | 'ja';
+};
+```
+
+Deriving `ProcessedPost` from `CollectionEntry` rather than declaring it independently means the compiler will complain the moment a schema field changes.
+
+## Tag System
+
+### Canonical Slugs for CJK and Punctuation-Heavy Tags
+
+A naïve `tag.toLowerCase().replace(/\s+/g, '-')` fails on tags like `TypeScript / JS` or `機械学習`.
+The canonical slug pipeline handles both cases:
+
+```typescript
+export function canonicalizeTagSlug(tag: string): string {
+  const normalized = tag.normalize('NFKC').trim().toLowerCase();
+  const base = normalized
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}-]/gu, '') // Unicode property escapes: keep letters, numbers, hyphens
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return base || `tag-${hashText(normalized || tag)}`;
+}
+```
+
+Key decisions:
+
+- **`normalize('NFKC')`** — compatibility decomposition before comparison, so `ＡＢＣ` (full-width) and `ABC` (ASCII) resolve to the same slug
+- **`\p{L}\p{N}`** — Unicode property escapes preserve CJK characters while stripping punctuation; `機械学習` stays `機械学習`, not an empty string
+- **FNV-1a fallback** — when all characters are stripped (a tag consisting entirely of punctuation), the function falls back to a deterministic hash rather than returning an empty string, guaranteeing a routable path
+
+### Share the Routing Model Between Pages
+
+Both the topic directory and per-tag listing pages must agree on which slug corresponds to which tag.
+Centralise aggregation in a single utility:
+
+```typescript
+export function buildTagRoutes(posts: BlogPost[]): TagRoute[] {
+  const map = new Map<string, { tag: string; posts: BlogPost[] }>();
+  for (const post of posts) {
+    for (const tag of post.data.tags) {
+      const slug = canonicalizeTagSlug(tag);
+      if (!map.has(slug)) map.set(slug, { tag, posts: [] });
+      map.get(slug)!.posts.push(post);
+    }
+  }
+  return [...map.values()].map(({ tag, posts }) => ({ slug: canonicalizeTagSlug(tag), tag, posts }));
+}
+```
+
+`getStaticPaths` on both pages calls `buildTagRoutes` — they cannot drift apart.
+
+## Reading Time
+
+### CJK-Aware Estimation
+
+Latin reading-time algorithms count whitespace-delimited tokens.
+That breaks for CJK text, where individual characters carry the semantic weight of words.
+The correct approach splits the two scripts before applying different rates:
+
+```typescript
+export function estimateReadingTime(text: string): number {
+  const cjkChars = text.match(/[\u3000-\u9FFF\uF900-\uFAFF]/gu)?.length ?? 0;
+  const latinWords =
+    text.replace(/[\u3000-\u9FFF\uF900-\uFAFF]/gu, ' ').match(/\S+/g)?.length ?? 0;
+
+  // CJK reading ~400 chars/min, Latin ~200 words/min
+  const minutes = cjkChars / 400 + latinWords / 200;
+  return Math.max(1, Math.ceil(minutes));
+}
+```
+
+The CJK range covers Hiragana, Katakana, CJK Unified Ideographs, and CJK Compatibility Ideographs.
+Stripping those characters before counting Latin tokens prevents double-counting on mixed-script text like `Astro 6は高速です`.
+
+## Full-Text Search for Multilingual Content
+
+### The Problem with Pagefind and Japanese
+
+[Pagefind](https://pagefind.app/) is an excellent static-site search library, but its WASM tokenizer is designed for space-delimited languages.
+Japanese text has no spaces between words; indexing raw HTML produces a single unsplittable token per sentence, making any query longer than a single character unreliable.
+
+### The `segmented-pagefind` Integration
+
+The solution is a custom Astro integration (`src/integrations/segmented-pagefind.ts`) that pre-processes Japanese content with `Intl.Segmenter` before feeding it to Pagefind's Latin tokenizer.
+
+**Build phase (`astro:build:done`):**
+
+1. Scan `dist/` for article pages (matched against `src/content/blog/` source files)
+2. For each `<html lang="ja">` page, parse the DOM with JSDOM and visit every text node inside `[data-pagefind-body]` that contains Han/Hiragana/Katakana
+3. Insert spaces at morpheme boundaries using `Intl.Segmenter`:
+
+```typescript
+export function segmentJapaneseSearchText(value: string): string {
+  let result = '';
+  let lastWasSearchable = false;
+  for (const segment of SEGMENTER.segment(value)) {
+    const isSearchable =
+      segment.isWordLike ||
+      JAPANESE_SCRIPT_PATTERN.test(segment.segment) ||
+      WORDLIKE_PATTERN.test(segment.segment);
+    if (isSearchable && lastWasSearchable && !result.endsWith(' ')) result += ' ';
+    result += segment.segment;
+    lastWasSearchable = isSearchable;
+  }
+  return result;
+}
+```
+
+4. Force `lang="en"` on the rewritten HTML so Pagefind routes it through the Latin tokenizer, then call `createIndex` / `addHTMLFile`
+5. Write a single unified index to `dist/pagefind/`
+
+**Dev-server phase (`astro:server:setup`):**
+
+A Vite middleware intercepts `/pagefind/*` requests and serves the last written index directory.
+This means search remains functional during `astro dev` without a full re-index on every hot reload — just run `pnpm build` once after a content change to refresh the index.
+
+### Scope the Index to Article Content
+
+Add `data-pagefind-body` only to the article prose, not to the layout chrome:
+
+```astro
+<article class="prose" data-pagefind-body lang={lang}></article>
+```
+
+Without this, Pagefind indexes header links, footer copyright text, and navigation items — all content that would pollute search results with false positives.
+
+## Typography
+
+### Self-Host Variable Fonts with `font-display: optional`
+
+Self-hosting eliminates third-party privacy exposure and the associated DNS lookup.
+`font-display: optional` is the correct strategy for a reading-focused site: if the font is not in the cache, the browser commits to the system fallback immediately rather than introducing layout shift or a flash of invisible text.
+Repeat visitors get the custom face; first-time visitors get a fast, stable render.
+
+```css
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/Fraunces-Variable.woff2') format('woff2');
+  font-display: optional;
+  font-weight: 100 900;
+  font-style: normal;
+}
+```
+
+### Order the Font Stack for CJK
+
+CJK fallbacks must come before generic Latin fallbacks, or Japanese characters in headings will resolve to the system serif (often Times New Roman) rather than the intended mincho face:
+
+```css
+--font-display:
+  'Fraunces',
+  'Hiragino Mincho ProN',   /* macOS / iOS */
+  'Yu Mincho',              /* Windows */
+  Georgia,                  /* Latin fallback */
+  'Noto Sans JP',           /* Android / Linux */
+  serif;
+```
+
+The same principle applies to the monospace stack — include `'Noto Sans JP'` or `'Hiragino Kaku Gothic ProN'` after the code font so inline code in Japanese prose does not fall back to a mismatched face.
+
+### Apply CJK Composition Features Conditionally
+
+`font-feature-settings: 'palt'` (proportional alternate spacing) tightens punctuation rhythm in Japanese text, but applying it to Latin-only content can break letter spacing.
+Use `:lang(ja)` to scope it:
+
+```css
+:lang(ja) .prose {
+  font-feature-settings: 'palt';
+}
+
+/* Or in Astro, pass the lang prop: */
+<article style={lang === 'ja' ? "font-feature-settings: 'palt'" : undefined}>
+```
+
+`text-autospace: ideograph-alpha` is a progressive enhancement — insert it alongside the `:lang(ja)` selector and let browsers that don't support it degrade gracefully to no spacing.
+
+### Active TOC with IntersectionObserver
+
+The Table of Contents highlights the heading currently in view.
+The threshold matters: `rootMargin: '-0% 0% -55% 0%'` means only headings in the top 45% of the viewport are considered "active", which keeps the indicator pointing at the section the reader is currently in rather than jumping ahead to the next one.
+
+```typescript
+const observer = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) setActiveId(entry.target.id);
+    }
+  },
+  { rootMargin: '0% 0% -55% 0%' },
+);
+```
+
+## Edge Deployment
+
+### Let the Adapter Generate `wrangler.json`
+
+Maintaining a hand-written `wrangler.toml` alongside `astro.config.ts` creates two sources of truth.
+The `@astrojs/cloudflare` adapter generates `dist/server/wrangler.json` from the Astro config at build time — use that file directly:
+
+```sh
+pnpm build
+pnpm exec wrangler deploy --config dist/server/wrangler.json
+```
+
+The config stays in one place and can never drift.
+
+### `prerenderEnvironment: 'node'` + SSR Target `'webworker'`
+
+These two settings serve different phases of the build:
+
+| Setting                       | Phase        | Effect                                                       |
+| ----------------------------- | ------------ | ------------------------------------------------------------ |
+| `prerenderEnvironment: 'node'`| Build-time   | Astro's prerender phase runs under Node (full API surface)   |
+| `ssr.target: 'webworker'`     | Bundle phase | Vite excludes Node-only modules from the Worker bundle       |
+
+Together they let you use `fs`, `path`, and JSDOM during the build hook (for Pagefind indexing) while still producing a clean edge-native Worker bundle.
+
+### Bypass KV Session Provisioning for Static Sites
+
+The Cloudflare adapter provisions a KV namespace for session storage by default.
+A fully static site with no dynamic routes does not need it — requiring operators to create a KV binding for a site that never writes to one is unnecessary friction.
+Use the in-process LRU driver instead:
+
+```typescript
+session: {
+  driver: sessionDrivers.lruCache(),
+}
+```
+
+This lets `wrangler deploy` complete without any KV namespace binding.
+
+### Keep Production Deploys Manual
+
+Automatic deploy-on-merge is convenient until it isn't.
+Using `workflow_dispatch` for the deploy workflow means:
+
+- A broken CI merge cannot accidentally deploy to production
+- Deploys are an explicit, logged action tied to a specific operator
+- Rollback is a deliberate re-run of an earlier workflow, not a git revert race
+
+The CI workflow (`ci.yml`) still runs on every push and PR to catch issues early; only the final promotion to production requires a human trigger.
+
+## Developer Experience
+
+### Biome for TypeScript, Prettier for Astro Templates
+
+Biome handles TypeScript lint and format in a single pass — no ESLint/Prettier overlap, no rule conflicts.
+But Biome does not yet support Astro template formatting.
+The clean split is:
+
+| Tool                             | Files              | Role              |
+| -------------------------------- | ------------------ | ----------------- |
+| Biome                            | `*.ts`, `*.tsx`    | lint + format     |
+| Prettier + `prettier-plugin-astro` | `*.astro`        | format only       |
+
+This avoids the common mistake of running both tools on the same file type and fighting over trailing commas.
+
+### Gate Every Commit with `lint-staged`
+
+Pre-commit hooks only on files staged for the current commit, not the entire project, keeping the feedback loop fast:
+
+```json
+"lint-staged": {
+  "src/**/*.{ts,tsx}":  ["biome check --write", "biome format --write"],
+  "src/**/*.astro":     ["prettier --write"],
+  "*.{json,md}":        ["prettier --write"]
+}
+```
+
+`biome check --write` runs both lint and format in one command, which is faster than running them separately.
+
+### Chain CI Jobs to Share Build Artifacts
+
+Running Playwright against the actual production build — not a dev server — catches bundling and asset-path issues that a dev server silently masks.
+Chain the jobs so Playwright always tests exactly what was built in CI:
+
+```yaml
+jobs:
+  build:
+    steps:
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with: { name: dist, path: dist/ }
+
+  e2e:
+    needs: build
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist/ }
+      - run: pnpm exec playwright test
+```
+
+The artifact download guarantees the E2E suite tests byte-for-byte what `wrangler deploy` would upload.
+
+### Vitest Shares the Vite Config
+
+`vitest` picks up `vite.config.ts` (or `astro.config.ts` when using the Astro/Vitest integration) automatically, so TypeScript path aliases (`@lib/*`, `@components/*`) resolve in tests exactly as they do in the main build.
+There is no need for a separate `jest.config` or manual `moduleNameMapper`.
+
+## Summary
+
+The patterns above share a common theme: **single sources of truth**.
+
+- Schema drives types, which drive templates
+- One draft predicate, one tag routing utility
+- Adapter generates deployment config
+- CI artifact feeds E2E
+
+Each duplication point is a potential mismatch waiting to surface as a production bug.
+Eliminating them is not premature optimisation — it is the minimum viable architecture for a project that will be maintained over time.
