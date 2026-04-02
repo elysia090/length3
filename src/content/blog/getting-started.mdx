@@ -307,9 +307,13 @@ During `astro dev`, Pagefind search reuses the last written index, so run `pnpm 
 
 ### Cloudflare Workers
 
-The site is deployed to Cloudflare's global network via [Wrangler](https://developers.cloudflare.com/workers/wrangler/) as a named Worker (`length3`) — there is no Cloudflare Pages project.
+The site is delivered to Cloudflare's global network as a named Worker
+(`length3`) — there is no Cloudflare Pages project. The repository itself keeps
+the Wrangler-compatible output, while production rollout is handled by
+Cloudflare Workers Builds.
 There is no hand-authored `wrangler.toml` in the repository either; the `@astrojs/cloudflare` adapter generates `dist/server/wrangler.json` at build time, derived directly from the Astro config.
-Deployment runs against that generated config directly:
+The generated config is still what local verification and emergency manual
+deploys run against:
 
 ```sh
 pnpm build
@@ -359,7 +363,7 @@ This prevents Wrangler from requiring a KV namespace binding during `wrangler de
 GitHub Actions runs two workflows:
 
 - **`ci.yml`** — on every push and PR, three jobs: (1) lint + type check + unit tests (`biome check`, `astro check`, `vitest run`), (2) build (uploads `dist/` as an artifact), (3) Playwright E2E (downloads the build artifact, runs `playwright test`). The build and E2E jobs are chained so Playwright always tests the exact build that was just produced.
-- **`deploy.yml`** — manually triggered via `workflow_dispatch`: `astro build` → `wrangler deploy --config dist/server/wrangler.json`. Deployment credentials are injected as repository secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). Manual dispatch keeps production deploys deliberate and decoupled from CI merges.
+- Production rollout is handled by Cloudflare Workers Builds, so this repository no longer carries a separate deploy workflow.
 
 Because Pagefind indexing is handled inside the `astro:build:done` hook, the search index is always produced as part of the single `pnpm build` step — no separate post-processing pass required.
 
