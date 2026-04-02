@@ -81,12 +81,12 @@ Exactly 50/50 horizontal split. The top bar is 40px; the status bar is 24px. Eve
 
 Each typeface has exactly one job. If a new element needs a font, it consults this table — it does not introduce a fifth typeface.
 
-| Typeface | Role | Rationale |
-|---|---|---|
-| **Fraunces** | Display headings and titles only | Its optical size axis and expressive italic create a tonal contrast against Japanese body text. It signals "this is a heading" without needing weight or size alone. |
-| **JetBrains Mono** | Code, UI labels, dates, navigation, tags, metadata | Monospace serves as a semantic marker: anything in this font is *operational* — a tag, a date, a command, a label — rather than *prose*. By unifying all non-prose elements under one monospace face, the boundary between "text to read" and "interface to use" becomes visible. |
-| **Noto Serif JP** | Ruby annotations (`<rt>`) and extended Japanese passages | System-ui Japanese rendering is inconsistent, particularly for ruby text. Noto Serif JP is loaded explicitly to guarantee ruby legibility. It is **not** the Japanese body font. |
-| **system-ui** | Body prose | Long-form reading fatigue correlates inversely with font familiarity. system-ui delivers the typeface the reader's eyes already know. Choosing an expressive body font prioritizes the designer's taste over the reader's comfort. |
+| Typeface           | Role                                                               | Rationale                                                                                                                                                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fraunces**       | Display headings and titles only                                   | Its optical size axis and expressive italic create a tonal contrast against Japanese body text. It signals "this is a heading" without needing weight or size alone.                                                                                                              |
+| **JetBrains Mono** | Code, UI labels, dates, navigation, tags, metadata                 | Monospace serves as a semantic marker: anything in this font is _operational_ — a tag, a date, a command, a label — rather than _prose_. By unifying all non-prose elements under one monospace face, the boundary between "text to read" and "interface to use" becomes visible. |
+| **Noto Serif JP**  | Ruby annotations (`<rt>`) and Japanese serif fallback for headings | System-ui Japanese rendering is inconsistent, particularly for ruby text. Noto Serif JP sits in the serif fallback stack to guarantee legible Japanese glyphs when platform mincho faces are absent. It is **not** the Japanese body font.                                        |
+| **system-ui**      | Body prose                                                         | Long-form reading fatigue correlates inversely with font familiarity. system-ui delivers the typeface the reader's eyes already know. Choosing an expressive body font prioritizes the designer's taste over the reader's comfort.                                                |
 
 ### Type Scale
 
@@ -94,18 +94,18 @@ The scale follows a **1.25 ratio (Major Third)** from a base of `1rem = 16px`.
 
 Previous iterations used `0.9rem` (≈14.4px) for body text. This is revised upward to **`1rem` (16px)** for two reasons: (1) the spec's own responsive section prohibits font sizes below 16px on mobile to avoid iOS auto-zoom, and (2) 14.4px body text contradicts the philosophy of minimizing reader fatigue. The entire scale has been recalculated from this corrected base.
 
-| Role | Size | Typeface | Weight | Line-height |
-|---|---|---|---|---|
-| Display H1 (Index page title) | 2.0rem (32px) | Fraunces | 300 italic | 1.2 |
-| Article H1 | 1.75rem (28px) | Fraunces | 300 | 1.25 |
-| H2 | 1.25rem (20px) | Fraunces | 400 | 1.3 |
-| H3 | 1.1rem (17.6px) | Fraunces | 400 italic | 1.3 |
-| Body prose | 1rem (16px) | system-ui | 400 | 1.95 |
-| Lead / Lede | 1.05rem (16.8px) | Fraunces italic | 300 | 1.9 |
-| UI label | 0.75rem (12px) | JetBrains Mono | 400 | — |
-| Code inline | 0.88em | JetBrains Mono | 400 | — |
-| Date / Meta | 0.75rem (12px) | JetBrains Mono | 400 | 1.4 |
-| Tag | 0.75rem (12px) | JetBrains Mono | 400 | — |
+| Role                          | Size             | Typeface        | Weight     | Line-height |
+| ----------------------------- | ---------------- | --------------- | ---------- | ----------- |
+| Display H1 (Index page title) | 2.0rem (32px)    | Fraunces        | 300 italic | 1.2         |
+| Article H1                    | 1.75rem (28px)   | Fraunces        | 300        | 1.25        |
+| H2                            | 1.25rem (20px)   | Fraunces        | 400        | 1.3         |
+| H3                            | 1.1rem (17.6px)  | Fraunces        | 400 italic | 1.3         |
+| Body prose                    | 1rem (16px)      | system-ui       | 400        | 1.95        |
+| Lead / Lede                   | 1.05rem (16.8px) | Fraunces italic | 300        | 1.9         |
+| UI label                      | 0.75rem (12px)   | JetBrains Mono  | 400        | —           |
+| Code inline                   | 0.88em           | JetBrains Mono  | 400        | —           |
+| Date / Meta                   | 0.75rem (12px)   | JetBrains Mono  | 400        | 1.4         |
+| Tag                           | 0.75rem (12px)   | JetBrains Mono  | 400        | —           |
 
 ### Line-Length Control
 
@@ -132,12 +132,12 @@ Ruby annotations (`<ruby>` / `<rt>`) receive special treatment because system de
 
 ### Letter-Spacing
 
-| Context | Value | Reason |
-|---|---|---|
-| Japanese body | `0.02em` | Minimal breathing room between full-width characters |
-| English body | `0` | Latin text becomes harder to read when letter-spaced |
-| Mono UI labels | `0.08–0.12em` | Uppercase monospace labels need air to remain legible at small sizes |
-| Fraunces headings | `-0.02em` | Large display text tightens to feel intentional rather than loose |
+| Context           | Value         | Reason                                                               |
+| ----------------- | ------------- | -------------------------------------------------------------------- |
+| Japanese body     | `0.02em`      | Minimal breathing room between full-width characters                 |
+| English body      | `0`           | Latin text becomes harder to read when letter-spaced                 |
+| Mono UI labels    | `0.08–0.12em` | Uppercase monospace labels need air to remain legible at small sizes |
+| Fraunces headings | `-0.02em`     | Large display text tightens to feel intentional rather than loose    |
 
 ---
 
@@ -152,9 +152,9 @@ Color carries information. It is never applied for warmth, mood, or atmosphere. 
 **Amber** `#d4820a`
 The single accent color. Contrast ratio against BG: **4.8:1** (WCAG AA). Used exclusively for interactive signals and semantic markers.
 
-*Where it appears:* Tag text. TOC active state (border + text). Hover text color on interactive elements. Ruby `<rt>` annotations. CodeMirror cursor. 1px left-border on lead paragraphs.
+_Where it appears:_ Tag text. TOC active state (border + text). Hover text color on interactive elements. Ruby `<rt>` annotations. CodeMirror cursor. 1px left-border on lead paragraphs.
 
-*Where it must not appear:* Background fills of any kind. Decorative gradients. Borders thicker than 1px (except the 2px TOC active indicator and the 2px code-block left border). Editor status bar. Publish button or any other action button.
+_Where it must not appear:_ Background fills of any kind. Decorative gradients. Borders thicker than 1px (except the 2px TOC active indicator and the 2px code-block left border). Editor status bar. Publish button or any other action button.
 
 **Ink** `#1c1a18`
 Primary text. A warm near-black, not pure `#000`. Pure black against the warm off-white background creates excessive contrast that induces fatigue over long reading sessions.
@@ -179,13 +179,13 @@ Editor-only dark background. Warm-black to harmonize with the amber accent.
 
 ### Contrast Compliance
 
-| Pairing | Hex values | Ratio | WCAG Level |
-|---|---|---|---|
-| Ink on BG | `#1c1a18` / `#f9f8f5` | 14.2:1 | AAA |
-| Ink-2 on BG | `#52504a` / `#f9f8f5` | 6.8:1 | AA |
-| Amber on BG | `#d4820a` / `#f9f8f5` | 4.8:1 | AA |
-| Ink-3 on BG | `#9a9690` / `#f9f8f5` | 3.2:1 | AA Large only |
-| Ink on BG-2 | `#1c1a18` / `#f0ede8` | 11.5:1 | AAA |
+| Pairing     | Hex values            | Ratio  | WCAG Level    |
+| ----------- | --------------------- | ------ | ------------- |
+| Ink on BG   | `#1c1a18` / `#f9f8f5` | 14.2:1 | AAA           |
+| Ink-2 on BG | `#52504a` / `#f9f8f5` | 6.8:1  | AA            |
+| Amber on BG | `#d4820a` / `#f9f8f5` | 4.8:1  | AA            |
+| Ink-3 on BG | `#9a9690` / `#f9f8f5` | 3.2:1  | AA Large only |
+| Ink on BG-2 | `#1c1a18` / `#f0ede8` | 11.5:1 | AAA           |
 
 ---
 
@@ -210,6 +210,7 @@ Editor-only dark background. Warm-black to harmonize with the amber accent.
 **Grid:** `80px` date column + `1fr` content column, with a `24px` gap.
 
 **Date column:**
+
 - Year: JetBrains Mono, 0.75rem, Ink-3, `letter-spacing: 0.06em`
 - Month.Day: JetBrains Mono, 0.8rem, Ink-2, `letter-spacing: 0.04em`
 - Format: `03.20` (dot-separated, zero-padded)
@@ -264,6 +265,7 @@ Located in the left column. `position: sticky; top: 32px`.
 **Input row:** `padding: 12px 16px`. Search icon in amber, 16px. Text input in Fraunces 1rem — the search field uses the heading typeface so that typing a query feels like composing a thought, not operating a form field. `border-bottom: 1px solid var(--rule)` separates input from results.
 
 **Results list:**
+
 - No section headers (no "Articles — 3 results" banners)
 - Each result: `padding: 10px 16px`, `border-left: 2px solid transparent`
 - Selected/focused result: `border-left-color` → amber, `background` → BG-2
@@ -296,6 +298,7 @@ Located in the left column. `position: sticky; top: 32px`.
 - Cursor: amber, 2px wide, `animation: blink 1.1s step-end infinite`. Blink animation is disabled entirely when `prefers-reduced-motion: reduce` is active.
 
 **Syntax token colors:**
+
 - Frontmatter delimiter `---`: Ink-3
 - YAML key: `#7a9ab8` (muted blue)
 - YAML value / string literal: `#7ec49a` (muted green)
@@ -325,14 +328,14 @@ Animation exists only to communicate state change or to guide the eye. If an ani
 
 ### Transition Inventory
 
-| Target | Property | Duration | Easing |
-|---|---|---|---|
-| List item hover | color | 80ms | ease |
-| TOC active state | color, border-color | 80ms | ease |
-| Search modal open | opacity, transform | 140ms | ease-out |
-| Search modal close | opacity | 100ms | ease-in |
-| Button hover | color | 80ms | ease |
-| TOC disappearance | opacity | 200ms | ease |
+| Target             | Property            | Duration | Easing   |
+| ------------------ | ------------------- | -------- | -------- |
+| List item hover    | color               | 80ms     | ease     |
+| TOC active state   | color, border-color | 80ms     | ease     |
+| Search modal open  | opacity, transform  | 140ms    | ease-out |
+| Search modal close | opacity             | 100ms    | ease-in  |
+| Button hover       | color               | 80ms     | ease     |
+| TOC disappearance  | opacity             | 200ms    | ease     |
 
 No other transitions exist. This list is exhaustive.
 
@@ -417,13 +420,13 @@ The luminance contrast between panes creates a natural oscillation: write on the
 
 ### Breakpoints
 
-| Viewport width | Layout behavior |
-|---|---|
-| ≥ 1200px | Full layout: TOC + prose + right whitespace (article); list + sidebar (index) |
-| 960–1199px | Sidebar narrows to 240px; right whitespace column shrinks but remains present at ≥ 80px |
-| 720–959px | Sidebar hidden; index is single-column. Article retains TOC + prose (no right whitespace) |
-| 640–719px | Single column everywhere. TOC collapses to a `<details>` summary at article top |
-| < 640px | Full single column. TOC inside `<details>`. Editor switches to tab mode (Edit / Preview) |
+| Viewport width | Layout behavior                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------- |
+| ≥ 1200px       | Full layout: TOC + prose + right whitespace (article); list + sidebar (index)             |
+| 960–1199px     | Sidebar narrows to 240px; right whitespace column shrinks but remains present at ≥ 80px   |
+| 720–959px      | Sidebar hidden; index is single-column. Article retains TOC + prose (no right whitespace) |
+| 640–719px      | Single column everywhere. TOC collapses to a `<details>` summary at article top           |
+| < 640px        | Full single column. TOC inside `<details>`. Editor switches to tab mode (Edit / Preview)  |
 
 ### Right-Margin Minimum (Article Page)
 

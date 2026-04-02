@@ -27,14 +27,15 @@
 
   /* Typography — font-size scale */
   --font-ui-xs: 0.6875rem;   /* 11px — smallest UI text: shortcuts and compact UI labels */
-  /* Display (headings): Japanese mincho fallbacks placed BEFORE Noto Sans JP so that
-     CJK characters in headings render in serif/mincho rather than sans-serif.
-     'Yu Mincho' covers Windows 8+; 'Hiragino Mincho ProN' covers macOS/iOS. */
-  --font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho', Georgia, 'Noto Sans JP', serif;
+  /* Display (headings): prefer platform mincho fonts, then Noto Serif JP, so
+     CJK characters in headings render in serif/mincho rather than sans-serif. */
+  --font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', Georgia, 'Noto Sans JP', serif;
   /* Sans: Japanese-specific fonts listed BEFORE system-ui so that CJK characters
      render correctly even when only system fonts are available.
      'Yu Gothic UI' covers Windows 10+; 'Meiryo' covers Windows Vista+. */
   --font-sans:    'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
+  /* Ruby: prefer a Japanese serif face even when the main UI stack is sans. */
+  --font-ruby:    'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
   /* Mono: keep Latin UI in a monospace face, but add CJK fallbacks so Japanese
      breadcrumbs, TOC items, and status text do not render as tofu. */
   --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', monospace;
@@ -96,10 +97,10 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: url('../texture/length3-texture-transparent.webp');
+  background-image: url('../assets/textures/length3-texture-transparent.webp');
   background-image: image-set(
-    url('../texture/length3-texture-transparent.avif') type('image/avif'),
-    url('../texture/length3-texture-transparent.webp') type('image/webp')
+    url('../assets/textures/length3-texture-transparent.avif') type('image/avif'),
+    url('../assets/textures/length3-texture-transparent.webp') type('image/webp')
   );
   background-repeat: repeat;
   background-size: 768px 768px;

@@ -18,12 +18,26 @@ The shell provides:
 - Node 24.14 LTS
 - `pnpm` via Corepack using the version pinned in `package.json`
 - Python 3 with `fonttools` and `brotli` for font conversion
+- Noto CJK fonts so Playwright screenshots can render Japanese text deterministically
 
 If you also want to keep Nix's own eval/fetch cache out of `~/.cache/nix`, use
 the `XDG_CACHE_HOME=$PWD/.cache` prefix shown above.
 
 Playwright browsers, Corepack downloads, pnpm caches, and the optional Nix
 cache are redirected into the repository under `.cache/` and `.pnpm-store/`.
+The exact Node release is pinned in `.nvmrc` and enforced through
+`package.json#engines`.
+
+## Project Layout
+
+- `src/`: Astro pages, layouts, components, styles, and content collections
+- `src/assets/`: non-public source assets such as textures
+- `src/config/`: source-of-truth configuration modules shared across app and tests
+- `tests/e2e/`: Playwright smoke and behavior coverage for the site
+- `tests/docs/`: documentation capture specs and screenshot helpers
+- `docs/reference/`: supporting technical notes such as the stack summary
+- `docs/specs/`: design and UI specifications
+- `docs/assets/screenshots/`: generated screenshots used in project docs
 
 ## Deployment
 

@@ -14,23 +14,28 @@ pnpm exec playwright install chromium
 
 The shell provides:
 
-- Node 22
+- Node 24.14 LTS
 - `pnpm` via Corepack using the version pinned in `package.json`
 - Python 3 with `fonttools` and `brotli`
+- Noto CJK fonts so Playwright screenshots can render Japanese text deterministically
 
 Project-local caches are written to `.cache/` and `.pnpm-store/`. The
 `XDG_CACHE_HOME=$PWD/.cache` prefix also keeps Nix's eval/fetch cache out of
-`~/.cache/nix`.
+`~/.cache/nix`. The exact Node release is pinned in `.nvmrc` and enforced via
+`package.json#engines`.
 
 ## Manual prerequisites
 
-- Node 22+
+- Node 24.14+
 - pnpm 9+
 - Python 3 with `fonttools` and `brotli` if you need to regenerate fonts
 
 ```sh
 pnpm install
 ```
+
+If you do not use Nix, match the version in `.nvmrc` before installing
+dependencies.
 
 ## Development
 
@@ -59,6 +64,9 @@ Use `pnpm test` for the combined test pass, or run `pnpm test:unit` and
 - `pnpm test:unit`: pure logic and formatting behavior that do not need a browser
 - `pnpm test:e2e`: user flows, keyboard behavior, accessible names/landmarks, and visible state changes
 - `pnpm screenshots`: documentation captures only
+
+Playwright specs live under `tests/e2e/`, while documentation capture flows and
+their helpers live under `tests/docs/`.
 
 Keep normal Playwright tests narrow. Do not add assertions for colors, spacing,
 fonts, design tokens, performance scores, SEO checks, or other computed styles

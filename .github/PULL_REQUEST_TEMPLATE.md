@@ -16,4 +16,4 @@
 - [ ] `pnpm check` passes
 - [ ] `pnpm build` succeeds
 - [ ] `pnpm test` passes (or tests added/updated for new behaviour)
-- [ ] No visual regressions (run `pnpm test -- --project=screenshot` if touching CSS)
+- [ ] No visual regressions (run `pnpm screenshots` if touching CSS)

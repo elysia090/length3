@@ -28,6 +28,7 @@
       devShells = forAllSystems (
         { pkgs }:
         let
+          nodejs = pkgs.nodejs_24;
           playwrightLibs = with pkgs;
             lib.optionals stdenv.isLinux [
               alsa-lib
@@ -55,6 +56,15 @@
               xorg.libxcb
             ];
 
+          japaneseFonts = with pkgs; [
+            noto-fonts-cjk-sans
+            noto-fonts-cjk-serif
+          ];
+
+          fontsConf = pkgs.makeFontsConf {
+            fontDirectories = japaneseFonts;
+          };
+
           python = pkgs.python3.withPackages (
             ps: with ps; [
               brotli
@@ -64,7 +74,7 @@
 
           pnpm = pkgs.writeShellApplication {
             name = "pnpm";
-            runtimeInputs = [ pkgs.nodejs_24 ];
+            runtimeInputs = [ nodejs ];
             text = ''
               export COREPACK_HOME="''${COREPACK_HOME:-$PWD/.cache/corepack}"
               exec corepack pnpm "$@"
@@ -74,14 +84,17 @@
         {
           default = pkgs.mkShell {
             packages = [
-              pkgs.nodejs_24
+              nodejs
               pnpm
               python
-            ] ++ playwrightLibs;
+              pkgs.fontconfig
+            ] ++ japaneseFonts ++ playwrightLibs;
 
             shellHook = ''
               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath playwrightLibs}:''${LD_LIBRARY_PATH:-}"
               export COREPACK_HOME="''${COREPACK_HOME:-$PWD/.cache/corepack}"
+              export FONTCONFIG_FILE="${fontsConf}"
+              export FONTCONFIG_PATH="${pkgs.fontconfig.out}/etc/fonts"
               export PLAYWRIGHT_BROWSERS_PATH="''${PLAYWRIGHT_BROWSERS_PATH:-$PWD/.cache/ms-playwright}"
               export PNPM_HOME="''${PNPM_HOME:-$PWD/.cache/pnpm-home}"
               export npm_config_cache="''${npm_config_cache:-$PWD/.cache/npm}"
