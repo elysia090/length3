@@ -13,7 +13,8 @@
  *   custom font instantly from cache.
  *
  * Fraunces is fully self-hosted from /public/fonts/.
- * tests/helpers/fonts.ts explicitly loads it in headless browser runs where
+ * Japanese glyph coverage comes from the Nix dev shell's Noto CJK packages.
+ * tests/docs/helpers/fonts.ts explicitly loads it in headless browser runs where
  * font-display: optional would otherwise keep the fallback face.
  * When renaming or moving the Fraunces files, update all related paths.
  */

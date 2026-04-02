@@ -1,5 +1,5 @@
 /**
- * Screenshot tests — documentation screenshots saved to docs/screenshots/.
+ * Screenshot tests — documentation screenshots saved to docs/assets/screenshots/.
  *
  * This spec runs only in the `screenshots` Playwright project:
  *   pnpm screenshots
@@ -18,7 +18,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { gotoWithFonts } from './helpers/fonts';
 
-const OUT = path.resolve('docs/screenshots');
+const OUT = path.resolve('docs/assets/screenshots');
 
 test('index', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });

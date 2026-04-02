@@ -25,11 +25,11 @@ import RubyText from '../../components/RubyText.astro';
 
 ```css
 --font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho',
-                Georgia, 'Noto Sans JP', serif;
+                'Noto Serif JP', Georgia, 'Noto Sans JP', serif;
 ```
 
 `Hiragino Mincho ProN`（macOS・iOS）と `Yu Mincho`（Windows）を優先することで、プラットフォームネイティブの明朝体が使える環境では和欧混植の縦比率が近づく。
-Linux・Android 環境ではこれらが不在のため `Noto Sans JP` にフォールバックする。
+Linux・Android 環境ではこれらが不在でも `Noto Serif JP` が見出しの和文を受け持つため、明朝ベースの見た目を保ちやすい。
 
 ### 本文フォントスタック
 

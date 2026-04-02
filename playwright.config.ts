@@ -2,9 +2,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = 'http://127.0.0.1:4321';
-const chromiumLaunchArgs = [
-  '--host-resolver-rules=MAP fonts.googleapis.com ~NOTFOUND, MAP fonts.gstatic.com ~NOTFOUND',
-];
+const desktopChrome = {
+  ...devices['Desktop Chrome'],
+  baseURL,
+};
 
 export default defineConfig({
   testDir: './tests',
@@ -20,21 +21,13 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: ['**/screenshot.spec.ts'],
-      use: {
-        ...devices['Desktop Chrome'],
-        baseURL,
-        launchOptions: { args: chromiumLaunchArgs },
-      },
+      testIgnore: ['**/docs/**/*.spec.ts'],
+      use: desktopChrome,
     },
     {
       name: 'screenshots',
-      testMatch: ['**/screenshot.spec.ts'],
-      use: {
-        ...devices['Desktop Chrome'],
-        baseURL,
-        launchOptions: { args: chromiumLaunchArgs },
-      },
+      testMatch: ['**/docs/**/*.spec.ts'],
+      use: desktopChrome,
     },
   ],
   webServer: {

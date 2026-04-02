@@ -1,6 +1,6 @@
 ## Tech Stack
 
-This blog is built on Astro 6 with strict TypeScript, MDX, and Content Collections for content management. The runtime environment is Node.js 24.14+, the package manager is pnpm via Corepack, and deployment targets Cloudflare Workers through the official Astro adapter. Search is powered by Pagefind, while formatting and static checks are handled with Prettier, `prettier-plugin-astro`, Biome, and `astro check`. Playwright covers end-to-end testing, and Japanese typography relies on `<ruby>`, `line-break`, and `text-wrap`.
+This blog is built on Astro 6 with strict TypeScript, MDX, and Content Collections for content management. The runtime environment is Node.js 24.14.x pinned in `.nvmrc`, the package manager is pnpm via Corepack, and deployment targets Cloudflare Workers through the official Astro adapter. Search is powered by Pagefind, while formatting and static checks are handled with Prettier, `prettier-plugin-astro`, Biome, and `astro check`. Playwright covers end-to-end testing, and Japanese typography relies on `<ruby>`, `line-break`, and `text-wrap`.
 
 ## UI Design
 

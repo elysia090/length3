@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { FRAUNCES_ITALIC_WOFF2, FRAUNCES_WOFF2 } from '../../src/lib/fontConfig';
+import { FRAUNCES_ITALIC_WOFF2, FRAUNCES_WOFF2 } from '../../../src/config/fonts';
 
 /**
  * Navigate to a URL and ensure fonts render correctly in headless Chrome.
@@ -13,9 +13,9 @@ import { FRAUNCES_ITALIC_WOFF2, FRAUNCES_WOFF2 } from '../../src/lib/fontConfig'
  *   2. Constructing FontFace objects programmatically, bypassing font-display
  *   3. Forcing a style recalculation so text re-renders with the loaded fonts
  *
- * Font paths come from src/lib/fontConfig.ts — single source of truth.
- * Noto Sans JP still comes from Google Fonts in BaseLayout, so we wait up to
- * 3 s for it but never stall CI when the network is unavailable.
+ * Font paths come from src/config/fonts.ts — single source of truth.
+ * Japanese glyph coverage comes from the Nix shell's installed Noto CJK fonts,
+ * so the helper only needs to force Fraunces to load before capture.
  */
 export async function gotoWithFonts(page: Page, url: string): Promise<void> {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
@@ -31,11 +31,8 @@ export async function gotoWithFonts(page: Page, url: string): Promise<void> {
           document.fonts.add(ff);
         }),
       );
-      // Wait for Google Fonts (Noto Sans JP) with a cap so CI never stalls.
-      await Promise.race([
-        document.fonts.ready,
-        new Promise<void>((resolve) => setTimeout(resolve, 3000)),
-      ]);
+      await document.fonts.ready;
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       // Force a style recalculation so text re-renders with the loaded fonts.
       document.body.style.visibility = 'hidden';
       void document.body.offsetHeight; // trigger reflow
