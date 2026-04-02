@@ -26,7 +26,8 @@ the `XDG_CACHE_HOME=$PWD/.cache` prefix shown above.
 Playwright browsers, Corepack downloads, pnpm caches, and the optional Nix
 cache are redirected into the repository under `.cache/` and `.pnpm-store/`.
 The exact Node release is pinned in `.nvmrc` and enforced through
-`package.json#engines`.
+`package.json#engines`. The pinned pnpm release is `10.33.0` via the
+top-level `packageManager` field.
 
 ## Project Layout
 

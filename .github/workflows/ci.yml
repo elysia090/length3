@@ -20,12 +20,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-          cache: pnpm
+          package-manager-cache: false
+
+      - run: corepack enable
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - run: pnpm config set store-dir ~/.pnpm-store
 
       - run: pnpm install --frozen-lockfile
 
@@ -41,12 +50,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-          cache: pnpm
+          package-manager-cache: false
+
+      - run: corepack enable
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - run: pnpm config set store-dir ~/.pnpm-store
 
       - run: pnpm install --frozen-lockfile
 
@@ -65,12 +83,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
-          cache: pnpm
+          package-manager-cache: false
+
+      - run: corepack enable
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - run: pnpm config set store-dir ~/.pnpm-store
 
       - run: pnpm install --frozen-lockfile
 

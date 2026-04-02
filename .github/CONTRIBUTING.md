@@ -22,12 +22,13 @@ The shell provides:
 Project-local caches are written to `.cache/` and `.pnpm-store/`. The
 `XDG_CACHE_HOME=$PWD/.cache` prefix also keeps Nix's eval/fetch cache out of
 `~/.cache/nix`. The exact Node release is pinned in `.nvmrc` and enforced via
-`package.json#engines`.
+`package.json#engines`. The pnpm release is pinned via the top-level
+`packageManager` field.
 
 ## Manual prerequisites
 
 - Node 24.14+
-- pnpm 9+
+- pnpm 10+
 - Python 3 with `fonttools` and `brotli` if you need to regenerate fonts
 
 ```sh
