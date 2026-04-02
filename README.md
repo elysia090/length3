@@ -26,7 +26,8 @@ the `XDG_CACHE_HOME=$PWD/.cache` prefix shown above.
 Playwright browsers, Corepack downloads, pnpm caches, and the optional Nix
 cache are redirected into the repository under `.cache/` and `.pnpm-store/`.
 The exact Node release is pinned in `.nvmrc` and enforced through
-`package.json#engines`.
+`package.json#engines`. The pinned pnpm release is `10.33.0` via the
+top-level `packageManager` field.
 
 ## Project Layout
 
@@ -41,12 +42,12 @@ The exact Node release is pinned in `.nvmrc` and enforced through
 
 ## Deployment
 
-Production deploys target a Cloudflare Worker named `length3` via Wrangler.
-This account currently has no Cloudflare Pages project, no `workers.dev`
-subdomain, and no Worker custom domain configured, so the repository does not
-hardcode a canonical site URL.
+Production delivery is handled by Cloudflare Workers Builds rather than an
+in-repo deploy workflow. This repository keeps the Astro + Wrangler build
+configuration, but GitHub Actions only validates and packages the site.
 
-Use the generated Worker config from Astro when deploying:
+The generated Worker config remains available for local verification or an
+emergency manual deploy:
 
 ```sh
 pnpm build

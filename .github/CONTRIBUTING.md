@@ -22,12 +22,13 @@ The shell provides:
 Project-local caches are written to `.cache/` and `.pnpm-store/`. The
 `XDG_CACHE_HOME=$PWD/.cache` prefix also keeps Nix's eval/fetch cache out of
 `~/.cache/nix`. The exact Node release is pinned in `.nvmrc` and enforced via
-`package.json#engines`.
+`package.json#engines`. The pnpm release is pinned via the top-level
+`packageManager` field.
 
 ## Manual prerequisites
 
 - Node 24.14+
-- pnpm 9+
+- pnpm 10+
 - Python 3 with `fonttools` and `brotli` if you need to regenerate fonts
 
 ```sh
@@ -91,12 +92,13 @@ for n in ['Fraunces-Variable', 'Fraunces-Italic-Variable']:
 
 ## Deploy
 
-Production deploys run automatically via GitHub Actions on every push to
-`main`. Manual deploys:
+Production delivery is handled outside this repository by Cloudflare Workers
+Builds, so GitHub Actions here do not perform a deploy. If you need to verify
+the generated Worker locally or perform an emergency manual deploy:
 
 ```sh
 pnpm build
-pnpm exec wrangler deploy
+pnpm exec wrangler deploy --config dist/server/wrangler.json
 ```
 
 Requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the
