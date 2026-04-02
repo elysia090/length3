@@ -1,0 +1,8 @@
+engineStrict: true
+enablePrePostScripts: true
+shamefullyHoist: false
+strictPeerDependencies: false
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true

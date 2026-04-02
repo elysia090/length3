@@ -77,6 +77,7 @@
             runtimeInputs = [ nodejs ];
             text = ''
               export COREPACK_HOME="''${COREPACK_HOME:-$PWD/.cache/corepack}"
+              export npm_config_store_dir="''${PNPM_STORE_DIR:-$PWD/.pnpm-store}"
               exec corepack pnpm "$@"
             '';
           };
@@ -97,15 +98,15 @@
               export FONTCONFIG_PATH="${pkgs.fontconfig.out}/etc/fonts"
               export PLAYWRIGHT_BROWSERS_PATH="''${PLAYWRIGHT_BROWSERS_PATH:-$PWD/.cache/ms-playwright}"
               export PNPM_HOME="''${PNPM_HOME:-$PWD/.cache/pnpm-home}"
+              export PNPM_STORE_DIR="''${PNPM_STORE_DIR:-$PWD/.pnpm-store}"
               export npm_config_cache="''${npm_config_cache:-$PWD/.cache/npm}"
-              export npm_config_store_dir="''${npm_config_store_dir:-$PWD/.pnpm-store}"
 
               mkdir -p \
                 "$COREPACK_HOME" \
                 "$PLAYWRIGHT_BROWSERS_PATH" \
                 "$PNPM_HOME" \
                 "$npm_config_cache" \
-                "$npm_config_store_dir"
+                "$PNPM_STORE_DIR"
             '';
           };
         }
