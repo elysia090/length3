@@ -92,12 +92,13 @@ for n in ['Fraunces-Variable', 'Fraunces-Italic-Variable']:
 
 ## Deploy
 
-Production deploys run automatically via GitHub Actions on every push to
-`main`. Manual deploys:
+Production delivery is handled outside this repository by Cloudflare Workers
+Builds, so GitHub Actions here do not perform a deploy. If you need to verify
+the generated Worker locally or perform an emergency manual deploy:
 
 ```sh
 pnpm build
-pnpm exec wrangler deploy
+pnpm exec wrangler deploy --config dist/server/wrangler.json
 ```
 
 Requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the
