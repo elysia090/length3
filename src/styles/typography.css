@@ -103,6 +103,17 @@
   text-decoration-color: var(--rule);
 }
 
+/* Tag pills inside prose — override link styles so pills match the index page */
+.prose .tag-pill {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.prose .tag-pill:hover,
+.prose .tag-pill:active {
+  color: var(--amber-text);
+}
+
 /* ─── Code ───────────────────────────────────────────────────── */
 /* Inline code — spec §4 */
 .prose code {

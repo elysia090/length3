@@ -659,7 +659,6 @@ a.crumb:active {
   align-items: start;
   gap: 0.625rem;
   padding: 0.875rem 1rem 1rem;
-  border-bottom: 0.0625rem solid var(--rule);
   overflow: hidden;
 }
 
@@ -763,6 +762,7 @@ a.crumb:active {
   align-content: center;
   gap: 0.375rem;
   padding: 1.25rem 1rem;
+  border-top: 0.0625rem solid var(--rule);
 }
 
 .search-empty-title {
