@@ -192,7 +192,7 @@ img {
 .index-sidebar {
   grid-area: side;
   padding-left: 0;
-  padding-top: 0;
+  padding-top: 1.25rem;
   margin-top: 1.5rem;
   border-top: 0.0625rem solid var(--rule);
   align-self: start;
