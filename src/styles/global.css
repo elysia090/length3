@@ -7,19 +7,19 @@
   --amber-lt: #e8a030;
   --amber-tint: rgba(212, 130, 10, 0.06); /* amber @ 6% — lead bg */
   --ink: #1c1a18;
-  --ink-2: #52504a;
-  --ink-3: #9a9690;
-  --rule: #dedad5;
+  --ink-2: #44413c;
+  --ink-3: #7a7670;
+  --rule: #cdc8c0;
   --bg: #f9f8f5;
   --bg-2: #f0ede8;
   --paper: rgba(249, 248, 245, 0.9);
   --paper-strong: rgba(249, 248, 245, 0.96);
-  --surface-line: rgba(168, 151, 129, 0.28);
+  --surface-line: rgba(110, 97, 80, 0.40);
   --surface-shine: rgba(255, 255, 255, 0.42);
   --surface-fill: rgba(240, 237, 232, 0.72);
   --surface-fill-strong: rgba(240, 237, 232, 0.78);
-  --surface-border: rgba(168, 151, 129, 0.32);
-  --surface-separator: rgba(82, 80, 74, 0.55);
+  --surface-border: rgba(110, 97, 80, 0.52);
+  --surface-separator: rgba(55, 52, 47, 0.68);
   /* Surfaces & shadows */
   --overlay-bg: rgba(28, 26, 24, 0.6);
   --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);
