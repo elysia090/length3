@@ -1,0 +1,525 @@
+---
+title: '俺のdotfileがヤバい理由：Contract-Drivenな個人環境設計'
+description: NixOS + Home Manager + SOPS + 契約駆動アーキテクチャ + Workspace Materialization Engine。「dotfile」という言葉では収まらない設計思想の全貌を解説する。
+publishDate: 2026-04-04
+tags: [nix, dotfiles, architecture, shell, devops]
+draft: false
+lang: ja
+---
+
+dotfileといえば、たいていの人は `~/.bashrc` に alias を並べたものを想像する。あるいは neovim の設定を GitHub に上げて「スター貰えたらいいな」という感じのやつ。
+
+俺のは違う。
+
+これは個人の開発環境をインフラとして扱い、**契約（Contract）**によって境界を定義し、**Workspace Materialization Engine** でリポジトリを宣言的に管理し、**Codex との統合**を Home Manager レイヤーで正式にモデル化した、本格的なシステム設計の話だ。
+
+---
+
+## なぜ普通のdotfileでは限界が来るのか
+
+開発環境は成長する。最初は alias 数行から始まっても、やがてこうなる：
+
+- ツールが増えるにつれて `PATH` がカオスになる
+- WSL と macOS で微妙に設定が違い、管理が破綻する
+- 「このマシンだけ動く」謎のスクリプトが増える
+- 機密情報（API キー、GPG 鍵）の管理が適当になる
+- 新マシンのセットアップに半日かかる
+
+普通のdotfileはこれらを解決しない。「シンボリックリンクを貼るスクリプトを書く」という解決策も、問題の先送りに過ぎない。
+
+根本的な問題は、**dotfile が設計されていない**ことだ。依存関係が不明確で、境界がなく、テストがなく、状態が曖昧だ。
+
+俺のdotfileはこれを全部解決する。具体的にどうやっているか見ていこう。
+
+---
+
+## レイヤー 1：Nix Flake による完全再現性
+
+基盤は [Nix](https://nixos.org/) だ。`flake.nix` がすべての入口になる。
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager = {
+      url = "github:nix-community/home-manager/release-25.05";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    sops-nix.url = "github:Mic92/sops-nix";
+  };
+
+  outputs = { self, nixpkgs, home-manager, sops-nix, ... }:
+  {
+    homeConfigurations."primary" = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      modules = [ ./homes/primary ];
+    };
+  };
+}
+```
+
+`flake.lock` によってすべての依存バージョンが固定される。6ヶ月後に別のマシンでセットアップしても、完全に同じ環境が再現される。これは「たぶん動く」じゃなくて「必ず動く」の世界だ。
+
+### nixpkgs-stable と unstable の使い分け
+
+安定性が重要なツールは `nixos-25.05`（stable）から取り、最新版が必要なツールは `nixos-unstable` のオーバーレイを使う。ホストの `modules/` でどちらを使うか明示的に指定する設計になっている。「なんとなく最新」でも「全部古い」でもなく、意図した選択として記録される。
+
+---
+
+## レイヤー 2：モジュール設計と Budget Guard
+
+`homes/primary/default.nix` はたったこれだけだ：
+
+```nix
+{ ... }: {
+  imports = [
+    ../../modules/codex
+    ../../modules/common
+    ../../modules/security
+    ../../modules/shell
+    ../../modules/dev
+    ../../modules/secrets
+  ];
+}
+```
+
+17行。この清潔さは偶然ではない。**各モジュールが明確な責任境界を持つ**ことで実現している。
+
+### 各モジュールの責任
+
+| モジュール | 責任 |
+|-----------|------|
+| `common` | git, gh, ssh, core utils（package budget あり） |
+| `shell` | zsh, starship, fzf, direnv, zoxide |
+| `dev` | eza, bat, jq（開発補助ツール） |
+| `security` | age, sops, gpg, ssh-agent |
+| `secrets` | SOPS key management |
+| `codex` | Codex AI integration（30+ options） |
+
+### Budget Guard：これが本当にクールな部分
+
+`modules/common/default.nix` には**アサーション**が埋め込まれている：
+
+```nix
+assertions = [
+  {
+    assertion = !(lib.any (p: lib.elem p.pname [
+      "nodejs" "python3" "uv" "gitleaks"
+      "shellcheck" "statix" "deadnix" "pre-commit"
+    ]) config.home.packages);
+    message = ''
+      Heavy runtimes must not leak into resident home.packages.
+      Use project-local devenv/devShell instead.
+    '';
+  }
+];
+```
+
+`home manager switch` を実行したとき、`node` や `python` が `home.packages` に混入していたら**ビルドが失敗する**。これはルールではなく、**強制**だ。
+
+なぜこれが重要か。重いランタイムをグローバルにインストールすると、プロジェクト間でバージョン競合が起き、「このマシンでしか動かない」環境ができあがる。Budget Guard によって、すべての重いツールはプロジェクトローカルの `devShell` か `devenv` に閉じ込められる。
+
+### 許可されているResidential CLI
+
+グローバルに住んでいいのはこれだけ：
+
+```
+starship, zoxide, git, gh, delta,
+rg, fd, fzf, eza, bat, jq, just,
+direnv, curl, gpg, ssh, sops, age
+```
+
+18個。意図的に少ない。少ないほど壊れにくい。
+
+---
+
+## レイヤー 3：Contract-Driven Architecture
+
+ここからが本当にヤバい部分だ。
+
+`README.md` の中に、こういうブロックが埋め込まれている：
+
+```markdown
+<!-- BEGIN GENERATED:source_of_truth -->
+## Source of Truth Contract
+...
+<!-- END GENERATED:source_of_truth -->
+```
+
+これはドキュメントではない。**機械可読な契約仕様**だ。
+
+### 8つの契約
+
+このdotfileは8つの主要契約を持つ：
+
+1. **source_of_truth** — 各データの正規ソースはどこか
+2. **no_cycle_rule** — 依存の方向性（GitHub → workspace → dotfiles → WSL → Codex）
+3. **boundary_contract** — モジュール間の境界定義
+4. **operations_contract** — 変更操作の手順
+5. **cli_budget** — Residential CLI の上限
+6. **workspace_control** — workspace の所有権
+7. **notes** — アーキテクチャの注釈
+
+### contract-lib.sh：契約の番人
+
+`scripts/contract-lib.sh`（412行）は契約を**検証**するフレームワークだ：
+
+```bash
+# 8つの必須ブロックが README に存在するか検証
+validate_readme_contracts() {
+  local required_blocks=(
+    "source_of_truth"
+    "no_cycle_rule"
+    "boundary_contract"
+    "operations_contract"
+    "cli_budget"
+    "workspace_control"
+    "notes"
+  )
+  for block in "${required_blocks[@]}"; do
+    if ! grep -q "BEGIN GENERATED:${block}" README.md; then
+      echo "ERROR: Missing contract block: ${block}"
+      return 1
+    fi
+  done
+}
+```
+
+さらに、**13のシングルライター状態**を管理する：
+
+```bash
+# single-writer registry の一部
+SINGLE_WRITER_STATES=(
+  "shared_catalog"      # workspace repo が所有
+  "codex_wsl_entry"     # WSL activation script が所有
+  "home_packages"       # home-manager が所有
+  "ssh_config"          # modules/common が所有
+  ...
+)
+```
+
+これによって「誰が何を書くか」が形式的に決まっている。複数の仕組みが同じファイルを書こうとすると、検証で落ちる。
+
+### No Cycle Rule の強制
+
+依存方向は**一方通行**で定義されている：
+
+```
+GitHub → workspace → dotfiles → WSL → Codex
+```
+
+dotfiles が workspace に依存するのはOK。逆はNG。Codex が dotfiles を読むのはOK。dotfiles が Codex の内部状態を直接操作するのはNG。
+
+この規則も `contract-lib.sh` が機械的に検証する。循環依存はCIで即死する。
+
+---
+
+## レイヤー 4：Workspace Materialization Engine
+
+これがアーキテクチャの中で最も独自性が高い部分だ。
+
+### 問題：プロジェクトの管理
+
+複数のプロジェクトを掛け持ちしていると：
+- どのリポジトリがアクティブか分からなくなる
+- `~/projects/` の下が散乱する
+- 「このリポジトリ、クローンしてたっけ？」が発生する
+
+### 解決：宣言的なWorkspace管理
+
+`scripts/workspaces-sync.sh` がこれを解決する：
+
+```bash
+# GitHub のトピック "codex-workspace" が付いたリポジトリを自動発見
+discover_github_workspaces() {
+  gh repo list --topic codex-workspace --json name,url,defaultBranchRef \
+    | jq -r '.[] | [.name, .url, .defaultBranchRef.name] | @tsv'
+}
+
+# カタログのオーバーライドを適用して ~/workspaces/<slug>/ に展開
+materialize_workspace() {
+  local slug="$1"
+  local repo="$2"
+  local ref="$3"
+  local target="${HOME}/workspaces/${slug}"
+
+  if [[ ! -d "${target}" ]]; then
+    git clone "${repo}" "${target}"
+    git -C "${target}" checkout "${ref}"
+  fi
+}
+```
+
+GitHub リポジトリに `codex-workspace` トピックを付けるだけで、次回の `workspaces-sync` で自動的に `~/workspaces/` 以下に展開される。
+
+### workspace_resolver.py：多層解決エンジン
+
+`scripts/lib/workspace_resolver.py` は3つのソースからワークスペースを集約する：
+
+```python
+class WorkspaceResolver:
+    def resolve(self) -> list[Workspace]:
+        workspaces = []
+
+        # Layer 1: GitHub discovery (topic-based)
+        workspaces.extend(self._from_github_discovery())
+
+        # Layer 2: Catalog overrides (declarative)
+        workspaces.extend(self._from_catalog())
+
+        # Layer 3: Local checkouts (WSL filesystem)
+        workspaces.extend(self._from_local_checkouts())
+
+        return self._deduplicate_and_merge(workspaces)
+```
+
+出力は JSON, rows, slugs の3フォーマットに対応。他のスクリプトがパイプで受け取って使う。
+
+### Windows ↔ WSL の境界
+
+ここには重要なルールがある：
+
+> **Windows は GUI レイヤー専用。アクティブな開発はすべて WSL ファイルシステム上で行う。**
+
+`/mnt/c/` パスが workspace のルートとして指定されると、バリデーションが拒否する。Windows 側のパスで git 操作をすると `inode` の扱いが壊れ、パーミッションが狂い、シンボリックリンクが機能しない。これを防ぐため、**Windows はファイルを開くだけ、操作は WSL 側**という境界が契約で明示されている。
+
+---
+
+## レイヤー 5：Secrets Management
+
+機密情報の管理も手を抜いていない。
+
+### SOPS + age の組み合わせ
+
+`.sops.yaml` の設定：
+
+```yaml
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    age: >-
+      age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+秘密鍵は `age` で管理。`secrets/` ディレクトリの YAML ファイルはすべて暗号化された状態で Git に入る。平文が誰かのフォークに漏れることはない。
+
+### sops-nix による自動展開
+
+`modules/secrets/default.nix` で：
+
+```nix
+sops.secrets."github_token" = {
+  sopsFile = ../../secrets/github.yaml;
+  path = "${config.home.homeDirectory}/.config/gh/token";
+  mode = "0400";
+};
+```
+
+`home-manager switch` を実行すると、SOPS が自動的に復号して正しいパスに配置する。手動で `export TOKEN=...` する作業は存在しない。
+
+### Pre-commit での漏洩防止
+
+`.pre-commit-config.yaml`：
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks
+        entry: gitleaks detect --source . -v
+        language: system
+        pass_filenames: false
+```
+
+コミット前に `gitleaks` が走る。うっかり API キーをコミットしようとすると即ブロックされる。
+
+---
+
+## レイヤー 6：Codex 統合
+
+`modules/codex/` は Home Manager の上に Codex AI アシスタントとの統合を**正式なモジュール**として実装している。これが一番SF感ある部分だ。
+
+### 30以上のオプション
+
+```nix
+options.codex = {
+  enable = lib.mkEnableOption "Codex AI integration";
+
+  catalog = {
+    repo = lib.mkOption {
+      type = lib.types.str;
+      description = "GitHub repo containing workspace catalog";
+    };
+  };
+
+  mcp.servers = lib.mkOption {
+    type = lib.types.attrsOf lib.types.anything;
+    description = "MCP server configurations";
+    default = {};
+  };
+
+  sandbox.isolation = lib.mkOption {
+    type = lib.types.enum [ "none" "bubblewrap" ];
+    default = "bubblewrap";
+  };
+};
+```
+
+### Activation Script の生成
+
+`home-manager switch` が実行されると、Nix が以下を**自動生成**する：
+
+- `~/.codex/config` — Codex の設定ファイル
+- `~/.config/codex/shell-bootstrap.sh` — シェル統合スクリプト
+- Windows 側の PowerShell プロファイル（WSL 経由）
+- WSL エイリアス一覧
+
+これらは手書きしない。Nix の `writeText` や `activation` フレームワークが生成する。設定は Home Manager に一元管理され、手動編集は**契約違反**になる。
+
+### Sandbox Isolation
+
+Codex が実行するコードはデフォルトで `bubblewrap` によってサンドボックス化される。MCP トークンはネットワーク無効化されたサンドボックスには伝搬しない。
+
+```nix
+codex.sandbox.isolation = "bubblewrap";
+codex.mcp.servers = {
+  playwright = {
+    command = "nix";
+    args = [ "shell" "nixpkgs#playwright" "--command" "mcp-server-playwright" ];
+  };
+  github = {
+    command = "gh-mcp";
+    env.GITHUB_TOKEN = "$SOPS_GITHUB_TOKEN";
+  };
+};
+```
+
+MCP サーバーも宣言的に管理される。「どのサーバーが動いているか」が flake を読めば分かる。
+
+---
+
+## レイヤー 7：品質ゲートとテスト戦略
+
+これだけ複雑な仕組みを維持するには、テストが欠かせない。
+
+### 3層のテスト戦略
+
+```
+Level 1: Unit Tests (pytest)
+  - test_catalog_validators.py
+  - test_contract_runtime.py
+  - test_projection_codex.py
+  - test_workspace_resolver.py
+
+Level 2: CI-Safe Tests (no WSL dependency)
+  - nix flake check --show-trace
+  - Python syntax validation
+  - Shell linting (shellcheck)
+  - Contract block validation
+  - Workspace catalog smoke tests (bundled fixtures)
+
+Level 3: Local-First Tests (full regression)
+  - WSL/Codex product validation
+  - Machine-specific convergence
+  - Runtime health checks
+```
+
+`check-ci-safe.sh` と `test-local-first.sh` でそれぞれ実行できる。CI 環境では Level 2 まで、ローカルでは Level 3 まで走らせる。
+
+### just：タスクランナーの統一
+
+`justfile` に30以上のコマンドが定義されている：
+
+```makefile
+# よく使うコマンドの例
+switch:
+  ./scripts/switch-home.sh
+
+check:
+  ./scripts/check-ci-safe.sh
+
+test-unit:
+  pytest tests/ -v
+
+test-local:
+  ./scripts/test-local-first.sh
+
+doctor:
+  ./scripts/doctor.sh
+
+workspaces-sync:
+  ./scripts/workspaces-sync.sh
+
+gc:
+  ./scripts/gc-home.sh
+```
+
+`just switch` だけで Home Manager を適用できる。コマンドを覚える必要がない。
+
+### doctor.sh：システム健全性チェック
+
+`scripts/doctor.sh` は以下を検証する：
+
+- デーモン設定の整合性
+- `bubblewrap` の動作確認
+- `PATH` の純粋性（余計なものが混入していないか）
+- CLI の解決先（正しい Nix store を指しているか）
+- Codex 設定の整合性
+- split-brain 状態の不在（単一ライター違反がないか）
+
+何かおかしいと思ったら `just doctor` を実行する。問題の所在が分かる。
+
+---
+
+## 設計哲学：なぜここまでやるのか
+
+### 1. 環境は産業廃棄物になる
+
+管理されない開発環境は時間とともに汚染される。「なんとなく動いている」スクリプトが積み重なり、誰も触れないブラックボックスが生まれる。
+
+契約とテストによって、環境の劣化を**検出可能**にする。劣化が検出できれば、修正できる。
+
+### 2. 複雑さはコントロールできる
+
+システムが複雑になること自体は問題ではない。**コントロールされていない複雑さ**が問題だ。
+
+モジュール境界、Budget Guard、Single-Writer Registry は、複雑さを**局所化**するための仕組みだ。どこで何が決まっているかが明確なら、巨大なシステムも理解できる。
+
+### 3. AI との共存を設計に織り込む
+
+Codex モジュールは「AI ツールを使う」という事実を設計レベルで認識している。
+
+`AGENTS.md` には Codex がこのリポジトリを操作するときのルールが書かれている。AI がコードを書くとき、契約を破らないように。AI がシークレットを読むとき、サンドボックスを尊重するように。
+
+これは「AI を使ってみる」ではなく、「AI と協働する環境を設計する」という発想だ。
+
+### 4. ミニマリズムは美学ではなく工学
+
+Residential CLI が18個という制約は、見た目のためではない。グローバルに入れるものが少ないほど、プロジェクト間の干渉が減り、再現性が上がり、メンテナンスコストが下がる。
+
+少ないことは良いことだ。ただし、**意図的に少ない**のと、**雑に少ない**のは違う。
+
+---
+
+## まとめ
+
+このdotfileが「ヤバい」理由を整理すると：
+
+1. **完全再現性** — Nix Flake で環境がコードとして定義される
+2. **Budget Guard** — 重いランタイムがグローバルに漏れることをビルド時に防ぐ
+3. **Contract-Driven** — モジュール間の境界が機械検証可能な契約として存在する
+4. **Workspace Materialization** — リポジトリの存在を宣言的に管理する
+5. **Secrets as Code** — SOPS + age で秘密情報がコードと同じフローで管理される
+6. **AI-Ready DX** — Codex 統合が Home Manager の正式なモジュールとして設計されている
+7. **Test Coverage** — Unit / CI-safe / Local の3層テスト戦略
+
+「dotfile」という言葉は、もはや実態を表していない。これは**個人インフラのコードベース**だ。
+
+---
+
+個人の開発環境にここまでやる必要があるか、という問いに対しては：必要かどうかより、こういう設計をすることが**楽しい**から作っている、という答えになる。
+
+ただ、一度こういう環境に住むと、管理されていない dotfile には戻れなくなる。環境がコードで定義されていて、テストが通っていて、契約が守られているという安心感は、なかなかのものがある。
+
+リポジトリは [elysia090/dotfile](https://github.com/elysia090/dotfile) にある。`justfile` を読むのが一番手っ取り早い入口だと思う。
