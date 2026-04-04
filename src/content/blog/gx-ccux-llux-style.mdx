@@ -1,8 +1,8 @@
 ---
 title: 'シェルラッパーを解体する：gx と ccux を作った話'
-description: flock, timeout, setpriv, envdir, direnv があるのに、なぜ gx と ccux を自作したのか。exec チェーンとしての合成、レイヤーごとの inspect、llux スタイルが何をハッキーで面白いものにするか。
+description: flock, timeout, setpriv, envdir, direnv があるのに、なぜ gx と ccux を自作したのか。inspect でプロセス起動をデータにする設計と、exec チェーンとしての合成。
 publishDate: 2026-04-03
-tags: [unix, shell, cli, go, llux]
+tags: [unix, shell, cli, go]
 draft: false
 lang: ja
 ---
@@ -11,18 +11,76 @@ lang: ja
 
 最初は一行だ。`cd /srv/app && APP_ENV=prod ./server`。
 それが少し経つと `export` が増え、`$(cat ...)` が入り込み、`flock` と `timeout` が乗っかり、`set -euo pipefail` が先頭に来て、コメントが増えていく。
-気づけば 40 行のシェルスクリプトが、プロセス起動のために存在している。
+気づけば 40 行のシェルスクリプトが、プロセス起動のためだけに存在している。
 
 `gx` と `ccux` を作ったのは、その呪いを解体するためだ。
 
+## inspect から話す
+
+`gx` はプロセス起動ツールだ。ランタイムエンベロープ——環境変数、作業ディレクトリ、ユーザー——を明示的に組み立てて、シェルなしに子プロセスを起動する。
+
+ただのラッパーなら `env -i` と `cd` と `exec` で同じことはできる。`gx` が面白いのは `inspect` サブコマンドにある。先に見てほしい。
+
+```sh
+gx inspect \
+  --clear-env \
+  --env PATH=/usr/bin:/bin \
+  --env APP_ENV=prod \
+  --chdir /srv/app \
+  --user app:app \
+  -- ./server
+```
+
+出力:
+
+```
+program:       ./server
+resolved path: /srv/app/server
+user:          app (uid 1001)
+group:         app (gid 1002)
+chdir:         /srv/app
+clear_env:     true
+env:
+  PATH=/usr/bin:/bin
+  APP_ENV=prod
+```
+
+実行しない。起動プランを出力するだけだ。
+
+`--json` をつければ機械可読になる:
+
+```json
+{
+  "mode": "inspect",
+  "program": "./server",
+  "resolved_path": "/srv/app/server",
+  "argv": ["./server"],
+  "clear_env": true,
+  "env": [
+    {"key": "PATH", "value": "/usr/bin:/bin"},
+    {"key": "APP_ENV", "value": "prod"}
+  ],
+  "chdir": "/srv/app",
+  "user": "app",
+  "uid": 1001,
+  "group": "app",
+  "gid": 1002
+}
+```
+
+起動プランがデータになる。`jq` でフィルタできる。CI で期待する JSON と diff を取れる。バージョン管理できる。
+
+既存ツールでこれができるか？
+
+`flock --help` はフラグの説明を返す。`timeout --help` も同様だ。
+「このプロセスはこの環境でこのパスから起動される」を実行前に確認するインターフェイスを、既成ツールは持っていない。
+
 ## 既存ツールは何が足りないのか
 
+`inspect` を見た。では、なぜ既存ツールで足りないのかを話す。
+
 正直に言うと、`flock`・`timeout`・`setpriv`・`envdir`・`direnv` はどれも良いツールだ。
-単体ではよく考えられている。
-
-ではなぜ作ったか。
-
-問題は、これらのツールが「シェルで合わせることを前提にしている」点にある。
+単体ではよく考えられている。問題は、これらが「シェルで合わせることを前提にしている」点にある。
 
 ```sh
 #!/bin/sh
@@ -39,29 +97,21 @@ exec flock -w 10 /run/lock/server.lock \
   ./server
 ```
 
-このスクリプトが何をするか、説明できるか？
-
-できる——が、「推論」が必要だ。
+このスクリプトが何をするか、説明できるか？できる——が、「推論」が必要だ。
 
 - `CONFIG` は `env -i` の前に計算されているか後か？
 - `timeout` は `flock` に対してかかるのか `./server` に対してかかるのか？
 - `setpriv` を追加したとき、lock ファイルは誰の権限で取得されるのか？
 
-これらの質問に答えるためには、シェルの評価順序を頭の中でシミュレートしなければならない。
 スクリプトは動作を「書いている」のではなく、動作を「暗示している」。
+暗示を読むには、シェルの評価順序を頭の中でシミュレートしなければならない。
 
 `direnv` はプロジェクトルートを `cd` したときに自動で環境変数を読み込む仕組みで、開発体験には優れている。
-`envdir` は指定したディレクトリの各ファイルをキー/値として env に流し込む。
+`envdir` は指定したディレクトリの各ファイルを env に流し込む。
 どちらも「ディレクトリベース」で「起動のたびに明示しない」設計だ。
+何がどのファイルから来ているかを、シェルスクリプトの外から即座に分かる形で書けない。
 
-それ自体は悪くないが、本番環境のプロセス起動に持ち込むと、何がどのファイルから来ているのかを追いにくくなる。
-ファイル `CONFIG` が `/run/app-inputs/config.json` から来ていることを、シェルスクリプトの外から読んで即座に分かる形で書けないのだ。
-
-## `gx` を最初に作った
-
-最初の問いはシンプルだった。
-
-> プロセス起動の「設定」と「実行」を、シェルなしに書けるか？
+## `gx` は何をするか
 
 `gx run` がやることはひとつ: ランタイムエンベロープを組み立てて、子プロセスを起動する。
 
@@ -74,77 +124,63 @@ gx run \
   -- ./server
 ```
 
-これを読んだとき、何をするかを「推論する」必要がない。
-`--clear-env` で環境をリセットして、`PATH` と `APP_ENV` だけを入れて、`/srv/app` に移動して、`./server` を起動する。それだけだ。
+これを読んだとき、推論は要らない。
+`--clear-env` で環境をリセットして、`PATH` と `APP_ENV` だけを入れて、`/srv/app` に移動して、`./server` を起動する。
 
-### `gx inspect` という発明
+`gx exec` は `gx run` と同じ設定を受け取るが、子プロセスを fork せず自分を対象バイナリで置き換える（`execve` 相当）。
+`ccux` と組み合わせるとき、この区別が意味を持つ。
 
-ただのラッパーコマンドなら、`env -i` と `cd` と `exec` を組み合わせれば同じことはできる。
+### 環境境界が構造として見える
 
-`gx` が面白いのは `inspect` サブコマンドにある。
+シェルスクリプトでよく起きるバグがある。
 
 ```sh
-gx inspect \
+CONFIG="$(cat /run/app-inputs/config.json)"
+export CONFIG
+
+env -i PATH=/usr/bin:/bin APP_ENV=prod sh -c '
+  cd /srv/app
+  ./server
+'
+```
+
+壊れている。`CONFIG` は `env -i` の前に計算されているが、`env -i` がそれを破棄する。
+`./server` が受け取る `CONFIG` は空だ。このバグは見つけにくい。
+
+`gx --clear-env` を使うと、環境がリセットされるタイミングが構造として見える。
+`gx` の外で設定されたものはリセットされる、`--env` で渡したものが入る——それがコマンド自体に書いてある。
+
+### 権限境界が起動設計に入る
+
+```sh
+gx run \
   --clear-env \
   --env PATH=/usr/bin:/bin \
-  --env APP_ENV=prod \
-  --chdir /srv/app \
   --user app:app \
+  --chdir /srv/app \
   -- ./server
 ```
 
-これは実行せず、起動プランを出力する:
-
-```
-program:       ./server
-resolved path: /srv/app/server
-user:          app (uid 1001)
-group:         app (gid 1002)
-chdir:         /srv/app
-clear_env:     true
-env:
-  PATH=/usr/bin:/bin
-  APP_ENV=prod
-```
-
-`--json` をつければ機械可読な出力になる。
-`jq` でフィルタリングできるし、CI で期待値と diff を取ることもできる。
-
-既存ツールでこれができるか？
-
-`flock --help` はフラグの説明を返す。`timeout --help` も同様だ。
-起動前に「このプロセスはこの環境でこのパスから起動される」を確認するインターフェイスを、既成ツールは持っていない。
-
-### `exec` チェーンとしての合成
-
-`gx run` は子プロセスを fork/exec する。
-`gx exec` は自分自身を子プロセスで置き換える（`execve` 相当）。
-
-この違いが重要になるのは、`gx` を別のツールと組み合わせるときだ。
-
-```sh
-gx run --clear-env --env PATH=/usr/bin:/bin --chdir /srv/app -- \
-  ccux exec --from /run/app-inputs --map CONFIG=config.json -- \
-    ./server
-```
-
-`gx run` は起動するが実行を保持する。
-`ccux exec` はファイルマッピングを環境に追加して、自分を `./server` で置き換える。
-最終的に動いているのは `./server` だけで、プロセスツリーに余分なものは残らない。
+`--user app:app` が `gx` レイヤーにある。
+「ランタイムアイデンティティを確立してから内側に入る」という設計が、コマンドの構造に直接現れている。
+`setpriv` や `sudo -u` では、どのタイミングで特権が切り替わるかがシェルスクリプトに埋もれる。
 
 ## `ccux` を次に作った
 
 `gx` でランタイムエンベロープを作れるようになったが、すぐに問題が見えた。
+
+ファイル由来の環境変数を注入したい。シェルなしで、だ。
 
 ```sh
 gx run --clear-env --env PATH=/usr/bin:/bin --chdir /srv/app -- \
   sh -c 'CONFIG="$(cat /run/app-inputs/config.json)" && export CONFIG && exec ./server'
 ```
 
-シェルを持ち込まずにファイル由来の環境変数を注入する方法がない。
+シェルを持ち込んだ瞬間に、`gx` が提供した明示性が崩れる。
+フラグを読むだけで起動プランが分かる——その保証が消える。
 
-`envdir` は使えるが、ディレクトリ全体のファイルが自動的に env に流れ込む。
-`CONFIG=config.json` という「このファイルのこの内容をこの変数名で渡す」という明示的なマッピングが書けない。
+`envdir` は使えるが、ディレクトリ全体のファイルが自動で env に流れ込む。
+`CONFIG=config.json` という「このファイルをこの変数名で渡す」という明示的なマッピングが書けない。
 
 そこで `ccux` だ。
 
@@ -159,98 +195,24 @@ ccux exec \
 `--map CONFIG=config.json` は `/run/app-inputs/config.json` の内容を読んで `CONFIG` 環境変数に入れる。
 `--map-path CONFIG_PATH=config.json` は内容ではなくパス文字列 `/run/app-inputs/config.json` を `CONFIG_PATH` に入れる。
 
-この区別が実は重要で、プログラムによっては「ファイルの内容」を受け取る設計もあれば「ファイルのパス」を受け取る設計もある。
-`--map` と `--map-path` を明示的に分けることで、その意図が起動コマンドを読んだだけで分かる。
+プログラムによっては「ファイルの内容」を受け取る設計もあれば「ファイルのパス」を受け取る設計もある。
+`--map` と `--map-path` を分けることで、その意図が起動コマンドから読み取れる。
 
-### 機密情報をコピーしない
+### `env` に機密情報を乗せない
 
 ```sh
 ccux exec --from /run/secrets --map-path TOKEN_PATH=token.txt -- ./server
 ```
 
-`--map-path` だとファイルの中身を環境変数に展開しない。
-パスだけ渡せば、プログラム自身がファイルを読む——という設計のプログラムなら、`env` に機密情報が乗らない。
-
+`--map-path` はファイルの中身を環境変数に展開しない。
 `env` に乗った文字列は `ps` や `/proc/<pid>/environ` から読まれるリスクがある。
-このトレードオフをコマンドラインで表現できるのが `ccux` の設計ポイントのひとつだ。
+プログラム自身がファイルを読む設計なら、パスだけ渡せばいい。
+
+このトレードオフがコマンドラインに表れている。
 
 ## `gx + ccux` で何が変わるか
 
-既存ツールの問題に戻ろう。
-
-```sh
-#!/bin/sh
-set -eu
-
-cd /srv/app
-export PATH=/usr/bin:/bin
-export APP_ENV=prod
-CONFIG="$(cat /run/app-inputs/config.json)"
-export CONFIG
-
-exec flock -n /run/lock/server.lock \
-  timeout -k 5s 30s \
-  ./server
-```
-
-これと同じ意図を `gx + ccux` で書くとこうなる:
-
-```sh
-gx run \
-  --clear-env \
-  --env PATH=/usr/bin:/bin \
-  --env APP_ENV=prod \
-  --chdir /srv/app \
-  -- \
-  lockx run \
-    --lock /run/lock/server.lock \
-    --nonblock \
-    -- \
-    ttmx run \
-      --timeout 30s \
-      --grace 5s \
-      -- \
-      ccux exec \
-        --from /run/app-inputs \
-        --map CONFIG=config.json \
-        -- \
-        ./server
-```
-
-文字数は増えた。ただ、何が変わったか。
-
-**レイヤーが見える。** ランタイムは `gx`、ロックは `lockx`、タイムアウトは `ttmx`、ファイルマッピングは `ccux`。
-それぞれの関心が分離して、対応するレイヤーのところに書いてある。
-
-**変更が局所化される。** タイムアウトを `30s` から `90s` に変えたいなら `ttmx` の行だけ触ればいい。
-ログ出力先を変えたいなら `ffdx` の行だけ触ればいい。
-それ以外のレイヤーに手を入れる必要がない。
-
-**inspect が合成できる。** シェルスクリプトのドライランは難しい——`set -n` で構文チェックはできるが、環境変数の展開や `cat` の結果は確認できない。
-llux スタイルでは `run` を `inspect` に変えるだけで、すべてのレイヤーの計画を実行前に確認できる。
-
-## 技術的に面白いところ
-
-### 環境境界の可視化
-
-シェルスクリプトでよく起きるバグがある。
-
-```sh
-CONFIG="$(cat /run/app-inputs/config.json)"
-export CONFIG
-
-env -i PATH=/usr/bin:/bin APP_ENV=prod sh -c '
-  cd /srv/app
-  ./server
-'
-```
-
-これは壊れている。`CONFIG` は `env -i` の前に計算されているが、`env -i` がそれを破棄する。
-`./server` が受け取る `CONFIG` は空だ。
-
-このバグは見つけにくい。`env -i` の前後で何が生き残るかを、コードを読んで推論する必要がある。
-
-`gx --clear-env` を使うと、環境がリセットされるタイミングが構造として見える:
+最初に挙げたシェルスクリプトの意図を `gx + ccux` で書くとこうなる:
 
 ```sh
 gx run \
@@ -266,83 +228,29 @@ gx run \
     ./server
 ```
 
-`gx` が環境をリセットして、その後 `ccux` がファイルから変数を注入する。
-順序が構造として表現されているので、「どの変数がどの段階で入るか」をシミュレートしなくていい。
+`gx run` は起動を保持しつつ待機する。`ccux exec` はファイルマッピングを環境に追加して、`execve` で自分を `./server` に置き換える。
+最終的にプロセスツリーに残るのは `./server` だけだ。`gx` も `ccux` も消えている。
 
-### 権限境界が起動設計の一部になる
+exec チェーンが持つ意味はそこにある——合成のための層を積んでも、実行時には対象プロセス一本になる。
 
-`setpriv` や `sudo -u app` は強力だが、「どの処理が特権昇格の前に行われて、どの処理が後か」がシェルスクリプトに埋もれる。
+**変更が局所化される。** ファイルマッピングを変えたいなら `ccux` の行だけ触ればいい。
+ランタイムアイデンティティを変えたいなら `gx` の行だけ触ればいい。
 
-```sh
-gx run \
-  --clear-env \
-  --env PATH=/usr/bin:/bin \
-  --user app:app \
-  --chdir /srv/app \
-  -- \
-  lockx run \
-    --lock /run/lock/server.lock \
-    --wait 10s \
-    -- \
-    ./server
-```
+**inspect が使える。** `gx inspect --json` で全設定を実行前に確認できる。
+CI で期待する JSON と diff を取れば、起動設定の変化がプルリクエストに見える。
 
-`--user app:app` が `gx` レイヤーにある。これは「ランタイムアイデンティティを確立してから、内側のレイヤーに入る」という設計を直接表現している。
-lock ファイルの取得が `app` ユーザーで行われることが、コマンドの構造から読み取れる。
+## 動機
 
-### JSON で起動プランを扱う
+結局のところ、これは「推論の問題」だ。
 
-```sh
-gx inspect --json \
-  --clear-env \
-  --env PATH=/usr/bin:/bin \
-  --user app:app \
-  --chdir /srv/app \
-  -- ./server | jq .
-```
+シェルスクリプトを読むとき、人は環境変数の流れを頭の中でシミュレートしている。
+`env -i` の前後、`export` のタイミング、評価順序——それらを追って、最後に「たぶんこうなるはずだ」と結論を出す。
 
-```json
-{
-  "mode": "inspect",
-  "program": "./server",
-  "resolved_path": "/srv/app/server",
-  "argv": ["./server"],
-  "clear_env": true,
-  "env": [
-    {"key": "PATH", "value": "/usr/bin:/bin"}
-  ],
-  "chdir": "/srv/app",
-  "user": "app",
-  "uid": 1001,
-  "group": "app",
-  "gid": 1002
-}
-```
+たぶん、だ。
 
-起動プランがデータ構造として手に入る。
-CI で期待する JSON と diff を取れる。プログラムで検証できる。バージョン管理できる。
+`gx run ... -- ccux exec ... -- ./server` を読むとき、推論は要らない。
+書いてある通りに動く。`gx inspect --json` を叩けば、実行前に全部見える。
+プルリクエストに起動プランの diff が載る。「たぶんこのコミットで直った」ではなく、何が変わったかが見える。
 
-シェルスクリプトの「起動前の状態」を機械可読にする方法は、通常存在しない。
-
-## llux という発想
-
-`gx` と `ccux` は llux ファミリーの一部だ。
-
-llux は「launch style」の略称ではなく、命名の感覚として `lx` を核にした組み合わせで——ただ `llux` と書いたときに、プロセス起動の設計思想を持つツール群の名前として収まりがいいと感じている。
-
-ファミリーには他にも `lockx`（ロック）、`ttmx`（タイムアウト）、`ffdx`（stdio ルーティング）がある。
-それぞれが一つの関心だけを持ち、`exec` を通して次のツールにつないでいく。
-
-```
-gx → lockx → ttmx → ffdx → ccux → target
-```
-
-このチェーンのどこかを変えるとき、変更は一箇所に収まる。
-チェーンを読むとき、起動の意図が上から下へ流れている。
-
-既存ツールは悪くない。ただ、シェルが合成の媒体である限り、シェルに設計負債が積まれていく。
-llux スタイルは「合成をシェルの外に出す」という、地味だが根本的な賭けだ。
-
-実行前に全レイヤーを inspect できて、変更が局所的で、環境境界が構造として見える——それだけで、本番環境のプロセス起動がずいぶん読みやすくなる。
-
-それが `gx` と `ccux` を作った動機だ。
+40 行のシェルスクリプトと、それを読む 10 分と、それでも残る「たぶん」——
+`gx` と `ccux` はその「たぶん」を消すために作った。
