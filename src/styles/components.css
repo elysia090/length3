@@ -488,10 +488,10 @@ a.crumb:active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.5rem;
-  min-width: 2.5rem;
-  padding: 0.375rem;
-  border: 0.0625rem solid var(--rule);
+  min-height: 2rem;
+  min-width: 2rem;
+  padding: 0.25rem;
+  border: 0.0625rem solid var(--surface-line);
   border-radius: var(--radius-md);
   background: var(--surface-fill);
   color: var(--ink-2);
@@ -670,8 +670,8 @@ a.crumb:active {
   grid-area: input;
   width: 100%;
   min-width: 0;
-  min-height: 2.75rem;
-  border: 0.0625rem solid var(--surface-line);
+  min-height: 2.25rem;
+  border: 0.0625rem solid var(--surface-border);
   border-radius: var(--radius-pill);
   background-color: var(--bg-2);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Ccircle cx='6.5' cy='6.5' r='5' stroke='%237a7670' stroke-width='1.5'/%3E%3Cline x1='10.5' y1='10.5' x2='14.5' y2='14.5' stroke='%237a7670' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -682,7 +682,7 @@ a.crumb:active {
   font-family: var(--font-display);
   font-size: 1rem;
   color: var(--ink);
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  padding: 0.5rem 1rem 0.5rem 2.5rem;
   padding-right: 1rem;
 }
 
@@ -702,16 +702,16 @@ a.crumb:active {
   grid-area: clear;
   justify-self: end;
   flex-shrink: 0;
-  align-self: stretch;
+  align-self: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.75rem;
+  min-height: 1.75rem;
   height: auto;
   font-family: var(--font-mono);
   font-size: var(--font-ui-xs);
-  padding: 0 0.875rem;
-  border: 0.0625rem solid var(--surface-line);
+  padding: 0.25rem 0.75rem;
+  border: 0.0625rem solid var(--surface-border);
   border-radius: var(--radius-pill);
   background: var(--bg-2);
   color: var(--ink-2);
