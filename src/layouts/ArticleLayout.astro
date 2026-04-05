@@ -35,7 +35,13 @@ const dateStr = formatDate(publishDate, lang);
 const copy = getSiteCopy(lang);
 ---
 
-<BaseLayout title={title} description={description} lang={lang} ogType="article" publishDate={publishDate}>
+<BaseLayout
+  title={title}
+  description={description}
+  lang={lang}
+  ogType="article"
+  publishDate={publishDate}
+>
   <Header lang={lang} />
 
   <!-- SC 2.4.1: id="main-content" is the skip-link target -->
