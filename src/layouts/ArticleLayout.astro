@@ -35,7 +35,7 @@ const dateStr = formatDate(publishDate, lang);
 const copy = getSiteCopy(lang);
 ---
 
-<BaseLayout title={title} description={description} lang={lang}>
+<BaseLayout title={title} description={description} lang={lang} ogType="article" publishDate={publishDate}>
   <Header lang={lang} />
 
   <!-- SC 2.4.1: id="main-content" is the skip-link target -->
@@ -107,7 +107,7 @@ const copy = getSiteCopy(lang);
           </article>
 
           <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
-          <ArticleActions readingTime={readingTime} lang={lang} />
+          <ArticleActions readingTime={readingTime} lang={lang} title={title} />
         </div>
 
         <!-- Right column: intentionally empty — spec §1 -->

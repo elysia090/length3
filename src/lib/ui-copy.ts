@@ -1,4 +1,6 @@
-export type SiteLanguage = 'en' | 'ja';
+import type { SiteLanguage } from './types';
+
+export type { SiteLanguage };
 
 export interface SiteCopy {
   about: string;

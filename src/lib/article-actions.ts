@@ -29,15 +29,9 @@ interface ArticleActionsElements {
   shareButton: HTMLButtonElement;
   shareLabel: HTMLElement;
   shareRestoreLabel: string;
+  shareTitle: string;
   status: HTMLElement;
 }
-
-export const articleActionMessages = {
-  copyFailure: 'Could not copy the link. Copy the URL from the address bar.',
-  copySuccess: 'Link copied to clipboard.',
-  shareFailure: 'Could not share the article. Try copying the URL instead.',
-  shareSuccess: 'Share dialog completed.',
-} as const;
 
 let cleanupArticleActions: (() => void) | null = null;
 
@@ -74,7 +68,7 @@ export function initializeArticleActions() {
       const share = getShare();
       if (share) {
         share({
-          title: document.title,
+          title: elements.shareTitle,
           url: window.location.href,
         })
           .then(() => {
@@ -209,6 +203,7 @@ function getArticleActionsElements(doc: Document): ArticleActionsElements | null
     shareButton,
     shareLabel,
     shareRestoreLabel: copy.share,
+    shareTitle: container.dataset.title ?? document.title,
     status,
   };
 }

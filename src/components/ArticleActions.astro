@@ -4,9 +4,10 @@ import { formatCompactReadingTime, getSiteCopy } from '../lib/ui-copy';
 interface Props {
   lang?: 'en' | 'ja';
   readingTime: number;
+  title: string;
 }
 
-const { readingTime, lang = 'en' } = Astro.props;
+const { readingTime, lang = 'en', title } = Astro.props;
 const copy = getSiteCopy(lang);
 ---
 
@@ -25,7 +26,7 @@ const copy = getSiteCopy(lang);
 >
 </div>
 
-<div class="article-actions" data-lang={lang} data-reading-time={readingTime}>
+<div class="article-actions" data-lang={lang} data-reading-time={readingTime} data-title={title}>
   <div class="actions-group">
     <button class="action-row" id="copy-link-btn" aria-label={copy.copyLinkAria}>
       <span class="action-dash" aria-hidden="true">—</span>

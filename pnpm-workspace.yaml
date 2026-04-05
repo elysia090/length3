@@ -1,4 +1,4 @@
-engineStrict: true
+engineStrict: false
 enablePrePostScripts: true
 shamefullyHoist: false
 strictPeerDependencies: false

@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { articleActionMessages, initializeArticleActions } from './article-actions';
+import { initializeArticleActions } from './article-actions';
+import { getSiteCopy } from './ui-copy';
+
+const copy = getSiteCopy('en');
 
 async function flushPromises() {
   await Promise.resolve();
@@ -114,7 +117,7 @@ describe('initializeArticleActions', () => {
 
     expect(elements.copyLabel.textContent).toBe('Copied!');
     frameQueue.shift()?.();
-    expect(elements.status.textContent).toBe(articleActionMessages.copySuccess);
+    expect(elements.status.textContent).toBe(copy.copySuccess);
 
     timeoutQueue.shift()?.();
     expect(elements.copyLabel.textContent).toBe('Copy link');
@@ -131,7 +134,7 @@ describe('initializeArticleActions', () => {
 
     expect(elements.shareLabel.textContent).toBe('Copied!');
     frameQueue.shift()?.();
-    expect(elements.status.textContent).toBe(articleActionMessages.copySuccess);
+    expect(elements.status.textContent).toBe(copy.copySuccess);
 
     timeoutQueue.shift()?.();
     expect(elements.shareLabel.textContent).toBe('Share');
@@ -155,7 +158,7 @@ describe('initializeArticleActions', () => {
 
     expect(elements.shareLabel.textContent).toBe('Failed');
     failing.frameQueue.shift()?.();
-    expect(elements.status.textContent).toBe(articleActionMessages.shareFailure);
+    expect(elements.status.textContent).toBe(copy.shareFailure);
     expect(warn).toHaveBeenCalledWith('[share]', expect.any(Error));
 
     failing.timeoutQueue.shift()?.();

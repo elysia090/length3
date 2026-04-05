@@ -683,7 +683,7 @@ a.crumb:active {
   font-size: 1rem;
   color: var(--ink);
   padding: 0.5rem 1rem 0.5rem 2.5rem;
-  padding-right: 1rem;
+  padding-right: 1rem !important;
 }
 
 #pagefind-ui .pagefind-ui__search-input[data-search-region='input']:focus-visible {
