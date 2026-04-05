@@ -9,10 +9,19 @@ interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  ogType?: string;
+  publishDate?: Date;
   lang?: 'en' | 'ja';
 }
 
-const { title, description = 'A technical blog.', ogImage, lang = 'en' } = Astro.props;
+const {
+  title,
+  description = 'A technical blog.',
+  ogImage,
+  ogType = 'website',
+  publishDate,
+  lang = 'en',
+} = Astro.props;
 const copy = getSiteCopy(lang);
 const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : undefined;
 ---
@@ -30,7 +39,8 @@ const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toStri
     {ogImage && <meta property="og:image" content={ogImage} />}
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
+    {publishDate && <meta property="article:published_time" content={publishDate.toISOString()} />}
     {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
   </head>
   <body>

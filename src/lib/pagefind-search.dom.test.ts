@@ -373,7 +373,6 @@ describe('createPagefindSearchController', () => {
 
     expect(form?.dataset.searchLayout).toBe('stack');
     expect(input?.dataset.searchRegion).toBe('input');
-    expect(input?.style.paddingRight).toBe('1rem');
     expect(input?.value).toBe('astro');
     expect(clearButton?.dataset.searchRegion).toBe('clear');
     expect(drawer?.dataset.searchRegion).toBe('results');
@@ -551,7 +550,7 @@ describe('createPagefindSearchController', () => {
 });
 
 describe('decorateSearchUi', () => {
-  it('adds stable layout hooks and resets Pagefind inline input padding', () => {
+  it('adds stable layout hooks to Pagefind DOM', () => {
     const { mount } = createSearchDom();
     mount.innerHTML = `
       <div class="pagefind-ui">
@@ -575,7 +574,6 @@ describe('decorateSearchUi', () => {
 
     expect(form?.dataset.searchLayout).toBe('stack');
     expect(input?.dataset.searchRegion).toBe('input');
-    expect(input?.style.paddingRight).toBe('1rem');
     expect(clearButton?.dataset.searchRegion).toBe('clear');
     expect(drawer?.dataset.searchRegion).toBe('results');
     expect(drawer?.dataset.searchScrollable).toBe('true');

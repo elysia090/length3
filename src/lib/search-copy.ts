@@ -1,6 +1,6 @@
-const SITE_LANGUAGES = ['en', 'ja'] as const;
+import type { SiteLanguage } from './types';
 
-export type SiteLanguage = (typeof SITE_LANGUAGES)[number];
+export type { SiteLanguage };
 
 export interface SearchCopy {
   clearSearch: string;

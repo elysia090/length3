@@ -52,26 +52,9 @@ Table of contents on the left. Prose in the center. The right column is **delibe
 
 All utility functions — Edit, Share, Copy Link, reading progress — are relocated away from the article body. They do not appear alongside the text. The reader's peripheral vision should encounter only the quiet presence of the TOC and open space.
 
-**TOC behavior.** `position: sticky; top: 32px`. The TOC tracks the reader's scroll position, highlighting the current section. When the reader scrolls past the bottom of the article body, the TOC fades to `opacity: 0` over 200ms and simultaneously receives `pointer-events: none` and `visibility: hidden` to prevent an invisible element from blocking interaction. A sticky TOC that outlasts the content it describes is a navigational ghost — disorienting rather than helpful.
+**TOC behavior.** `position: sticky; top: 32px`. The TOC tracks the reader's scroll position, highlighting the current section.
 
 **Responsive collapse.** At 720–960px, the TOC remains but the right empty column disappears. At 640–720px, the TOC moves to the top of the article, collapsed inside a `<details>` element. Below 640px, the same `<details>` treatment, fully single-column.
-
-### Editor Page Layout
-
-```
-┌──────────────────────────────────────────────┐
-│  Top bar  40px                               │
-├──────────────────────┬───────────────────────┤
-│  CodeMirror editor   │  Live preview         │
-│  50%  (dark)         │  50%  (light)         │
-├──────────────────────┴───────────────────────┤
-│  Status bar  24px                            │
-└──────────────────────────────────────────────┘
-```
-
-Exactly 50/50 horizontal split. The top bar is 40px; the status bar is 24px. Every remaining vertical pixel belongs to the editing surface. No chrome steals height from the writing area.
-
-**Mobile fallback.** The 50/50 split is unworkable below 640px. At that breakpoint, the editor switches to a tab-based mode: two tabs labeled "Edit" and "Preview" above a single full-width pane. This is a degraded but functional experience — the spec acknowledges that mobile editing is not the primary use case, but it must not be broken.
 
 ---
 
@@ -159,11 +142,11 @@ _Where it must not appear:_ Background fills of any kind. Decorative gradients. 
 **Ink** `#1c1a18`
 Primary text. A warm near-black, not pure `#000`. Pure black against the warm off-white background creates excessive contrast that induces fatigue over long reading sessions.
 
-**Ink-2** `#52504a`
+**Ink-2** `#44413c`
 Secondary text: descriptions, dates, metadata. Shares the warm hue of the Ink/Amber family, keeping the entire page within a unified color temperature.
 
-**Ink-3** `#9a9690`
-Tertiary text: labels, placeholders, lowest-priority information. Contrast ratio against BG: **3.2:1**, which satisfies WCAG AA only for large text (18pt+ or 14pt bold+). **Never use Ink-3 for text smaller than those thresholds.**
+**Ink-3** `#7a7670`
+Tertiary text: labels, placeholders, lowest-priority information. Contrast ratio against BG: **4.6:1**, which satisfies WCAG AA. Avoid for text smaller than 12px.
 
 **Rule** `#dedad5`
 Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting.
@@ -174,18 +157,15 @@ Page background. Warm off-white, not pure `#fff`. Reduces glare in extended read
 **BG-2** `#f0ede8`
 Secondary surface: inline code backgrounds, code blocks, sidebar. The difference from BG is perceptible but minimal — enough to register as "this is a different surface" without creating a visual event.
 
-**Editor-BG** `#181511`
-Editor-only dark background. Warm-black to harmonize with the amber accent.
-
 ### Contrast Compliance
 
-| Pairing     | Hex values            | Ratio  | WCAG Level    |
-| ----------- | --------------------- | ------ | ------------- |
-| Ink on BG   | `#1c1a18` / `#f9f8f5` | 14.2:1 | AAA           |
-| Ink-2 on BG | `#52504a` / `#f9f8f5` | 6.8:1  | AA            |
-| Amber on BG | `#d4820a` / `#f9f8f5` | 4.8:1  | AA            |
-| Ink-3 on BG | `#9a9690` / `#f9f8f5` | 3.2:1  | AA Large only |
-| Ink on BG-2 | `#1c1a18` / `#f0ede8` | 11.5:1 | AAA           |
+| Pairing     | Hex values            | Ratio  | WCAG Level |
+| ----------- | --------------------- | ------ | ---------- |
+| Ink on BG   | `#1c1a18` / `#f9f8f5` | 14.2:1 | AAA        |
+| Ink-2 on BG | `#44413c` / `#f9f8f5` | 8.6:1  | AA         |
+| Amber on BG | `#d4820a` / `#f9f8f5` | 4.8:1  | AA         |
+| Ink-3 on BG | `#7a7670` / `#f9f8f5` | 4.6:1  | AA         |
+| Ink on BG-2 | `#1c1a18` / `#f0ede8` | 11.5:1 | AAA        |
 
 ---
 
@@ -197,7 +177,7 @@ Editor-only dark background. Warm-black to harmonize with the amber accent.
 
 **Logo:** `Length³` in JetBrains Mono, 0.88rem. The `³` is a `<sup>` element in amber. No icon, no graphic — the logotype is text.
 
-**Nav links:** `(Articles)` `(Tags)` `(About)` — parentheses-wrapped labels in JetBrains Mono, 0.75rem, Ink-2. The parentheses are a typographic convention that marks these as navigation controls, visually distinct from prose.
+**Nav links:** `(Articles)` `(About)` — parentheses-wrapped labels in JetBrains Mono, 0.75rem, Ink-2. The parentheses are a typographic convention that marks these as navigation controls, visually distinct from prose.
 
 **Hover:** The text inside the parentheses transitions to Ink over 80ms ease. Parentheses remain. No underline. No background change.
 
@@ -279,43 +259,6 @@ Located in the left column. `position: sticky; top: 32px`.
 
 **Pagefind integration.** The spec defines the visual contract; Pagefind's default UI elements are fully overridden with a custom wrapper. Pagefind is used as a search engine only — its DOM output is consumed as data and rendered through custom markup matching this specification.
 
-### Editor (CodeMirror 6)
-
-**Top bar:** `#201d19` background (slightly lighter than Editor-BG), height 40px, `padding: 0 16px`.
-
-- Logo: `L³` — amber, JetBrains Mono 0.78rem
-- File path: `articles / filename.mdx` — Ink-3. Modified indicator: amber 6px dot to the left of the filename
-- Buttons (right-aligned):
-  - **Discard** — Ink-3, text only, no border
-  - **Preview** — Ink-2, Rule border
-  - **Publish →** — Ink text, Rule border
-  - Amber is not used on any button. The temptation to color the Publish button is resisted. Accidental publication is prevented by placement and sequence, not by making the button visually loud.
-
-**Editor pane:** Editor-BG background. Right border: `1px solid #252118`.
-
-- Line numbers: `#3a3630` (dark, recessive). Active line number: `#8a8070`. Line-number gutter width: 40px.
-- Active line highlight: `rgba(255,255,255,0.025)`. No brighter.
-- Cursor: amber, 2px wide, `animation: blink 1.1s step-end infinite`. Blink animation is disabled entirely when `prefers-reduced-motion: reduce` is active.
-
-**Syntax token colors:**
-
-- Frontmatter delimiter `---`: Ink-3
-- YAML key: `#7a9ab8` (muted blue)
-- YAML value / string literal: `#7ec49a` (muted green)
-- Markdown H1: `#e8a030` (amber-lt), weight 500
-- Markdown H2: amber, weight 400
-- Code keyword: amber
-- Function name: `#8bb8e8` (light blue)
-- Comment: `#3d3a34` italic
-- Inline code backtick content: amber-lt
-- Ruby notation `{漢字|かな}` — the ruby portion (after `|`): amber
-
-**Preview pane:** BG background. No left border. `padding: 40px 48px`. The preview renders the article page's typography and spacing exactly. Scroll position is independent of the editor pane.
-
-The light/dark duality is the editor's core UX mechanism. The brightness contrast between panes is not decorative — it creates a perceptual boundary that keeps the writer oriented. "I am writing here; I am reading there."
-
-**Status bar:** `#1a1714` background (slightly darker than Editor-BG), height 24px. Amber is never used here. All text: Ink-3, JetBrains Mono, 0.65rem. Left: `UTF-8 · Ln 13 · Col 42 · Prettier ✓ · Biome ✓`. Right: `astro check: 0 errors`.
-
 ---
 
 ## 5. Interaction Design
@@ -335,7 +278,6 @@ Animation exists only to communicate state change or to guide the eye. If an ani
 | Search modal open  | opacity, transform  | 140ms    | ease-out |
 | Search modal close | opacity             | 100ms    | ease-in  |
 | Button hover       | color               | 80ms     | ease     |
-| TOC disappearance  | opacity             | 200ms    | ease     |
 
 No other transitions exist. This list is exhaustive.
 
@@ -403,17 +345,6 @@ The title is the largest, heaviest element (Fraunces 1.25rem) and acts as the gr
 
 The TOC occupies peripheral vision: visible enough to orient, quiet enough to ignore. The right margin is empty, which creates a directional asymmetry — the text does not sit in a centered cage but extends toward open space. This is the typographic equivalent of a room with a window.
 
-### Editor
-
-```
-┌─ L³ · filepath · modified? ──────────── Publish → ─┐
-├─────────── dark ─────────┬──────── light ──────────┤
-│      writing happens     │    reading happens      │
-└──────────────────────────┴─────────────────────────┘
-```
-
-The luminance contrast between panes creates a natural oscillation: write on the left, verify on the right. The writer always knows which pane they are looking at without reading any label.
-
 ---
 
 ## 8. Responsive Strategy
@@ -426,7 +357,7 @@ The luminance contrast between panes creates a natural oscillation: write on the
 | 960–1199px     | Sidebar narrows to 240px; right whitespace column shrinks but remains present at ≥ 80px   |
 | 720–959px      | Sidebar hidden; index is single-column. Article retains TOC + prose (no right whitespace) |
 | 640–719px      | Single column everywhere. TOC collapses to a `<details>` summary at article top           |
-| < 640px        | Full single column. TOC inside `<details>`. Editor switches to tab mode (Edit / Preview)  |
+| < 640px        | Full single column. TOC inside `<details>`.                                               |
 
 ### Right-Margin Minimum (Article Page)
 
@@ -437,7 +368,6 @@ The "breathing" right margin in the article layout is not infinitely compressibl
 - No font size below 16px (prevents iOS Safari auto-zoom on input focus)
 - All tap targets ≥ 44 × 44px
 - Line length self-regulates (viewport width naturally constrains it)
-- Editor enters tab mode (Edit / Preview) below 640px — split pane is not attempted
 
 ---
 

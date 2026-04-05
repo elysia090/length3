@@ -297,7 +297,6 @@ export function decorateSearchField(field: HTMLInputElement | null, copy: Search
   field.setAttribute('placeholder', copy.searchPlaceholder);
   field.setAttribute('spellcheck', 'false');
   field.dataset.searchRegion = 'input';
-  field.style.paddingRight = '1rem';
 }
 
 export function decorateSearchUi(
@@ -403,11 +402,11 @@ export function canonicalizePagefindResultUrl(url: string, origin: string) {
       const pathname = resolved.pathname.slice(0, -'.html'.length) || '/';
       return `${pathname}${resolved.search}${resolved.hash}`;
     }
+
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
   } catch {
     return url;
   }
-
-  return url;
 }
 
 export function canonicalizePagefindResult(result: PagefindSearchResult, origin: string) {
@@ -564,12 +563,19 @@ function setBusy(mount: HTMLElement, isBusy: boolean) {
   mount.setAttribute('aria-busy', String(isBusy));
 }
 
+function renderMessage(mount: HTMLElement, className: string, text: string) {
+  const p = mount.ownerDocument.createElement('p');
+  p.className = className;
+  p.textContent = text;
+  mount.replaceChildren(p);
+}
+
 function renderLoading(mount: HTMLElement, copy: SearchCopy) {
-  mount.innerHTML = `<p class="search-loading">${copy.loading}</p>`;
+  renderMessage(mount, 'search-loading', copy.loading);
 }
 
 function renderUnavailable(mount: HTMLElement, copy: SearchCopy): SearchBootstrapResult {
-  mount.innerHTML = `<p class="search-unavailable">${copy.unavailable}</p>`;
+  renderMessage(mount, 'search-unavailable', copy.unavailable);
   return { kind: 'unavailable', message: copy.unavailable };
 }
 
@@ -581,7 +587,7 @@ function renderError(
   copy: SearchCopy,
 ): SearchBootstrapResult {
   logError(phase, error);
-  mount.innerHTML = `<p class="search-error">${copy.error}</p>`;
+  renderMessage(mount, 'search-error', copy.error);
   return { kind: 'error', message: copy.error };
 }
 
