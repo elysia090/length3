@@ -41,6 +41,7 @@ const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toStri
     <meta property="og:description" content={description} />
     <meta property="og:type" content={ogType} />
     {publishDate && <meta property="article:published_time" content={publishDate.toISOString()} />}
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
     {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
   </head>
   <body>
