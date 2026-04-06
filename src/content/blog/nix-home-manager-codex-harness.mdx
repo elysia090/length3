@@ -139,41 +139,55 @@ Codex がプロジェクト外に出れば元の環境に戻る。
 
 ## Codex の信頼設定を自動化する
 
-Codex App は `config.toml` にプロジェクトパスを trust_level=trusted として明示しないと、
+Codex App は `config.toml` にプロジェクトパスを `trust_level = "trusted"` として明示しないと、
 そのディレクトリでコードを実行できない。
 
-毎回手で書くのは手間なので、home-manager のアクティベーションスクリプトで管理する。
+毎回手で書くのは面倒なので、home-manager のアクティベーションで自動生成する。
+ワークスペース一覧は一箇所で管理し、信頼設定と clone の両方に使い回す。
 
 ```nix
-# codex.nix
-{ config, lib, pkgs, ... }:
+# codex.nix — ワークスペース一覧・信頼設定・clone を一箇所で管理
+{ config, lib, ... }:
 let
-  trustedWorkspaces = [
-    "$HOME/workspaces/dotfiles"
-    "$HOME/workspaces/myproject"
+  workspaceRoot = "$HOME/workspaces";
+  workspaces = [
+    { slug = "myproject"; repo = "your-github/myproject"; }
+    { slug = "another";   repo = "your-github/another"; }
   ];
 
   configToml = ''
     [core]
     editor = "code"
 
-  '' + lib.concatMapStrings (path: ''
-    [projects."${path}"]
+  '' + lib.concatMapStrings (ws: ''
+    [projects."${workspaceRoot}/${ws.slug}"]
     trust_level = "trusted"
 
-  '') trustedWorkspaces;
+  '') workspaces;
 in {
+  # config.toml を再生成
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     mkdir -p "${config.xdg.configHome}/codex"
     cat > "${config.xdg.configHome}/codex/config.toml" << 'TOML'
     ${configToml}
     TOML
   '';
+
+  # 未 clone のワークスペースを clone
+  home.activation.codexWorkspaces = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    mkdir -p "${workspaceRoot}"
+    ${lib.concatMapStrings (ws: ''
+      if [ ! -d "${workspaceRoot}/${ws.slug}" ]; then
+        git clone "https://github.com/${ws.repo}.git" \
+          "${workspaceRoot}/${ws.slug}"
+      fi
+    '') workspaces}
+  '';
 }
 ```
 
 `home-manager switch` のたびに `config.toml` が再生成される。
-ワークスペースの追加・削除は Nix 側で管理できる。
+ワークスペースの追加・削除はこのリストを一行編集して再 switch するだけだ。
 
 ## WSLENV の同期
 
@@ -252,29 +266,13 @@ Codex App はこちらを使う設計になっているので問題ない。
 コンテキスト理解が向上すれば「main + 1 feature ブランチ」程度でこなせるようになるが、
 今そこを目指してブランチを減らすと、グローバル汚染のリスクが跳ね上がる。
 
-### Nix で正本を宣言する
+### Nix でワークスペースを宣言する
 
-home-manager の bootstrap workspaces に GitHub リポジトリを明示する。
+前節の `codex.nix` がそのまま正本の宣言になる。
 
-```nix
-# profiles/primary.nix（概念的な構成例）
-codex.bootstrap.workspaces = [
-  {
-    slug = "dotfiles";
-    local_only = true;  # dotfile 自体はローカル専用
-    kind = "infra";
-  }
-  {
-    slug = "myproject";
-    repo = "your-github/myproject";  # GitHub が正本
-    branch = "main";
-    kind = "project";
-  }
-];
-```
-
-ブランチの追加・削除も Nix 側で宣言する。
-`home-manager switch` のたびにシンボリックリンクが再同期される。
+ワークスペース一覧・信頼設定・clone を同じ `let` の `workspaces` リストで管理しているため、
+カスタムモジュールやオプション定義を作る必要がない。
+初回の `home-manager switch` でリポジトリが揃い、以降の `git pull` は各プロジェクトの責務だ。
 
 ## フロンティアモデルなしでは汚染は避けられない
 
