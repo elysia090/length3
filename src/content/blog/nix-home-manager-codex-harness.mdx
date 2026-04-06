@@ -1,0 +1,235 @@
+---
+title: Codex App の閉じ込めかた
+description: Nix + home-manager によるハーネスエンジニアリング。WSL 環境でシンボリックリンクがシェルを吸う問題と、bash 寄せによる対処を KISS 原則で整理する。
+publishDate: 2026-04-06
+tags: [nix, home-manager, codex, wsl, harness-engineering]
+draft: false
+lang: ja
+---
+
+AI コーディングエージェントをローカルで動かすと、環境が汚染される。
+ツールが勝手にパッケージを入れ、シェルが書き換えられ、半年後には何が何だかわからない状態になる。
+
+Codex App を Nix + home-manager で「閉じ込める」設計にした。
+やったことと、踏んだ罠を記録しておく。
+
+## 前提：ハーネスとは何か
+
+ここでの「ハーネス」は、エージェントが動く環境を宣言的・冪等に管理する枠組みのことを指す。
+
+- エージェントが使えるツールは Nix パッケージとして明示する
+- シェル初期化・環境変数・プロジェクト信頼リストは home-manager で管理する
+- `home-manager switch` を叩けば常に同じ状態に戻る
+
+これが目標。
+
+## 基本構造
+
+flake.nix の骨格だけ示す。WSL 上の Ubuntu 向けなので `homeConfigurations` を使う。
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    home-manager = {
+      url = "github:nix-community/home-manager/release-25.05";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { nixpkgs, home-manager, ... }: {
+    homeConfigurations.primary = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      modules = [ ./homes/primary/home.nix ];
+    };
+  };
+}
+```
+
+home.nix はモジュール分割する。最小限の構成：
+
+```
+homes/primary/
+├── home.nix        # エントリポイント
+├── shell.nix       # シェル設定
+└── codex.nix       # Codex 固有の設定
+```
+
+## シェルの選択：bash に寄せる理由
+
+ここが最大の罠だった。
+
+### WSL とシンボリックリンクの相性
+
+home-manager は多くの設定をシンボリックリンクで管理する。
+`~/.zshrc` は実態として `/nix/store/xxx.../zshrc` を指すシンボリックリンクになる。
+
+Codex App は Windows 側のアプリケーションだ。
+WSL のサブシェルを起動する際、Windows 側のパス解決を経由する。
+このとき `/nix/store/...` へのシンボリックリンクが WSL の名前空間で解決されず、
+**シェルの初期化が壊れた状態で起動する**ことがある。
+
+zsh の場合は `$ZDOTDIR` を使って初期化ファイルを切り替える設計が必要になるが、
+`$ZDOTDIR` の設定自体が zsh の起動時に読まれる `.zshenv` に依存するため、
+「シンボリックリンクが解決できない → `.zshenv` が読めない → `$ZDOTDIR` が設定されない → 通常の `~/.zshrc` が読まれる」
+という連鎖が起きる。
+
+これがシェルが「吸われる」状態だ。
+Codex が用意したサンドボックス環境ではなく、ユーザーの通常の zshrc が読まれ、
+starship・direnv・fzf などの初期化コードが走って環境変数やPATHが変わる。
+ハーネスが機能しない。
+
+### bash を使う
+
+bash は初期化ファイルが単純だ。
+`~/.bash_profile`（ログインシェル時）と `~/.bashrc`（インタラクティブ時）しかない。
+Codex App が起動するサブシェルは非インタラクティブなので、
+`~/.bashrc` の大半は読まれない（`[ -z "$PS1" ] && return` パターンが機能する）。
+
+home.nix に以下を書く：
+
+```nix
+# shell.nix
+{ pkgs, ... }: {
+  programs.bash = {
+    enable = true;
+    # Codex セッション向けの最小エクスポートだけここに書く
+    profileExtra = ''
+      export SHELL="${pkgs.bash}/bin/bash"
+    '';
+  };
+
+  # zsh はインタラクティブ専用として残しておいてよい
+  programs.zsh.enable = true;
+
+  # WSL のデフォルトシェルを bash に向ける
+  home.sessionVariables.SHELL = "${pkgs.bash}/bin/bash";
+}
+```
+
+`SHELL` 環境変数を明示的に bash に向けることで、
+Codex が `$SHELL` を参照してサブプロセスを起動するときに bash が使われる。
+zsh はターミナルで手動で起動する用として残す。
+
+## パッケージ管理：プロジェクトローカルに閉じ込める
+
+Codex に渡すツールチェインは `home.packages` に書かない。
+**プロジェクトの `flake.nix` の `devShells` に書く**。
+
+```nix
+# プロジェクト側 flake.nix
+devShells.default = pkgs.mkShell {
+  packages = [ pkgs.nodejs pkgs.python3 pkgs.uv ];
+};
+```
+
+home-manager 側には direnv + nix-direnv だけ入れる：
+
+```nix
+# shell.nix に追加
+programs.direnv = {
+  enable = true;
+  nix-direnv.enable = true;
+};
+```
+
+プロジェクトルートに `.envrc` を置くだけで、
+Codex がそのディレクトリで作業するときは自動的に devShell が有効になる。
+Codex がプロジェクト外に出れば元の環境に戻る。
+
+## Codex の信頼設定を自動化する
+
+Codex App は `config.toml` にプロジェクトパスを trust_level=trusted として明示しないと、
+そのディレクトリでコードを実行できない。
+
+毎回手で書くのは手間なので、home-manager のアクティベーションスクリプトで管理する。
+
+```nix
+# codex.nix
+{ config, lib, pkgs, ... }:
+let
+  trustedWorkspaces = [
+    "$HOME/workspaces/dotfiles"
+    "$HOME/workspaces/myproject"
+  ];
+
+  configToml = ''
+    [core]
+    editor = "code"
+
+  '' + lib.concatMapStrings (path: ''
+    [projects."${path}"]
+    trust_level = "trusted"
+
+  '') trustedWorkspaces;
+in {
+  home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    mkdir -p "${config.xdg.configHome}/codex"
+    cat > "${config.xdg.configHome}/codex/config.toml" << 'TOML'
+    ${configToml}
+    TOML
+  '';
+}
+```
+
+`home-manager switch` のたびに `config.toml` が再生成される。
+ワークスペースの追加・削除は Nix 側で管理できる。
+
+## WSLENV の同期
+
+Windows 側の環境変数と WSL 側を橋渡しする `WSLENV` も宣言的に管理する。
+
+アクティベーション時に PowerShell 経由で現在の `WSLENV` を読み取り、
+必要なエントリを追加してから書き戻す：
+
+```nix
+home.activation.syncWslenv = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+  # PowerShell が使える環境（WSL on Windows）のみ実行
+  if command -v powershell.exe >/dev/null 2>&1; then
+    current=$(powershell.exe -NoProfile -Command \
+      "[Environment]::GetEnvironmentVariable('WSLENV', 'User')" \
+      2>/dev/null || echo "")
+
+    # 必要なエントリが既に含まれていれば何もしない
+    if [[ "$current" != *"GITHUB_TOKEN"* ]]; then
+      updated="''${current:+$current:}GITHUB_TOKEN/u"
+      powershell.exe -NoProfile -Command \
+        "[Environment]::SetEnvironmentVariable('WSLENV', '$updated', 'User')" \
+        >/dev/null 2>&1 || true
+    fi
+  fi
+'';
+```
+
+ここで `/u` フラグは「WSL→Windows の一方向に共有」を意味する。
+MCP サーバーが必要とする環境変数をこの方式で渡す。
+
+## KISS 原則で削ぎ落とすもの
+
+ドットファイルは肥大化しやすい。Codex ハーネスで実際に必要なものだけを書く。
+
+**要る：**
+- `programs.bash.enable = true` + `$SHELL` の固定
+- `programs.direnv` + `nix-direnv`
+- `home.activation.codexConfig` による config.toml 管理
+
+**要らない：**
+- starship（Codex のセッション中は見えない）
+- zsh の autosuggestion / syntax highlighting（インタラクティブ専用）
+- fzf のシェル統合（同上）
+- カスタムシェルエイリアス群（Codex は自分で適切なコマンドを組み立てる）
+
+プロンプトや補完設定はインタラクティブなターミナル用の話だ。
+Codex セッションには不要であり、初期化コストだけかかって邪魔になることがある。
+
+## まとめ
+
+Codex App を Nix + home-manager で閉じ込める要点：
+
+1. **シェルは bash に寄せる** — WSL 経由のシンボリックリンク問題を避けるため
+2. **ツールはプロジェクトの devShell に** — home.packages に入れない
+3. **direnv で境界を引く** — プロジェクトに入ったらツールが有効、出たら戻る
+4. **アクティベーションで config.toml を管理** — 信頼設定を宣言的に
+
+ドットファイルに全部詰め込むのではなく、「Codex セッションで本当に必要なもの」だけを考えることが先だ。
+それ以外は削る。
