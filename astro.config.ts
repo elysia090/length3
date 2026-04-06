@@ -4,6 +4,7 @@ import { defineConfig, sessionDrivers } from 'astro/config';
 import segmentedPagefind from './src/integrations/segmented-pagefind';
 
 export default defineConfig({
+  site: 'https://lengh3.com',
   output: 'static',
   adapter: cloudflare({
     imageService: 'passthrough',
