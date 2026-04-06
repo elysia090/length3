@@ -34,7 +34,7 @@ describe('segmentJapaneseSearchText', () => {
 });
 
 describe('buildSyntheticSearchHtml', () => {
-  it('passes through non-Japanese documents unchanged', () => {
+  it('passes through non-Japanese documents without code blocks unchanged', () => {
     const html = `<!doctype html><html lang="en"><head><title>Astro Pagefind</title></head><body><article data-pagefind-body>Astro Pagefind</article></body></html>`;
 
     expect(buildSyntheticSearchHtml(html)).toBe(html);
@@ -44,6 +44,26 @@ describe('buildSyntheticSearchHtml', () => {
     const html = `<!doctype html><html lang="ja"><head><title>日本語タイポグラフィ</title></head><body><main>本文なし</main></body></html>`;
 
     expect(buildSyntheticSearchHtml(html)).toBe(html);
+  });
+
+  it('adds data-pagefind-ignore to pre elements in non-Japanese documents', () => {
+    const html = `<!doctype html><html lang="en"><head><title>Code Example</title></head><body><article data-pagefind-body><p>Some text</p><pre><code>div { color: red; }</code></pre></article></body></html>`;
+
+    const result = buildSyntheticSearchHtml(html);
+
+    expect(result).toContain('data-pagefind-ignore');
+    expect(result).toContain('<pre data-pagefind-ignore');
+    expect(result).toContain('Some text');
+  });
+
+  it('only ignores pre elements inside the pagefind body', () => {
+    const html = `<!doctype html><html lang="en"><head><title>Code Example</title></head><body><pre><code>outside body</code></pre><article data-pagefind-body><pre><code>inside body</code></pre></article></body></html>`;
+
+    const result = buildSyntheticSearchHtml(html);
+
+    // Only the pre inside data-pagefind-body should get data-pagefind-ignore
+    const insideMatch = result.match(/<article[^>]*>[\s\S]*?<\/article>/);
+    expect(insideMatch?.[0]).toContain('data-pagefind-ignore');
   });
 
   it('segments Japanese searchable text and skips ignored nodes', () => {
@@ -57,6 +77,15 @@ describe('buildSyntheticSearchHtml', () => {
     expect(result).toContain('除外テキスト');
     expect(result).toContain('const message = "日本語";');
     expect(result).not.toContain('除外 テキスト');
+  });
+
+  it('adds data-pagefind-ignore to pre elements in Japanese documents', () => {
+    const html = `<!doctype html><html lang="ja"><head><title>コード例</title></head><body><article data-pagefind-body><p>本文テキスト</p><pre><code>.cls { color: red; }</code></pre></article></body></html>`;
+
+    const result = buildSyntheticSearchHtml(html);
+
+    expect(result).toContain('<pre data-pagefind-ignore');
+    expect(result).toContain('本文 テキスト');
   });
 });
 
