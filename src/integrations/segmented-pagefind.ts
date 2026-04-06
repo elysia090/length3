@@ -208,7 +208,10 @@ export async function collectContentFiles(contentDir: string): Promise<string[]>
 }
 
 export function buildSyntheticSearchHtml(html: string): string {
-  if (!isJapaneseLanguage(readDocumentLanguage(html))) {
+  const isJapanese = isJapaneseLanguage(readDocumentLanguage(html));
+  const hasCodeBlocks = /<pre[\s>]/i.test(html);
+
+  if (!isJapanese && !hasCodeBlocks) {
     return html;
   }
 
@@ -218,6 +221,14 @@ export function buildSyntheticSearchHtml(html: string): string {
 
   if (!pagefindBody) {
     return html;
+  }
+
+  for (const pre of pagefindBody.querySelectorAll('pre')) {
+    pre.setAttribute('data-pagefind-ignore', '');
+  }
+
+  if (!isJapanese) {
+    return dom.serialize();
   }
 
   document.documentElement.lang = SEARCH_INDEX_LANGUAGE;
