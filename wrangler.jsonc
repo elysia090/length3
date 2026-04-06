@@ -3,10 +3,6 @@
   "name": "length3",
   "compatibility_date": "2026-03-17",
   "compatibility_flags": ["nodejs_compat"],
-  "routes": [
-    { "pattern": "lengh3.com", "custom_domain": true },
-    { "pattern": "www.lengh3.com", "custom_domain": true }
-  ],
   "observability": {
     "enabled": true
   }
