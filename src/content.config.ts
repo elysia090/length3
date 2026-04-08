@@ -1,11 +1,12 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'zod';
+import { BLOG_COLLECTION_LOADER_BASE } from './config/content';
 
 const blog = defineCollection({
   loader: glob({
     pattern: '**/*.{md,mdx}',
-    base: './src/content/blog',
+    base: BLOG_COLLECTION_LOADER_BASE,
   }),
   schema: z.object({
     title: z.string(),

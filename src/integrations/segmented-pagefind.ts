@@ -4,12 +4,12 @@ import { fileURLToPath } from 'node:url';
 import type { AstroIntegration } from 'astro';
 import { JSDOM } from 'jsdom';
 import { createIndex, type PagefindServiceConfig } from 'pagefind';
+import { BLOG_COLLECTION_DIRECTORY } from '../config/content';
 
 const SEARCH_INDEX_LANGUAGE = 'en' as const;
 const HTML_EXTENSION = '.html';
 const MARKDOWN_EXTENSION_PATTERN = /\.mdx?$/i;
 const PAGEFIND_ROUTE_PREFIX = '/pagefind/';
-const BLOG_CONTENT_DIRECTORY = path.join('src', 'content', 'blog');
 const JAPANESE_SCRIPT_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 const WORDLIKE_PATTERN = /[\p{Letter}\p{Number}]/u;
 const HTML_LANG_ATTRIBUTE_PATTERN = /<html\b[^>]*\blang\s*=\s*["']([^"']+)["']/iu;
@@ -173,7 +173,7 @@ export async function collectIndexablePathnames(
   projectRoot: string,
   builtPages: BuiltPage[],
 ): Promise<string[]> {
-  const contentSlugs = await collectContentSlugs(path.join(projectRoot, BLOG_CONTENT_DIRECTORY));
+  const contentSlugs = await collectContentSlugs(path.join(projectRoot, BLOG_COLLECTION_DIRECTORY));
   const articlePathnames = new Set([...contentSlugs].map((slug) => normalizePathname(`/${slug}`)));
 
   return builtPages

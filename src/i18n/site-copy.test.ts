@@ -4,7 +4,7 @@ import {
   formatCompactReadingTime,
   formatRemainingReadingTime,
   getSiteCopy,
-} from './ui-copy';
+} from './site-copy';
 
 describe('getSiteCopy', () => {
   it('returns English UI labels for Japanese pages', () => {

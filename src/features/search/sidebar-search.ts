@@ -1,19 +1,28 @@
-import { startBenchProfile } from './bench-profile';
+import { startBenchProfile } from '../../shared/bench-profile';
 import { createPagefindSearchController, type PagefindSearchController } from './pagefind-search';
 
 interface SearchModalRuntime {
   searchController: PagefindSearchController;
 }
 
-export function initializeSidebarSearch(browserDocument: Document = document) {
+let sidebarSearchSequence = 0;
+
+export function initializeSidebarSearch(root: ParentNode = document) {
+  for (const searchRoot of resolveSearchRoots(root)) {
+    initializeSidebarSearchRoot(searchRoot);
+  }
+}
+
+function initializeSidebarSearchRoot(searchRoot: HTMLElement) {
+  const browserDocument = searchRoot.ownerDocument;
   const finishProfile = startBenchProfile('sidebar.init', {
     documentLang: browserDocument.documentElement.lang || 'unknown',
   });
 
   try {
     const browserWindow = browserDocument.defaultView ?? window;
-    const trigger = browserDocument.getElementById('search-trigger');
-    const modal = browserDocument.getElementById('search-modal');
+    const trigger = searchRoot.querySelector('[data-search-trigger]');
+    const modal = searchRoot.querySelector('[data-search-modal]');
 
     if (!(trigger instanceof HTMLButtonElement) || !(modal instanceof HTMLDialogElement)) {
       return;
@@ -22,10 +31,11 @@ export function initializeSidebarSearch(browserDocument: Document = document) {
     const searchTrigger = trigger;
     const searchModal = modal;
 
-    if (searchModal.dataset.searchInitialized === 'true') {
+    if (searchRoot.dataset.searchInitialized === 'true') {
       return;
     }
-    searchModal.dataset.searchInitialized = 'true';
+    searchRoot.dataset.searchInitialized = 'true';
+    searchTrigger.setAttribute('aria-controls', ensureElementId(searchModal, 'search-modal'));
 
     let modalRuntime: SearchModalRuntime | null = null;
 
@@ -34,17 +44,17 @@ export function initializeSidebarSearch(browserDocument: Document = document) {
         return modalRuntime;
       }
 
-      const template = browserDocument.getElementById('search-modal-template');
+      const template = searchRoot.querySelector('[data-search-modal-template]');
       if (!(template instanceof HTMLTemplateElement)) {
         return null;
       }
 
       searchModal.replaceChildren(template.content.cloneNode(true));
 
-      const closeButton = browserDocument.getElementById('search-close');
-      const pagefindMount = browserDocument.getElementById('pagefind-ui');
-      const emptyState = browserDocument.getElementById('search-empty-state');
-      const status = browserDocument.getElementById('search-status');
+      const closeButton = searchModal.querySelector('[data-search-close]');
+      const pagefindMount = searchModal.querySelector('[data-pagefind-ui]');
+      const emptyState = searchModal.querySelector('[data-search-empty-state]');
+      const status = searchModal.querySelector('[data-search-status]');
 
       if (
         !(closeButton instanceof HTMLButtonElement) ||
@@ -61,7 +71,7 @@ export function initializeSidebarSearch(browserDocument: Document = document) {
         focusMode: 'desktop-only',
         language: modalLanguage,
         mount: pagefindMount,
-        mountSelector: '#pagefind-ui',
+        mountSelector: `#${ensureElementId(pagefindMount, 'pagefind-ui')}`,
         status,
       });
 
@@ -107,6 +117,10 @@ export function initializeSidebarSearch(browserDocument: Document = document) {
       searchTrigger.focus();
     });
     browserDocument.addEventListener('keydown', (event) => {
+      if (!ownsGlobalShortcut(searchRoot)) {
+        return;
+      }
+
       if (
         !shouldOpenSearchFromKeydown(event.key, searchModal.open, browserDocument.activeElement)
       ) {
@@ -119,6 +133,28 @@ export function initializeSidebarSearch(browserDocument: Document = document) {
   } finally {
     finishProfile();
   }
+}
+
+function resolveSearchRoots(root: ParentNode): HTMLElement[] {
+  if (root instanceof HTMLElement && root.matches('[data-sidebar-search]')) {
+    return [root];
+  }
+
+  return [...root.querySelectorAll<HTMLElement>('[data-sidebar-search]')];
+}
+
+function ownsGlobalShortcut(searchRoot: HTMLElement) {
+  return searchRoot.ownerDocument.querySelector('[data-sidebar-search]') === searchRoot;
+}
+
+function ensureElementId(element: HTMLElement, prefix: string) {
+  if (element.id) {
+    return element.id;
+  }
+
+  sidebarSearchSequence += 1;
+  element.id = `${prefix}-${sidebarSearchSequence}`;
+  return element.id;
 }
 
 function shouldOpenSearchFromKeydown(

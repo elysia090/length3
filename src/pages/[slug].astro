@@ -4,8 +4,8 @@ export const prerender = true;
 import { render } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
-import { getBlogCatalog } from '../lib/blog-data';
-import type { BlogPost, ProcessedPost } from '../lib/types';
+import { getBlogCatalog } from '../features/blog/catalog';
+import type { BlogPost, ProcessedPost } from '../features/blog/types';
 
 export const getStaticPaths = (async () => {
   const { processedPosts } = await getBlogCatalog();

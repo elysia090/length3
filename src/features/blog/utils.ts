@@ -1,3 +1,4 @@
+import type { SiteLanguage } from '../../i18n/language';
 import type { BlogPost, ProcessedPost, TagResolver, TagRoute } from './types';
 
 /**
@@ -138,7 +139,7 @@ export function estimateReadingTime(text: string): number {
   return Math.max(1, Math.ceil(minutes));
 }
 
-export function formatDate(date: Date, locale: 'en' | 'ja'): string {
+export function formatDate(date: Date, locale: SiteLanguage): string {
   const parts = new Intl.DateTimeFormat(locale === 'ja' ? 'ja-JP' : 'en-CA', {
     year: 'numeric',
     month: '2-digit',

@@ -1,13 +1,14 @@
 ---
-import type { TagLink, TocHeading } from '../lib/types';
+import type { TocHeading } from '../features/article/types';
+import type { TagLink } from '../features/blog/types';
 import BaseLayout from './BaseLayout.astro';
 import TableOfContents from '../components/TableOfContents.astro';
 import ArticleActions from '../components/ArticleActions.astro';
 import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { formatDate } from '../lib/utils';
-import { formatArticleReadingTime, getSiteCopy } from '../lib/ui-copy';
+import { formatDate } from '../features/blog/utils';
+import { formatArticleReadingTime, getSiteCopy } from '../i18n/site-copy';
 
 interface Props {
   title: string;

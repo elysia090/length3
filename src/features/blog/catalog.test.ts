@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBlogCatalog } from './blog-data';
+import { buildBlogCatalog } from './catalog';
 import type { BlogPost } from './types';
 
 function makeEntry({
