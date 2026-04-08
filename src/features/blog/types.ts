@@ -1,7 +1,5 @@
 import type { CollectionEntry } from 'astro:content';
 
-export type SiteLanguage = 'en' | 'ja';
-
 export type BlogPost = CollectionEntry<'blog'>;
 export type BlogPostData = BlogPost['data'];
 
@@ -28,14 +26,3 @@ export interface ProcessedPost {
   description: string;
   tags: TagLink[];
 }
-
-export interface TocHeading {
-  depth: number;
-  slug: string;
-  text: string;
-}
-
-export type SearchBootstrapResult =
-  | { kind: 'ready' }
-  | { kind: 'unavailable'; message: string }
-  | { kind: 'error'; message: string };

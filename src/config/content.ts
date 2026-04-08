@@ -1,0 +1,2 @@
+export const BLOG_COLLECTION_DIRECTORY = 'src/content/blog';
+export const BLOG_COLLECTION_LOADER_BASE = `./${BLOG_COLLECTION_DIRECTORY}`;

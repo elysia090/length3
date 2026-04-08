@@ -1,4 +1,4 @@
-import { startBenchProfile } from './bench-profile';
+import { startBenchProfile } from '../../shared/bench-profile';
 
 let cleanupTableOfContents: (() => void) | null = null;
 

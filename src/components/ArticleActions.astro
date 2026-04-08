@@ -1,5 +1,5 @@
 ---
-import { formatCompactReadingTime, getSiteCopy } from '../lib/ui-copy';
+import { formatCompactReadingTime, getSiteCopy } from '../i18n/site-copy';
 
 interface Props {
   lang?: 'en' | 'ja';
@@ -60,7 +60,7 @@ const copy = getSiteCopy(lang);
 </div>
 
 <script>
-  import { initializeArticleActions } from '../lib/article-actions';
+  import { initializeArticleActions } from '../features/article/article-actions';
 
   initializeArticleActions();
 </script>

@@ -6,7 +6,7 @@ import ArticleCard from '../components/ArticleCard.astro';
 import Sidebar from '../components/Sidebar.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { getBlogCatalog } from '../lib/blog-data';
+import { getBlogCatalog } from '../features/blog/catalog';
 
 const { processedPosts, topics } = await getBlogCatalog();
 ---

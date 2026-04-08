@@ -1,4 +1,4 @@
-import type { SiteLanguage } from './types';
+import type { SiteLanguage } from './language';
 
 export type { SiteLanguage };
 

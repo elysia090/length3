@@ -1,9 +1,9 @@
-import { startBenchProfile } from './bench-profile';
+import type { SiteLanguage } from '../../i18n/language';
+import { startBenchProfile } from '../../shared/bench-profile';
 import {
   getPageLanguage,
   getSearchCopy,
   type SearchCopy,
-  type SiteLanguage,
   searchErrorMessage,
   searchUnavailableMessage,
 } from './search-copy';

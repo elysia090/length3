@@ -2,8 +2,8 @@
 export const prerender = true;
 
 import type { GetStaticPaths } from 'astro';
-import { getBlogCatalog } from '../../lib/blog-data';
-import type { ProcessedPost, TagRoute } from '../../lib/types';
+import { getBlogCatalog } from '../../features/blog/catalog';
+import type { ProcessedPost, TagRoute } from '../../features/blog/types';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ArticleCard from '../../components/ArticleCard.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getSiteCopy } from '../../i18n/site-copy';
 import { initializeArticleActions } from './article-actions';
-import { getSiteCopy } from './ui-copy';
 
 const copy = getSiteCopy('en');
 

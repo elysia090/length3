@@ -1,5 +1,6 @@
-import { startBenchProfile } from './bench-profile';
-import { formatRemainingReadingTime, getSiteCopy } from './ui-copy';
+import type { SiteLanguage } from '../../i18n/language';
+import { formatRemainingReadingTime, getSiteCopy } from '../../i18n/site-copy';
+import { startBenchProfile } from '../../shared/bench-profile';
 
 export interface ReadingProgressState {
   ariaValueNow: string;
@@ -22,7 +23,7 @@ interface ArticleActionsElements {
   copyRestoreLabel: string;
   copyTemporaryLabel: string;
   failureTemporaryLabel: string;
-  language: 'en' | 'ja';
+  language: SiteLanguage;
   minutesLeft: HTMLElement;
   percentRead: HTMLElement;
   progressBar: HTMLElement;
@@ -142,7 +143,7 @@ export function calculateReadingProgress({
   scrollHeight,
   scrollY,
   viewportHeight,
-}: ScrollMetrics & { language?: 'en' | 'ja'; readingTime: number }): ReadingProgressState {
+}: ScrollMetrics & { language?: SiteLanguage; readingTime: number }): ReadingProgressState {
   const totalScrollableHeight = Math.max(0, scrollHeight - viewportHeight);
   const percentRead =
     totalScrollableHeight > 0
