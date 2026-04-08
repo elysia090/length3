@@ -10,9 +10,11 @@ test('index route smoke', async ({ page }) => {
   await expect(page.locator('.article-card').first()).toBeVisible();
   await expect(page.locator('.sidebar')).toBeVisible();
   await expect(page.locator('.header-nav')).toHaveAttribute('aria-label', 'primary');
-  await page.locator('#search-trigger').click();
+  await page.locator('[data-search-trigger]').click();
   await expect(
-    page.locator('#pagefind-ui .pagefind-ui__search-input, #pagefind-ui .search-unavailable'),
+    page.locator(
+      '[data-pagefind-ui] .pagefind-ui__search-input, [data-pagefind-ui] .search-unavailable',
+    ),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
