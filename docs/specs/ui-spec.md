@@ -137,23 +137,31 @@ Color carries information. It is never applied for warmth, mood, or atmosphere. 
 ### Token Definitions
 
 **Amber** `#d4820a`
-The single accent color. Contrast ratio against BG: **4.8:1** (WCAG AA). Used exclusively for interactive signals and semantic markers.
+The single accent color. Used exclusively for interactive signals and semantic markers. Contrast against BG is **2.8:1** — a marker, not a text color. Anything amber that carries words uses **Amber-text** `#b45309` (**4.7:1**) instead. Earlier revisions of this document credited `#d4820a` with 4.8:1 and AA; that number was wrong, and the implementation has always used the darker variant for type.
 
-_Where it appears:_ Tag text. TOC active state (border + text). Hover text color on interactive elements. Ruby `<rt>` annotations. CodeMirror cursor. 1px left-border on lead paragraphs.
+_Where it appears:_ TOC active state (border + text). Hover text color on interactive elements. Ruby `<rt>` annotations. Keyword tokens in code. 1px left-border on lead paragraphs.
 
-_Where it must not appear:_ Background fills of any kind. Decorative gradients. Borders thicker than 1px (except the 2px TOC active indicator and the 2px code-block left border). Editor status bar. Publish button or any other action button.
+_Where it must not appear:_ Background fills of any kind. Decorative gradients. Borders thicker than 1px (except the 2px TOC active indicator and the 2px code-block left border). Publish button or any other action button.
 
-**Ink** `#1c1a18`
-Primary text. A warm near-black, not pure `#000`. Pure black against the warm off-white background creates excessive contrast that induces fatigue over long reading sessions.
+### Temperature
 
-**Ink-2** `#44413c`
-Secondary text: descriptions, dates, metadata. Shares the warm hue of the Ink/Amber family, keeping the entire page within a unified color temperature.
+The page is warm: paper, texture, and amber all sit on the warm side. Type does not. Ink, the secondary and tertiary greys, the rules, and the code surface each carry a small amount of blue — the same distance off neutral the palette used to carry in the opposite direction, no more.
 
-**Ink-3** `#7a7670`
-Tertiary text: labels, placeholders, lowest-priority information. Contrast ratio against BG: **4.6:1**, which satisfies WCAG AA. Avoid for text smaller than 12px.
+The reason is contrast, not mood. Two colors of equal lightness read as further apart when they sit on opposite sides of the wheel than when they sit on the same side, so cooling the type buys separation from the paper without darkening anything. The luminance formula weights blue least, so the shift also lowers measured luminance slightly: every foreground token gained contrast in the move.
 
-**Rule** `#dedad5`
-Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting.
+The rule for new colors: **warm is for what the reader acts on, cool is for what the reader reads.** A new accent joins Amber on the warm side. A new text or rule color joins Ink on the cool side. Nothing sits at neutral, because neutral is what makes a palette look unconsidered.
+
+**Ink** `#181a1c`
+Primary text. A cool near-black, not pure `#000`. Pure black against the off-white background creates excessive contrast that induces fatigue over long reading sessions.
+
+**Ink-2** `#3c4144`
+Secondary text: descriptions, dates, metadata.
+
+**Ink-3** `#666c70`
+Tertiary text: labels, placeholders, lowest-priority information. **5.0:1** against BG and **4.6:1** against BG-2, so it clears AA on both surfaces it appears over. The previous value `#7a7670` was documented at 4.6:1 but measured **4.25:1** — it did not clear AA on either. Avoid for text smaller than 12px.
+
+**Rule** `#c5c8cb`
+Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting. Cooled by half the distance applied to type: a hairline covers more of the page than a glyph does, so the same shift reads stronger on it.
 
 **BG** `#f9f8f5`
 Page background. Warm off-white, not pure `#fff`. Reduces glare in extended reading sessions.
@@ -162,17 +170,23 @@ Page background. Warm off-white, not pure `#fff`. Reduces glare in extended read
 Secondary surface: table headers, sidebar. The difference from BG is perceptible but minimal — enough to register as "this is a different surface" without creating a visual event. Code no longer uses it; see §4.
 
 **Code surface** `#23262b`
-The only dark surface on the page, and the only place a cool hue appears. A dark gray carrying a small amount of blue: everything else on the page — paper, ink, rules, amber — is warm, so the code slab is the one element lit from the opposite side of the wheel. That is what the blue buys. The warm tokens on it (amber keywords, terracotta constants, parchment function names) read as complementary rather than as more of the same, so the block gains contrast without gaining darkness. Contrast against BG: **14.3:1**. Used for block code only — never for inline code, buttons, or panels.
+The only dark surface on the page. The cool shift that the type carries at glyph scale, carried at slab scale: against it, the warm code tokens (amber keywords, terracotta constants, parchment function names) read as complementary rather than as more of the same, so the block gains contrast without gaining darkness. Contrast against BG: **14.3:1**. Used for block code only — never for inline code, buttons, or panels.
 
 ### Contrast Compliance
 
-| Pairing     | Hex values            | Ratio  | WCAG Level |
-| ----------- | --------------------- | ------ | ---------- |
-| Ink on BG   | `#1c1a18` / `#f9f8f5` | 14.2:1 | AAA        |
-| Ink-2 on BG | `#44413c` / `#f9f8f5` | 8.6:1  | AA         |
-| Amber on BG | `#d4820a` / `#f9f8f5` | 4.8:1  | AA         |
-| Ink-3 on BG | `#7a7670` / `#f9f8f5` | 4.6:1  | AA         |
-| Ink on BG-2 | `#1c1a18` / `#f0ede8` | 11.5:1 | AAA        |
+Measured, not estimated. Ratios are WCAG 2.x relative luminance, rounded down to one decimal.
+
+| Pairing          | Hex values            | Ratio  | WCAG Level    |
+| ---------------- | --------------------- | ------ | ------------- |
+| Ink on BG        | `#181a1c` / `#f9f8f5` | 16.4:1 | AAA           |
+| Ink-2 on BG      | `#3c4144` / `#f9f8f5` | 9.7:1  | AAA           |
+| Ink-3 on BG      | `#666c70` / `#f9f8f5` | 5.0:1  | AA            |
+| Ink-3 on BG-2    | `#666c70` / `#f0ede8` | 4.6:1  | AA            |
+| Amber-text on BG | `#b45309` / `#f9f8f5` | 4.7:1  | AA            |
+| Amber on BG      | `#d4820a` / `#f9f8f5` | 2.8:1  | markers only  |
+| Ink on BG-2      | `#181a1c` / `#f0ede8` | 14.9:1 | AAA           |
+| Code fg on code  | `#d9d4cb` / `#23262b` | 10.2:1 | AAA           |
+| Rule on BG       | `#c5c8cb` / `#f9f8f5` | 1.6:1  | non-text, 1px |
 
 ---
 
