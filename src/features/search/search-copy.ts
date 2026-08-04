@@ -14,7 +14,6 @@ export interface SearchCopy {
   resultsLabel: string;
   searchDialogLabel: string;
   searchHintClose: string;
-  searchHintMobileOpen: string;
   searchHintNavigate: string;
   searchHintOpen: string;
   searchLabel: string;
@@ -35,7 +34,6 @@ const SEARCH_COPY_BY_LANGUAGE: Record<SiteLanguage, SearchCopy> = {
     resultsLabel: 'Search results',
     searchDialogLabel: 'Search',
     searchHintClose: 'Esc close',
-    searchHintMobileOpen: 'Tap a result to open',
     searchHintNavigate: '↑↓ navigate',
     searchHintOpen: '↵ open',
     searchLabel: 'Search articles',
@@ -54,7 +52,6 @@ const SEARCH_COPY_BY_LANGUAGE: Record<SiteLanguage, SearchCopy> = {
     resultsLabel: '検索結果',
     searchDialogLabel: '検索',
     searchHintClose: 'Esc 閉じる',
-    searchHintMobileOpen: '結果をタップして開く',
     searchHintNavigate: '↑↓ 移動',
     searchHintOpen: '↵ 開く',
     searchLabel: '記事を検索',

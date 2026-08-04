@@ -82,7 +82,7 @@
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  padding: 0.75rem 1rem;
+  padding: 0.25rem 0.375rem 0.25rem 1rem;
   border-bottom: 0.0625rem solid var(--rule);
   background: var(--bg-2);
 }
@@ -96,35 +96,31 @@
   color: var(--ink-2);
 }
 
-.search-header-icon {
-  flex-shrink: 0;
-  color: var(--amber-text);
-}
-
+/* 枠のないアイコンボタン。44px はタップターゲットの下限 (spec §8) で、
+   面ではなく余白で押せる範囲を確保する。 */
 .search-esc-btn {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2rem;
-  min-width: 2rem;
-  padding: 0.25rem;
-  border: 0.0625rem solid var(--surface-line);
-  border-radius: var(--radius-md);
-  background: var(--surface-fill);
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
   color: var(--ink-2);
   cursor: pointer;
   flex-shrink: 0;
   touch-action: manipulation;
   transition:
     color var(--transition-fast),
-    border-color var(--transition-fast),
     background-color var(--transition-fast);
 }
 
-.search-esc-btn:hover {
+.search-esc-btn:hover,
+.search-esc-btn:active {
   color: var(--ink);
-  border-color: var(--surface-border);
   background: var(--surface-fill-strong);
 }
 
@@ -151,8 +147,10 @@
   overflow: hidden;
 }
 
+/* 中身は ↑↓ / ↵ / Esc の説明なので、キーボードのない幅では帯ごと出さない。
+   aria-hidden の装飾要素であり、隠しても操作にも読み上げにも影響しない。 */
 .search-footer {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
@@ -173,18 +171,6 @@
   border-radius: var(--radius-xs);
   background: var(--bg);
   white-space: nowrap;
-}
-
-.search-hint--desktop {
-  display: none;
-}
-
-/* モバイルのヒントは短い文なので、キー表記の chip 装飾を外して地の文にする。 */
-.search-hint--mobile {
-  padding: 0;
-  border: none;
-  background: none;
-  white-space: normal;
 }
 
 .search-powered {
@@ -467,12 +453,8 @@ mark {
     max-height: calc(100dvh - clamp(1rem, 6vh, 3.5rem) - 2rem);
   }
 
-  .search-hint--desktop {
-    display: inline;
-  }
-
-  .search-hint--mobile {
-    display: none;
+  .search-footer {
+    display: flex;
   }
 
   .search-shortcut {

@@ -59,26 +59,6 @@ const siteCopy = getSiteCopy(lang);
          フォーカスリングが出る。 -->
     <div class="search-card" tabindex="-1" autofocus>
       <div class="search-card-header">
-        <svg
-          class="search-header-icon"
-          aria-hidden="true"
-          focusable="false"
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"></circle>
-          <line
-            x1="10.5"
-            y1="10.5"
-            x2="14.5"
-            y2="14.5"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"></line>
-        </svg>
         <p class="search-title">{copy.searchDialogLabel}</p>
         <button
           type="button"
@@ -129,10 +109,9 @@ const siteCopy = getSiteCopy(lang);
         <p class="search-empty-body">{copy.emptyBody}</p>
       </div>
       <div class="search-footer" aria-hidden="true">
-        <span class="search-hint search-hint--desktop">{copy.searchHintNavigate}</span>
-        <span class="search-hint search-hint--desktop">{copy.searchHintOpen}</span>
-        <span class="search-hint search-hint--desktop">{copy.searchHintClose}</span>
-        <span class="search-hint search-hint--mobile">{copy.searchHintMobileOpen}</span>
+        <span class="search-hint">{copy.searchHintNavigate}</span>
+        <span class="search-hint">{copy.searchHintOpen}</span>
+        <span class="search-hint">{copy.searchHintClose}</span>
         <span class="search-powered">Pagefind</span>
       </div>
     </div>
