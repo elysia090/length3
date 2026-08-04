@@ -116,7 +116,11 @@
     padding-bottom: 4rem;
   }
 
+  /* 3 列のときの prose 列と同じ幅で止める。2 列の帯だけ 1fr のまま伸びると、
+     本文の実測幅が 635 → 680 → 637 と幅によって揺れていた。読み幅は
+     --measure から左右の padding を引いた 632px でどの幅でも一定にする。 */
   .prose-area {
+    max-width: var(--measure);
     padding-inline: clamp(1rem, 2vw, 1.5rem);
   }
 
@@ -152,7 +156,10 @@
   }
 }
 
-@media (min-width: 60rem) {
+/* 3 列に切り替える幅。右の余白が 80px を割るなら列ごと畳む（spec §8）。
+   1088px = ガター 2×24 + TOC 200 + gap 40 + 版面 680 + gap 40 + 余白 80。
+   60rem で切り替えていたときは 1024px で余白が 16px の切れ端になっていた。 */
+@media (min-width: 68rem) {
   .article-shell {
     grid-template-columns: var(--toc-width) minmax(0, var(--measure)) minmax(0, 1fr);
     grid-template-areas: 'toc prose empty';
@@ -231,83 +238,55 @@
   display: flex;
   justify-content: flex-start;
   flex-wrap: wrap;
-  gap: 0.375rem 0.5rem;
+  /* 枠がないぶん、語と語の間は余白で切る。 */
+  gap: 0.125rem 0.875rem;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
+/* タグは枠のない文字列で出す (spec §4)。1 件あたり 5 個の枠が並ぶと、
+   一覧ではタイトルより先にタグの矩形が目に入ってしまう。押せる範囲は
+   縦 24px (WCAG 2.5.8 のターゲット下限) を padding で確保する。 */
 .tag-pill {
   position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 1.375rem;
-  padding: 0.1875rem 0.5rem;
-  border: 0.0625rem solid var(--surface-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-fill);
+  min-height: 1.5rem;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   line-height: 1.15;
   letter-spacing: 0.02em;
   color: var(--ink-2);
   touch-action: manipulation;
-  transition:
-    color var(--transition-fast),
-    border-color var(--transition-fast),
-    background-color var(--transition-fast);
+  transition: color var(--transition-fast);
 }
 
 .tag-pill:hover,
 .tag-pill:active {
   color: var(--amber-text);
-  border-color: rgba(180, 83, 9, 0.3); /* --amber-text @ 30% */
-  background: var(--surface-fill-strong);
-}
-
-.tag-pill-list--quiet {
-  gap: 0.4rem 0.8rem;
-}
-
-.tag-pill--quiet {
-  min-height: auto;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  color: var(--ink-2);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-}
-
-.tag-pill--quiet:hover,
-.tag-pill--quiet:active {
-  color: var(--amber-text);
-  border: none;
-  background: none;
 }
 
 .tag-pill-overflow {
-  color: var(--ink-2);
-  border-color: var(--surface-line);
-  background: none;
+  color: var(--ink-3);
 }
 
 .tag-pill-overflow:hover,
 .tag-pill-overflow:active {
   color: var(--ink-2);
-  border-color: var(--surface-border);
-  background: none;
 }
 
 @media (pointer: coarse) {
   /* 視覚サイズはそのまま保ち、::before でタッチターゲット 44px を確保する。
-     min-height で pill 全体を膨らませると見た目が重くなる。 */
-  .tag-pill:not(.tag-pill--quiet) {
-    min-height: 1.375rem; /* base に戻す */
+     min-height でタグ自体を膨らませると行が重くなる。 */
+  .tag-pill {
+    min-height: 1.375rem;
   }
-  .tag-pill:not(.tag-pill--quiet)::before {
+
+  .tag-pill::before {
     content: '';
     position: absolute;
     inset: -0.75rem -0.25rem; /* 上下 12px 拡張 → 合計 ~46px */

@@ -9,14 +9,19 @@ interface Segment {
 interface Props {
   flush?: boolean;
   lang?: 'en' | 'ja';
+  /** Align to the --measure column instead of the 1200px outer container. */
+  measure?: boolean;
   segments: Segment[];
 }
 
-const { segments, flush = false, lang = 'en' } = Astro.props;
+const { segments, flush = false, measure = false, lang = 'en' } = Astro.props;
 const copy = getSiteCopy(lang);
 ---
 
-<nav class:list={['breadcrumb', { 'breadcrumb--flush': flush }]} aria-label={copy.breadcrumb}>
+<nav
+  class:list={['breadcrumb', { 'breadcrumb--flush': flush, 'breadcrumb--measure': measure }]}
+  aria-label={copy.breadcrumb}
+>
   <ol>
     {
       segments.map((seg, i) => (

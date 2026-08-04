@@ -85,7 +85,7 @@ Previous iterations used `0.9rem` (≈14.4px) for body text. This is revised upw
 | H2                            | 1.25rem (20px)   | Fraunces        | 400        | 1.3         |
 | H3                            | 1.1rem (17.6px)  | Fraunces        | 400 italic | 1.3         |
 | Body prose                    | 1rem (16px)      | system-ui       | 400        | 1.8         |
-| Body prose (< 720px)          | 1rem (16px)      | system-ui       | 400        | 1.75        |
+| Body prose (< 720px)          | fluid 15–16px    | system-ui       | 400        | 1.75        |
 | Lead / Lede                   | 1.05rem (16.8px) | Fraunces italic | 300        | 1.9         |
 | UI label                      | 0.75rem (12px)   | JetBrains Mono  | 400        | —           |
 | Code inline                   | 0.88em           | JetBrains Mono  | 400        | —           |
@@ -137,39 +137,63 @@ Color carries information. It is never applied for warmth, mood, or atmosphere. 
 ### Token Definitions
 
 **Amber** `#d4820a`
-The single accent color. Contrast ratio against BG: **4.8:1** (WCAG AA). Used exclusively for interactive signals and semantic markers.
+The single accent color. Used exclusively for interactive signals and semantic markers. Contrast against BG is **2.8:1** — a marker, not a text color. Anything amber that carries words uses **Amber-text** `#b45309` (**4.7:1**) instead. Earlier revisions of this document credited `#d4820a` with 4.8:1 and AA; that number was wrong, and the implementation has always used the darker variant for type.
 
-_Where it appears:_ Tag text. TOC active state (border + text). Hover text color on interactive elements. Ruby `<rt>` annotations. CodeMirror cursor. 1px left-border on lead paragraphs.
+_Where it appears:_ TOC active state (border + text). Hover text color on interactive elements. Ruby `<rt>` annotations. Keyword tokens in code. 1px left-border on lead paragraphs.
 
-_Where it must not appear:_ Background fills of any kind. Decorative gradients. Borders thicker than 1px (except the 2px TOC active indicator and the 2px code-block left border). Editor status bar. Publish button or any other action button.
+_Where it must not appear:_ Background fills of any kind. Decorative gradients. Borders thicker than 1px (except the 2px TOC active indicator and the 2px code-block left border). Publish button or any other action button.
 
-**Ink** `#1c1a18`
-Primary text. A warm near-black, not pure `#000`. Pure black against the warm off-white background creates excessive contrast that induces fatigue over long reading sessions.
+### Temperature
 
-**Ink-2** `#44413c`
-Secondary text: descriptions, dates, metadata. Shares the warm hue of the Ink/Amber family, keeping the entire page within a unified color temperature.
+**Marks are cool. Surfaces are warm.** Everything drawn _onto_ the page — type, rules, borders, icons — sits on a single cool hue, **212°** at 8–18% saturation: far enough to name as blue, not far enough to leave grey. Everything the reader looks _through_ to read — the page, the panels laid on it, the tint behind inline code — stays on the warm paper side.
 
-**Ink-3** `#7a7670`
-Tertiary text: labels, placeholders, lowest-priority information. Contrast ratio against BG: **4.6:1**, which satisfies WCAG AA. Avoid for text smaller than 12px.
+The reason is contrast, not mood. Two colors of equal lightness read as further apart across the wheel than along it, so cooling the marks buys separation from the paper without darkening anything. The luminance formula weights blue least of the three channels, so the shift lowers measured luminance as well: every foreground token gained contrast in the move, none lost any.
 
-**Rule** `#dedad5`
+The surface half of that rule was learned by breaking it, twice. One revision cooled the panels — the search modal's header and footer bars along with everything else — and the modal stopped being restful to read in. The next kept the cool on the search field alone, on the argument that a field is operated rather than read; that left one cold patch inside a paper card, which was worse than either consistent answer. A mark is looked at for an instant; a surface is held in view for as long as the reading lasts, and a surface that is not the colour of paper gives the eye nowhere to settle. **Cool the thing being read, not the thing being read on** — including the things it is read _inside_.
+
+One deliberate exception: **code foreground** stays warm on the cool slab — the page's relationship inverted inside the block. That inversion is what makes a code block read as a different kind of object rather than a dark rectangle.
+
+For anything new: a new accent joins Amber on the warm side. A new text, rule, or border colour joins Ink at 212°. A new surface — panel, field, or otherwise — joins BG-2 on the paper side. Nothing sits at neutral: neutral is what makes a palette look unconsidered.
+
+**Ink** `#15191e`
+Primary text. A cool near-black, not pure `#000`. Pure black against the off-white background creates excessive contrast that induces fatigue over long reading sessions.
+
+**Ink-2** `#363e47`
+Secondary text: descriptions, dates, metadata.
+
+**Ink-3** `#5f6a77`
+Tertiary text: labels, placeholders, lowest-priority information. **5.2:1** against BG and **4.7:1** against BG-2, so it clears AA on both surfaces it appears over. The value it replaced, `#7a7670`, was documented at 4.6:1 but measured **4.25:1** — it cleared AA on neither. Avoid for text smaller than 12px.
+
+**Rule** `#c0c6ce`
 Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting.
 
 **BG** `#f9f8f5`
-Page background. Warm off-white, not pure `#fff`. Reduces glare in extended reading sessions.
+Page background. Warm off-white, not pure `#fff`. Reduces glare in extended reading sessions, and gives the contour texture something to sit in.
 
 **BG-2** `#f0ede8`
-Secondary surface: inline code backgrounds, code blocks, sidebar. The difference from BG is perceptible but minimal — enough to register as "this is a different surface" without creating a visual event.
+Every surface laid over the page: table headers, the search modal's header and footer bars, the search field, the sidebar search trigger, the selected result row. Warm, like the page — the difference from BG is perceptible but minimal, enough to register as "a different surface" without creating a visual event. Fields are not exempt; what marks a field is its pill radius, its border, and its focus ring, none of which need a temperature change to do their job.
+
+**Code surface** `#20272f`
+The only dark surface on the page: the same cool, taken to slab scale. The warm tokens on it (amber keywords, terracotta constants, parchment function names) read as complementary rather than as more of the same, so the block gains contrast without gaining darkness. Contrast against BG: **14.2:1**. Used for block code only — never for inline code, buttons, or panels.
 
 ### Contrast Compliance
 
-| Pairing     | Hex values            | Ratio  | WCAG Level |
-| ----------- | --------------------- | ------ | ---------- |
-| Ink on BG   | `#1c1a18` / `#f9f8f5` | 14.2:1 | AAA        |
-| Ink-2 on BG | `#44413c` / `#f9f8f5` | 8.6:1  | AA         |
-| Amber on BG | `#d4820a` / `#f9f8f5` | 4.8:1  | AA         |
-| Ink-3 on BG | `#7a7670` / `#f9f8f5` | 4.6:1  | AA         |
-| Ink on BG-2 | `#1c1a18` / `#f0ede8` | 11.5:1 | AAA        |
+Measured, not estimated. Ratios are WCAG 2.x relative luminance, rounded to one decimal.
+
+| Pairing          | Hex values            | Ratio  | WCAG Level    |
+| ---------------- | --------------------- | ------ | ------------- |
+| Ink on BG        | `#15191e` / `#f9f8f5` | 16.6:1 | AAA           |
+| Ink on BG-2      | `#15191e` / `#f0ede8` | 15.1:1 | AAA           |
+| Ink-2 on BG      | `#363e47` / `#f9f8f5` | 10.2:1 | AAA           |
+| Ink-3 on BG      | `#5f6a77` / `#f9f8f5` | 5.1:1  | AA            |
+| Ink-3 on BG-2    | `#5f6a77` / `#f0ede8` | 4.7:1  | AA            |
+| Amber-text on BG | `#b45309` / `#f9f8f5` | 4.7:1  | AA            |
+| Amber on BG      | `#d4820a` / `#f9f8f5` | 2.8:1  | markers only  |
+| Code fg on code  | `#d9d4cb` / `#20272f` | 10.2:1 | AAA           |
+| Code dim on code | `#878f99` / `#20272f` | 4.6:1  | AA            |
+| Rule on BG       | `#c0c6ce` / `#f9f8f5` | 1.6:1  | non-text, 1px |
+
+Amber-text on BG-2 measures **4.3:1** and does not clear AA. Links inside table headers and selected search rows are the only place that pairing occurs; if either surface grows, the pairing needs a darker amber rather than a lighter panel.
 
 ---
 
@@ -238,11 +262,15 @@ Located in the left column. `position: sticky; top: 32px`.
 
 ### Code Blocks
 
-**Inline code:** BG-2 background, `border: 1px solid var(--rule)`, `border-radius: 3px`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink.
+**Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: 3px`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
-**Block code:** BG-2 background. `border-left: 2px solid #e8a030` (amber-lt). `border-radius: 0 4px 4px 0`. `padding: 16px 20px`. JetBrains Mono 0.84rem, Ink-2, `line-height: 1.75`.
+**Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: 2px`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
-**Code blocks do not use dark backgrounds.** A dark code block on a light page creates a visual hole that ruptures the reading flow. The reader's eye must recalibrate brightness when entering and leaving the block. The left amber border is sufficient to signal "this is code" without breaking the page's tonal continuity.
+**Block code is a dark surface; inline code is not.** The two are different objects. A block is a figure the reader stops on — set as a slab, it separates from the prose the way a plate separates from body text in print, and the sharp 1px edge is what makes it read as an object rather than a wash. Inline code is not an object; it belongs to the sentence, so it stays light. Earlier revisions of this document prohibited dark blocks on the grounds that they rupture reading flow; in practice the near-invisible BG-2 wash (a 1.06:1 step from the page) failed to mark the block at all.
+
+**Syntax highlighting** is on, via Shiki with a project theme (`src/config/code-theme.ts`). The token palette is amber, sage, terracotta, parchment, and dusty lavender — muted, warm, and keyed to the page accent rather than a stock high-saturation theme. Every token colour clears 4.5:1 against `--code-bg`. The theme's surface values are duplicated in `--code-*` (tokens.css) because Shiki writes token colours inline while the surface comes from CSS; the two must be changed together.
+
+**Horizontal overflow is signalled without JavaScript.** A block wider than its column shows a light edge on the side that has more content, built from four background layers — two covers attached `local`, two glows attached `scroll`. Scrolling to an end slides the cover over the glow and the signal disappears.
 
 **Language labels are not displayed.** The content of the code block identifies its language. A label stating `typescript` above TypeScript code provides zero additional information.
 
@@ -377,7 +405,12 @@ The "breathing" right margin in the article layout is not infinitely compressibl
 
 ### Mobile Requirements
 
-- No font size below 16px (prevents iOS Safari auto-zoom on input focus)
+- No **form control** below 16px — Safari on iOS zooms the viewport when a field
+  smaller than that takes focus. The search input is therefore pinned at 1rem
+- Body prose is fluid between 15px and 16px below 480px:
+  `clamp(0.9375rem, calc((100vw - 2.5rem) / 23.5), 1rem)`. The divisor targets a
+  23-character Japanese line; at 390px that is 22.9 characters against 21.4 at a
+  flat 16px. 15px is the floor — prose never goes below it
 - All tap targets ≥ 44 × 44px
 - Line length self-regulates (viewport width naturally constrains it)
 

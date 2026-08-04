@@ -26,7 +26,7 @@ const { route, processedPosts } = Astro.props as {
 
 <BaseLayout title={`${route.name} — Length³`}>
   <Header />
-  <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: route.name }]} />
+  <Breadcrumb segments={[{ label: 'Length³', href: '/' }, { label: route.name }]} measure />
   <main class="page-shell tag-main" id="main-content">
     <header class="page-header tag-header">
       <h1 class="page-title">#{route.name}</h1>
