@@ -116,7 +116,11 @@
     padding-bottom: 4rem;
   }
 
+  /* 3 列のときの prose 列と同じ幅で止める。2 列の帯だけ 1fr のまま伸びると、
+     本文の実測幅が 635 → 680 → 637 と幅によって揺れていた。読み幅は
+     --measure から左右の padding を引いた 632px でどの幅でも一定にする。 */
   .prose-area {
+    max-width: var(--measure);
     padding-inline: clamp(1rem, 2vw, 1.5rem);
   }
 
@@ -152,7 +156,10 @@
   }
 }
 
-@media (min-width: 60rem) {
+/* 3 列に切り替える幅。右の余白が 80px を割るなら列ごと畳む（spec §8）。
+   1088px = ガター 2×24 + TOC 200 + gap 40 + 版面 680 + gap 40 + 余白 80。
+   60rem で切り替えていたときは 1024px で余白が 16px の切れ端になっていた。 */
+@media (min-width: 68rem) {
   .article-shell {
     grid-template-columns: var(--toc-width) minmax(0, var(--measure)) minmax(0, 1fr);
     grid-template-areas: 'toc prose empty';
@@ -255,10 +262,7 @@
   letter-spacing: 0.02em;
   color: var(--ink-2);
   touch-action: manipulation;
-  transition:
-    color var(--transition-fast),
-    border-color var(--transition-fast),
-    background-color var(--transition-fast);
+  transition: color var(--transition-fast);
 }
 
 .tag-pill:hover,
@@ -277,11 +281,12 @@
 
 @media (pointer: coarse) {
   /* 視覚サイズはそのまま保ち、::before でタッチターゲット 44px を確保する。
-     min-height で pill 全体を膨らませると見た目が重くなる。 */
-  .tag-pill:not(.tag-pill--quiet) {
-    min-height: 1.375rem; /* base に戻す */
+     min-height でタグ自体を膨らませると行が重くなる。 */
+  .tag-pill {
+    min-height: 1.375rem;
   }
-  .tag-pill:not(.tag-pill--quiet)::before {
+
+  .tag-pill::before {
     content: '';
     position: absolute;
     inset: -0.75rem -0.25rem; /* 上下 12px 拡張 → 合計 ~46px */

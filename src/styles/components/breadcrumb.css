@@ -1,9 +1,11 @@
 /* Breadcrumb */
-/* Breadcrumb */
 .breadcrumb {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   color: var(--ink-2);
+  /* body が縦 flex なので、幅を宣言しないと margin-inline: auto が
+     shrink-to-fit を招き、パンくずだけが中央寄せの短冊になる。 */
+  width: 100%;
   max-width: var(--layout-max-width);
   margin: 0 auto;
   padding-top: 0.5rem;
@@ -11,13 +13,19 @@
     max(var(--page-gutter), env(safe-area-inset-right));
 }
 
+/* 版面が --measure のページ（タグ一覧など）では、パンくずも同じ列に揃える。 */
+.breadcrumb--measure {
+  max-width: var(--measure);
+}
+
 .breadcrumb ol {
   display: flex;
-  align-items: center;
-  gap: 0.25rem 0.5rem;
+  align-items: baseline;
+  gap: 0.5rem;
   justify-content: flex-start;
-  flex-wrap: wrap;
-  row-gap: 0.25rem;
+  /* 1 行に収める。折り返すと "Length³" だけが 1 行目に残り、現在地が
+     2 行目に落ちる。溢れは .crumb-current の省略で吸収する。 */
+  flex-wrap: nowrap;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -28,7 +36,15 @@
   align-items: baseline;
   gap: 0.375rem;
   min-width: 0;
-  max-width: 100%;
+}
+
+/* 先行のセグメントは縮めない。縮むのは末尾の現在地だけ。 */
+.breadcrumb li:not(:last-child) {
+  flex: 0 0 auto;
+}
+
+.breadcrumb li:last-child {
+  flex: 0 1 auto;
 }
 
 .sep {
