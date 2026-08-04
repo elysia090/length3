@@ -160,8 +160,8 @@
 .prose pre {
   background-color: var(--code-bg);
   background-image:
-    linear-gradient(to right, var(--code-bg) 55%, rgba(35, 38, 43, 0)),
-    linear-gradient(to left, var(--code-bg) 55%, rgba(35, 38, 43, 0)),
+    linear-gradient(to right, var(--code-bg) 55%, rgba(32, 39, 47, 0)),
+    linear-gradient(to left, var(--code-bg) 55%, rgba(32, 39, 47, 0)),
     linear-gradient(to right, var(--code-glow), rgba(217, 212, 203, 0)),
     linear-gradient(to left, var(--code-glow), rgba(217, 212, 203, 0));
   background-position: left center, right center, left center, right center;

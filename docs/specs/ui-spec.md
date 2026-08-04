@@ -145,48 +145,55 @@ _Where it must not appear:_ Background fills of any kind. Decorative gradients. 
 
 ### Temperature
 
-The page is warm: paper, texture, and amber all sit on the warm side. Type does not. Ink, the secondary and tertiary greys, the rules, and the code surface each carry a small amount of blue — the same distance off neutral the palette used to carry in the opposite direction, no more.
+**Marks are cool. Surfaces are warm.** Everything drawn _onto_ the page — type, rules, borders, icons — sits on a single cool hue, **212°** at 8–18% saturation: far enough to name as blue, not far enough to leave grey. Everything the reader looks _through_ to read — the page, the panels laid on it, the tint behind inline code — stays on the warm paper side.
 
-The reason is contrast, not mood. Two colors of equal lightness read as further apart when they sit on opposite sides of the wheel than when they sit on the same side, so cooling the type buys separation from the paper without darkening anything. The luminance formula weights blue least, so the shift also lowers measured luminance slightly: every foreground token gained contrast in the move.
+The reason is contrast, not mood. Two colors of equal lightness read as further apart across the wheel than along it, so cooling the marks buys separation from the paper without darkening anything. The luminance formula weights blue least of the three channels, so the shift lowers measured luminance as well: every foreground token gained contrast in the move, none lost any.
 
-The rule for new colors: **warm is for what the reader acts on, cool is for what the reader reads.** A new accent joins Amber on the warm side. A new text or rule color joins Ink on the cool side. Nothing sits at neutral, because neutral is what makes a palette look unconsidered.
+The surface half of that rule was learned by breaking it, twice. One revision cooled the panels — the search modal's header and footer bars along with everything else — and the modal stopped being restful to read in. The next kept the cool on the search field alone, on the argument that a field is operated rather than read; that left one cold patch inside a paper card, which was worse than either consistent answer. A mark is looked at for an instant; a surface is held in view for as long as the reading lasts, and a surface that is not the colour of paper gives the eye nowhere to settle. **Cool the thing being read, not the thing being read on** — including the things it is read _inside_.
 
-**Ink** `#181a1c`
+One deliberate exception: **code foreground** stays warm on the cool slab — the page's relationship inverted inside the block. That inversion is what makes a code block read as a different kind of object rather than a dark rectangle.
+
+For anything new: a new accent joins Amber on the warm side. A new text, rule, or border colour joins Ink at 212°. A new surface — panel, field, or otherwise — joins BG-2 on the paper side. Nothing sits at neutral: neutral is what makes a palette look unconsidered.
+
+**Ink** `#15191e`
 Primary text. A cool near-black, not pure `#000`. Pure black against the off-white background creates excessive contrast that induces fatigue over long reading sessions.
 
-**Ink-2** `#3c4144`
+**Ink-2** `#363e47`
 Secondary text: descriptions, dates, metadata.
 
-**Ink-3** `#666c70`
-Tertiary text: labels, placeholders, lowest-priority information. **5.0:1** against BG and **4.6:1** against BG-2, so it clears AA on both surfaces it appears over. The previous value `#7a7670` was documented at 4.6:1 but measured **4.25:1** — it did not clear AA on either. Avoid for text smaller than 12px.
+**Ink-3** `#5f6a77`
+Tertiary text: labels, placeholders, lowest-priority information. **5.2:1** against BG and **4.7:1** against BG-2, so it clears AA on both surfaces it appears over. The value it replaced, `#7a7670`, was documented at 4.6:1 but measured **4.25:1** — it cleared AA on neither. Avoid for text smaller than 12px.
 
-**Rule** `#c5c8cb`
-Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting. Cooled by half the distance applied to type: a hairline covers more of the page than a glyph does, so the same shift reads stronger on it.
+**Rule** `#c0c6ce`
+Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting.
 
 **BG** `#f9f8f5`
-Page background. Warm off-white, not pure `#fff`. Reduces glare in extended reading sessions.
+Page background. Warm off-white, not pure `#fff`. Reduces glare in extended reading sessions, and gives the contour texture something to sit in.
 
 **BG-2** `#f0ede8`
-Secondary surface: table headers, sidebar. The difference from BG is perceptible but minimal — enough to register as "this is a different surface" without creating a visual event. Code no longer uses it; see §4.
+Every surface laid over the page: table headers, the search modal's header and footer bars, the search field, the sidebar search trigger, the selected result row. Warm, like the page — the difference from BG is perceptible but minimal, enough to register as "a different surface" without creating a visual event. Fields are not exempt; what marks a field is its pill radius, its border, and its focus ring, none of which need a temperature change to do their job.
 
-**Code surface** `#23262b`
-The only dark surface on the page. The cool shift that the type carries at glyph scale, carried at slab scale: against it, the warm code tokens (amber keywords, terracotta constants, parchment function names) read as complementary rather than as more of the same, so the block gains contrast without gaining darkness. Contrast against BG: **14.3:1**. Used for block code only — never for inline code, buttons, or panels.
+**Code surface** `#20272f`
+The only dark surface on the page: the same cool, taken to slab scale. The warm tokens on it (amber keywords, terracotta constants, parchment function names) read as complementary rather than as more of the same, so the block gains contrast without gaining darkness. Contrast against BG: **14.2:1**. Used for block code only — never for inline code, buttons, or panels.
 
 ### Contrast Compliance
 
-Measured, not estimated. Ratios are WCAG 2.x relative luminance, rounded down to one decimal.
+Measured, not estimated. Ratios are WCAG 2.x relative luminance, rounded to one decimal.
 
 | Pairing          | Hex values            | Ratio  | WCAG Level    |
 | ---------------- | --------------------- | ------ | ------------- |
-| Ink on BG        | `#181a1c` / `#f9f8f5` | 16.4:1 | AAA           |
-| Ink-2 on BG      | `#3c4144` / `#f9f8f5` | 9.7:1  | AAA           |
-| Ink-3 on BG      | `#666c70` / `#f9f8f5` | 5.0:1  | AA            |
-| Ink-3 on BG-2    | `#666c70` / `#f0ede8` | 4.6:1  | AA            |
+| Ink on BG        | `#15191e` / `#f9f8f5` | 16.6:1 | AAA           |
+| Ink on BG-2      | `#15191e` / `#f0ede8` | 15.1:1 | AAA           |
+| Ink-2 on BG      | `#363e47` / `#f9f8f5` | 10.2:1 | AAA           |
+| Ink-3 on BG      | `#5f6a77` / `#f9f8f5` | 5.1:1  | AA            |
+| Ink-3 on BG-2    | `#5f6a77` / `#f0ede8` | 4.7:1  | AA            |
 | Amber-text on BG | `#b45309` / `#f9f8f5` | 4.7:1  | AA            |
 | Amber on BG      | `#d4820a` / `#f9f8f5` | 2.8:1  | markers only  |
-| Ink on BG-2      | `#181a1c` / `#f0ede8` | 14.9:1 | AAA           |
-| Code fg on code  | `#d9d4cb` / `#23262b` | 10.2:1 | AAA           |
-| Rule on BG       | `#c5c8cb` / `#f9f8f5` | 1.6:1  | non-text, 1px |
+| Code fg on code  | `#d9d4cb` / `#20272f` | 10.2:1 | AAA           |
+| Code dim on code | `#878f99` / `#20272f` | 4.6:1  | AA            |
+| Rule on BG       | `#c0c6ce` / `#f9f8f5` | 1.6:1  | non-text, 1px |
+
+Amber-text on BG-2 measures **4.3:1** and does not clear AA. Links inside table headers and selected search rows are the only place that pairing occurs; if either surface grows, the pairing needs a darker amber rather than a lighter panel.
 
 ---
 
@@ -257,7 +264,7 @@ Located in the left column. `position: sticky; top: 32px`.
 
 **Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: 3px`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
-**Block code:** `--code-bg` (`#23262b`) background — a dark gray with a small amount of blue in it, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: 2px`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
+**Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: 2px`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
 **Block code is a dark surface; inline code is not.** The two are different objects. A block is a figure the reader stops on — set as a slab, it separates from the prose the way a plate separates from body text in print, and the sharp 1px edge is what makes it read as an object rather than a wash. Inline code is not an object; it belongs to the sentence, so it stays light. Earlier revisions of this document prohibited dark blocks on the grounds that they rupture reading flow; in practice the near-invisible BG-2 wash (a 1.06:1 step from the page) failed to mark the block at all.
 
