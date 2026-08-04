@@ -81,14 +81,18 @@ Previous iterations used `0.9rem` (≈14.4px) for body text. This is revised upw
 | ----------------------------- | ---------------- | --------------- | ---------- | ----------- |
 | Display H1 (Index page title) | 2.0rem (32px)    | Fraunces        | 300 italic | 1.2         |
 | Article H1                    | 1.75rem (28px)   | Fraunces        | 300        | 1.25        |
+| Article H1 (< 720px)          | 1.5rem (24px)    | Fraunces        | 300        | 1.3         |
 | H2                            | 1.25rem (20px)   | Fraunces        | 400        | 1.3         |
 | H3                            | 1.1rem (17.6px)  | Fraunces        | 400 italic | 1.3         |
-| Body prose                    | 1rem (16px)      | system-ui       | 400        | 1.95        |
+| Body prose                    | 1rem (16px)      | system-ui       | 400        | 1.8         |
+| Body prose (< 720px)          | 1rem (16px)      | system-ui       | 400        | 1.75        |
 | Lead / Lede                   | 1.05rem (16.8px) | Fraunces italic | 300        | 1.9         |
 | UI label                      | 0.75rem (12px)   | JetBrains Mono  | 400        | —           |
 | Code inline                   | 0.88em           | JetBrains Mono  | 400        | —           |
 | Date / Meta                   | 0.75rem (12px)   | JetBrains Mono  | 400        | 1.4         |
 | Tag                           | 0.75rem (12px)   | JetBrains Mono  | 400        | —           |
+
+**Mobile heading scale.** Below 720px the display sizes step down one notch (Article H1 and `.page-title` from 28px to 24px) and the article H1 drops its `max-width: 18ch` cap. At 390px the cap left the title only 252px of the available 350px, so a long Japanese title wrapped to five lines and the header block alone filled a third of the first screen. Body sizes do not move: 16px is the floor (see §8, Mobile Requirements), and the fix for "the text looks large on a phone" is the display scale and the wrapping, not the body size.
 
 ### Line-Length Control
 
@@ -97,7 +101,7 @@ The 680px column cap provides automatic line-length control, but the following C
 - `text-wrap: pretty` on body paragraphs. Prevents orphaned single-word final lines (widows). Falls back gracefully in non-Chromium browsers — the text simply wraps without the optimization, which is acceptable.
 - `text-wrap: balance` on headings. When a heading breaks to two lines, this distributes characters evenly between them. Fallback: normal wrapping, which is tolerable but less elegant.
 - `line-break: strict` on Japanese body text. Enforces kinsoku rules — prohibiting line-initial punctuation and brackets.
-- `word-break: auto-phrase` on Japanese text. Chrome 119+ only; enables phrase-level wrapping via BudouX. Non-Chromium browsers ignore this property entirely, falling back to standard character-level breaks.
+- `word-break: auto-phrase` on Japanese text, **at 720px and above only**. Chrome 119+ only; enables phrase-level wrapping via BudouX. Non-Chromium browsers ignore this property entirely, falling back to standard character-level breaks. Phrase wrapping keeps a whole 文節 together, so it leaves a phrase-sized gap at the end of a line. That is invisible in a 630px column and expensive in a 350px one: measured over the first twelve paragraphs of a Japanese article at a 390px viewport, phrase wrapping fills 83.4% of the column and needs 91 lines, while character wrapping fills 93.1% and needs 80 — the same text, 9% shorter, with no change in font size.
 
 **Fallback policy.** All four properties degrade silently. The spec does not require polyfills or JavaScript-based alternatives. The enhanced behavior is a progressive improvement, not a baseline requirement.
 
@@ -209,6 +213,14 @@ Secondary surface: inline code backgrounds, code blocks, sidebar. The difference
 **Item separation:** `border-bottom: 1px solid var(--rule)`. Padding: 24px top, 24px bottom. First item: `padding-top: 0`. Last item: no bottom border.
 
 **Hover:** Title color transitions to amber, 80ms ease. No background change. No cursor change (`cursor: default`). The color shift alone communicates interactivity.
+
+### Topic List (Index Sidebar)
+
+**Rows:** JetBrains Mono, 0.75rem, `letter-spacing: 0.06em`. Topic name left, article count right, `padding: 14px 0`, `border-bottom: 1px solid var(--rule)`. Sorted by count, descending.
+
+**Disclosure:** only the **top 6** topics render as open rows. The remainder collapse into a native `<details>` whose `<summary>` is styled as one more row — `+N more` when closed, `Show less` when open, with a `+` glyph that rotates 45° into a `×`. The summary is 44px tall, matching the tap-target minimum.
+
+The widget is `<details>`, not a JavaScript toggle, for three reasons: the hidden topics stay in the DOM, so crawlers and in-page find still reach them; the control is keyboard- and screen-reader-operable with no ARIA authoring; and nothing about it can fail to hydrate. The threshold is 6 because the tail of the list is single-article tags — at 24 topics, 18 of them had a count of 1, and an alphabetical run of one-article tags is a scroll obstacle between the reader and the footer, not a navigation aid.
 
 ### Table of Contents (Article Page)
 

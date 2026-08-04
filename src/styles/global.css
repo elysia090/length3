@@ -361,10 +361,18 @@ img {
    the prose-specific margin so each call site sets its own spacing. */
 .page-title {
   font-family: var(--font-display);
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 400;
-  line-height: 1.18;
+  line-height: 1.22;
   text-wrap: balance;
+}
+
+/* 記事の H1 と同じ縮尺で動かす（typography.css の .article-header h1 参照）。 */
+@media (min-width: 45rem) {
+  .page-title {
+    font-size: 1.75rem;
+    line-height: 1.18;
+  }
 }
 
 /* Secondary line below a page title — count / subtitle / metadata. */
