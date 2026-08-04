@@ -1,30 +1,129 @@
 ---
 export const prerender = true;
 
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Header from '../components/Header.astro';
+import monolithAvif from '../assets/monolith.avif';
+import monolithWebp from '../assets/monolith.webp';
 import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout title="About — Length³" description="About Length³">
   <Header />
-  <main class="page-shell about-main" id="main-content">
-    <header class="page-header about-header">
-      <h1 class="page-title">About</h1>
-      <hr class="amber-rule about-rule" />
-    </header>
-    <div class="about-body prose">
-      <p>
-        <strong>Length³</strong> is a technical blog focused on depth over breadth. Each article aims
-        to be worth the time it takes to read.
-      </p>
+  <main class="about-shell" id="main-content">
+    <div class="about-column">
+      <header class="page-header about-header">
+        <h1 class="page-title">About</h1>
+        <hr class="amber-rule about-rule" />
+      </header>
+      <div class="about-body prose">
+        <p>
+          <strong>Length³</strong> is a technical blog focused on depth over breadth. Each article aims
+          to be worth the time it takes to read.
+        </p>
+      </div>
     </div>
+
+    <figure class="about-figure">
+      <picture>
+        <source srcset={monolithAvif.src} type="image/avif" />
+        <img
+          src={monolithWebp.src}
+          width={monolithWebp.width}
+          height={monolithWebp.height}
+          alt="A tall faceted stone monolith, dark on one face and lit on the other, dissolving into nothing at its base."
+          decoding="async"
+          fetchpriority="high"
+        />
+      </picture>
+    </figure>
   </main>
   <Footer />
 </BaseLayout>
 
 <style>
+  /* About は一段落しかない。文章で埋めるかわりに、石を実寸大の感覚まで
+     大きくして、余白と物量だけでページを持たせる。 */
+  .about-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.5rem 0;
+    /* body が縦 flex なので、幅を宣言しないと margin-inline: auto が
+       shrink-to-fit を招き、版面が内容の幅まで縮む。 */
+    width: 100%;
+    max-width: var(--layout-max-width);
+    margin: 0 auto;
+    padding-block: 2rem 0;
+    padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
+      max(var(--page-gutter), env(safe-area-inset-right));
+  }
+
+  .about-column {
+    min-width: 0;
+    max-width: var(--measure);
+  }
+
   .about-rule {
     margin-top: 1rem;
+  }
+
+  /* 石は下端が霧に溶けて消える素材なので、切らずに済ませる必要があるのは
+     頂点のほうだけ。台座は作らず、紙の上に直接立たせる。 */
+  /* z-index は上げない。テクスチャ (body::before) は position: fixed の全面
+     オーバーレイなので、石の暗い面には等高線がそのまま乗る。紙の上に置いた
+     写真ではなく、ページと同じ面に彫られた物として見える。 */
+  /* 中央ではなく右寄り。文章は左端で揃っているので、石まで中央に置くと軸が
+     2 本になる。右へ寄せると空きが本文の下にまとまって、広い幅で石を右の
+     余白に立てる版と同じ骨格になる。 */
+  .about-figure {
+    margin: 0;
+    display: flex;
+    justify-content: flex-end;
+    padding-inline-end: clamp(1.5rem, 14vw, 5rem);
+  }
+
+  .about-figure picture {
+    display: contents;
+  }
+
+  /* 電話では小さく置く。画面いっぱいまで伸ばすと石が版面を塞いで、この
+     ページの中身である余白がなくなる。文章・石・フッタが 1 画面に収まる
+     ところまで引くと、石は塊ではなく紙に打たれた印になる。 */
+  .about-figure img {
+    display: block;
+    width: clamp(7rem, 29vw, 13rem);
+    height: auto;
+    /* 溶ける裾を紙に馴染ませる。素材側の透明度だけだと、下端に薄い横線が
+       残る端末がある。 */
+    mask-image: linear-gradient(180deg, #000 82%, transparent 100%);
+  }
+
+  @media (min-width: 52.5rem) {
+    /* 文章は左の版面に据え置き、石は右の余白を丸ごと使って立てる。高さは
+       文章の 3 行より遥かに高い。並べたときの落差がこのページの中身。 */
+    .about-shell {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 0 var(--layout-gap);
+      padding-block: 4rem 0;
+    }
+
+    .about-column {
+      /* 石の裾と本文の最終行ではなく、本文ブロックの上端を頁の上に置く。 */
+      align-self: start;
+      padding-top: 1rem;
+    }
+
+    /* 横に並ぶ幅では石が右の列そのものなので、寄せ幅は要らない。 */
+    .about-figure {
+      padding-inline-end: 0;
+    }
+
+    /* 高さで決めたほうが文章との落差を作りやすい。 */
+    .about-figure img {
+      width: auto;
+      height: clamp(28rem, 82vh, 52rem);
+      max-width: 100%;
+    }
   }
 </style>
