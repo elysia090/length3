@@ -1,6 +1,6 @@
 ---
-import { getSiteCopy } from '../i18n/site-copy';
-import type { TocHeading } from '../features/article/types';
+import { getSiteCopy } from '../../i18n/site-copy';
+import type { TocHeading } from './types';
 
 interface Props {
   headings: TocHeading[];
@@ -32,7 +32,7 @@ const copy = getSiteCopy(lang);
 }
 
 <script>
-  import { initializeTableOfContents } from '../features/article/toc-controller';
+  import { initializeTableOfContents } from './toc-controller';
 
   initializeTableOfContents();
 </script>

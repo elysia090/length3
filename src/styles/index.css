@@ -1,0 +1,26 @@
+/*
+ * Single stylesheet entry point. BaseLayout imports this file and nothing else,
+ * so the cascade order is declared here in one place instead of being spread
+ * across whichever component happens to be imported first.
+ *
+ * Order is load-bearing, from least to most specific:
+ *   fonts      — @font-face only
+ *   tokens     — :root custom properties every other file reads
+ *   base       — reset, page chrome (texture, skip link, focus), utilities
+ *   layout     — page shells and their responsive columns
+ *   components — one file per component, no cross-component selectors
+ *   typography — .prose, the article body; last so it can win inside prose
+ */
+@import './fonts.css';
+@import './tokens.css';
+@import './base.css';
+@import './layout.css';
+@import './components/header.css';
+@import './components/footer.css';
+@import './components/breadcrumb.css';
+@import './components/article-card.css';
+@import './components/toc.css';
+@import './components/article-actions.css';
+@import './components/search.css';
+@import './components/topic-list.css';
+@import './typography.css';

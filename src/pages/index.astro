@@ -2,13 +2,16 @@
 export const prerender = true;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
-import ArticleCard from '../components/ArticleCard.astro';
-import Sidebar from '../components/Sidebar.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import ArticleCard from '../features/blog/ArticleCard.astro';
+import TopicList from '../features/blog/TopicList.astro';
+import SearchPanel from '../features/search/SearchPanel.astro';
 import { getBlogCatalog } from '../features/blog/catalog';
+import { getSiteCopy } from '../i18n/site-copy';
 
 const { processedPosts, topics } = await getBlogCatalog();
+const copy = getSiteCopy('en');
 ---
 
 <BaseLayout title="Length³" description="A technical blog.">
@@ -17,9 +20,10 @@ const { processedPosts, topics } = await getBlogCatalog();
     <section class="article-list" aria-label="Articles">
       {processedPosts.map((post) => <ArticleCard post={post} />)}
     </section>
-    <div class="index-sidebar">
-      <Sidebar topics={topics} />
-    </div>
+    <aside class="index-sidebar" aria-label={copy.blogSidebar}>
+      <SearchPanel />
+      <TopicList topics={topics} />
+    </aside>
   </main>
   <Footer />
 </BaseLayout>

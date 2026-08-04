@@ -1,7 +1,7 @@
 ---
-import type { ProcessedPost } from '../features/blog/types';
-import { formatDate } from '../features/blog/utils';
-import { formatCompactReadingTime, getSiteCopy } from '../i18n/site-copy';
+import type { ProcessedPost } from './types';
+import { formatDate } from './utils';
+import { formatCompactReadingTime, getSiteCopy } from '../../i18n/site-copy';
 
 interface Props {
   post: ProcessedPost;
