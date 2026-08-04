@@ -1,0 +1,475 @@
+---
+title: 末尾1バイトで商化したCSRから、代入だけで3命令のmapと2命令のrankを構成しよう
+description: 完全未来で商化した機械の仕様を関数として書き、代入と正規化を最後まで進める。残ったのは map の引き当てが 3 命令、8 lane 分の stable dense address が 2 命令。LEB128 の境界抽出まで含めて、byte 単位の述語だけで並列へ落とす。
+publishDate: 2026-08-05
+tags: [csr, simd, bitwise, parallel, c]
+draft: false
+lang: ja
+---
+
+前回の [27-byte VM と並列 radix sort](/27-byte-vm-parallel-radix-sort) の続きである。
+
+今回やったことは一つしかない。答えたい問いに合わせて機械を商化し、その仕様を関数として書き、あとは代入と式変形と正規化を最後まで進める。それだけである。最終的に残ったのは、map の引き当てが 3 命令、8 lane 分の stable dense address が 2 命令だった。どちらも狙って小さくしたのではなく、代入したら小さくなった。以下、実測値はすべて末尾に書いた 1 core の箱で取っている。計測コードの生成と実行は Claude Code に任せた。
+
+## 1. span が神に見えるまで
+
+変なところからエンジニアリングの作法を学んだので、メンタルモデルが少し奇妙かもしれない。
+
+現代のエンジニアは span を変に嫌いがちだ。pointer と length をまとめただけなのに、抽象が増えたように感じるらしい。しかし VM を一回手で作ってみろ。命令ポインタとメモリの有効範囲と、どこまで読んでよいかを自分で管理したあとでは、span あるいは buffer がマジで神に見える。当時の Fortran 系資料を漁ってメモリに触る bit を節約する術を学んだからイキって inline assembly が 6k 行という技術負債を抱えた俺に span など恐れるに足りない（誇張）。
+
+array を与えられる。これを buffer として受け取る。buffer の内部から自己区切り整数を読み、読み終えた位置で span を切り直す。入力を消費するたびに残りは短くなり、終端条件へ到達して halt する。メモリの抽象度ってマジで分からんけど unsafe を使わない Rust を使えば多分あっているだろう、というメンタルモデルでやっている。
+
+なるべくそれが CSR っぽくなると嬉しい。実体は連続した array に置き、境界や参照先だけを小さな offset として持つ。抽象を増やすより、どこに何 byte あり、次にどこを読むのかが見えている方がよい。cursor を直接舐めたくなる人は俺と友達になろう。
+
+境界を offset の array として先に持てれば、各 span は独立に切り出せる。巨大な buffer を先頭から一人で読み進める必要がなくなり、offset ごとに処理を投げられる。自己区切り整数を使うにしても、局所的な decode と全体の逐次走査は別の話である。境界だけ取り出せれば、その後の仕事はかなり並列へ逃がせる。WordRAM をこねくり回してチューリングラブしたくなったら、span に祈ると良い。
+
+## 2. ここで hash では駄目なのだ
+
+かなり大きな領域を mmap し、その上に並んだ prefix を扱っていると、最後は計算ではなくメモリで詰まる。hash を計算すること自体より、別の table へ移動し、metadata を読み、probe し、衝突を確認し、離れた場所にある value を追うことの方が重い。便利な一般性のために、直接舐められたはずの連続領域から何度も外へ出る。それこそ pretrain みたいなファイル境界跨ぎして文字列ストリームを糞デカ・ルックアップするとどうしてもメモリが死ぬ。
+
+欲しいのは、巨大な mmap の上で、可能な限り array の手触りを失わない map である。各 prefix の終端位置をワーカーへ渡せば、その場所から必要なアドレスを読み、連続した array を引けるようにしたい。prefix を先頭から再生したくないし、前の prefix が終わるまで待ちたくない。key を別の表現へ詰め直したくないし、pointer も追い回したくない。
+
+つまり、`Byte*` 全域を問い合わせとして覆い、空履歴だけは外部の root として扱いながら、各 prefix を状態の受け渡しなしに並列処理できる map があると嬉しい。
+
+数字を先に置いておく。256 MiB の byte 列を舐めて各 byte で map を引くだけのマイクロベンチで、256 要素の直接配列は `std::unordered_map` の **9.87 倍**だった。ただしこれは密な走査での話で、key への到達自体が完全に random になる条件では **1.78 倍**まで縮む。
+
+```text
+dense scan  (256 MiB): array  2.75 Gops/s   umap  0.28 Gops/s   ratio  9.87x
+irregular   (16 Mi  ): array  0.08 Gops/s   umap  0.05 Gops/s   ratio  1.78x
+```
+
+つまり「hash が遅い」ではない。**密な streaming loop の内側に bucket、metadata、key 確認の依存 load 列を毎回挟むと、throughput が落ちる**、である。1.78 倍しか出ない側では両方ともメモリ待ちで、どんな表を使おうが大差ない。欲しいのは不規則な一点読みではなく、大量の prefix を分割して各ワーカーが密な処理を続けることなので、効くのは 9.87 倍の側である。
+
+## 3. 商化してから、代入する
+
+ここで考えるべきなのは、`Byte*` 全域の完全未来で商化された機械である。そこまで正規化すると、前回の五関数を当てられる。
+
+```c
+typedef uint8_t state_t;
+
+static inline state_t feed(state_t state, uint8_t byte) {
+    (void)state;
+    return byte;
+}
+static inline uint8_t read_state(state_t state) {
+    return state;
+}
+static inline uint8_t rank_byte(uint8_t byte) {
+    return byte;
+}
+static inline uint8_t digit(uint32_t value, unsigned pass) {
+    return (uint8_t)(value >> (pass * 8u));
+}
+```
+
+これは、これから任意長の履歴を保存するための部品ではない。長さに上限のない有限履歴全体を、将来の観測で区別できる最小の状態へ落とした結果である。無限個ある非空履歴に対して、以後の計算に必要な差だけが 256 個の状態として残っている。空履歴は別の root クラスとして外に持つ。
+
+Myhill–Nerode の言い方に直すと、非空履歴 u, v について
+
+```text
+u ~ v  ⟺  last(u) = last(v)
+```
+
+であり、非空履歴は末尾 byte によって 256 クラスへ分かれる。空履歴については、以下の仕様コードでは説明を単純にするため、外部の sentinel として別に扱う。実際の最小商では root も 256 状態の一つへ併合される。hot path で扱う CSR の record は非空なので、そこでは 256 クラスだけを 8-bit で扱える。
+
+そして `feed` は以前の状態を捨てる。ここが全部である。非空 chunk の遷移関数は必ず定数関数になり、定数関数同士の合成は右を取るだけになる。
+
+```text
+f_b ∘ f_a = f_b
+```
+
+非空語が生成する遷移半群は right-zero band、つまり `x·y = y` で冪等である。空 chunk の作用だけは恒等写像として外に残る。一般の有限状態機械なら、chunk ごとに 256 byte の遷移表を作り、それを parallel scan で合成しなければならない。並列にはなるが、走査そのものより遷移表を持ち回るコストの方が支配的になることがある。非空 chunk の合成が「右を取る」に潰れた瞬間、その scan が丸ごと消える。
+
+lock-free な何かを入れたわけでも、atomic を工夫したわけでもない。**通信が定義上発生しないところまで機械を削った**、それだけである。
+
+### 代入その 1
+
+仕様はこう書ける。
+
+```c
+typedef struct {
+    const uint8_t *data;
+    size_t size;
+} byte_span_t;
+
+typedef uint16_t history_key_t;
+enum { EMPTY_HISTORY_ADDRESS = 256 };
+
+static inline history_key_t history_address(
+    byte_span_t buffer,
+    size_t end
+) {
+    /* 履歴はbuffer[0..end)。前提: end <= buffer.size */
+    return end == 0
+        ? EMPTY_HISTORY_ADDRESS
+        : read_state(feed(0, buffer.data[end - 1]));
+}
+```
+
+`feed(0, b)` は `b`、`read_state(s)` は `s` なので、内側は `buffer.data[end - 1]` まで潰れる。prefix の終端位置さえ分かれば、その直前の byte を一度 load すればよい。異なる prefix は互いの状態を待たず、別々のワーカーで同時に処理できる。
+
+### 代入その 2
+
+境界が CSR の offset 列として与えられているなら、終端位置も代入で消える。
+
+```c
+static inline history_key_t record_address(
+    byte_span_t buffer,
+    const uint64_t *offsets,
+    size_t record
+) {
+    return history_address(buffer, (size_t)offsets[record + 1]);
+}
+```
+
+`record = 0, 1, 2, ...` を順番に処理する必要はない。各ワーカーが異なる record を選び、対応する終端位置を読み、完全未来のアドレスを得られる。
+
+### 代入その 3、そして正規化
+
+map を引くところまで代入する。
+
+```c
+typedef uint64_t value_t;
+typedef struct {
+    value_t values[257];
+    uint8_t present[257];
+} history_map_spec_t;
+
+const value_t *lookup_spec(
+    const history_map_spec_t *map,
+    byte_span_t buffer,
+    const uint64_t *offsets,
+    size_t record
+) {
+    const history_key_t address =
+        record_address(buffer, offsets, record);
+    return map->present[address] ? &map->values[address] : NULL;
+}
+```
+
+仕様上は空履歴の root を含むので 257 slot ある。ここから正規化を二つ入れる。
+
+一つ目。offsets は狭義単調増加なので `offsets[record + 1] >= 1` が保証されている。空履歴の分岐と 257 番目の root slot は、CSR を使う限り到達しない。消える。
+
+二つ目。値の更新が min、max、加算、bitwise OR のような結合的な演算なら、`present` は要らない。単位元（`UINT64_MAX`、`0`）で初期化しておけば、存在しないことは値そのもので表現できる。表が一つ減り、分岐も一つ減る。
+
+残るのはこれである。
+
+```c
+value_t lookup(
+    const value_t *values,
+    const uint8_t *data,
+    const uint64_t *offsets,
+    size_t record
+) {
+    return values[data[offsets[record + 1] - 1]];
+}
+```
+
+gcc 13.3 / `-O2` で出た命令を数えた。
+
+| 版                   | 命令数 (ret を含む) | 分岐 |
+| -------------------- | ------------------- | ---- |
+| 五関数を経由した仕様 | 12                  | あり |
+| 同じ意味を手書き     | 10                  | あり |
+| 正規化後             | 4                   | なし |
+
+正規化後の本体はこれだけになる。
+
+```asm
+lookup:
+    movq    8(%rdx,%rcx,8), %rax    ; offsets[record + 1]
+    movzbl  -1(%rax,%rsi), %eax     ; data[end - 1]
+    movq    (%rdi,%rax,8), %rax     ; values[address]
+    ret
+```
+
+**3 命令。** load が三つで、うち二つは連続領域の中を歩いているだけである。
+
+ちなみに仕様版と手書き版が一致しなかったのは面白かった。inline 展開は五関数をほぼ完全に消すのだが、余計なゼロ拡張が 2 命令残る。命令数を実際に減らしたのは inline ではなく、上の二つの正規化の方である。
+
+集約も同じ正規化で小さくなる。ワーカーごとに 256 要素の局所表を持ち、最後に表同士をまとめればよい。`present` が消えたので分岐がなく、そのまま vector 化される。
+
+```c
+static inline void merge_min(uint64_t *dst, const uint64_t *src) {
+    for (size_t i = 0; i < 256; ++i) {
+        dst[i] = src[i] < dst[i] ? src[i] : dst[i];
+    }
+}
+```
+
+これが **39.4 ns**。ワーカーが 256 本あっても全部まとめて **10.1 µs** で、密な走査に換算すると 0.03 MiB ぶんでしかない。scaling curve に乗ってこない。共有 hash table へ同時に書き込む必要もない。ここが安いことが、この設計の実質的な勝ち筋である。
+
+## 4. 何を捨てたか
+
+この商化は当然ながら極端に粗い。長さも、出現回数も、括弧の対応も、直前の 1 byte より前は全部消える。
+
+答えられるもの:
+
+- 末尾 byte による bucketing、radix sort の 1 pass 分の digit
+- 末尾記号での group 集計（min / max / count / OR）
+- 末尾に紐づく metadata の引き当て
+
+答えられないもの:
+
+- 長さ、prefix 全体の hash、可変長整数の完全な decode、構造の検証
+
+CSR を推したのは、答えられない部分を「境界の offset 列」として外へ追い出すためである。境界さえ先に立てば、その内側は末尾 byte 商化で殴れる。逆に言えば、**この設計の本体は境界の作り方の方にある**。組んでみると律速もそちらだった。
+
+なお `rank_byte` が恒等なのは、unsigned byte 順が辞書順とそのまま一致するからである。signed や float の key を混ぜるならここだけ差し替えれば残りは動く。五関数を分けておいた意味はここにある。
+
+## 5. 辞書が欲しかった理由
+
+寄り道になるが、ここで一度、なぜ辞書という道具に手が伸びるのかを見ておきたい。
+
+ミンスキー機械を手作りしようと考えたことがあるなら分かるだろうが、そのまま 2 カウンターを使うと証明が地味に汚れる。ある対象に名前を付け、その名前をあとで再び指定し、同じ対象へ戻るというだけのことを、カウンターの増減とゼロ判定へ毎回展開しなければならない。ここに map、つまり辞書があると嬉しい。
+
+初期の文献を読むと、辞書が欲しかった理由は最初から露骨である。
+
+Peterson は 1957 年、名前を record の識別子として使っても、その名前だけでは物理的な格納位置が決まらず、record を見つけるために探索が必要になる、と問題を置いた。27 種類の文字を 16 桁使えば、可能な識別子は約 8×10²² 個になる。一方、実際に格納する record は数百万個しかない。巨大で疎な名前空間のうち、存在するわずかな record へ速く到達したかった。
+
+hashing の驚きは、名前の空間を物理的に全部用意しなくても、名前から格納位置の候補を計算し、短い探索で record へ到達できたことにある。名前を捨てずに、random-access storage の側へ持ち込めた。
+
+我々がいま LLM で直面しているのは、これをさらに富豪的な物量へ押し広げた問題である。数十 TB の string data を並列に流し込み、その prefix に対して密な scalar 計算を掛けたい。巨大な計算資源を持たない個人勢は、ムキムキの hack で正面から殴るしかない。
+
+そして商化を先にやると、非空履歴については名前空間を圧縮する必要すらなくなる。区別すべきものが最初から 256 個しかなく、各状態は 8-bit でそのまま array の添字になるからである。物理的には 256 要素の直接アドレス表でしかないが、問い合わせとして受け取っているのは array 上の任意の非空 prefix である。空履歴だけは外部の root として別に持つ。
+
+もちろん、同じ完全未来へ商化される履歴を別々の key として区別することはできない。ここへ載せられるのは、完全未来クラスに対して不変な値である。問い合わせの定義域は `Byte*` 全域だが、CSR の hot path で値を引く表は 256 slot で済む。
+
+ここまでが、代入で消えた側の話である。以下は、消えなかった側、つまり境界の話になる。
+
+## 6. 境界も局所 byte で決まる
+
+自己区切り整数を先頭から読むのは逐次である。しかし LEB128 には都合の良い性質がある。continuation bit が立っていない byte、つまり MSB が 0 の byte は、必ず 1 個の整数の終端である。この判定に位置の依存がない。
+
+気づいてほしいのは、これが末尾 byte 商化とまったく同じ形をしていることである。片方は MSB が立っているかどうか、もう片方は末尾 byte そのもの。どちらも履歴を持たない述語であり、この設計が並列に落ちる理由は結局その一つしかない。
+
+したがって境界抽出は decode ではなく、**byte 単位の述語からの stream compaction** になる。
+
+- 各ワーカーは自分の chunk を読み、MSB が 0 の byte 位置を集める
+- 位置は絶対 offset で出せるので、chunk 間で渡すのは「自分は何個見つけたか」だけ
+- その個数の exclusive scan で書き出し先が決まる（ワーカー数個の scan なので無視できる）
+
+出てくるのはまさに offsets の array、つまり CSR の indptr である。
+
+まず mask を作る。SSE 以降なら `pmovmskb` だが、SWAR でも乗算一発で集まる。
+
+```c
+static inline uint8_t msb_mask8(uint64_t w) {
+    uint64_t b = (w & 0x8080808080808080ull) >> 7;   /* 1 byte 1 bitへ正規化 */
+    return (uint8_t)((b * 0x0102040810204080ull) >> 56);
+}
+```
+
+問題はこの先である。選ばれた lane をどこへ書くか。stable に詰めるなら、lane k の書き出し先は mask の exclusive prefix popcount になる。素直に書けば lane ごとの loop か、SIMD の prefix sum network になる。
+
+## 7. 2 命令の rank code
+
+これも仕様から始める。求めたいのはこれだけである。
+
+```text
+byte k = popcount(mask & ((1 << k) - 1))
+```
+
+次に、探索する物理文法を決める。命令列の形をあらかじめ縛る。
+
+```text
+deposited = PDEP(mask, deposit_mask)
+ranks     = deposited * multiplier  (mod 2^64)
+```
+
+そして定数を勘で当てるのではなく、singleton mask の方程式から全部導出する。`mask = 1 << lane` のときの正解は決まっているので、最初に置かれる bit の位置を p とすると `multiplier << p` が確定し、multiplier の低い 64−p bit は強制される。自由なのは語外へ落ちる p bit だけである。あとは各 lane の位置を昇順に伸ばし、256 通りの mask 全部で照合する。
+
+結果:
+
+- この文法の中に、2 命令の解は **502 個**ある
+- 1 命令では不可能。PDEP だけでは popcount が保存されるが、mask=1 に対する正解は 7 bit 立っているので届かない。乗算だけでは mask=1 で定数が確定してしまい、mask=2 で落ちる
+- (span, work, 記述長, 順序) で並べたときの最小解は次の一組
+
+```c
+#define DEPOSIT_MASK 0x0101010101010101ull
+#define MULTIPLIER   0x0101010101010100ull
+
+static inline uint64_t exclusive_ranks8(uint8_t mask) {
+    return _pdep_u64((uint64_t)mask, DEPOSIT_MASK) * MULTIPLIER;
+}
+```
+
+読み方はこうである。PDEP は各 byte の bit 0 へ mask の bit k を配る。乗数 `0x0101010101010100` は `0x0101010101010101 << 8` なので、掛け算は「byte ごとの prefix sum」と「1 byte 分のずらし」を同時にやる。結果の byte k は bit 0..k−1 の総和、つまり exclusive prefix count になる。各 byte の最大値は 7 なので繰り上がりは起きない。
+
+PDEP が無い環境なら、同じ乗数のまま 5 演算で書ける。
+
+```c
+static inline uint64_t exclusive_ranks8_portable(uint8_t mask) {
+    uint64_t spread = ((uint64_t)mask * 0x8040201008040201ull)
+                    & 0x8080808080808080ull;
+    return (__builtin_bswap64(spread) >> 7) * MULTIPLIER;
+}
+```
+
+256 通りの mask で両方とも全数照合した。速度は次の通りで、lane ごとに loop を回す reference 実装との比較である。
+
+```text
+ranks pdep :  1.40 Gmask/s (11.17 Glane/s)
+ranks swar :  0.85 Gmask/s ( 6.82 Glane/s)
+ranks loop :  0.15 Gmask/s ( 1.23 Glane/s)   pdep/loop = 9.1x, swar/loop = 5.5x
+```
+
+**caveat**: PDEP は Zen1 / Zen2 で microcode 化されていて壊滅的に遅い。Zen3 以降と Intel Haswell 以降なら 3 cycle 程度で期待通り効く。Zen2 を含めるなら、上の portable 版へ cpuid で一度だけ落とす。忘れると、速くするつもりのコードが特定のマシンでだけ数十倍遅くなる。
+
+### partition まで同じ rank から出る
+
+compaction だけでなく、stable partition（選ばれたものを前へ、両方の相対順を保つ）も同じ rank から代数で出せる。`r_i` を exclusive rank、`k` を selected count とすると
+
+- selected な lane i の行き先は `r_i`
+- rejected な lane i の行き先は `k + i - r_i`
+- lane bit は次の rank から復元できる: `m_i = r_(i+1) - r_i`、ただし `r_8 = k`
+
+byte ごとの引き算はすべて非負なので、packed 整数演算がそのまま 8 本の独立な式になり、borrow が発生しない。
+
+```c
+static inline uint64_t partition_destinations8(uint8_t mask) {
+    uint64_t r = exclusive_ranks8(mask);
+    uint64_t k = (uint64_t)__builtin_popcount(mask);
+    uint64_t following = (r >> 8) | (k << 56);
+    uint64_t selected  = (following - r) * 0xFFull;          /* lane maskへ拡張 */
+    uint64_t rejected  = k * 0x0101010101010101ull
+                       + 0x0706050403020100ull - r;
+    return rejected ^ ((rejected ^ r) & selected);
+}
+```
+
+256 通りの mask について、行き先が置換になっていること、selected-first であること、両側の相対順が保たれることを全数確認した。compaction、filtering、touched list、sparse offset、partition、全部この一本で足りる。
+
+### 境界抽出に戻す
+
+rank が出れば、書き出しは分岐なしになる。exclusive rank の性質上、rejected lane の行き先は「次の selected lane」と同じ slot なので、lane 順に 8 本無条件に書けば、最後に selected lane が上書きして正しく詰まる。
+
+```c
+for (; i + 8 <= n; i += 8) {
+    uint64_t w; memcpy(&w, p + i, 8);
+    uint8_t term = (uint8_t)~msb_mask8(w);        /* MSBが0 = 終端 */
+    uint64_t r = exclusive_ranks8(term);
+    uint32_t *d = out + k;
+    d[(r >>  0) & 0xff] = (uint32_t)(i + 1);
+    d[(r >>  8) & 0xff] = (uint32_t)(i + 2);
+    d[(r >> 16) & 0xff] = (uint32_t)(i + 3);
+    d[(r >> 24) & 0xff] = (uint32_t)(i + 4);
+    d[(r >> 32) & 0xff] = (uint32_t)(i + 5);
+    d[(r >> 40) & 0xff] = (uint32_t)(i + 6);
+    d[(r >> 48) & 0xff] = (uint32_t)(i + 7);
+    d[(r >> 56) & 0xff] = (uint32_t)(i + 8);
+    k += (unsigned)__builtin_popcount(term);
+}
+```
+
+## 8. 実験
+
+64 MiB の LEB128 列（長さ 1..5 をランダム、平均 3.00 byte、2237 万 record）で、素直な 1 byte ずつの loop と上の ranked 版を比較した。両者の出力は完全一致を確認している。
+
+```text
+--- 長さランダム 1..5 ---
+branchy  :  0.232 s   0.27 GB/s   0.10 Gbound/s
+ranked   :  0.046 s   1.37 GB/s   0.49 Gbound/s   speedup 5.08x
+```
+
+5 倍。ただしこれは境界の出方が予測不能だからである。条件を変えると素直に消える。
+
+```text
+--- 固定長3 (完全に予測可能) ---
+branchy  :  0.064 s   0.97 GB/s
+ranked   :  0.048 s   1.31 GB/s   speedup 1.35x
+
+--- 固定長1 (全byteが終端) ---
+branchy  :  0.046 s   1.36 GB/s
+ranked   :  0.061 s   1.03 GB/s   speedup 0.76x
+```
+
+全 byte が終端の場合、**分岐なし版の方が負ける**。分岐が 100% 予測できてしまうと branchy 版はほぼ出力帯域だけの仕事になり、8 本無条件 store のオーバーヘッドが表に出る。効いていたのは命令数ではなく分岐予測ミスであって、それが無い入力では効くものが何も残らない。
+
+### CSR を実体化するコストは、払った方が安かった
+
+これは予想が外れた。
+
+「pass 数を減らす方が偉い」と思って、境界抽出と histogram を融合した 1 pass 版を書いた。offsets array を一切書かず、mask から直接 histogram を叩く。対して 2 pass 版は、いったん CSR の offsets を実体化してから、`buf[offsets[r] - 1]` を読んで histogram を作る。offsets は入力 1 byte あたり 1.33 byte の追加 traffic になる。
+
+```text
+256 MiB / 8948万record
+two-pass (CSR実体化)  : 0.272 s  0.92 GB/s   [scan 0.180 s + gather 0.091 s]
+fused    (offsets無し): 0.344 s  0.73 GB/s   speedup 0.79x
+CSR offsets = 341 MiB の追加traffic (入力1 byteあたり1.33 byte)
+```
+
+traffic を 1.33 倍払っている方が **1.27 倍速い**。融合版は mask の立っている bit を順に舐めるために loop が要り、そこがデータ依存の分岐になる。2 pass 版は両方の pass が完全に streaming で、分岐がない。
+
+つまりこの箱では、traffic 削減より分岐除去の方が支配的だった。境界を先に立てろと書いたのは並列化のためだったが、単純に速度でも実体化した方が速かったのは想定外である。CSR を作るのは並列化の代償ではなかった。
+
+### 測っていないこと
+
+正直に書くと、この記事の数字は全部 single thread である。手元の箱が 1 core なので、スレッドスケーリング、NUMA 配置、per-worker 表の false sharing は測れていない。
+
+そこは主張の質が違うと思っている。「状態の受け渡しが無い」は測定ではなく構造の話で、`feed` が定数関数であることから出る。実測が要るのは「その構造にしたとき 1 コアあたりの仕事が速いか」の方で、そちらが上の数字である。スケーリングは箱を借りたら追記する。
+
+## 9. まとめ
+
+やったことは結局、「答えたい問いに対して機械を最小の状態へ商化してから、代入を最後まで進める」だけである。
+
+順序が逆だと、hash map という一般的な道具を先に選び、そのあとで並列化と局所性を後付けすることになる。商化を先にやると、道具は 256 要素の array になり、状態の受け渡しは消え、集約は結合的な還元になり、残った逐次部分は境界抽出だけになる。そしてその境界抽出も、byte 単位の述語からの compaction に落ちて、その内側の stable dense address は 2 命令になる。
+
+map の引き当てが 3 命令、rank code が 2 命令。どちらも代入と正規化の結果として出てきた数字で、最初から狙ったものではない。仕様を先に書いて、あとは消していけば、残るものは勝手に残る。
+
+やけを起こしながらマイクロ秒を削る職人技は、AI でも消しきれない。ここまで来て、自分がやりたかったのは VM の続きだったのだと気づいた。命令ポインタとメモリの有効範囲を自分で管理していたときと、やっていることが何も変わっていない。どこに何 byte あり、次にどこを読むのか、それだけを見ている。
+
+### 計測環境
+
+Intel Xeon @ 2.10GHz (1 vCPU, family 6 model 207), 3 GiB RAM, Ubuntu 24.04, gcc 13.3.0, `-O2 -mbmi2`（C++ 側は `-march=native`）。各測定は 3 回行い、本文には最良値を掲載した。並列スケーリングは未測定。
+
+## 10. おまけ: 正規化済み C コード
+
+本文の hot path だけを抜くと、これで足りる。前提は、各 record が非空で `offsets` が狭義単調増加であること、`values` と局所集約表が演算の単位元で初期化されていること。BMI2 が使える環境では rank が `PDEP` と乗算へ落ち、使えない環境では同じ packed 表現を portable 版で作る。
+
+```c
+#include <immintrin.h>
+#include <stddef.h>
+#include <stdint.h>
+
+typedef uint64_t value_t;
+
+#define BYTE_LANES     0x0101010101010101ull
+#define RANK_MULTIPLIER 0x0101010101010100ull
+
+static inline value_t lookup(
+    const value_t values[static 256],
+    const uint8_t *data,
+    const uint64_t *offsets,
+    size_t record
+) {
+    return values[data[offsets[record + 1] - 1]];
+}
+
+static inline void merge_min(
+    uint64_t dst[static 256],
+    const uint64_t src[static 256]
+) {
+    for (size_t i = 0; i < 256; ++i) {
+        if (src[i] < dst[i]) dst[i] = src[i];
+    }
+}
+
+static inline uint8_t msb_mask8(uint64_t word) {
+    uint64_t bits = (word & 0x8080808080808080ull) >> 7;
+    return (uint8_t)((bits * 0x0102040810204080ull) >> 56);
+}
+
+static inline uint64_t exclusive_ranks8(uint8_t mask) {
+#if defined(__BMI2__)
+    return _pdep_u64((uint64_t)mask, BYTE_LANES) * RANK_MULTIPLIER;
+#else
+    uint64_t spread = ((uint64_t)mask * 0x8040201008040201ull)
+                    & 0x8080808080808080ull;
+    return (__builtin_bswap64(spread) >> 7) * RANK_MULTIPLIER;
+#endif
+}
+```
+
+`lookup` は offset、末尾 byte、value の三つを load する。`exclusive_ranks8` は 8 lane 分の exclusive prefix count を、各 byte へ packed して返す。残りは用途に合わせて、この二つの間へ境界抽出、histogram、compaction、partition を置けばよい。
