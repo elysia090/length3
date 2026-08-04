@@ -1,172 +1,3 @@
-/* ─── Design Tokens ─────────────────────────────────────────── */
-:root {
-  /* Colors — original palette with mineral accents */
-  --amber: #d4820a;
-  --amber-deep: #9a4312;
-  --amber-text: #b45309;
-  --amber-lt: #e8a030;
-  --amber-tint: rgba(212, 130, 10, 0.06); /* amber @ 6% — lead bg */
-  --ink: #1c1a18;
-  --ink-2: #44413c;
-  --ink-3: #7a7670;
-  --rule: #cdc8c0;
-  --bg: #f9f8f5;
-  --bg-2: #f0ede8;
-  --paper: rgba(249, 248, 245, 0.9);
-  --paper-strong: rgba(249, 248, 245, 0.96);
-  --surface-line: rgba(110, 97, 80, 0.40);
-  --surface-shine: rgba(255, 255, 255, 0.42);
-  --surface-fill: rgba(240, 237, 232, 0.72);
-  --surface-fill-strong: rgba(240, 237, 232, 0.78);
-  --surface-border: rgba(110, 97, 80, 0.52);
-  --surface-separator: rgba(55, 52, 47, 0.68);
-  /* Surfaces & shadows */
-  --overlay-bg: rgba(28, 26, 24, 0.6);
-  --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);
-  --focus-halo: rgba(180, 83, 9, 0.14);
-
-  /* Typography — font-size scale */
-  --font-ui-xs: 0.6875rem;   /* 11px — smallest UI text: shortcuts and compact UI labels */
-  /* Display (headings): prefer platform mincho fonts, then Noto Serif JP, so
-     CJK characters in headings render in serif/mincho rather than sans-serif. */
-  --font-display: 'Fraunces', 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', Georgia, 'Noto Sans JP', serif;
-  /* Sans: Japanese-specific fonts listed BEFORE system-ui so that CJK characters
-     render correctly even when only system fonts are available.
-     'Yu Gothic UI' covers Windows 10+; 'Meiryo' covers Windows Vista+. */
-  --font-sans:    'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
-  /* Ruby: prefer a Japanese serif face even when the main UI stack is sans. */
-  --font-ruby:    'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
-  /* Mono: keep Latin UI in a monospace face, but add CJK fallbacks so Japanese
-     breadcrumbs, TOC items, and status text do not render as tofu. */
-  --font-mono:    'JetBrains Mono', ui-monospace, 'Fira Code', 'Cascadia Code', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', monospace;
-
-  /* Layout */
-  --layout-max-width:    75rem;  /* 1200px — outer container cap */
-  --measure:             42.5rem;
-  --sidebar-width:       17.5rem;
-  --toc-width:           12.5rem;
-  --layout-gap:          clamp(2rem, 4vw, 2.5rem);
-  --page-gutter:         clamp(1.25rem, 4vw, 1.5rem);
-
-  /* Border radius scale */
-  --radius-xs:   0.125rem;  /*  2px — 画像・細部アクセント */
-  --radius-sm:   0.1875rem; /*  3px — タグ・インラインコード */
-  --radius-md:   0.25rem;   /*  4px — ボタン・小パネル */
-  --radius-lg:   0.5rem;    /*  8px — カード・リードブロック */
-  --radius-xl:   0.625rem;  /* 10px — モーダルカード */
-  --radius-pill: 999px;     /* pill形状（検索バー等） */
-
-  /* Motion */
-  --transition-fast:  80ms ease;                        /* インタラクティブな即時フィードバック */
-  --transition-slow: 200ms ease;                        /* 状態遷移・フェード（TOC等） */
-  --easing-reveal: cubic-bezier(0.2, 0.8, 0.2, 1);     /* コンテンツ登場アニメーション */
-
-  /* Z-index layers — 追加時はこのスケール内に収める */
-  --z-elevated: 35;   /* 固定UI部品（reading progress bar） */
-  --z-texture:  20;   /* テクスチャオーバーレイ (body::before) */
-  --z-surface:  30;   /* テクスチャより前面の読取面 (prose-area, toc-aside) */
-  --z-skip:     40;   /* スキップリンク — 最前面 */
-}
-
-/* ─── Reset ──────────────────────────────────────────────────── */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-}
-
-html {
-  font-family: var(--font-sans);
-  font-size: 100%;
-  color: var(--ink);
-  background-color: var(--bg);
-}
-
-body {
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ─── Texture overlay ────────────────────────────────────────── */
-/* 768px contour-grain AVIF with WebP fallback tiled at very low opacity
-   — adds tactile paper quality uniformly across the entire viewport
-   without interfering with readability or pointer events. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url('../assets/textures/length3-texture-transparent.webp');
-  background-image: image-set(
-    url('../assets/textures/length3-texture-transparent.avif') type('image/avif'),
-    url('../assets/textures/length3-texture-transparent.webp') type('image/webp')
-  );
-  background-repeat: repeat;
-  background-size: 768px 768px;
-  pointer-events: none;
-  z-index: var(--z-texture);
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-a,
-button,
-[role='button'],
-input,
-textarea,
-select,
-summary {
-  -webkit-tap-highlight-color: rgba(155, 78, 24, 0.18);
-}
-
-img {
-  max-width: 100%;
-  height: auto;
-}
-
-/* ─── Skip navigation link — SC 2.4.1 ──────────────────────────*/
-/* Visually hidden until focused; becomes visible for keyboard users */
-.skip-link {
-  position: absolute;
-  top: -100%;
-  left: 1rem;
-  padding: 0.5rem 1rem;
-  background: var(--ink);
-  color: var(--bg);
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-  z-index: var(--z-skip);
-  text-decoration: none;
-  transition: none; /* instant — no delay when keyboard user needs it */
-}
-.skip-link:focus-visible {
-  top: 0;
-  outline: 0.125rem solid var(--amber-text);
-  outline-offset: 0.125rem;
-}
-
-/* ─── Focus outline — spec §6 ────────────────────────────────── */
-:focus-visible {
-  outline: 0.125rem solid var(--amber-text);
-  outline-offset: 0.1875rem;
-  box-shadow: 0 0 0 0.25rem var(--focus-halo);
-}
-
-/* ─── Reduced motion — spec §5 ──────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
 /* ─── Index Layout ───────────────────────────────────────────── */
 /* Mobile-first: article list first, discovery tools follow underneath. */
 .index-layout {
@@ -297,6 +128,8 @@ img {
     align-self: start;
     max-height: calc(100dvh - 4rem);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     padding-top: 2rem;
     z-index: var(--z-surface); /* テクスチャ (--z-texture) より前面でテキストを描画 */
     /* 背景なし: TOC列はテクスチャをそのまま透過させる。
@@ -313,7 +146,8 @@ img {
   }
   .index-sidebar {
     padding-left: var(--layout-gap);
-    margin-top: 0;
+    /* 記事一覧 1 件目の日付行と検索フィールドの視覚的な高さを揃える。 */
+    margin-top: -0.25rem;
     border-top: none;
   }
 }
@@ -492,17 +326,4 @@ img {
   .page-header {
     margin-bottom: 2rem;
   }
-}
-
-/* ─── Utilities ──────────────────────────────────────────────── */
-.sr-only {
-  position: absolute;
-  width: 0.0625rem;
-  height: 0.0625rem;
-  padding: 0;
-  margin: -0.0625rem;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }

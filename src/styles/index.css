@@ -1,0 +1,31 @@
+/*
+ * Single stylesheet entry point. BaseLayout imports this file and nothing else,
+ * so the cascade order is declared here in one place instead of being spread
+ * across whichever component happens to be imported first.
+ *
+ * 順序はカスケードレイヤーで宣言する。レイヤー間の優先度は詳細度より先に
+ * 効くので、後から書いた規則が意図せず勝つ事故が起きない。
+ *
+ * Order is load-bearing, from least to most specific:
+ *   fonts      — @font-face only
+ *   tokens     — :root custom properties every other file reads
+ *   base       — reset, page chrome (texture, skip link, focus), utilities
+ *   layout     — page shells and their responsive columns
+ *   components — one file per component, no cross-component selectors
+ *   typography — .prose, the article body; last so it can win inside prose
+ */
+@layer tokens, base, layout, components, prose;
+
+@import './fonts.css';
+@import './tokens.css' layer(tokens);
+@import './base.css' layer(base);
+@import './layout.css' layer(layout);
+@import './components/header.css' layer(components);
+@import './components/footer.css' layer(components);
+@import './components/breadcrumb.css' layer(components);
+@import './components/article-card.css' layer(components);
+@import './components/toc.css' layer(components);
+@import './components/article-actions.css' layer(components);
+@import './components/search.css' layer(components);
+@import './components/topic-list.css' layer(components);
+@import './typography.css' layer(prose);

@@ -5,17 +5,17 @@ interface SearchModalRuntime {
   searchController: PagefindSearchController;
 }
 
-let sidebarSearchSequence = 0;
+let searchPanelSequence = 0;
 
-export function initializeSidebarSearch(root: ParentNode = document) {
+export function initializeSearchPanel(root: ParentNode = document) {
   for (const searchRoot of resolveSearchRoots(root)) {
-    initializeSidebarSearchRoot(searchRoot);
+    initializeSearchPanelRoot(searchRoot);
   }
 }
 
-function initializeSidebarSearchRoot(searchRoot: HTMLElement) {
+function initializeSearchPanelRoot(searchRoot: HTMLElement) {
   const browserDocument = searchRoot.ownerDocument;
-  const finishProfile = startBenchProfile('sidebar.init', {
+  const finishProfile = startBenchProfile('search-panel.init', {
     documentLang: browserDocument.documentElement.lang || 'unknown',
   });
 
@@ -136,15 +136,15 @@ function initializeSidebarSearchRoot(searchRoot: HTMLElement) {
 }
 
 function resolveSearchRoots(root: ParentNode): HTMLElement[] {
-  if (root instanceof HTMLElement && root.matches('[data-sidebar-search]')) {
+  if (root instanceof HTMLElement && root.matches('[data-search-panel]')) {
     return [root];
   }
 
-  return [...root.querySelectorAll<HTMLElement>('[data-sidebar-search]')];
+  return [...root.querySelectorAll<HTMLElement>('[data-search-panel]')];
 }
 
 function ownsGlobalShortcut(searchRoot: HTMLElement) {
-  return searchRoot.ownerDocument.querySelector('[data-sidebar-search]') === searchRoot;
+  return searchRoot.ownerDocument.querySelector('[data-search-panel]') === searchRoot;
 }
 
 function ensureElementId(element: HTMLElement, prefix: string) {
@@ -152,8 +152,8 @@ function ensureElementId(element: HTMLElement, prefix: string) {
     return element.id;
   }
 
-  sidebarSearchSequence += 1;
-  element.id = `${prefix}-${sidebarSearchSequence}`;
+  searchPanelSequence += 1;
+  element.id = `${prefix}-${searchPanelSequence}`;
   return element.id;
 }
 

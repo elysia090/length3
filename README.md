@@ -32,6 +32,12 @@ top-level `packageManager` field.
 ## Project Layout
 
 - `src/`: Astro pages, layouts, components, styles, and content collections
+- `src/features/`: feature modules — each owns its `.astro` components, browser
+  logic, and unit tests (`blog`, `article`, `search`)
+- `src/components/`: shell components shared across every page (header, footer,
+  breadcrumb) plus `RubyText`, which content files import
+- `src/styles/`: `index.css` is the only entry point; it declares the cascade
+  order of the token, base, layout, per-component, and prose stylesheets
 - `src/assets/`: non-public source assets such as textures
 - `src/config/`: source-of-truth configuration modules shared across app and tests
 - `tests/e2e/`: Playwright smoke and behavior coverage for the site

@@ -1,0 +1,137 @@
+/* Topic list */
+.topic-list {
+  min-width: 0;
+}
+
+.topic-list-heading {
+  margin-bottom: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.topic-list-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-top: 0.0625rem solid var(--rule);
+}
+
+.topic-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 0;
+  border-bottom: 0.0625rem solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  touch-action: manipulation;
+  transition: color var(--transition-fast);
+}
+
+.topic-list-item:hover,
+.topic-list-item:active {
+  color: var(--amber-text);
+}
+
+.topic-list-name {
+  min-width: 0;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.topic-list-count {
+  flex-shrink: 0;
+  color: var(--ink-2);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+}
+
+/* 上位 6 件のみ常時表示し、残りは <details> で展開する。
+   JS を持たない開示ウィジェットなので、折りたたみ中もマークアップ上は
+   全トピックが存在し、クローラと Ctrl+F から到達できる。 */
+.topic-list-more {
+  min-width: 0;
+}
+
+.topic-list-items--rest {
+  border-top: none;
+}
+
+.topic-list-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem; /* 44px — spec §8: タップターゲット下限 */
+  padding: 0.875rem 0;
+  border-bottom: 0.0625rem solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+  touch-action: manipulation;
+  transition: color var(--transition-fast);
+}
+
+/* Safari は summary のマーカーを ::-webkit-details-marker で描画する。 */
+.topic-list-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.topic-list-toggle:hover,
+.topic-list-toggle:active {
+  color: var(--amber-text);
+}
+
+/* 開閉状態に応じてラベルを差し替える。JS を使わずに CSS だけで切り替える。 */
+.topic-list-more:not([open]) .topic-list-toggle-label[data-toggle-state='open'],
+.topic-list-more[open] .topic-list-toggle-label[data-toggle-state='closed'] {
+  display: none;
+}
+
+/* 「+」を CSS で描く。開いたら 45 度回して「×」にする。 */
+.topic-list-toggle-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-left: auto;
+  transition: transform var(--transition-slow);
+}
+
+.topic-list-toggle-icon::before,
+.topic-list-toggle-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  background: currentcolor;
+}
+
+.topic-list-toggle-icon::before {
+  width: 100%;
+  height: 0.0625rem;
+}
+
+.topic-list-toggle-icon::after {
+  width: 0.0625rem;
+  height: 100%;
+}
+
+.topic-list-more[open] .topic-list-toggle-icon {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topic-list-toggle-icon {
+    transition: none;
+  }
+}

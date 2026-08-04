@@ -1,0 +1,60 @@
+---
+import { formatHiddenTopicsLabel, getSiteCopy } from '../../i18n/site-copy';
+import type { TopicSummary } from './catalog';
+
+interface Props {
+  lang?: 'en' | 'ja';
+  topics: TopicSummary[];
+}
+
+/* 一覧の初期表示はここまで。残りは <details> の中に畳む。 */
+const VISIBLE_TOPIC_LIMIT = 6;
+
+const { topics, lang } = Astro.props;
+const copy = getSiteCopy(lang);
+const visibleTopics = topics.slice(0, VISIBLE_TOPIC_LIMIT);
+const hiddenTopics = topics.slice(VISIBLE_TOPIC_LIMIT);
+---
+
+{
+  topics.length > 0 && (
+    <section class="topic-list" aria-labelledby="topic-list-heading">
+      <h2 class="topic-list-heading" id="topic-list-heading">
+        {copy.topics}
+      </h2>
+      <ul class="topic-list-items">
+        {visibleTopics.map((topic) => (
+          <li>
+            <a href={topic.href} class="topic-list-item" rel="tag">
+              <span class="topic-list-name">#{topic.name}</span>
+              <span class="topic-list-count">{topic.count}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      {hiddenTopics.length > 0 && (
+        <details class="topic-list-more">
+          <summary class="topic-list-toggle">
+            <span class="topic-list-toggle-label" data-toggle-state="closed">
+              {formatHiddenTopicsLabel(hiddenTopics.length, lang)}
+            </span>
+            <span class="topic-list-toggle-label" data-toggle-state="open">
+              {copy.topicsShowLess}
+            </span>
+            <span class="topic-list-toggle-icon" aria-hidden="true" />
+          </summary>
+          <ul class="topic-list-items topic-list-items--rest">
+            {hiddenTopics.map((topic) => (
+              <li>
+                <a href={topic.href} class="topic-list-item" rel="tag">
+                  <span class="topic-list-name">#{topic.name}</span>
+                  <span class="topic-list-count">{topic.count}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  )
+}

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { initializeSidebarSearch } from './sidebar-search';
+import { initializeSearchPanel } from './search-panel';
 
 function createSidebarSearchDom() {
   document.body.innerHTML = `
-    <div data-sidebar-search>
+    <div data-search-panel>
       <button type="button" data-search-trigger aria-expanded="false">Search</button>
       <dialog data-search-modal data-search-lang="en"></dialog>
       <template data-search-modal-template>
@@ -16,7 +16,7 @@ function createSidebarSearchDom() {
         </div>
       </template>
     </div>
-    <div data-sidebar-search>
+    <div data-search-panel>
       <button type="button" data-search-trigger aria-expanded="false">Search</button>
       <dialog data-search-modal data-search-lang="ja"></dialog>
       <template data-search-modal-template>
@@ -30,14 +30,14 @@ function createSidebarSearchDom() {
     </div>
   `;
 
-  return [...document.querySelectorAll<HTMLElement>('[data-sidebar-search]')];
+  return [...document.querySelectorAll<HTMLElement>('[data-search-panel]')];
 }
 
-describe('initializeSidebarSearch', () => {
+describe('initializeSearchPanel', () => {
   it('initializes each search root without relying on document-global ids', () => {
     const roots = createSidebarSearchDom();
 
-    initializeSidebarSearch();
+    initializeSearchPanel();
 
     const controls = roots.map((root) =>
       root.querySelector<HTMLButtonElement>('[data-search-trigger]')?.getAttribute('aria-controls'),
