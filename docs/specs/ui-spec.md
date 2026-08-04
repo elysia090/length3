@@ -85,7 +85,7 @@ Previous iterations used `0.9rem` (≈14.4px) for body text. This is revised upw
 | H2                            | 1.25rem (20px)   | Fraunces        | 400        | 1.3         |
 | H3                            | 1.1rem (17.6px)  | Fraunces        | 400 italic | 1.3         |
 | Body prose                    | 1rem (16px)      | system-ui       | 400        | 1.8         |
-| Body prose (< 720px)          | 1rem (16px)      | system-ui       | 400        | 1.75        |
+| Body prose (< 720px)          | fluid 15–16px    | system-ui       | 400        | 1.75        |
 | Lead / Lede                   | 1.05rem (16.8px) | Fraunces italic | 300        | 1.9         |
 | UI label                      | 0.75rem (12px)   | JetBrains Mono  | 400        | —           |
 | Code inline                   | 0.88em           | JetBrains Mono  | 400        | —           |
@@ -377,7 +377,12 @@ The "breathing" right margin in the article layout is not infinitely compressibl
 
 ### Mobile Requirements
 
-- No font size below 16px (prevents iOS Safari auto-zoom on input focus)
+- No **form control** below 16px — Safari on iOS zooms the viewport when a field
+  smaller than that takes focus. The search input is therefore pinned at 1rem
+- Body prose is fluid between 15px and 16px below 480px:
+  `clamp(0.9375rem, calc((100vw - 2.5rem) / 23.5), 1rem)`. The divisor targets a
+  23-character Japanese line; at 390px that is 22.9 characters against 21.4 at a
+  flat 16px. 15px is the floor — prose never goes below it
 - All tap targets ≥ 44 × 44px
 - Line length self-regulates (viewport width naturally constrains it)
 

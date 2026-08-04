@@ -231,21 +231,24 @@
   display: flex;
   justify-content: flex-start;
   flex-wrap: wrap;
-  gap: 0.375rem 0.5rem;
+  /* 枠がないぶん、語と語の間は余白で切る。 */
+  gap: 0.125rem 0.875rem;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
+/* タグは枠のない文字列で出す (spec §4)。1 件あたり 5 個の枠が並ぶと、
+   一覧ではタイトルより先にタグの矩形が目に入ってしまう。押せる範囲は
+   縦 24px (WCAG 2.5.8 のターゲット下限) を padding で確保する。 */
 .tag-pill {
   position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 1.375rem;
-  padding: 0.1875rem 0.5rem;
-  border: 0.0625rem solid var(--surface-border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-fill);
+  min-height: 1.5rem;
+  padding: 0.25rem 0;
+  border: none;
+  background: none;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   line-height: 1.15;
@@ -261,44 +264,15 @@
 .tag-pill:hover,
 .tag-pill:active {
   color: var(--amber-text);
-  border-color: rgba(180, 83, 9, 0.3); /* --amber-text @ 30% */
-  background: var(--surface-fill-strong);
-}
-
-.tag-pill-list--quiet {
-  gap: 0.4rem 0.8rem;
-}
-
-.tag-pill--quiet {
-  min-height: auto;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-  color: var(--ink-2);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-}
-
-.tag-pill--quiet:hover,
-.tag-pill--quiet:active {
-  color: var(--amber-text);
-  border: none;
-  background: none;
 }
 
 .tag-pill-overflow {
-  color: var(--ink-2);
-  border-color: var(--surface-line);
-  background: none;
+  color: var(--ink-3);
 }
 
 .tag-pill-overflow:hover,
 .tag-pill-overflow:active {
   color: var(--ink-2);
-  border-color: var(--surface-border);
-  background: none;
 }
 
 @media (pointer: coarse) {
