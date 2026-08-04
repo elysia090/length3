@@ -54,7 +54,10 @@ const siteCopy = getSiteCopy(lang);
   </dialog>
 
   <template data-search-modal-template>
-    <div class="search-card">
+    <!-- showModal() の初期フォーカスがカード自身に来るようにする。
+         これがないと閉じるボタンにフォーカスが乗り、開いた瞬間に
+         フォーカスリングが出る。 -->
+    <div class="search-card" tabindex="-1" autofocus>
       <div class="search-card-header">
         <svg
           class="search-header-icon"

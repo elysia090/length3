@@ -305,7 +305,7 @@ export function decorateSearchUi(
   emptyState?: HTMLElement | null,
 ) {
   clearBootstrapMessages(mount);
-  decorateSearchLayout(mount);
+  decorateSearchLayout(mount, copy);
   decorateSearchField(getSearchField(mount), copy);
   decorateSearchMessage(
     mount.querySelector<HTMLElement>('.pagefind-ui__message'),
@@ -481,9 +481,17 @@ function getSearchResultsDrawer(mount: ParentNode) {
   return mount.querySelector<HTMLElement>(SEARCH_RESULTS_DRAWER_SELECTOR);
 }
 
-function decorateSearchLayout(mount: ParentNode) {
+function decorateSearchLayout(mount: ParentNode, copy: SearchCopy) {
   getSearchForm(mount)?.setAttribute('data-search-layout', 'stack');
-  getSearchClearButton(mount)?.setAttribute('data-search-region', 'clear');
+
+  const clearButton = getSearchClearButton(mount);
+  if (clearButton) {
+    clearButton.setAttribute('data-search-region', 'clear');
+    // ボタンは入力欄の中の × として描くのでラベル文字列は表示しない。
+    // 読み上げ名が消えないよう aria-label を明示する。
+    clearButton.setAttribute('aria-label', copy.clearSearch);
+  }
+
   getSearchResultsArea(mount)?.setAttribute('data-search-region', 'results-area');
 
   const resultsDrawer = getSearchResultsDrawer(mount);

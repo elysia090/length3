@@ -580,6 +580,23 @@ describe('decorateSearchUi', () => {
     expect(resultsArea?.dataset.searchRegion).toBe('results-area');
   });
 
+  it('labels the clear button so the icon-only rendering keeps an accessible name', () => {
+    const { mount } = createSearchDom('ja');
+    mount.innerHTML = `
+      <div class="pagefind-ui">
+        <form class="pagefind-ui__form">
+          <input class="pagefind-ui__search-input" />
+          <button class="pagefind-ui__search-clear">検索をクリア</button>
+        </form>
+      </div>
+    `;
+
+    decorateSearchUi(mount, getSearchCopy('ja'));
+
+    const clearButton = mount.querySelector<HTMLButtonElement>('.pagefind-ui__search-clear');
+    expect(clearButton?.getAttribute('aria-label')).toBe('検索をクリア');
+  });
+
   it('renders a real localized empty state in the DOM', () => {
     const { emptyState, mount } = createSearchDom('ja');
     mount.innerHTML = `

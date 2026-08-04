@@ -6,6 +6,12 @@
   margin: 0;
 }
 
+/* hidden 属性は UA スタイルの display:none で効くが、クラス側で display を
+   指定した要素には競り負ける。属性のほうを常に勝たせる。 */
+[hidden] {
+  display: none !important;
+}
+
 html {
   font-family: var(--font-sans);
   font-size: 100%;
