@@ -161,8 +161,8 @@ Page background. Warm off-white, not pure `#fff`. Reduces glare in extended read
 **BG-2** `#f0ede8`
 Secondary surface: table headers, sidebar. The difference from BG is perceptible but minimal — enough to register as "this is a different surface" without creating a visual event. Code no longer uses it; see §4.
 
-**Code surface** `#26231f`
-The only dark surface on the page. A warm dark gray sharing the Ink hue, so a page full of code blocks does not shift the page's colour temperature. Contrast against BG: **14.7:1**. Used for block code only — never for inline code, buttons, or panels.
+**Code surface** `#23262b`
+The only dark surface on the page, and the only place a cool hue appears. A dark gray carrying a small amount of blue: everything else on the page — paper, ink, rules, amber — is warm, so the code slab is the one element lit from the opposite side of the wheel. That is what the blue buys. The warm tokens on it (amber keywords, terracotta constants, parchment function names) read as complementary rather than as more of the same, so the block gains contrast without gaining darkness. Contrast against BG: **14.3:1**. Used for block code only — never for inline code, buttons, or panels.
 
 ### Contrast Compliance
 
@@ -243,7 +243,7 @@ Located in the left column. `position: sticky; top: 32px`.
 
 **Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: 3px`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
-**Block code:** `--code-bg` (`#26231f`) background — a warm dark gray at the same hue as Ink, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: 2px`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`), `line-height: 1.65`.
+**Block code:** `--code-bg` (`#23262b`) background — a dark gray with a small amount of blue in it, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: 2px`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
 **Block code is a dark surface; inline code is not.** The two are different objects. A block is a figure the reader stops on — set as a slab, it separates from the prose the way a plate separates from body text in print, and the sharp 1px edge is what makes it read as an object rather than a wash. Inline code is not an object; it belongs to the sentence, so it stays light. Earlier revisions of this document prohibited dark blocks on the grounds that they rupture reading flow; in practice the near-invisible BG-2 wash (a 1.06:1 step from the page) failed to mark the block at all.
 
