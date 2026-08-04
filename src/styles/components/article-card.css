@@ -56,8 +56,11 @@
   transition: color var(--transition-fast);
 }
 
-.card-title a:hover {
-  color: var(--amber-text);
+/* タッチ端末では tap 後も :hover が残り、1 件だけ選択済みのように見える。 */
+@media (hover: hover) {
+  .card-title a:hover {
+    color: var(--amber-text);
+  }
 }
 
 .card-excerpt {

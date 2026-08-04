@@ -49,9 +49,15 @@ a.crumb:active {
   color: var(--amber-text);
 }
 
+/* 現在ページのパンくずは、すぐ下の h1 と同じ文字列になる。長い和文タイトルだと
+   同じ見出しが 2 行ぶん重なって出るので、1 行で切って役割（現在地の表示）だけ
+   残す。 */
 .crumb-current {
   color: var(--ink-2);
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .breadcrumb--flush {

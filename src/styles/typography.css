@@ -111,9 +111,11 @@
   transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
 }
 
-.prose a:hover {
-  color: var(--ink);
-  text-decoration-color: var(--rule);
+@media (hover: hover) {
+  .prose a:hover {
+    color: var(--ink);
+    text-decoration-color: var(--rule);
+  }
 }
 
 /* Tag pills inside prose — override link styles so pills match the index page */
