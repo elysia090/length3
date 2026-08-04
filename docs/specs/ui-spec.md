@@ -159,7 +159,10 @@ Rules and dividers only. The contrast against BG is deliberately subtle — a ru
 Page background. Warm off-white, not pure `#fff`. Reduces glare in extended reading sessions.
 
 **BG-2** `#f0ede8`
-Secondary surface: inline code backgrounds, code blocks, sidebar. The difference from BG is perceptible but minimal — enough to register as "this is a different surface" without creating a visual event.
+Secondary surface: table headers, sidebar. The difference from BG is perceptible but minimal — enough to register as "this is a different surface" without creating a visual event. Code no longer uses it; see §4.
+
+**Code surface** `#26231f`
+The only dark surface on the page. A warm dark gray sharing the Ink hue, so a page full of code blocks does not shift the page's colour temperature. Contrast against BG: **14.7:1**. Used for block code only — never for inline code, buttons, or panels.
 
 ### Contrast Compliance
 
@@ -238,11 +241,15 @@ Located in the left column. `position: sticky; top: 32px`.
 
 ### Code Blocks
 
-**Inline code:** BG-2 background, `border: 1px solid var(--rule)`, `border-radius: 3px`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink.
+**Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: 3px`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
-**Block code:** BG-2 background. `border-left: 2px solid #e8a030` (amber-lt). `border-radius: 0 4px 4px 0`. `padding: 16px 20px`. JetBrains Mono 0.84rem, Ink-2, `line-height: 1.75`.
+**Block code:** `--code-bg` (`#26231f`) background — a warm dark gray at the same hue as Ink, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: 2px`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`), `line-height: 1.65`.
 
-**Code blocks do not use dark backgrounds.** A dark code block on a light page creates a visual hole that ruptures the reading flow. The reader's eye must recalibrate brightness when entering and leaving the block. The left amber border is sufficient to signal "this is code" without breaking the page's tonal continuity.
+**Block code is a dark surface; inline code is not.** The two are different objects. A block is a figure the reader stops on — set as a slab, it separates from the prose the way a plate separates from body text in print, and the sharp 1px edge is what makes it read as an object rather than a wash. Inline code is not an object; it belongs to the sentence, so it stays light. Earlier revisions of this document prohibited dark blocks on the grounds that they rupture reading flow; in practice the near-invisible BG-2 wash (a 1.06:1 step from the page) failed to mark the block at all.
+
+**Syntax highlighting** is on, via Shiki with a project theme (`src/config/code-theme.ts`). The token palette is amber, sage, terracotta, parchment, and dusty lavender — muted, warm, and keyed to the page accent rather than a stock high-saturation theme. Every token colour clears 4.5:1 against `--code-bg`. The theme's surface values are duplicated in `--code-*` (tokens.css) because Shiki writes token colours inline while the surface comes from CSS; the two must be changed together.
+
+**Horizontal overflow is signalled without JavaScript.** A block wider than its column shows a light edge on the side that has more content, built from four background layers — two covers attached `local`, two glows attached `scroll`. Scrolling to an end slides the cover over the glow and the signal disappears.
 
 **Language labels are not displayed.** The content of the code block identifies its language. A label stating `typescript` above TypeScript code provides zero additional information.
 

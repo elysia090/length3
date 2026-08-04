@@ -20,6 +20,17 @@
   --surface-fill-strong: rgba(240, 237, 232, 0.78);
   --surface-border: rgba(110, 97, 80, 0.52);
   --surface-separator: rgba(55, 52, 47, 0.68);
+  /* Code — 紙の上に置いた活字の版。色相は --ink と同じ暖色で、
+     ページの色温度を変えずに硬い面をつくる。値は src/config/code-theme.ts
+     （Shiki テーマ）と対。片方だけ動かすと言語指定なしのコードとずれる。 */
+  --code-bg: #26231f;        /* 黒ではなく濃い灰。紙に対して 14.7:1 */
+  --code-edge: #413b34;      /* 面の縁。パキッと切れた輪郭を 1px でつくる */
+  --code-fg: #d9d4cb;        /* 地の文字 — 10.6:1 */
+  --code-dim: #948c81;       /* コメント — 4.7:1 */
+  --code-glow: rgba(217, 212, 203, 0.22); /* 横スクロールの端に出る明かり */
+  --code-inline-bg: #edeae4; /* インラインは本文の流れに残すので明るいまま */
+  --code-inline-edge: rgba(110, 97, 80, 0.18);
+
   /* Surfaces & shadows */
   --overlay-bg: rgba(28, 26, 24, 0.6);
   --shadow-card: 0 0.5rem 2rem rgba(0, 0, 0, 0.15);
