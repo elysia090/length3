@@ -15,6 +15,10 @@
 html {
   font-family: var(--font-sans);
   font-size: 100%;
+  /* モバイルブラウザの自動拡大を止める。1 行 23 字を狙って組んだ寸法が
+     端末側の text inflation で崩れないようにするため。 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   color: var(--ink);
   background-color: var(--bg);
 }

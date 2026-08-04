@@ -316,6 +316,9 @@
 [data-pagefind-ui] .pagefind-ui__drawer[data-search-region='results'][data-search-scrollable='true'] {
   grid-area: results;
   min-width: 0;
+  /* 結果の端までスクロールしても背後のページが動かないようにする。 */
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   min-height: 0;
   width: 100%;
   overflow-y: auto;
