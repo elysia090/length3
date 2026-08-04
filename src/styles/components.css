@@ -636,6 +636,89 @@ a.crumb:active {
   letter-spacing: 0.08em;
 }
 
+/* 上位 6 件のみ常時表示し、残りは <details> で展開する。
+   JS を持たない開示ウィジェットなので、折りたたみ中もマークアップ上は
+   全トピックが存在し、クローラと Ctrl+F から到達できる。 */
+.sidebar-topics-more {
+  min-width: 0;
+}
+
+.sidebar-topic-list--rest {
+  border-top: none;
+}
+
+.sidebar-topics-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem; /* 44px — spec §8: タップターゲット下限 */
+  padding: 0.875rem 0;
+  border-bottom: 0.0625rem solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+  touch-action: manipulation;
+  transition: color var(--transition-fast);
+}
+
+/* Safari は summary のマーカーを ::-webkit-details-marker で描画する。 */
+.sidebar-topics-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-topics-toggle:hover,
+.sidebar-topics-toggle:active {
+  color: var(--amber-text);
+}
+
+/* 開閉状態に応じてラベルを差し替える。JS を使わずに CSS だけで切り替える。 */
+.sidebar-topics-more:not([open]) .sidebar-topics-toggle-label[data-toggle-state='open'],
+.sidebar-topics-more[open] .sidebar-topics-toggle-label[data-toggle-state='closed'] {
+  display: none;
+}
+
+/* 「+」を CSS で描く。開いたら 45 度回して「×」にする。 */
+.sidebar-topics-toggle-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-left: auto;
+  transition: transform var(--transition-slow);
+}
+
+.sidebar-topics-toggle-icon::before,
+.sidebar-topics-toggle-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  background: currentcolor;
+}
+
+.sidebar-topics-toggle-icon::before {
+  width: 100%;
+  height: 0.0625rem;
+}
+
+.sidebar-topics-toggle-icon::after {
+  width: 0.0625rem;
+  height: 100%;
+}
+
+.sidebar-topics-more[open] .sidebar-topics-toggle-icon {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-topics-toggle-icon {
+    transition: none;
+  }
+}
+
 .search-unavailable,
 .search-loading,
 .search-error {

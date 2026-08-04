@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatArticleReadingTime,
   formatCompactReadingTime,
+  formatHiddenTopicsLabel,
   formatRemainingReadingTime,
   getSiteCopy,
 } from './site-copy';
@@ -20,6 +21,19 @@ describe('getSiteCopy', () => {
     expect(copy.left).toBe('left');
     expect(copy.total).toBe('total');
     expect(copy.share).toBe('Share');
+    expect(copy.topicsShowLess).toBe('閉じる');
+  });
+});
+
+describe('formatHiddenTopicsLabel', () => {
+  it('labels the collapsed remainder of the topic list per language', () => {
+    expect(formatHiddenTopicsLabel(18, 'en')).toBe('+18 more');
+    expect(formatHiddenTopicsLabel(18, 'ja')).toBe('他 18 件');
+  });
+
+  it('falls back to English when no language is given', () => {
+    expect(formatHiddenTopicsLabel(1, null)).toBe('+1 more');
+    expect(formatHiddenTopicsLabel(1, undefined)).toBe('+1 more');
   });
 });
 

@@ -29,6 +29,7 @@ export interface SiteCopy {
   tableOfContents: string;
   tags: string;
   topics: string;
+  topicsShowLess: string;
   total: string;
   updatedPrefix: string;
   articles: string;
@@ -63,6 +64,7 @@ const SITE_COPY_BY_LANGUAGE: Record<SiteLanguage, SiteCopy> = {
     tableOfContents: 'Table of Contents',
     tags: 'Tags',
     topics: 'Topics',
+    topicsShowLess: 'Show less',
     total: 'total',
     updatedPrefix: 'upd.',
   },
@@ -94,6 +96,7 @@ const SITE_COPY_BY_LANGUAGE: Record<SiteLanguage, SiteCopy> = {
     tableOfContents: '目次',
     tags: 'タグ',
     topics: 'トピック',
+    topicsShowLess: '閉じる',
     total: 'total',
     updatedPrefix: 'upd.',
   },
@@ -105,6 +108,11 @@ export function getSiteCopy(language: SiteLanguage | null | undefined): SiteCopy
   }
 
   return SITE_COPY_BY_LANGUAGE.en;
+}
+
+/** Label for the collapsed remainder of the topic list ("+18 more"). */
+export function formatHiddenTopicsLabel(count: number, language: SiteLanguage | null | undefined) {
+  return language === 'ja' ? `他 ${count} 件` : `+${count} more`;
 }
 
 export function formatCompactReadingTime(

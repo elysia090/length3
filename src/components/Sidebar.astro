@@ -1,6 +1,6 @@
 ---
 import { getSearchCopy } from '../features/search/search-copy';
-import { getSiteCopy } from '../i18n/site-copy';
+import { formatHiddenTopicsLabel, getSiteCopy } from '../i18n/site-copy';
 
 interface TopicSummary {
   count: number;
@@ -13,9 +13,14 @@ interface Props {
   topics: TopicSummary[];
 }
 
+/* 一覧の初期表示はここまで。残りは <details> の中に畳む。 */
+const VISIBLE_TOPIC_LIMIT = 6;
+
 const { topics, lang } = Astro.props;
 const copy = getSearchCopy(lang);
 const siteCopy = getSiteCopy(lang);
+const visibleTopics = topics.slice(0, VISIBLE_TOPIC_LIMIT);
+const hiddenTopics = topics.slice(VISIBLE_TOPIC_LIMIT);
 ---
 
 <div data-sidebar-search>
@@ -59,7 +64,7 @@ const siteCopy = getSiteCopy(lang);
             {siteCopy.topics}
           </h2>
           <ul class="sidebar-topic-list">
-            {topics.map((topic) => (
+            {visibleTopics.map((topic) => (
               <li>
                 <a href={topic.href} class="sidebar-topic-card" rel="tag">
                   <span class="sidebar-topic-name">#{topic.name}</span>
@@ -68,6 +73,29 @@ const siteCopy = getSiteCopy(lang);
               </li>
             ))}
           </ul>
+          {hiddenTopics.length > 0 && (
+            <details class="sidebar-topics-more">
+              <summary class="sidebar-topics-toggle">
+                <span class="sidebar-topics-toggle-label" data-toggle-state="closed">
+                  {formatHiddenTopicsLabel(hiddenTopics.length, lang)}
+                </span>
+                <span class="sidebar-topics-toggle-label" data-toggle-state="open">
+                  {siteCopy.topicsShowLess}
+                </span>
+                <span class="sidebar-topics-toggle-icon" aria-hidden="true" />
+              </summary>
+              <ul class="sidebar-topic-list sidebar-topic-list--rest">
+                {hiddenTopics.map((topic) => (
+                  <li>
+                    <a href={topic.href} class="sidebar-topic-card" rel="tag">
+                      <span class="sidebar-topic-name">#{topic.name}</span>
+                      <span class="sidebar-topic-count">{topic.count}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       )
     }
