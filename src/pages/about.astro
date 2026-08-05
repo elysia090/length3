@@ -109,12 +109,20 @@ import BaseLayout from '../layouts/BaseLayout.astro';
      z-index は上げない。テクスチャ (body::before) は position: fixed の全面
      オーバーレイなので、石の暗い面には等高線がそのまま乗る。紙の上に置いた
      写真ではなく、ページと同じ面に彫られた物として見える。 */
+  /* 石は読むものではなく、この頁の地の一部。文章を選ろうとして端まで
+     引いた指が石まで掴むと、青い選択矩形と「画像を保存」の吹き出しが出て、
+     彫ってあるはずの物が急に貼り付けた素材に戻る。選択・ドラッグ・長押しの
+     対象から外す。alt は残るので読み上げには何も起きない。 */
   .about-figure {
     position: absolute;
     inset-block: 2rem 0;
     inset-inline-end: max(var(--page-gutter), env(safe-area-inset-right));
     width: var(--stone-width);
     margin: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    pointer-events: none;
   }
 
   .about-figure picture {
@@ -129,6 +137,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     width: 100%;
     object-fit: contain;
     object-position: right bottom;
+    -webkit-user-drag: none;
     /* 溶ける裾を紙に馴染ませる。素材側の透明度だけだと、下端に薄い横線が
        残る端末がある。 */
     mask-image: linear-gradient(180deg, #000 82%, transparent 100%);

@@ -7,7 +7,7 @@ draft: false
 lang: ja
 ---
 
-前回の [27-byte VM と並列 radix sort](/27-byte-vm-parallel-radix-sort) の続きである。
+前回の [27-byte VM と並列 radix sort](https://length3.com/27-byte-vm-parallel-radix-sort) の続きである。
 
 今回やったことは一つしかない。答えたい問いに合わせて機械を商化し、その仕様を関数として書き、あとは代入と式変形と正規化を最後まで進める。それだけである。最終的に残ったのは、map の引き当てが 3 命令、8 lane 分の stable dense address が 2 命令だった。どちらも狙って小さくしたのではなく、代入したら小さくなった。以下、実測値はすべて末尾に書いた 1 core の箱で取っている。計測コードの生成と実行は Claude Code に任せた。
 

@@ -13,9 +13,6 @@ export interface SearchCopy {
   resultCount: (count: number) => string;
   resultsLabel: string;
   searchDialogLabel: string;
-  searchHintClose: string;
-  searchHintNavigate: string;
-  searchHintOpen: string;
   searchLabel: string;
   searchPlaceholder: string;
   unavailable: string;
@@ -33,9 +30,6 @@ const SEARCH_COPY_BY_LANGUAGE: Record<SiteLanguage, SearchCopy> = {
     resultCount: (count) => `${count} search result${count === 1 ? '' : 's'} available.`,
     resultsLabel: 'Search results',
     searchDialogLabel: 'Search',
-    searchHintClose: 'Esc close',
-    searchHintNavigate: '↑↓ navigate',
-    searchHintOpen: '↵ open',
     searchLabel: 'Search articles',
     searchPlaceholder: 'Search articles…',
     unavailable: 'Search is unavailable until the Pagefind index has been built.',
@@ -51,9 +45,6 @@ const SEARCH_COPY_BY_LANGUAGE: Record<SiteLanguage, SearchCopy> = {
     resultCount: (count) => `${count}件の検索結果があります。`,
     resultsLabel: '検索結果',
     searchDialogLabel: '検索',
-    searchHintClose: 'Esc 閉じる',
-    searchHintNavigate: '↑↓ 移動',
-    searchHintOpen: '↵ 開く',
     searchLabel: '記事を検索',
     searchPlaceholder: '記事を検索…',
     unavailable: 'Pagefind のインデックスが未生成のため検索できません。',

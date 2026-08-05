@@ -60,7 +60,7 @@ body::before {
    曲率が連続するぶん同じ半径でも柔らかい。pill は半円の端そのものが形なので
    除く。Chromium 以外は corner-shape を無視して普通の丸角に落ちる。 */
 :where(.prose pre, .prose code, .prose img, .code-block, .code-copy,
-  .article-header-lead, .search-card, .search-hint, .search-shortcut,
+  .article-header-lead, .search-card, .search-shortcut,
   .tag-pill, .skip-link) {
   corner-shape: squircle;
 }
