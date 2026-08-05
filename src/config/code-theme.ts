@@ -1,7 +1,7 @@
 /**
  * Shiki theme for code blocks.
  *
- * ページは寒色に寄せた紙 (--bg #f5f7fb) の上に等高線テクスチャが乗っている。
+ * ページは寒色に寄せた紙 (--bg #f9f9fa) の上に等高線テクスチャが乗っている。
  * その上に描かれるものはすべて寒色（色相 212°）に揃えてあり、コード面は
  * その寒色を字ではなく面の大きさで敷いたもの (#20272f)。
  *
@@ -19,7 +19,7 @@ const surface = '#20272f'; // 炭 — --code-bg
 const fg = '#d9d4cb'; // 地の文字 — --code-fg
 const dim = '#878f99'; // コメント — --code-dim
 const operator = '#959da8'; // 記号・区切り
-const amber = '#e8a030'; // キーワード・タグ (--amber-lt)
+const amber = '#f0a626'; // キーワード・タグ (--amber-lt)
 const sage = '#a3b18a'; // 文字列
 const terracotta = '#cf8a72'; // 数値・定数
 const parchment = '#e6d3a3'; // 関数名

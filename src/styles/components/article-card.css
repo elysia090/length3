@@ -108,25 +108,22 @@
   margin-top: -2rem;
 }
 
-/* ガラス玉。地を塗り潰さず、後ろの等高線と薄れた行を通して見せる。
-   Apple の Liquid Glass が「板」ではなく「玉」に見えるのは、次の 4 枚が
-   同時に乗っているため。ここでもその 4 枚だけを積む:
+/* ガラス。地を塗り潰さず、後ろの等高線と薄れた行を通して見せる。積むのは
+   3 枚だけ:
 
    1. backdrop-filter — 後ろを曇らせ、彩度を上げる（ガラスの厚み）
-   2. 内側の斜め光 — 左上が明るい放射グラデーション（面の反射）
-   3. inset の縁 — 上辺に強い白、下辺に回り込んだ弱い白（鏡面のリム）
-   4. 外側の影 — 紙から浮かせる
+   2. 寒色の tint — 地と反対の色相に置いて、透けたまま輪郭を立てる
+   3. 細い縁 — レンズの周り
 
    SVG の feDisplacementMap による屈折は入れていない。直径 44px では歪みが
    1px 未満で見えないうえ、backdrop-filter: url() が効くのは Chromium だけで、
    他のブラウザでは宣言ごと落ちて曇りまで消える。
 
-   ガラスは白だけで積むと、暖色の紙の上では地と同じ明るさになって輪郭が
-   消える。実機では等高線に紛れて、玉があること自体が見えなかった。
-   そこで色ガラスにする。tint・縁・影を、地と反対側の寒色（色相 212°）で
-   通す。明度ではなく色相で紙から離すので、透けたままはっきり縁が立つ。
-   白のリムは残す — 白は光であって色ではなく、これが無いとガラスは
-   ただの曇った丸になる。 */
+   外の影は無い。強い白のリムも無い。ガラスは白だけで積むと紙と同じ明るさに
+   なって見えなくなり（最初の版）、影と斜めの照りを足すと今度は紙から浮いた
+   ボタンになる（次の版）。どちらも「厚みのある物を描く」向きの手であって、
+   ここで要るのは厚みではなく、紙に伏せて置いた 1 枚のレンズ。上下の照りを
+   落として tint を平らにすると、玉ではなく面になり、地に接する。 */
 .list-more-btn {
   display: inline-flex;
   align-items: center;
@@ -134,36 +131,25 @@
   width: 2.75rem;   /* 44px — spec §8: タップターゲット下限 */
   height: 2.75rem;
   padding: 0;
-  border: 0.0625rem solid var(--surface-border);
+  border: 0.0625rem solid var(--surface-line);
   border-radius: var(--radius-pill);
+  /* 照りは左上に一段だけ、ごく薄く。放射で強く入れると球面になる。 */
   background:
     radial-gradient(
-      124% 124% at 30% 20%,
-      rgba(255, 255, 255, 0.62) 0%,
-      rgba(255, 255, 255, 0.2) 46%,
-      rgba(255, 255, 255, 0.04) 100%
+      130% 130% at 32% 24%,
+      rgba(255, 255, 255, 0.34) 0%,
+      rgba(255, 255, 255, 0.1) 60%,
+      rgba(255, 255, 255, 0) 100%
     ),
-    linear-gradient(
-      160deg,
-      rgba(64, 86, 112, 0.1) 0%,
-      rgba(64, 86, 112, 0.24) 100%
-    );
-  backdrop-filter: blur(0.25rem) saturate(1.7) brightness(1.02);
-  -webkit-backdrop-filter: blur(0.25rem) saturate(1.7) brightness(1.02);
-  /* 外の影は接地のぶんだけ。8px の影を 2px 落とすと玉は紙から数センチ
-     浮いて見え、一覧の上を漂う別の部品になる。ここで要るのは浮遊ではなく
-     厚み — 厚みは内側のリムと翳りが出すので、外は 1px の接地影だけ残す。 */
-  box-shadow:
-    inset 0 0.0625rem 0.0625rem rgba(255, 255, 255, 0.9),
-    inset 0 -0.0625rem 0.125rem rgba(255, 255, 255, 0.5),
-    inset 0 0 0.75rem rgba(37, 52, 71, 0.16),
-    0 0.0625rem 0.1875rem rgba(37, 52, 71, 0.1);
+    rgba(88, 94, 102, 0.14);
+  backdrop-filter: blur(0.25rem) saturate(1.6);
+  -webkit-backdrop-filter: blur(0.25rem) saturate(1.6);
   color: var(--ink);
   cursor: pointer;
   touch-action: manipulation;
   transition:
-    color var(--transition-fast),
     border-color var(--transition-fast),
+    background-color var(--transition-fast),
     box-shadow var(--transition-fast);
 }
 
@@ -174,27 +160,24 @@
   fill: currentcolor;
 }
 
-/* 触れるとガラスが厚くなる。リムが強くなり、翳りが深くなる。持ち上げない
-   — 触れて浮くのは板の挙動で、紙に置いたレンズのそれではない。 */
+/* 触れると濃くなる。持ち上がりも沈みもしない — 動くのは色だけ。 */
 @media (hover: hover) {
   .list-more-btn:hover {
-    color: var(--ink);
-    border-color: var(--surface-separator);
-    box-shadow:
-      inset 0 0.0625rem 0.09375rem rgba(255, 255, 255, 1),
-      inset 0 -0.0625rem 0.1875rem rgba(255, 255, 255, 0.65),
-      inset 0 0 0.875rem rgba(37, 52, 71, 0.22),
-      0 0.0625rem 0.1875rem rgba(37, 52, 71, 0.14);
+    border-color: var(--surface-border);
+    background:
+      radial-gradient(
+        130% 130% at 32% 24%,
+        rgba(255, 255, 255, 0.38) 0%,
+        rgba(255, 255, 255, 0.12) 60%,
+        rgba(255, 255, 255, 0) 100%
+      ),
+      rgba(88, 94, 102, 0.19);
   }
 }
 
-/* 押し込むと逆にへこむ。上辺の強い白を消し、内側の翳りを深くする。 */
+/* 押しているあいだだけ、内側に薄い翳りを入れる。 */
 .list-more-btn:active {
-  color: var(--ink);
-  box-shadow:
-    inset 0 0.0625rem 0.25rem rgba(37, 52, 71, 0.26),
-    inset 0 -0.0625rem 0.0625rem rgba(255, 255, 255, 0.5),
-    0 0.0625rem 0.125rem rgba(37, 52, 71, 0.1);
+  box-shadow: inset 0 0.0625rem 0.1875rem rgba(52, 56, 62, 0.18);
 }
 
 @media (min-width: 40rem) {

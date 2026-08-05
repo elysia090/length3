@@ -5,7 +5,7 @@
   left: 0;
   height: 0.125rem;
   width: var(--progress, 0%);
-  background: var(--amber-deep);
+  background: var(--amber-text);
   z-index: var(--z-elevated);
   transition: width 150ms linear;
   pointer-events: none;
