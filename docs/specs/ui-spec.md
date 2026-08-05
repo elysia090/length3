@@ -260,6 +260,8 @@ The reason is distance, not tidiness. Search and the topic list live below the a
 
 **Glass.** The disc is the one Liquid-Glass-style surface in the interface: a translucent tint over a `backdrop-filter` blur, a specular rim (strong white inset on the top edge, a softer return on the bottom), a faint inner shading for thickness, and a soft drop shadow. It reads as a lens laid on the page — the paper texture stays visible through it, distorted. On press the rim inverts to a recess.
 
+**The glass is tinted cool.** Built from white alone it was the same brightness as the paper it sat on, and on a phone it disappeared into the contour lines: the control was there, and could not be seen. Tint, edge, and shadow are therefore all taken to the cool hue (212°) — the disc separates from the page by being on the far side of the wheel from it, not by being darker. The white rim stays, because white here is light rather than colour; without it the lens is only a clouded circle. The dots go to Ink. This is not the temperature rule breaking: the rule says the thing being _read_ is cool, and it is the disc's rim and tint being read against warm paper, not a surface being read on. Where `prefers-reduced-transparency` removes the blur, the tint alone would leave a circle the brightness of the page, so the disc falls back to the BG-2 surface token and keeps its cool edge.
+
 This does not contradict the search overlay's ban on `backdrop-filter` (below). That ban is about a **surface the reader reads through**; the disc is a **control the reader looks at**. Blur that dims a page of text serves the interface; blur that gives a 44px control physical depth serves the reader's understanding of what it is.
 
 **Behaviour without JavaScript.** The server renders every article and the disc `hidden`. The collapse happens only once the script runs, so a reader without JavaScript — and any crawler or in-page find — gets the whole list. Collapsed items stay in the DOM (`hidden`), never removed.
@@ -327,6 +329,12 @@ The button lives in a wrapper the script places around the `<pre>`, not inside i
 
 **Footer:** Keyboard guide only. `↑↓ navigate` `↵ open` `esc close` — JetBrains Mono 0.7rem, Ink-3. Right-aligned: `Pagefind`.
 
+**One left edge.** The dialog title, the empty state, the footer hints, and the result text all start at the same 16px from the card's inner edge; the input's own text is inset further only because a pill carries its own padding. The selected row's surface is the single thing allowed outside that column — it bleeds 8px past the text on both sides, so the highlight reads as a plate under the line rather than as a second margin.
+
+Both sides means both. The results are the one scrolling region in the card, and a scrollbar gutter reserved on the right alone shortened every row rule by its width — the list looked mis-set by a few pixels without ever showing why. The gutter is therefore thin and reserved on **both edges**, and the list bleeds out to the card's inner edges to pay for it. Where the platform draws overlay scrollbars — every touch device, and macOS by default — both reservations collapse to zero and the column lands exactly on 16px.
+
+**Keyboard navigation.** `↑` / `↓` move the selection through the results while focus stays in the field, so typing never needs a trip back. The field is therefore a `combobox`, the list a `listbox`, each result an `option`, and the selection is carried by `aria-activedescendant` — the same attribute the highlight is styled from. Selection wraps at both ends and clears whenever the query changes, because the results it pointed at no longer exist. `↵` opens the selected result, or the first one when nothing is selected. A keystroke that arrives mid-IME-composition is not a command: `Enter` closing a Japanese conversion must never open an article. Conversely, a prevented default is not proof the key was consumed — Pagefind cancels `Enter` on the field to stop the form submitting, and reading that as "handled" is what left the footer promising a key that did nothing.
+
 **Focus trap:** While the modal is open, Tab cycles only within modal elements. Escape closes the modal and returns focus to the trigger element.
 
 **Pagefind integration.** The spec defines the visual contract; Pagefind's default UI elements are fully overridden with a custom wrapper. Pagefind is used as a search engine only — its DOM output is consumed as data and rendered through custom markup matching this specification.
@@ -379,7 +387,7 @@ The ring is drawn with **`outline`, never with `box-shadow` alone**. Forced-colo
 - Each page has exactly one `<h1>`. No exceptions.
 - Heading levels are never skipped. H1 → H3 without an intervening H2 is a violation.
 - `<nav>` elements carry `aria-label="primary"`.
-- Search input carries `<label>` or `aria-label`.
+- Search input carries `<label>` or `aria-label`, plus the `combobox` role that binds it to the results `listbox` while they are on screen.
 - TOC `<ul>` carries `aria-label="Table of Contents"`.
 - Code blocks with language metadata use `aria-label` to expose the language to assistive technology.
 
@@ -449,6 +457,13 @@ The "breathing" right margin in the article layout is not infinitely compressibl
   flat 16px. 15px is the floor — prose never goes below it
 - All tap targets ≥ 44 × 44px
 - Line length self-regulates (viewport width naturally constrains it)
+- The paper texture extends **one viewport above and below** the visible area.
+  iOS stretches the whole page past the end of the document on an overscroll,
+  and a fixed layer stretches with it — sized to the viewport exactly, it pulled
+  away and left a band of bare BG with a hard horizontal edge across the screen
+  every time the reader flicked to the bottom. The overshoot is measured in `vh`,
+  never `dvh`: a layer whose height changes when the browser toolbar collapses
+  re-tiles its 768px grain mid-scroll
 
 ---
 

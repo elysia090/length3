@@ -64,6 +64,8 @@ export interface PagefindSearchControllerOptions {
   mount: HTMLElement;
   mountSelector: string;
   nextFrame?: () => Promise<void>;
+  /** 結果の DOM が描き直されたあと（装飾のあと）に呼ばれる。属性だけを触ること。 */
+  onSync?: () => void;
   pagefindSrc?: string;
   status: HTMLElement;
 }
@@ -279,6 +281,7 @@ export function createPagefindSearchController(options: PagefindSearchController
     try {
       decorateSearchUi(mount, copy, emptyState);
       syncStatus();
+      options.onSync?.();
     } finally {
       startObserving();
       finishProfile();

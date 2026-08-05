@@ -32,11 +32,18 @@ body {
 /* ─── Texture overlay ────────────────────────────────────────── */
 /* 768px contour-grain AVIF with WebP fallback tiled at very low opacity
    — adds tactile paper quality uniformly across the entire viewport
-   without interfering with readability or pointer events. */
+   without interfering with readability or pointer events.
+
+   上下に 1 画面ぶん伸ばしてある。iOS の慣性スクロールは文書の端を越えると
+   ページごとゴムのように引き伸ばし、そのとき fixed の層もページと一緒に
+   ずれる。inset: 0 のままだと、行き過ぎたぶんだけ紙目のない地色が顔を出し、
+   スクロールのたびに横一本の境界が走って見えた。左右は文書幅で止まるので
+   伸ばさない。単位は vh — dvh だとツールバーの開閉で層の丈が変わり、
+   敷き詰めた 768px の目がスクロールの途中でずれる。 */
 body::before {
   content: '';
   position: fixed;
-  inset: 0;
+  inset: -100vh 0;
   background-image: url('../assets/textures/length3-texture-transparent.webp');
   background-image: image-set(
     url('../assets/textures/length3-texture-transparent.avif') type('image/avif'),
