@@ -103,9 +103,9 @@
 }
 
 .prose a {
-  color: var(--amber-text); /* SC 1.4.3: 4.73:1 on --bg */
+  color: var(--amber-text); /* SC 1.4.3: 4.92:1 on --bg */
   text-decoration: underline;
-  text-decoration-color: rgba(180, 83, 9, 0.4); /* amber-text @ 40% — 常時視認可能 */
+  text-decoration-color: rgba(194, 65, 12, 0.4); /* amber-text @ 40% — 常時視認可能 */
   text-decoration-thickness: 0.0625rem;
   text-underline-offset: 0.2em;
   transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
@@ -301,7 +301,7 @@
 }
 
 .prose ul > li::marker {
-  color: var(--amber-text); /* SC 1.4.11: UI marker needs 3:1; --amber-text gives 4.73:1 */
+  color: var(--amber-text); /* SC 1.4.11: UI marker needs 3:1; --amber-text gives 4.92:1 */
 }
 
 /* ─── Horizontal rule ────────────────────────────────────────── */
@@ -311,7 +311,7 @@
 .prose hr {
   border: none;
   height: 0.125rem;
-  background: var(--amber-deep);
+  background: var(--amber-text);
   width: 3rem;
   margin: 1.5rem 0 2rem;
 }
@@ -353,7 +353,7 @@ ruby {
 rt {
   font-family: var(--font-ruby);
   font-size: 0.65em;               /* raised from 0.52em: ~10px at 16px base, improves legibility */
-  color: var(--amber-text);        /* SC 1.4.3: 4.73:1 on --bg */
+  color: var(--amber-text);        /* SC 1.4.3: 4.92:1 on --bg */
 }
 
 /* Lines containing ruby get extra line-height to prevent collision — spec §2 */

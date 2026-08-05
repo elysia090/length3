@@ -144,8 +144,12 @@ Color carries information. It is never applied for warmth, mood, or atmosphere. 
 
 ### Token Definitions
 
-**Amber** `#d4820a`
-The single accent color. Used exclusively for interactive signals and semantic markers. Contrast against BG is **2.8:1** — a marker, not a text color. Anything amber that carries words uses **Amber-text** `#b45309` (**4.7:1**) instead. Earlier revisions of this document credited `#d4820a` with 4.8:1 and AA; that number was wrong, and the implementation has always used the darker variant for type.
+**Amber** `#ea580c`
+The single accent color. Used exclusively for interactive signals and semantic markers. Contrast against BG is **3.4:1** — a marker, not a text color. Anything amber that carries words uses **Amber-text** `#c2410c` (**4.9:1**) instead. Earlier revisions of this document credited the accent with 4.8:1 and AA; that number was wrong, and the implementation has always used the darker variant for type.
+
+The accent was raised when the page was cooled. A background losing saturation takes the accent's apparent strength with it — against a neutral page an accent stops reading as a point of colour and starts reading as a slightly darker patch — so the amber goes to full saturation and its hue moves from 28° to **22°**, which sits almost exactly opposite the 212° everything else is drawn in. Red-weighted luminance is lower at the same chroma, so the crisper colour is also the higher-contrast one: Amber-text clears **4.9:1** on BG and **4.6:1** on BG-2, which is the first time the accent has cleared AA on both surfaces.
+
+**One warm value on paper.** Amber-text is now every warm thing drawn on the page: type, the decorative rules, the reading-progress bar, search-match marks, the search lens. There used to be a third token — a deep `#9a4312` for rules and the progress bar — and on warm paper the difference read as considered. On a page with the colour taken out of it, three warm values at three lightnesses read as three attempts at the same colour. Two remain, and neither overlaps: **Amber** `#ea580c` is the lit state (hover), **Amber-lt** `#f0a626` exists because the code slab is dark and paper amber sinks into it.
 
 _Where it appears:_ TOC active state (border + text). Hover text color on interactive elements. Ruby `<rt>` annotations. Keyword tokens in code. 1px left-border on lead paragraphs.
 
@@ -199,13 +203,13 @@ Measured, not estimated. Ratios are WCAG 2.x relative luminance, rounded to one 
 | Ink-2 on BG      | `#393e43` / `#f9f9fa` | 10.3:1 | AAA           |
 | Ink-3 on BG      | `#656b73` / `#f9f9fa` | 5.1:1  | AA            |
 | Ink-3 on BG-2    | `#656b73` / `#f0f1f3` | 4.8:1  | AA            |
-| Amber-text on BG | `#b45309` / `#f9f9fa` | 4.8:1  | AA            |
-| Amber on BG      | `#d4820a` / `#f9f9fa` | 2.9:1  | markers only  |
+| Amber-text on BG | `#c2410c` / `#f9f9fa` | 4.9:1  | AA            |
+| Amber on BG      | `#ea580c` / `#f9f9fa` | 3.4:1  | markers only  |
 | Code fg on code  | `#d9d4cb` / `#20272f` | 10.2:1 | AAA           |
 | Code dim on code | `#878f99` / `#20272f` | 4.6:1  | AA            |
 | Rule on BG       | `#c8c9cc` / `#f9f9fa` | 1.6:1  | non-text, 1px |
 
-Amber-text on BG-2 measures **4.4:1** and does not clear AA. Links inside table headers and selected search rows are the only place that pairing occurs; if either surface grows, the pairing needs a darker amber rather than a lighter panel.
+Amber-text on BG-2 measures **4.6:1** and clears AA — the pairing that appears in table headers and selected search rows, and the one this palette had been failing since the accent was first written down. It clears by hue, not by darkening: the same lightness moved 6° toward red.
 
 ---
 
@@ -308,7 +312,7 @@ Located in the left column. `position: sticky; top: 32px`.
 
 **Inline code:** `--code-inline-bg` (`#ebeced`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
-**Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: var(--radius-lg)`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
+**Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #f0a626` (amber-lt), `border-radius: var(--radius-lg)`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
 **Block code is a dark surface; inline code is not.** The two are different objects. A block is a figure the reader stops on — set as a slab, it separates from the prose the way a plate separates from body text in print, and the sharp 1px edge is what makes it read as an object rather than a wash. Inline code is not an object; it belongs to the sentence, so it stays light. Earlier revisions of this document prohibited dark blocks on the grounds that they rupture reading flow; in practice the near-invisible BG-2 wash (a 1.06:1 step from the page) failed to mark the block at all.
 

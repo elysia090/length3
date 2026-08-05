@@ -211,7 +211,7 @@
 .amber-rule {
   border: none;
   height: 0.125rem;
-  background: var(--amber-deep);
+  background: var(--amber-text);
   width: 3rem;
 }
 
