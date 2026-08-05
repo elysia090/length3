@@ -119,7 +119,14 @@
 
    SVG の feDisplacementMap による屈折は入れていない。直径 44px では歪みが
    1px 未満で見えないうえ、backdrop-filter: url() が効くのは Chromium だけで、
-   他のブラウザでは宣言ごと落ちて曇りまで消える。 */
+   他のブラウザでは宣言ごと落ちて曇りまで消える。
+
+   ガラスは白だけで積むと、暖色の紙の上では地と同じ明るさになって輪郭が
+   消える。実機では等高線に紛れて、玉があること自体が見えなかった。
+   そこで色ガラスにする。tint・縁・影を、地と反対側の寒色（色相 212°）で
+   通す。明度ではなく色相で紙から離すので、透けたままはっきり縁が立つ。
+   白のリムは残す — 白は光であって色ではなく、これが無いとガラスは
+   ただの曇った丸になる。 */
 .list-more-btn {
   display: inline-flex;
   align-items: center;
@@ -127,25 +134,31 @@
   width: 2.75rem;   /* 44px — spec §8: タップターゲット下限 */
   height: 2.75rem;
   padding: 0;
-  border: 0.0625rem solid rgba(255, 255, 255, 0.5);
+  border: 0.0625rem solid var(--surface-border);
   border-radius: var(--radius-pill);
   background:
     radial-gradient(
       124% 124% at 30% 20%,
-      rgba(255, 255, 255, 0.5) 0%,
-      rgba(255, 255, 255, 0.14) 46%,
-      rgba(255, 255, 255, 0.03) 100%
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.2) 46%,
+      rgba(255, 255, 255, 0.04) 100%
     ),
-    rgba(249, 248, 245, 0.18);
+    linear-gradient(
+      160deg,
+      rgba(64, 86, 112, 0.1) 0%,
+      rgba(64, 86, 112, 0.24) 100%
+    );
   backdrop-filter: blur(0.25rem) saturate(1.7) brightness(1.02);
   -webkit-backdrop-filter: blur(0.25rem) saturate(1.7) brightness(1.02);
+  /* 外の影は接地のぶんだけ。8px の影を 2px 落とすと玉は紙から数センチ
+     浮いて見え、一覧の上を漂う別の部品になる。ここで要るのは浮遊ではなく
+     厚み — 厚みは内側のリムと翳りが出すので、外は 1px の接地影だけ残す。 */
   box-shadow:
     inset 0 0.0625rem 0.0625rem rgba(255, 255, 255, 0.9),
-    inset 0 -0.0625rem 0.125rem rgba(255, 255, 255, 0.45),
-    inset 0 0 0.75rem rgba(21, 25, 30, 0.09),
-    0 0.125rem 0.5rem rgba(21, 25, 30, 0.1),
-    0 0.0625rem 0.125rem rgba(21, 25, 30, 0.06);
-  color: var(--ink-2);
+    inset 0 -0.0625rem 0.125rem rgba(255, 255, 255, 0.5),
+    inset 0 0 0.75rem rgba(37, 52, 71, 0.16),
+    0 0.0625rem 0.1875rem rgba(37, 52, 71, 0.1);
+  color: var(--ink);
   cursor: pointer;
   touch-action: manipulation;
   transition:
@@ -161,17 +174,17 @@
   fill: currentcolor;
 }
 
-/* 触れるとガラスが厚くなる。リムが強くなり、浮きが増す。 */
+/* 触れるとガラスが厚くなる。リムが強くなり、翳りが深くなる。持ち上げない
+   — 触れて浮くのは板の挙動で、紙に置いたレンズのそれではない。 */
 @media (hover: hover) {
   .list-more-btn:hover {
     color: var(--ink);
-    border-color: rgba(255, 255, 255, 0.75);
+    border-color: var(--surface-separator);
     box-shadow:
       inset 0 0.0625rem 0.09375rem rgba(255, 255, 255, 1),
-      inset 0 -0.0625rem 0.1875rem rgba(255, 255, 255, 0.6),
-      inset 0 0 0.875rem rgba(21, 25, 30, 0.12),
-      0 0.1875rem 0.75rem rgba(21, 25, 30, 0.14),
-      0 0.0625rem 0.125rem rgba(21, 25, 30, 0.08);
+      inset 0 -0.0625rem 0.1875rem rgba(255, 255, 255, 0.65),
+      inset 0 0 0.875rem rgba(37, 52, 71, 0.22),
+      0 0.0625rem 0.1875rem rgba(37, 52, 71, 0.14);
   }
 }
 
@@ -179,9 +192,9 @@
 .list-more-btn:active {
   color: var(--ink);
   box-shadow:
-    inset 0 0.0625rem 0.25rem rgba(21, 25, 30, 0.18),
+    inset 0 0.0625rem 0.25rem rgba(37, 52, 71, 0.26),
     inset 0 -0.0625rem 0.0625rem rgba(255, 255, 255, 0.5),
-    0 0.0625rem 0.125rem rgba(21, 25, 30, 0.06);
+    0 0.0625rem 0.125rem rgba(37, 52, 71, 0.1);
 }
 
 @media (min-width: 40rem) {

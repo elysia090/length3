@@ -1,8 +1,11 @@
 import { startBenchProfile } from '../../shared/bench-profile';
 import { createPagefindSearchController, type PagefindSearchController } from './pagefind-search';
+import { getPageLanguage, getSearchCopy } from './search-copy';
+import { createSearchNavigation, type SearchNavigation } from './search-navigation';
 
 interface SearchModalRuntime {
   searchController: PagefindSearchController;
+  searchNavigation: SearchNavigation;
 }
 
 let searchPanelSequence = 0;
@@ -65,6 +68,13 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
       }
 
       const modalLanguage = searchModal.dataset.searchLang === 'ja' ? 'ja' : null;
+      const copy = getSearchCopy(
+        modalLanguage ?? getPageLanguage(browserDocument.documentElement.lang),
+      );
+      const searchNavigation = createSearchNavigation({
+        listLabel: copy.resultsLabel,
+        mount: pagefindMount,
+      });
       const searchController = createPagefindSearchController({
         browserWindow,
         emptyState: emptyState instanceof HTMLElement ? emptyState : null,
@@ -72,11 +82,15 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
         language: modalLanguage,
         mount: pagefindMount,
         mountSelector: `#${ensureElementId(pagefindMount, 'pagefind-ui')}`,
+        onSync: () => searchNavigation.sync(),
         status,
       });
 
       closeButton.addEventListener('click', closeSearch);
-      modalRuntime = { searchController };
+      // 語が変われば結果も変わる。前の選択は指す先を失うので落とす。
+      searchModal.addEventListener('input', () => searchNavigation.reset());
+      searchModal.addEventListener('keydown', (event) => searchNavigation.handleKeydown(event));
+      modalRuntime = { searchController, searchNavigation };
       return modalRuntime;
     }
 
@@ -95,6 +109,7 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
 
     function closeSearch() {
       setExpandedState(searchTrigger, false);
+      modalRuntime?.searchNavigation.reset();
       modalRuntime?.searchController.close();
       if (searchModal.open) {
         searchModal.close();
@@ -113,6 +128,7 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
     });
     searchModal.addEventListener('close', () => {
       setExpandedState(searchTrigger, false);
+      modalRuntime?.searchNavigation.reset();
       modalRuntime?.searchController.close();
       searchTrigger.focus();
     });

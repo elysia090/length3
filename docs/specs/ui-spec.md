@@ -153,15 +153,15 @@ _Where it must not appear:_ Background fills of any kind. Decorative gradients. 
 
 ### Temperature
 
-**Marks are cool. Surfaces are warm.** Everything drawn _onto_ the page — type, rules, borders, icons — sits on a single cool hue, **212°** at 8–18% saturation: far enough to name as blue, not far enough to leave grey. Everything the reader looks _through_ to read — the page, the panels laid on it, the tint behind inline code — stays on the warm paper side.
+**One cool hue for everything except the accent.** Type, rules, borders, panels, and the page itself all sit on **212°** at 6–18% saturation: far enough to name as blue, not far enough to leave grey. Amber is the only warm thing on the page, and it is warm because it is the only thing that is.
 
 The reason is contrast, not mood. Two colors of equal lightness read as further apart across the wheel than along it, so cooling the marks buys separation from the paper without darkening anything. The luminance formula weights blue least of the three channels, so the shift lowers measured luminance as well: every foreground token gained contrast in the move, none lost any.
 
-The surface half of that rule was learned by breaking it, twice. One revision cooled the panels — the search modal's header and footer bars along with everything else — and the modal stopped being restful to read in. The next kept the cool on the search field alone, on the argument that a field is operated rather than read; that left one cold patch inside a paper card, which was worse than either consistent answer. A mark is looked at for an instant; a surface is held in view for as long as the reading lasts, and a surface that is not the colour of paper gives the eye nowhere to settle. **Cool the thing being read, not the thing being read on** — including the things it is read _inside_.
+The surfaces took two revisions to settle, in both directions. An early one cooled the panels but not the page, which left cold patches inside warm paper — worse than either consistent answer, and the note written at the time concluded that surfaces should stay warm. That conclusion was right about consistency and wrong about which side to be consistent on. On a phone the warm paper reads as paper; on a 27-inch display the same value is a wall of warm white, and warm white at that scale is the one thing in the interface that looks unconsidered. The page moved to the cool side and the panels went with it — **the paper and everything laid on it share one temperature; the accent is the exception** — and the lightness values did not move, so every documented ratio held to within 0.05.
 
-One deliberate exception: **code foreground** stays warm on the cool slab — the page's relationship inverted inside the block. That inversion is what makes a code block read as a different kind of object rather than a dark rectangle.
+One deliberate inversion remains: **code foreground** stays warm on the cool slab. Inside a code block the page's relationship is turned over, and that inversion is what makes the block read as a different kind of object rather than a dark rectangle.
 
-For anything new: a new accent joins Amber on the warm side. A new text, rule, or border colour joins Ink at 212°. A new surface — panel, field, or otherwise — joins BG-2 on the paper side. Nothing sits at neutral: neutral is what makes a palette look unconsidered.
+For anything new: a new accent joins Amber on the warm side. Everything else — text, rule, border, panel, field, page — joins the 212° family. Nothing sits at neutral: neutral is what makes a palette look unconsidered.
 
 **Ink** `#15191e`
 Primary text. A cool near-black, not pure `#000`. Pure black against the off-white background creates excessive contrast that induces fatigue over long reading sessions.
@@ -175,11 +175,11 @@ Tertiary text: labels, placeholders, lowest-priority information. **5.2:1** agai
 **Rule** `#c0c6ce`
 Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting.
 
-**BG** `#f9f8f5`
-Page background. Warm off-white, not pure `#fff`. Reduces glare in extended reading sessions, and gives the contour texture something to sit in.
+**BG** `#f5f7fb`
+Page background. A cool off-white, not pure `#fff`. Reduces glare in extended reading sessions, gives the contour texture something to sit in, and — at 97.6% lightness with the hue pulled to the type's own 212° — stops the largest surface on the page from reading as bare white on a wide display.
 
-**BG-2** `#f0ede8`
-Every surface laid over the page: table headers, the search modal's header and footer bars, the search field, the sidebar search trigger, the selected result row. Warm, like the page — the difference from BG is perceptible but minimal, enough to register as "a different surface" without creating a visual event. Fields are not exempt; what marks a field is its pill radius, its border, and its focus ring, none of which need a temperature change to do their job.
+**BG-2** `#eaeef6`
+Every surface laid over the page: table headers, the search modal's header bar, the search field, the sidebar search trigger, the selected result row. The same temperature as the page — the difference from BG is perceptible but minimal, enough to register as "a different surface" without creating a visual event. Fields are not exempt; what marks a field is its pill radius, its border, and its focus ring, none of which need a temperature change to do their job.
 
 **Code surface** `#20272f`
 The only dark surface on the page: the same cool, taken to slab scale. The warm tokens on it (amber keywords, terracotta constants, parchment function names) read as complementary rather than as more of the same, so the block gains contrast without gaining darkness. Contrast against BG: **14.2:1**. Used for block code only — never for inline code, buttons, or panels.
@@ -190,16 +190,16 @@ Measured, not estimated. Ratios are WCAG 2.x relative luminance, rounded to one 
 
 | Pairing          | Hex values            | Ratio  | WCAG Level    |
 | ---------------- | --------------------- | ------ | ------------- |
-| Ink on BG        | `#15191e` / `#f9f8f5` | 16.6:1 | AAA           |
-| Ink on BG-2      | `#15191e` / `#f0ede8` | 15.1:1 | AAA           |
-| Ink-2 on BG      | `#363e47` / `#f9f8f5` | 10.2:1 | AAA           |
-| Ink-3 on BG      | `#5f6a77` / `#f9f8f5` | 5.1:1  | AA            |
-| Ink-3 on BG-2    | `#5f6a77` / `#f0ede8` | 4.7:1  | AA            |
-| Amber-text on BG | `#b45309` / `#f9f8f5` | 4.7:1  | AA            |
-| Amber on BG      | `#d4820a` / `#f9f8f5` | 2.8:1  | markers only  |
+| Ink on BG        | `#15191e` / `#f5f7fb` | 16.5:1 | AAA           |
+| Ink on BG-2      | `#15191e` / `#eaeef6` | 15.2:1 | AAA           |
+| Ink-2 on BG      | `#363e47` / `#f5f7fb` | 10.1:1 | AAA           |
+| Ink-3 on BG      | `#5f6a77` / `#f5f7fb` | 5.1:1  | AA            |
+| Ink-3 on BG-2    | `#5f6a77` / `#eaeef6` | 4.7:1  | AA            |
+| Amber-text on BG | `#b45309` / `#f5f7fb` | 4.7:1  | AA            |
+| Amber on BG      | `#d4820a` / `#f5f7fb` | 2.8:1  | markers only  |
 | Code fg on code  | `#d9d4cb` / `#20272f` | 10.2:1 | AAA           |
 | Code dim on code | `#878f99` / `#20272f` | 4.6:1  | AA            |
-| Rule on BG       | `#c0c6ce` / `#f9f8f5` | 1.6:1  | non-text, 1px |
+| Rule on BG       | `#c0c6ce` / `#f5f7fb` | 1.6:1  | non-text, 1px |
 
 Amber-text on BG-2 measures **4.3:1** and does not clear AA. Links inside table headers and selected search rows are the only place that pairing occurs; if either surface grows, the pairing needs a darker amber rather than a lighter panel.
 
@@ -220,6 +220,10 @@ Amber-text on BG-2 measures **4.3:1** and does not clear AA. Links inside table 
 **Scroll behavior:** The nav bar is `position: static`. It scrolls away with the page. A persistent navigation bar during reading is visual noise — the reader did not come here to navigate, they came to read. The nav is available at the top when they need it.
 
 **Vertical padding:** 20px top, 20px bottom. A 1px Rule border on the bottom edge.
+
+**Site icon.** The logotype is text on the page, but the tab needs a picture, and the picture is the About page's stone standing on the contour paper with `L³` set in the corner. It ships as `favicon.ico` (16/32/48 PNGs in one container), a 192px PNG for Android home screens, and a 180px `apple-touch-icon` — that last one flooded with BG behind the artwork, since iOS masks its own corners and composites anything transparent onto black.
+
+The mark it replaced drew a full-size `3` beside the `L` **and** an amber `3` above it, which at tab size read as `L33`. An exponent is one digit in one position; a second copy of it at body size is not emphasis, it is a different number.
 
 ### Article List Item
 
@@ -260,7 +264,13 @@ The reason is distance, not tidiness. Search and the topic list live below the a
 
 **Glass.** The disc is the one Liquid-Glass-style surface in the interface: a translucent tint over a `backdrop-filter` blur, a specular rim (strong white inset on the top edge, a softer return on the bottom), a faint inner shading for thickness, and a soft drop shadow. It reads as a lens laid on the page — the paper texture stays visible through it, distorted. On press the rim inverts to a recess.
 
+**The glass sits; it does not hover.** The outer shadow is a 3px contact shadow at 10%, and that is the entire drop. An 8px shadow offset 2px lifted the disc a visible distance off the page, which turns a lens laid on the paper into a button floating above the list. Depth is the job of the inset rim and the inner shading; the outer shadow only has to say the disc is touching something. On hover the rim brightens and the inner shading deepens — the glass gets thicker, it does not rise.
+
+**The glass is tinted cool.** Built from white alone it was the same brightness as the paper it sat on, and on a phone it disappeared into the contour lines: the control was there, and could not be seen. Tint, edge, and shadow are therefore all taken to the cool hue (212°) — the disc separates from the page by being on the far side of the wheel from it, not by being darker. The white rim stays, because white here is light rather than colour; without it the lens is only a clouded circle. The dots go to Ink. This is not the temperature rule breaking: the rule says the thing being _read_ is cool, and it is the disc's rim and tint being read against warm paper, not a surface being read on. Where `prefers-reduced-transparency` removes the blur, the tint alone would leave a circle the brightness of the page, so the disc falls back to the BG-2 surface token and keeps its cool edge.
+
 This does not contradict the search overlay's ban on `backdrop-filter` (below). That ban is about a **surface the reader reads through**; the disc is a **control the reader looks at**. Blur that dims a page of text serves the interface; blur that gives a 44px control physical depth serves the reader's understanding of what it is.
+
+**The stone is not selectable.** On the About page the monolith is set outside the text flow, and dragging a selection to the end of a sentence used to catch it — a blue selection box and a "Save Image" callout over an object that is supposed to be carved into the page rather than pasted onto it. The figure takes `user-select: none`, `-webkit-user-drag: none`, `-webkit-touch-callout: none`, and `pointer-events: none`. Its `alt` text is untouched, so nothing changes for a screen reader.
 
 **Behaviour without JavaScript.** The server renders every article and the disc `hidden`. The collapse happens only once the script runs, so a reader without JavaScript — and any crawler or in-page find — gets the whole list. Collapsed items stay in the DOM (`hidden`), never removed.
 
@@ -286,11 +296,13 @@ Located in the left column. `position: sticky; top: 32px`.
 
 **H3 sub-items:** `margin-left: 12px`, font-size reduced to 0.75rem.
 
+**Scrollbar.** A long article's TOC outgrows the viewport and the column scrolls. The bar the platform draws for that is a solid vertical stripe a few pixels from the headings, darker than any rule on the page and permanently lit — on a real machine it was the most contrasted object in the left column. The gutter stays reserved (so headings do not jump sideways when the bar appears) and the bar itself is `thin` with a **transparent thumb**, taking the Rule colour only while the column is hovered or holds focus. Colour is the only thing that changes, so nothing reflows when it does.
+
 **Disappearance:** When the TOC's sticky container reaches the bottom of the article body, it fades via `opacity: 0` (200ms ease) and simultaneously receives `pointer-events: none` + `visibility: hidden`. This prevents the TOC from lingering as a ghost after the content it references has scrolled past.
 
 ### Code Blocks
 
-**Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
+**Inline code:** `--code-inline-bg` (`#e6ebf4`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
 **Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: var(--radius-lg)`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
@@ -310,6 +322,8 @@ The button lives in a wrapper the script places around the `<pre>`, not inside i
 
 **Trigger:** `/` keyboard shortcut (when no input is focused), or a search icon in the nav bar (mobile).
 
+The sidebar trigger is a pill 44px tall where a finger is the pointer, and **36px where the pointer is fine** — with a lighter border to match. 44px is the touch-target floor, not a look; carried onto a desktop sidebar it made a thick capsule hanging beside the article list, heavier than any type on the page. WCAG 2.5.8's floor for a mouse is 24px, so 36px keeps room to spare. The pill shape and the amber lens say it is pressable; the border does not have to shout it as well.
+
 **Overlay:** `rgba(28, 26, 24, 0.6)`. Solid dim, no `backdrop-filter: blur()`. Blur is a visual effect that serves the interface's aesthetics, not the reader's task. The overlay's purpose is to suppress the page beneath the modal, and a solid dim achieves that directly.
 
 **Modal body:** BG background, `border: 1px solid var(--rule)`, `border-radius: 6px`, width 560px (max 90vw), `box-shadow: 0 8px 32px rgba(0,0,0,0.15)`.
@@ -325,7 +339,13 @@ The button lives in a wrapper the script places around the `<pre>`, not inside i
 - Title: Fraunces 0.95rem, Ink. Matched substring: amber italic via styled `<mark>`
 - Date: JetBrains Mono, 0.75rem, Ink-3
 
-**Footer:** Keyboard guide only. `↑↓ navigate` `↵ open` `esc close` — JetBrains Mono 0.7rem, Ink-3. Right-aligned: `Pagefind`.
+**No footer.** The card is a header bar, a field, and results. It carried a strip of three key hints (`↑↓ navigate` `↵ open` `esc close`) and a `Pagefind` credit, which is a row of chrome explaining a keyboard to someone already holding one — and arrow keys in a result list are not a convention that needs teaching. The keys still work; only the label is gone. What the strip actually did was put a lit bar under every search, on a card whose whole job is to get out of the way once the reader has typed.
+
+**One left edge.** The dialog title, the empty state, the footer hints, and the result text all start at the same 16px from the card's inner edge; the input's own text is inset further only because a pill carries its own padding. The selected row's surface is the single thing allowed outside that column — it bleeds 8px past the text on both sides, so the highlight reads as a plate under the line rather than as a second margin.
+
+Both sides means both. The results are the one scrolling region in the card, and a scrollbar gutter reserved on the right alone shortened every row rule by its width — the list looked mis-set by a few pixels without ever showing why. The gutter is therefore thin and reserved on **both edges**, and the list bleeds out to the card's inner edges to pay for it. Where the platform draws overlay scrollbars — every touch device, and macOS by default — both reservations collapse to zero and the column lands exactly on 16px.
+
+**Keyboard navigation.** `↑` / `↓` move the selection through the results while focus stays in the field, so typing never needs a trip back. The field is therefore a `combobox`, the list a `listbox`, each result an `option`, and the selection is carried by `aria-activedescendant` — the same attribute the highlight is styled from. Selection wraps at both ends and clears whenever the query changes, because the results it pointed at no longer exist. `↵` opens the selected result, or the first one when nothing is selected. A keystroke that arrives mid-IME-composition is not a command: `Enter` closing a Japanese conversion must never open an article. Conversely, a prevented default is not proof the key was consumed — Pagefind cancels `Enter` on the field to stop the form submitting, and reading that as "handled" is what left the footer promising a key that did nothing.
 
 **Focus trap:** While the modal is open, Tab cycles only within modal elements. Escape closes the modal and returns focus to the trigger element.
 
@@ -379,7 +399,7 @@ The ring is drawn with **`outline`, never with `box-shadow` alone**. Forced-colo
 - Each page has exactly one `<h1>`. No exceptions.
 - Heading levels are never skipped. H1 → H3 without an intervening H2 is a violation.
 - `<nav>` elements carry `aria-label="primary"`.
-- Search input carries `<label>` or `aria-label`.
+- Search input carries `<label>` or `aria-label`, plus the `combobox` role that binds it to the results `listbox` while they are on screen.
 - TOC `<ul>` carries `aria-label="Table of Contents"`.
 - Code blocks with language metadata use `aria-label` to expose the language to assistive technology.
 
@@ -449,6 +469,13 @@ The "breathing" right margin in the article layout is not infinitely compressibl
   flat 16px. 15px is the floor — prose never goes below it
 - All tap targets ≥ 44 × 44px
 - Line length self-regulates (viewport width naturally constrains it)
+- The paper texture extends **one viewport above and below** the visible area.
+  iOS stretches the whole page past the end of the document on an overscroll,
+  and a fixed layer stretches with it — sized to the viewport exactly, it pulled
+  away and left a band of bare BG with a hard horizontal edge across the screen
+  every time the reader flicked to the bottom. The overshoot is measured in `vh`,
+  never `dvh`: a layer whose height changes when the browser toolbar collapses
+  re-tiles its 768px grain mid-scroll
 
 ---
 

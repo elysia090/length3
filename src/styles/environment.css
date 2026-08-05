@@ -18,10 +18,12 @@
     background: none;
   }
 
+  /* 曇りを外すと tint だけが残り、地とほぼ同じ明るさの丸になる。
+     面のトークン（紙の側・寒色の縁つき）で置き換えて輪郭を保つ。 */
   .list-more-btn {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background: var(--bg);
+    background: var(--bg-2);
   }
 }
 
