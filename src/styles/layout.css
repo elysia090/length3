@@ -272,13 +272,23 @@
   color: var(--amber-text);
 }
 
-.tag-pill-overflow {
+/* 「+3」は押せない <span>。押せる兄弟と同じ形をしているので、押せるものの
+   印だけは外す。色が変われば押せると読めるし、44px の当たり判定が乗っていると
+   隣のタグを押そうとした指を奪う。
+   詳細度は :hover と coarse の ::before の両方に勝つ必要がある。 */
+.tag-pill.tag-pill-overflow {
+  color: var(--ink-3);
+  cursor: default;
+  touch-action: auto;
+}
+
+.tag-pill.tag-pill-overflow:hover,
+.tag-pill.tag-pill-overflow:active {
   color: var(--ink-3);
 }
 
-.tag-pill-overflow:hover,
-.tag-pill-overflow:active {
-  color: var(--ink-2);
+.tag-pill.tag-pill-overflow::before {
+  content: none;
 }
 
 @media (pointer: coarse) {

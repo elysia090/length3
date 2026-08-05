@@ -242,7 +242,9 @@ Amber-text on BG-2 measures **4.3:1** and does not clear AA. Links inside table 
 
 4. **Reading time:** JetBrains Mono, 0.75rem, Ink-3. Format: `5 min`. No article count. No comment count. Comment counts broadcast weakness during low-activity periods and provide no value to the reader deciding whether to read.
 
-**Item separation:** `border-bottom: 1px solid var(--rule)`. Padding: 24px top, 24px bottom. First item: `padding-top: 0`. Last item: no bottom border.
+**Internal rhythm:** the steps double — **8 → 16 → 32**. Date, title, and description are one object and are joined at 8px. Tags are a second object and sit 16px below. The card boundary is 32px further still. A reader should be able to tell what belongs to what without reading a word of it, and doubling is the cheapest way to say it.
+
+**Item separation:** `border-bottom: 1px solid var(--rule)`. Padding: 28px top, 24px bottom (32/28 at ≥640px). The bottom is 4px short of the top on purpose: the tag row carries 4px of its own tap-target padding below the glyphs, so equal CSS padding renders as an unequal optical gap. First item: `padding-top: 0`. Last item: no bottom border — matched with `:last-of-type`, because the reveal control is the last _child_.
 
 **Hover:** Title color transitions to amber, 80ms ease. No background change. No cursor change (`cursor: default`). The color shift alone communicates interactivity.
 
@@ -471,6 +473,14 @@ What the interface deliberately does not do is as important as what it does.
 **No statistics display on the index page.** Article count, tag count, and publication duration are not shown in the sidebar or anywhere on the index page. These numbers serve the author's vanity, not the reader's needs. They live on a dedicated stats page, if anywhere.
 
 **No vertical section labels.** A rotated "articles" label in the page margin provides no information the reader does not already possess. It is decorative, and decoration that cannot justify itself is clutter.
+
+### Environment Overrides
+
+Two settings come from outside the page and must beat every component that disagrees with them. They live in one unlayered stylesheet loaded last (`environment.css`) — layered rules lose to unlayered ones no matter how specific they are, which is exactly the property needed here. Nothing else may be written there; anything that is has no way left to be overridden but `!important`.
+
+**`prefers-reduced-transparency: reduce`.** Every `backdrop-filter` in the interface — the prose panel and the reveal disc — becomes opaque. Blur does not remove what is behind a surface, it only makes it unreadable while leaving it visible; for a reader who has asked for less transparency, that is the worst of both.
+
+**`print`.** Paper gets the writing and the rules that carry it, nothing else. The texture, header, footer, sidebar, TOC, article actions, reveal disc, and copy buttons are all removed — none of them can be operated on paper. Collapsed articles are printed in full, since the collapse exists to shorten a scroll and paper has none. Code blocks invert to black-on-white: a dark slab at print resolution is a solid rectangle of ink that costs a cartridge and reads worse than the page it came from. Headings avoid breaking away from what follows them; code blocks, quotes, tables, and list items avoid breaking across pages. Links in the prose print their URL after the text, because a link on paper is otherwise a dead end.
 
 ---
 

@@ -13,6 +13,9 @@
  *   layout     — page shells and their responsive columns
  *   components — one file per component, no cross-component selectors
  *   typography — .prose, the article body; last so it can win inside prose
+ *
+ * environment.css だけはレイヤーに入れずに最後へ置く。印刷と reduced
+ * transparency は、どのコンポーネントより後に効かなければならない。
  */
 @layer tokens, base, layout, components, prose;
 
@@ -29,3 +32,5 @@
 @import './components/search.css' layer(components);
 @import './components/topic-list.css' layer(components);
 @import './typography.css' layer(prose);
+/* 最後、かつ未レイヤー。環境の指示は必ず勝つ必要がある。 */
+@import './environment.css';

@@ -1,0 +1,116 @@
+/*
+ * 環境からの指示に対する上書き。印刷と「透過を減らす」設定。
+ *
+ * このファイルだけレイヤーに入れない。レイヤー付きの規則は、どれほど詳細度が
+ * 高くても未レイヤーの規則に負ける。つまりここに書いたものは components でも
+ * prose でも確実に上書きできる。逆に、ここには「環境がそう言っている」もの
+ * 以外を書いてはいけない。打ち消す手段が !important しか残らなくなる。
+ */
+
+/* ─── Reduced transparency ─────────────────────────────────── */
+/* 透過を減らす設定の人には、曇りガラスを不透明な面に置き換える。ぼかしは
+   後ろの文字を残したまま読みにくくするので、透過そのものを外す。
+   下の 3 つが backdrop-filter を使う面のすべて。 */
+@media (prefers-reduced-transparency: reduce) {
+  .prose-area::before {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: none;
+  }
+
+  .list-more-btn {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--bg);
+  }
+}
+
+/* ─── Print ────────────────────────────────────────────────── */
+/* 紙に出すと、画面のための面がそのままインクになる。テクスチャは全面の
+   網点、コード面は塗り潰した矩形、操作部品は押せない絵になる。
+   紙では文章と、文章を読むのに要る罫だけを残す。 */
+@media print {
+  html {
+    background: none;
+  }
+
+  body::before {
+    display: none; /* テクスチャ */
+  }
+
+  /* 押せないものは刷らない。 */
+  .site-header,
+  .site-footer,
+  .index-sidebar,
+  .toc-aside,
+  .article-actions,
+  .list-more,
+  .search-overlay,
+  #reading-progress,
+  .code-copy,
+  .skip-link {
+    display: none !important;
+  }
+
+  /* 畳んだ記事も紙では全部出す。畳みは画面の距離のための仕掛けで、
+     紙にはスクロールが無い。 */
+  .article-card[hidden] {
+    display: block !important;
+  }
+
+  .article-card[data-teaser] {
+    mask-image: none;
+  }
+
+  /* コードは白地に黒。暗い面のまま刷るとインクを食い、行が読めない。 */
+  .prose pre {
+    background: none;
+    background-image: none;
+    color: #000;
+    border: 0.0625rem solid #999;
+    border-left-width: 0.0625rem;
+    -webkit-print-color-adjust: economy;
+    print-color-adjust: economy;
+  }
+
+  .prose pre code,
+  .prose pre .line,
+  .prose pre span {
+    color: #000 !important;
+  }
+
+  .prose code {
+    background: none;
+    box-shadow: none;
+    border: 0.0625rem solid #999;
+  }
+
+  /* 見出しとコードは、紙をまたいで切らない。 */
+  .prose h2,
+  .prose h3,
+  .prose h4 {
+    break-after: avoid;
+  }
+
+  .prose pre,
+  .code-block,
+  .prose blockquote,
+  .prose table,
+  .article-card {
+    break-inside: avoid;
+  }
+
+  /* 画面外へ飛ばす仕掛けは紙では邪魔になるだけ。 */
+  .prose > :where(h2, h3, h4, p, pre, blockquote, ul, ol, hr, table, figure, details) {
+    content-visibility: visible;
+    contain-intrinsic-size: auto none;
+  }
+
+  /* リンク先は紙の上では辿れない。本文のリンクだけ URL を添える。 */
+  .prose a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-family: var(--font-mono);
+    font-size: 0.75em;
+    word-break: break-all;
+  }
+}
