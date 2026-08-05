@@ -20,6 +20,14 @@ This specification defines the complete visual and behavioral contract for the b
 
 All dimensions derive from an **8px grid**. The minimum subdivision is 4px, used only where 8px produces excessive spacing (e.g., inline code padding). Intermediate values such as 13px, 17px, or 23px are prohibited. The eye perceives alignment when proportional relationships hold; arbitrary values undermine that perception.
 
+### Corners
+
+Radius scales with the surface: **4 / 6 / 8 / 12 / 16px**, plus a pill. The previous 2–10px scale gave every surface the same near-right-angle, which read as deliberate on a 20px chip and as an unfinished box on a 600px code block. A corner should look like the same decision at every size, which means it cannot be the same number at every size.
+
+The **shape** is a superellipse (`corner-shape: squircle`), not a circular arc. An arc meets the straight edge with a jump in curvature — the eye reads that discontinuity as a corner that was _cut_. A superellipse varies its curvature continuously, so the same radius reads softer and the shape reads as one contour rather than four arcs bridged by four lines. Chromium-only; everywhere else `border-radius` alone applies and the corner is simply a normal round.
+
+Pills are exempt: a pill's semicircular end _is_ the shape, and a superellipse would flatten it.
+
 ### Maximum Widths
 
 The outer content boundary is **1200px**. Within that boundary, the prose column is capped at **680px**. This constraint is not aesthetic preference — it is a reading-performance decision. Japanese prose reads best at 35–40 characters per line; English at 65–75. Beyond those thresholds, the eye loses its anchor when returning to the start of the next line.
@@ -280,9 +288,9 @@ Located in the left column. `position: sticky; top: 32px`.
 
 ### Code Blocks
 
-**Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: 3px`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
+**Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
-**Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: 2px`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
+**Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: var(--radius-lg)`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
 **Block code is a dark surface; inline code is not.** The two are different objects. A block is a figure the reader stops on — set as a slab, it separates from the prose the way a plate separates from body text in print, and the sharp 1px edge is what makes it read as an object rather than a wash. Inline code is not an object; it belongs to the sentence, so it stays light. Earlier revisions of this document prohibited dark blocks on the grounds that they rupture reading flow; in practice the near-invisible BG-2 wash (a 1.06:1 step from the page) failed to mark the block at all.
 
@@ -356,7 +364,11 @@ No other transitions exist. This list is exhaustive.
 
 Tab order follows DOM order. The DOM is written in logical reading order so that `tabindex` manipulation is unnecessary.
 
-**Focus outline:** `outline: 2px solid var(--amber); outline-offset: 3px`. Browser default outlines are replaced, never removed. The replacement must provide equal or greater visibility.
+**Focus outline:** `outline: 2px solid var(--amber-text); outline-offset: 3px`, plus a soft `--focus-halo` ring outside it. Browser default outlines are replaced, never removed. The replacement must provide equal or greater visibility.
+
+The ring is drawn with **`outline`, never with `box-shadow` alone**. Forced-colours mode strips box-shadows entirely, so a shadow-only ring vanishes for exactly the users who need it most. `box-shadow` may add a second, softer halo outside the outline — it may not be the ring itself. A focused control changes **one** thing chromatically: the outline. Recolouring the border as well produces two concentric amber rings and reads as an error state.
+
+(Two rules previously passed `--focus-halo` — a bare colour — straight to `box-shadow`. A box-shadow with no lengths is invalid, so those declarations were dropped and the halo never rendered at all.)
 
 **Search modal focus trap:** When open, Tab cycles through modal-internal elements only. Escape closes the modal and returns focus to the element that triggered it.
 

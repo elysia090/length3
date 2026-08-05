@@ -170,7 +170,8 @@
   background-attachment: local, local, scroll, scroll;
   border: 0.0625rem solid var(--code-edge);
   border-left: 0.125rem solid var(--amber-lt);
-  border-radius: var(--radius-xs);
+  /* 面の大きさに見合う角。2px では、この大きさの暗い矩形はただの箱に見えた。 */
+  border-radius: var(--radius-lg);
   padding: 1.25rem;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -233,7 +234,7 @@
   height: 1.875rem;
   padding: 0;
   border: 0.0625rem solid var(--code-edge);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--code-bg);
   color: var(--code-dim);
   cursor: pointer;
@@ -409,6 +410,9 @@ rt {
 /* Lead paragraph — spec §3: 1px left-border in amber */
 .article-header-lead {
   position: relative;
+  /* 角を丸めたので、左の琥珀の棒 (::before) を面の形で切る。切らないと
+     棒だけが丸みの外へ真っ直ぐ突き出る。 */
+  overflow: hidden;
   font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 300;
@@ -418,7 +422,8 @@ rt {
   padding: 0.5rem 0.75rem 0.5rem 1rem;
   margin-bottom: 0;
   background: var(--amber-tint);
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  /* 四隅とも丸める。左だけ直角だと、面が版面から切り出された断片に見える。 */
+  border-radius: var(--radius-lg);
 }
 
 .article-header-lead::before {
