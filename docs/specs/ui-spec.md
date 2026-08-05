@@ -238,6 +238,24 @@ Amber-text on BG-2 measures **4.3:1** and does not clear AA. Links inside table 
 
 **Hover:** Title color transitions to amber, 80ms ease. No background change. No cursor change (`cursor: default`). The color shift alone communicates interactivity.
 
+### Article List — Reveal Control
+
+The list renders **5 items** and holds the rest. The fifth is not there to be read: its foot fades out under a mask and its rule is dropped, so the list ends in a dissolve rather than a cut. Four items read normally; the fifth says "this continues."
+
+Sitting on that dissolve, centred, is a **44px glass disc carrying three dots**. Pressing it reveals **four more** items and moves the disc down to the new dissolve. When nothing is left, the disc is removed and the last item regains its full opacity and its missing rule.
+
+The reason is distance, not tidiness. Search and the topic list live below the article list, so on a phone every article added pushes them further out of reach. Capping the list keeps the distance from the top of the page to the search field constant no matter how many articles exist.
+
+**Why a disc and not "Older →".** There are no pages here to move between, so there is no page to name. Three dots say "there is more of this, in this direction" without claiming a structure the content does not have. Numbers would be worse: `Page 3 of 17` is a fact about the archive, not about what the reader is looking for.
+
+**Glass.** The disc is the one Liquid-Glass-style surface in the interface: a translucent tint over a `backdrop-filter` blur, a specular rim (strong white inset on the top edge, a softer return on the bottom), a faint inner shading for thickness, and a soft drop shadow. It reads as a lens laid on the page — the paper texture stays visible through it, distorted. On press the rim inverts to a recess.
+
+This does not contradict the search overlay's ban on `backdrop-filter` (below). That ban is about a **surface the reader reads through**; the disc is a **control the reader looks at**. Blur that dims a page of text serves the interface; blur that gives a 44px control physical depth serves the reader's understanding of what it is.
+
+**Behaviour without JavaScript.** The server renders every article and the disc `hidden`. The collapse happens only once the script runs, so a reader without JavaScript — and any crawler or in-page find — gets the whole list. Collapsed items stay in the DOM (`hidden`), never removed.
+
+**Accessibility.** The disc is a real `<button>`, labelled with the count it will reveal (`Show 4 more articles`), and it names the list it controls with `aria-controls`. On press, focus moves to the first newly revealed item's link — necessary because the final press removes the button from under the reader's focus. A polite live region reports the outcome (`4 more articles shown. 5 remaining.`), which focus movement alone cannot convey.
+
 ### Topic List (Index Sidebar)
 
 **Rows:** JetBrains Mono, 0.75rem, `letter-spacing: 0.06em`. Topic name left, article count right, `padding: 14px 0`, `border-bottom: 1px solid var(--rule)`. Sorted by count, descending.
@@ -271,6 +289,10 @@ Located in the left column. `position: sticky; top: 32px`.
 **Syntax highlighting** is on, via Shiki with a project theme (`src/config/code-theme.ts`). The token palette is amber, sage, terracotta, parchment, and dusty lavender — muted, warm, and keyed to the page accent rather than a stock high-saturation theme. Every token colour clears 4.5:1 against `--code-bg`. The theme's surface values are duplicated in `--code-*` (tokens.css) because Shiki writes token colours inline while the surface comes from CSS; the two must be changed together.
 
 **Horizontal overflow is signalled without JavaScript.** A block wider than its column shows a light edge on the side that has more content, built from four background layers — two covers attached `local`, two glows attached `scroll`. Scrolling to an end slides the cover over the glow and the signal disappears.
+
+**Copy control.** Each block carries a **copy button in its top-right corner**, drawn as two overlapping squares — the duplication mark, which is what "copy" looks like everywhere else the reader uses a computer. No label; the glyph is the whole affordance. It is invisible until the pointer enters the block, and permanently visible on devices that cannot hover. On success it swaps to a check in amber for 1.5s and its accessible name changes to `Copied`; on failure, to `Failed`.
+
+The button lives in a wrapper the script places around the `<pre>`, not inside it: a `<pre>` scrolls horizontally, and a button inside would scroll away with the code. The block reserves right padding for it so the first line never runs underneath.
 
 **Language labels are not displayed.** The content of the code block identifies its language. A label stating `typescript` above TypeScript code provides zero additional information.
 
@@ -428,7 +450,7 @@ What the interface deliberately does not do is as important as what it does.
 
 **No social share buttons inside the article body.** A share prompt while reading is a disruption. If the article earns sharing, a single line at the article's end is sufficient.
 
-**No numbered pagination.** Navigation between article sets uses only "← Older" and "Newer →". "Page 3 of 17" serves no reader need.
+**No numbered pagination.** The article list grows in place, four at a time, behind the reveal disc (§4). There are no page numbers and no page URLs. "Page 3 of 17" is a fact about the archive's size, not about anything the reader came to find.
 
 **No loading spinners.** The Astro + Cloudflare Workers architecture eliminates the conditions that produce loading states. If a spinner becomes necessary, the response is architectural correction, not UI design.
 

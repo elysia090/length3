@@ -67,3 +67,31 @@ test('reading progress stays pinned to the viewport and toc remains visible whil
   expect(Math.abs(endTop)).toBeLessThan(1);
   expect(errors).toEqual([]);
 });
+
+test('every code block carries a copy control that reports back', async ({ page, context }) => {
+  const errors = trackBrowserErrors(page);
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  await page.goto('/pagefind-japanese');
+
+  const blocks = page.locator('.prose .code-block');
+  await expect(blocks.first()).toBeVisible();
+  await expect(page.locator('.prose .code-copy')).toHaveCount(await blocks.count());
+
+  // pre は横スクロールするので、ボタンは pre の中ではなく包みの中にいる。
+  await expect(page.locator('.prose pre .code-copy')).toHaveCount(0);
+
+  const first = blocks.first();
+  await first.scrollIntoViewIfNeeded();
+  const button = first.locator('.code-copy');
+  await expect(button).toHaveAttribute('aria-label', 'コードをクリップボードにコピー');
+
+  await button.click();
+  await expect(button).toHaveAttribute('aria-label', 'コピーしました');
+
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const source = (await first.locator('pre').innerText()).trim();
+  expect(copied.trim()).toBe(source);
+
+  expect(errors).toEqual([]);
+});

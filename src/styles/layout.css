@@ -9,7 +9,9 @@
   gap: 0;
   max-width: var(--layout-max-width);
   margin: 0 auto;
-  padding-block: 1rem 2.5rem;
+  /* ヘッダには罫がないので、1 件目の日付が近すぎると題字と地続きに見える。
+     .page-shell の頭と同じ 1.5rem を取る。 */
+  padding-block: 1.5rem 2.5rem;
   padding-inline:
     max(var(--page-gutter), env(safe-area-inset-left))
     max(var(--page-gutter), env(safe-area-inset-right));

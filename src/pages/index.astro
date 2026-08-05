@@ -17,8 +17,24 @@ const copy = getSiteCopy('en');
 <BaseLayout title="Length³" description="A technical blog.">
   <Header />
   <main class="index-layout" id="main-content">
-    <section class="article-list" aria-label="Articles">
+    <section class="article-list" aria-label="Articles" id="article-list">
       {processedPosts.map((post) => <ArticleCard post={post} />)}
+
+      <!--
+        畳むのは JS が動いたときだけ。サーバは全件を出しているので、
+        JS が無ければこのボタンは hidden のまま、一覧は今までどおり全件出る。
+      -->
+      <div class="list-more" data-article-reveal hidden>
+        <button type="button" class="list-more-btn" aria-controls="article-list">
+          <svg class="list-more-dots" viewBox="0 0 20 4" width="20" height="4" aria-hidden="true">
+            <circle cx="2" cy="2" r="1.6"></circle>
+            <circle cx="10" cy="2" r="1.6"></circle>
+            <circle cx="18" cy="2" r="1.6"></circle>
+          </svg>
+        </button>
+      </div>
+      <!-- 焦点移動だけでは「何件増えて、あと何件あるか」が伝わらない。 -->
+      <p class="sr-only" aria-live="polite" data-article-reveal-status></p>
     </section>
     <aside class="index-sidebar" aria-label={copy.blogSidebar}>
       <SearchPanel />
@@ -27,3 +43,9 @@ const copy = getSiteCopy('en');
   </main>
   <Footer />
 </BaseLayout>
+
+<script>
+  import { initializeArticleReveal } from '../features/blog/article-reveal';
+
+  initializeArticleReveal();
+</script>
