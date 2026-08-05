@@ -159,7 +159,9 @@ The reason is contrast, not mood. Two colors of equal lightness read as further 
 
 The surfaces took three revisions to settle. An early one cooled the panels but not the page, which left cold patches inside warm paper — worse than either consistent answer, and the note written at the time concluded that surfaces should stay warm. That conclusion was right about consistency and wrong about which side to be consistent on: on a phone the warm paper reads as paper; on a 27-inch display the same value is a wall of warm white. The page moved to the cool side and the panels went with it — **the paper and everything laid on it share one temperature; the accent is the exception**.
 
-The third revision was about **how far**. The first cool paper opened 6 points between red and blue on BG and 12 on BG-2, and on a real screen that is not cool paper, it is a blue-grey board — the tint had become a colour the reader can name, which is exactly what a background must never be. The amount is now **3 points on BG and 6 on BG-2**: set beside the old warm values the shift is obvious, and on its own the page still reads as white. Lightness never moved in any of the three passes, so every documented ratio has held to within 0.05 throughout.
+The revisions after that were all about **how far**, and both of them came back the same way: too much. The first cool paper opened 6 points between red and blue on BG and 12 on BG-2 — on a real screen that is not cool paper, it is a blue-grey board, a background that had become a colour the reader can name. Halving it to 3 and 6 still read cold across a whole page.
+
+The amount that holds is the amount you cannot name: **1 point of red-to-blue on BG, 3 on BG-2**. The page reads as white. Set it beside the warm paper it replaced and the only thing you can say is that the other one is warmer. And the page is not only its background — rules, borders, and panel edges are drawn in the same family, so pulling the paper back without pulling them back leaves blue lines on white paper. Rule and the surface strokes came down with it; Ink-2 and Ink-3 lost a few points of saturation at the same lightness. Lightness never moved in any pass, so every documented ratio has held throughout: what changed is how much colour the eye is asked to accept across an area, not how much contrast the type has.
 
 One deliberate inversion remains: **code foreground** stays warm on the cool slab. Inside a code block the page's relationship is turned over, and that inversion is what makes the block read as a different kind of object rather than a dark rectangle.
 
@@ -168,19 +170,19 @@ For anything new: a new accent joins Amber on the warm side. Everything else —
 **Ink** `#15191e`
 Primary text. A cool near-black, not pure `#000`. Pure black against the off-white background creates excessive contrast that induces fatigue over long reading sessions.
 
-**Ink-2** `#363e47`
+**Ink-2** `#393e43`
 Secondary text: descriptions, dates, metadata.
 
-**Ink-3** `#5f6a77`
+**Ink-3** `#656b73`
 Tertiary text: labels, placeholders, lowest-priority information. **5.2:1** against BG and **4.7:1** against BG-2, so it clears AA on both surfaces it appears over. The value it replaced, `#7a7670`, was documented at 4.6:1 but measured **4.25:1** — it cleared AA on neither. Avoid for text smaller than 12px.
 
-**Rule** `#c0c6ce`
-Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting.
+**Rule** `#c8c9cc`
+Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting. Its saturation sits a step below the type's: one rule is a hairline, but the article list draws one per entry, and ten hairlines at the type's saturation add up to an area of colour.
 
-**BG** `#f7f8fa`
+**BG** `#f9f9fa`
 Page background. A cool off-white, not pure `#fff`. Reduces glare in extended reading sessions, gives the contour texture something to sit in, and — at 97.6% lightness with the hue pulled a short way toward the type's own 212° — stops the largest surface on the page from reading as bare white on a wide display without turning it blue.
 
-**BG-2** `#edeff3`
+**BG-2** `#f0f1f3`
 Every surface laid over the page: table headers, the search modal's header bar, the search field, the sidebar search trigger, the selected result row. The same temperature as the page — the difference from BG is perceptible but minimal, enough to register as "a different surface" without creating a visual event. Fields are not exempt; what marks a field is its pill radius, its border, and its focus ring, none of which need a temperature change to do their job.
 
 **Code surface** `#20272f`
@@ -192,16 +194,16 @@ Measured, not estimated. Ratios are WCAG 2.x relative luminance, rounded to one 
 
 | Pairing          | Hex values            | Ratio  | WCAG Level    |
 | ---------------- | --------------------- | ------ | ------------- |
-| Ink on BG        | `#15191e` / `#f7f8fa` | 16.6:1 | AAA           |
-| Ink on BG-2      | `#15191e` / `#edeff3` | 15.3:1 | AAA           |
-| Ink-2 on BG      | `#363e47` / `#f7f8fa` | 10.2:1 | AAA           |
-| Ink-3 on BG      | `#5f6a77` / `#f7f8fa` | 5.2:1  | AA            |
-| Ink-3 on BG-2    | `#5f6a77` / `#edeff3` | 4.8:1  | AA            |
-| Amber-text on BG | `#b45309` / `#f7f8fa` | 4.7:1  | AA            |
-| Amber on BG      | `#d4820a` / `#f7f8fa` | 2.8:1  | markers only  |
+| Ink on BG        | `#15191e` / `#f9f9fa` | 16.8:1 | AAA           |
+| Ink on BG-2      | `#15191e` / `#f0f1f3` | 15.6:1 | AAA           |
+| Ink-2 on BG      | `#393e43` / `#f9f9fa` | 10.3:1 | AAA           |
+| Ink-3 on BG      | `#656b73` / `#f9f9fa` | 5.1:1  | AA            |
+| Ink-3 on BG-2    | `#656b73` / `#f0f1f3` | 4.8:1  | AA            |
+| Amber-text on BG | `#b45309` / `#f9f9fa` | 4.8:1  | AA            |
+| Amber on BG      | `#d4820a` / `#f9f9fa` | 2.9:1  | markers only  |
 | Code fg on code  | `#d9d4cb` / `#20272f` | 10.2:1 | AAA           |
 | Code dim on code | `#878f99` / `#20272f` | 4.6:1  | AA            |
-| Rule on BG       | `#c0c6ce` / `#f7f8fa` | 1.6:1  | non-text, 1px |
+| Rule on BG       | `#c8c9cc` / `#f9f9fa` | 1.6:1  | non-text, 1px |
 
 Amber-text on BG-2 measures **4.4:1** and does not clear AA. Links inside table headers and selected search rows are the only place that pairing occurs; if either surface grows, the pairing needs a darker amber rather than a lighter panel.
 
@@ -304,7 +306,7 @@ Located in the left column. `position: sticky; top: 32px`.
 
 ### Code Blocks
 
-**Inline code:** `--code-inline-bg` (`#e9ecf1`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
+**Inline code:** `--code-inline-bg` (`#ebeced`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
 **Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: var(--radius-lg)`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
