@@ -157,7 +157,9 @@ _Where it must not appear:_ Background fills of any kind. Decorative gradients. 
 
 The reason is contrast, not mood. Two colors of equal lightness read as further apart across the wheel than along it, so cooling the marks buys separation from the paper without darkening anything. The luminance formula weights blue least of the three channels, so the shift lowers measured luminance as well: every foreground token gained contrast in the move, none lost any.
 
-The surfaces took two revisions to settle, in both directions. An early one cooled the panels but not the page, which left cold patches inside warm paper — worse than either consistent answer, and the note written at the time concluded that surfaces should stay warm. That conclusion was right about consistency and wrong about which side to be consistent on. On a phone the warm paper reads as paper; on a 27-inch display the same value is a wall of warm white, and warm white at that scale is the one thing in the interface that looks unconsidered. The page moved to the cool side and the panels went with it — **the paper and everything laid on it share one temperature; the accent is the exception** — and the lightness values did not move, so every documented ratio held to within 0.05.
+The surfaces took three revisions to settle. An early one cooled the panels but not the page, which left cold patches inside warm paper — worse than either consistent answer, and the note written at the time concluded that surfaces should stay warm. That conclusion was right about consistency and wrong about which side to be consistent on: on a phone the warm paper reads as paper; on a 27-inch display the same value is a wall of warm white. The page moved to the cool side and the panels went with it — **the paper and everything laid on it share one temperature; the accent is the exception**.
+
+The third revision was about **how far**. The first cool paper opened 6 points between red and blue on BG and 12 on BG-2, and on a real screen that is not cool paper, it is a blue-grey board — the tint had become a colour the reader can name, which is exactly what a background must never be. The amount is now **3 points on BG and 6 on BG-2**: set beside the old warm values the shift is obvious, and on its own the page still reads as white. Lightness never moved in any of the three passes, so every documented ratio has held to within 0.05 throughout.
 
 One deliberate inversion remains: **code foreground** stays warm on the cool slab. Inside a code block the page's relationship is turned over, and that inversion is what makes the block read as a different kind of object rather than a dark rectangle.
 
@@ -175,10 +177,10 @@ Tertiary text: labels, placeholders, lowest-priority information. **5.2:1** agai
 **Rule** `#c0c6ce`
 Rules and dividers only. The contrast against BG is deliberately subtle — a rule should separate without shouting.
 
-**BG** `#f5f7fb`
-Page background. A cool off-white, not pure `#fff`. Reduces glare in extended reading sessions, gives the contour texture something to sit in, and — at 97.6% lightness with the hue pulled to the type's own 212° — stops the largest surface on the page from reading as bare white on a wide display.
+**BG** `#f7f8fa`
+Page background. A cool off-white, not pure `#fff`. Reduces glare in extended reading sessions, gives the contour texture something to sit in, and — at 97.6% lightness with the hue pulled a short way toward the type's own 212° — stops the largest surface on the page from reading as bare white on a wide display without turning it blue.
 
-**BG-2** `#eaeef6`
+**BG-2** `#edeff3`
 Every surface laid over the page: table headers, the search modal's header bar, the search field, the sidebar search trigger, the selected result row. The same temperature as the page — the difference from BG is perceptible but minimal, enough to register as "a different surface" without creating a visual event. Fields are not exempt; what marks a field is its pill radius, its border, and its focus ring, none of which need a temperature change to do their job.
 
 **Code surface** `#20272f`
@@ -190,18 +192,18 @@ Measured, not estimated. Ratios are WCAG 2.x relative luminance, rounded to one 
 
 | Pairing          | Hex values            | Ratio  | WCAG Level    |
 | ---------------- | --------------------- | ------ | ------------- |
-| Ink on BG        | `#15191e` / `#f5f7fb` | 16.5:1 | AAA           |
-| Ink on BG-2      | `#15191e` / `#eaeef6` | 15.2:1 | AAA           |
-| Ink-2 on BG      | `#363e47` / `#f5f7fb` | 10.1:1 | AAA           |
-| Ink-3 on BG      | `#5f6a77` / `#f5f7fb` | 5.1:1  | AA            |
-| Ink-3 on BG-2    | `#5f6a77` / `#eaeef6` | 4.7:1  | AA            |
-| Amber-text on BG | `#b45309` / `#f5f7fb` | 4.7:1  | AA            |
-| Amber on BG      | `#d4820a` / `#f5f7fb` | 2.8:1  | markers only  |
+| Ink on BG        | `#15191e` / `#f7f8fa` | 16.6:1 | AAA           |
+| Ink on BG-2      | `#15191e` / `#edeff3` | 15.3:1 | AAA           |
+| Ink-2 on BG      | `#363e47` / `#f7f8fa` | 10.2:1 | AAA           |
+| Ink-3 on BG      | `#5f6a77` / `#f7f8fa` | 5.2:1  | AA            |
+| Ink-3 on BG-2    | `#5f6a77` / `#edeff3` | 4.8:1  | AA            |
+| Amber-text on BG | `#b45309` / `#f7f8fa` | 4.7:1  | AA            |
+| Amber on BG      | `#d4820a` / `#f7f8fa` | 2.8:1  | markers only  |
 | Code fg on code  | `#d9d4cb` / `#20272f` | 10.2:1 | AAA           |
 | Code dim on code | `#878f99` / `#20272f` | 4.6:1  | AA            |
-| Rule on BG       | `#c0c6ce` / `#f5f7fb` | 1.6:1  | non-text, 1px |
+| Rule on BG       | `#c0c6ce` / `#f7f8fa` | 1.6:1  | non-text, 1px |
 
-Amber-text on BG-2 measures **4.3:1** and does not clear AA. Links inside table headers and selected search rows are the only place that pairing occurs; if either surface grows, the pairing needs a darker amber rather than a lighter panel.
+Amber-text on BG-2 measures **4.4:1** and does not clear AA. Links inside table headers and selected search rows are the only place that pairing occurs; if either surface grows, the pairing needs a darker amber rather than a lighter panel.
 
 ---
 
@@ -264,9 +266,9 @@ The reason is distance, not tidiness. Search and the topic list live below the a
 
 **Glass.** The disc is the one Liquid-Glass-style surface in the interface: a translucent tint over a `backdrop-filter` blur, a specular rim (strong white inset on the top edge, a softer return on the bottom), a faint inner shading for thickness, and a soft drop shadow. It reads as a lens laid on the page — the paper texture stays visible through it, distorted. On press the rim inverts to a recess.
 
-**The glass sits; it does not hover.** The outer shadow is a 3px contact shadow at 10%, and that is the entire drop. An 8px shadow offset 2px lifted the disc a visible distance off the page, which turns a lens laid on the paper into a button floating above the list. Depth is the job of the inset rim and the inner shading; the outer shadow only has to say the disc is touching something. On hover the rim brightens and the inner shading deepens — the glass gets thicker, it does not rise.
+**Flat, not spherical.** Three layers and no more: the `backdrop-filter` blur, a cool tint at 12%, and a hairline edge. There is **no drop shadow and no specular rim** — those are the two cues that read as "raised", and with them the disc stopped being a lens on the page and became a button hovering over the list. Softening the shadow was not enough; the bevel does as much of the lifting as the shadow does. Both are gone, and what is left touches the paper.
 
-**The glass is tinted cool.** Built from white alone it was the same brightness as the paper it sat on, and on a phone it disappeared into the contour lines: the control was there, and could not be seen. Tint, edge, and shadow are therefore all taken to the cool hue (212°) — the disc separates from the page by being on the far side of the wheel from it, not by being darker. The white rim stays, because white here is light rather than colour; without it the lens is only a clouded circle. The dots go to Ink. This is not the temperature rule breaking: the rule says the thing being _read_ is cool, and it is the disc's rim and tint being read against warm paper, not a surface being read on. Where `prefers-reduced-transparency` removes the blur, the tint alone would leave a circle the brightness of the page, so the disc falls back to the BG-2 surface token and keeps its cool edge.
+Getting there took the two opposite mistakes. Built from white alone the disc was the same brightness as the paper and vanished into the contour lines — present and invisible. Answering that with a shadow and a diagonal sheen made it visible and floating. The thing that actually separates it is **hue**: the tint sits on the cool side of the paper it lies on, so the edge stands without the disc having to be darker or higher. On hover the tint and edge deepen; nothing rises and nothing sinks. On press, a single inset shadow. Where `prefers-reduced-transparency` removes the blur, the tint alone would leave a circle the brightness of the page, so the disc falls back to the BG-2 surface token and keeps its cool edge.
 
 This does not contradict the search overlay's ban on `backdrop-filter` (below). That ban is about a **surface the reader reads through**; the disc is a **control the reader looks at**. Blur that dims a page of text serves the interface; blur that gives a 44px control physical depth serves the reader's understanding of what it is.
 
@@ -302,7 +304,7 @@ Located in the left column. `position: sticky; top: 32px`.
 
 ### Code Blocks
 
-**Inline code:** `--code-inline-bg` (`#e6ebf4`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
+**Inline code:** `--code-inline-bg` (`#e9ecf1`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
 **Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: var(--radius-lg)`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
