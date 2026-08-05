@@ -170,7 +170,8 @@
   background-attachment: local, local, scroll, scroll;
   border: 0.0625rem solid var(--code-edge);
   border-left: 0.125rem solid var(--amber-lt);
-  border-radius: var(--radius-xs);
+  /* 面の大きさに見合う角。2px では、この大きさの暗い矩形はただの箱に見えた。 */
+  border-radius: var(--radius-lg);
   padding: 1.25rem;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -203,6 +204,76 @@
 
 .prose pre ::selection {
   background: rgba(232, 160, 48, 0.28);
+}
+
+/* ─── コードのコピー ─────────────────────────────────────────── */
+/* pre は横スクロールするので、ボタンを中に入れると内容と一緒に流れて隠れる。
+   実行時に pre を包んだこの枠が位置の基準になる。枠は JS が作るので、
+   無い環境では pre がそのまま残るだけで表示は変わらない。 */
+.code-block {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.code-block > pre {
+  margin-bottom: 0;
+  /* ボタンのぶんだけ右を空ける。触れる端末ではボタンが出たままなので、
+     空けておかないと 1 行目の右端が蓋の下に入る。 */
+  padding-right: 3.25rem;
+}
+
+/* 二重四角。読む間は面に沈め、近づいたときだけ立ち上がる。 */
+.code-copy {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  padding: 0;
+  border: 0.0625rem solid var(--code-edge);
+  border-radius: var(--radius-md);
+  background: var(--code-bg);
+  color: var(--code-dim);
+  cursor: pointer;
+  opacity: 0;
+  touch-action: manipulation;
+  transition:
+    opacity var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.code-block:hover .code-copy,
+.code-copy:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .code-copy:hover {
+    color: var(--code-fg);
+    border-color: var(--code-dim);
+  }
+}
+
+/* ホバーできない端末では隠す先がないので、最初から出しておく。 */
+@media (hover: none) {
+  .code-copy {
+    opacity: 1;
+  }
+}
+
+.code-copy.is-done {
+  color: var(--amber-lt);
+  border-color: var(--amber-lt);
+  opacity: 1;
+}
+
+/* 押した瞬間だけは、ホバーの有無に関わらず見えていないと結果が判らない。 */
+.code-copy:active {
+  opacity: 1;
 }
 
 /* ─── Blockquote ─────────────────────────────────────────────── */
@@ -339,6 +410,9 @@ rt {
 /* Lead paragraph — spec §3: 1px left-border in amber */
 .article-header-lead {
   position: relative;
+  /* 角を丸めたので、左の琥珀の棒 (::before) を面の形で切る。切らないと
+     棒だけが丸みの外へ真っ直ぐ突き出る。 */
+  overflow: hidden;
   font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 300;
@@ -348,7 +422,8 @@ rt {
   padding: 0.5rem 0.75rem 0.5rem 1rem;
   margin-bottom: 0;
   background: var(--amber-tint);
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  /* 四隅とも丸める。左だけ直角だと、面が版面から切り出された断片に見える。 */
+  border-radius: var(--radius-lg);
 }
 
 .article-header-lead::before {

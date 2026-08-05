@@ -48,6 +48,16 @@ body::before {
   z-index: var(--z-texture);
 }
 
+/* 角の形。半径を持つ面のうち、pill 以外はすべて超楕円にする。円弧は直線から
+   曲線へ移る瞬間に曲率が飛ぶので角が「切られた」ように見えるが、超楕円は
+   曲率が連続するぶん同じ半径でも柔らかい。pill は半円の端そのものが形なので
+   除く。Chromium 以外は corner-shape を無視して普通の丸角に落ちる。 */
+:where(.prose pre, .prose code, .prose img, .code-block, .code-copy,
+  .article-header-lead, .search-card, .search-hint, .search-shortcut,
+  .tag-pill, .skip-link) {
+  corner-shape: squircle;
+}
+
 a {
   color: inherit;
   text-decoration: none;

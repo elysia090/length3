@@ -17,6 +17,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <hr class="amber-rule about-rule" />
       </header>
       <div class="about-body prose">
+        <!-- 石の左稜線を写した排除領域。本文はこれを avoid して折り返す。 -->
+        <div class="about-taper" aria-hidden="true"></div>
         <p>
           <strong>Length³</strong> is a technical blog focused on depth over breadth. Each article aims
           to be worth the time it takes to read.
@@ -42,12 +44,21 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 </BaseLayout>
 
 <style>
-  /* About は一段落しかない。文章で埋めるかわりに、石を実寸大の感覚まで
-     大きくして、余白と物量だけでページを持たせる。 */
+  /* ページ全体を 1 画面ちょうどに収める。余りが出るとスクロールが生まれ、
+     position: fixed のテクスチャに対して石だけが動いて、せっかく面に彫れて
+     いる等高線がずれていく。
+
+     石は絶対配置。フローに残したまま height: 100% を与えると、行の高さが
+     石の原寸から決まり、その行に対して石が 100% を取ろうとして解けない
+     （石が原寸まで伸びてページのほうが伸びる）。フローから外すと高さの
+     決定が一方向になり、画面 → 石の順で一意に決まる。 */
   .about-shell {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2.5rem 0;
+    /* 石の幅と、文章との間隔。本文の折り返し幅もここから引く。 */
+    --stone-width: min(46vw, 13.5rem);
+    --stone-gap: clamp(0.75rem, 3vw, 2.5rem);
+
+    position: relative;
+    flex: 1;
     /* body が縦 flex なので、幅を宣言しないと margin-inline: auto が
        shrink-to-fit を招き、版面が内容の幅まで縮む。 */
     width: 100%;
@@ -58,72 +69,97 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       max(var(--page-gutter), env(safe-area-inset-right));
   }
 
+  /* 本文の列は石の幅を引かない。石をよけるのは列ではなく行で、下の
+     .about-taper がやる。 */
   .about-column {
     min-width: 0;
     max-width: var(--measure);
+  }
+
+  /* 石は上が尖って下が太い。その稜線をそのまま排除領域にすると、行に使える
+     幅が上から下へ細っていき、本文が段差になって落ちる。石をよけた結果と
+     文字の形が同じものになる。
+
+     shape-outside を解さないブラウザでは矩形のフロートに退化する。行の長さが
+     揃うだけで、本文はどこにも重ならない。 */
+  /* .prose > p は content-visibility: auto を持つ。これは layout 封じ込めを
+     作るので、段落が独立した整形文脈になり、フロートの「形」ではなく矩形の
+     隣に置かれてしまう（行が段差にならない原因だった）。この頁は 3 文しか
+     ないので、飛ばし描画の利点は最初からない。 */
+  .about-body > * {
+    content-visibility: visible;
+    contain-intrinsic-size: auto none;
+  }
+
+  .about-taper {
+    float: right;
+    width: calc(var(--stone-width) + var(--stone-gap));
+    height: 22rem;
+    shape-outside: polygon(100% 0, 100% 100%, 0 100%, 46% 0);
+    shape-margin: 0.75rem;
   }
 
   .about-rule {
     margin-top: 1rem;
   }
 
-  /* 石は下端が霧に溶けて消える素材なので、切らずに済ませる必要があるのは
-     頂点のほうだけ。台座は作らず、紙の上に直接立たせる。 */
-  /* z-index は上げない。テクスチャ (body::before) は position: fixed の全面
+  /* 石は文章の隣に、天井から床まで立てる。高さは画面が決めるので、ここで
+     与えるのは幅の上限だけ。裾は霧に溶ける素材なので台座は要らない。
+
+     z-index は上げない。テクスチャ (body::before) は position: fixed の全面
      オーバーレイなので、石の暗い面には等高線がそのまま乗る。紙の上に置いた
      写真ではなく、ページと同じ面に彫られた物として見える。 */
-  /* 中央ではなく右寄り。文章は左端で揃っているので、石まで中央に置くと軸が
-     2 本になる。右へ寄せると空きが本文の下にまとまって、広い幅で石を右の
-     余白に立てる版と同じ骨格になる。 */
   .about-figure {
+    position: absolute;
+    inset-block: 2rem 0;
+    inset-inline-end: max(var(--page-gutter), env(safe-area-inset-right));
+    width: var(--stone-width);
     margin: 0;
-    display: flex;
-    justify-content: flex-end;
-    padding-inline-end: clamp(1.5rem, 14vw, 5rem);
   }
 
   .about-figure picture {
     display: contents;
   }
 
-  /* 電話では小さく置く。画面いっぱいまで伸ばすと石が版面を塞いで、この
-     ページの中身である余白がなくなる。文章・石・フッタが 1 画面に収まる
-     ところまで引くと、石は塊ではなく紙に打たれた印になる。 */
+  /* 高さは枠いっぱい、幅は枠の上限。object-fit があるので、どちらが先に
+     効いても石は歪まず、必ず床に足がつく。 */
   .about-figure img {
     display: block;
-    width: clamp(7rem, 29vw, 13rem);
-    height: auto;
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+    object-position: right bottom;
     /* 溶ける裾を紙に馴染ませる。素材側の透明度だけだと、下端に薄い横線が
        残る端末がある。 */
     mask-image: linear-gradient(180deg, #000 82%, transparent 100%);
   }
 
   @media (min-width: 52.5rem) {
-    /* 文章は左の版面に据え置き、石は右の余白を丸ごと使って立てる。高さは
-       文章の 3 行より遥かに高い。並べたときの落差がこのページの中身。 */
     .about-shell {
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: end;
-      gap: 0 var(--layout-gap);
+      /* 版面に余裕がある幅では、石も太くしてよい。 */
+      --stone-width: min(22vw, 16rem);
+      --stone-gap: var(--layout-gap);
+
       padding-block: 4rem 0;
     }
 
+    /* 広い画面の石の丈は据え置き（clamp(28rem, 82vh, 52rem)）。画面いっぱい
+       まで伸ばすと、承認済みの版より石が高くなって釣り合いが変わる。天井は
+       開けたまま床から立てる。max-height は、極端に低い画面でも版面から
+       はみ出させないための保険。 */
+    .about-figure {
+      inset-block: auto 0;
+      height: min(clamp(28rem, 82vh, 52rem), 100%);
+    }
+
     .about-column {
-      /* 石の裾と本文の最終行ではなく、本文ブロックの上端を頁の上に置く。 */
-      align-self: start;
       padding-top: 1rem;
     }
 
-    /* 横に並ぶ幅では石が右の列そのものなので、寄せ幅は要らない。 */
-    .about-figure {
-      padding-inline-end: 0;
-    }
-
-    /* 高さで決めたほうが文章との落差を作りやすい。 */
-    .about-figure img {
-      width: auto;
-      height: clamp(28rem, 82vh, 52rem);
-      max-width: 100%;
+    /* 横に並ぶ幅では本文の列と石の列が重ならないので、よける必要がない。
+       ここで残すと本文の折り返しまで変わってしまう。 */
+    .about-taper {
+      display: none;
     }
   }
 </style>

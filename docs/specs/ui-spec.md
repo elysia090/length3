@@ -20,6 +20,14 @@ This specification defines the complete visual and behavioral contract for the b
 
 All dimensions derive from an **8px grid**. The minimum subdivision is 4px, used only where 8px produces excessive spacing (e.g., inline code padding). Intermediate values such as 13px, 17px, or 23px are prohibited. The eye perceives alignment when proportional relationships hold; arbitrary values undermine that perception.
 
+### Corners
+
+Radius scales with the surface: **4 / 6 / 8 / 12 / 16px**, plus a pill. The previous 2–10px scale gave every surface the same near-right-angle, which read as deliberate on a 20px chip and as an unfinished box on a 600px code block. A corner should look like the same decision at every size, which means it cannot be the same number at every size.
+
+The **shape** is a superellipse (`corner-shape: squircle`), not a circular arc. An arc meets the straight edge with a jump in curvature — the eye reads that discontinuity as a corner that was _cut_. A superellipse varies its curvature continuously, so the same radius reads softer and the shape reads as one contour rather than four arcs bridged by four lines. Chromium-only; everywhere else `border-radius` alone applies and the corner is simply a normal round.
+
+Pills are exempt: a pill's semicircular end _is_ the shape, and a superellipse would flatten it.
+
 ### Maximum Widths
 
 The outer content boundary is **1200px**. Within that boundary, the prose column is capped at **680px**. This constraint is not aesthetic preference — it is a reading-performance decision. Japanese prose reads best at 35–40 characters per line; English at 65–75. Beyond those thresholds, the eye loses its anchor when returning to the start of the next line.
@@ -234,9 +242,29 @@ Amber-text on BG-2 measures **4.3:1** and does not clear AA. Links inside table 
 
 4. **Reading time:** JetBrains Mono, 0.75rem, Ink-3. Format: `5 min`. No article count. No comment count. Comment counts broadcast weakness during low-activity periods and provide no value to the reader deciding whether to read.
 
-**Item separation:** `border-bottom: 1px solid var(--rule)`. Padding: 24px top, 24px bottom. First item: `padding-top: 0`. Last item: no bottom border.
+**Internal rhythm:** the steps double — **8 → 16 → 32**. Date, title, and description are one object and are joined at 8px. Tags are a second object and sit 16px below. The card boundary is 32px further still. A reader should be able to tell what belongs to what without reading a word of it, and doubling is the cheapest way to say it.
+
+**Item separation:** `border-bottom: 1px solid var(--rule)`. Padding: 28px top, 24px bottom (32/28 at ≥640px). The bottom is 4px short of the top on purpose: the tag row carries 4px of its own tap-target padding below the glyphs, so equal CSS padding renders as an unequal optical gap. First item: `padding-top: 0`. Last item: no bottom border — matched with `:last-of-type`, because the reveal control is the last _child_.
 
 **Hover:** Title color transitions to amber, 80ms ease. No background change. No cursor change (`cursor: default`). The color shift alone communicates interactivity.
+
+### Article List — Reveal Control
+
+The list renders **5 items** and holds the rest. The fifth is not there to be read: its foot fades out under a mask and its rule is dropped, so the list ends in a dissolve rather than a cut. Four items read normally; the fifth says "this continues."
+
+Sitting on that dissolve, centred, is a **44px glass disc carrying three dots**. Pressing it reveals **four more** items and moves the disc down to the new dissolve. When nothing is left, the disc is removed and the last item regains its full opacity and its missing rule.
+
+The reason is distance, not tidiness. Search and the topic list live below the article list, so on a phone every article added pushes them further out of reach. Capping the list keeps the distance from the top of the page to the search field constant no matter how many articles exist.
+
+**Why a disc and not "Older →".** There are no pages here to move between, so there is no page to name. Three dots say "there is more of this, in this direction" without claiming a structure the content does not have. Numbers would be worse: `Page 3 of 17` is a fact about the archive, not about what the reader is looking for.
+
+**Glass.** The disc is the one Liquid-Glass-style surface in the interface: a translucent tint over a `backdrop-filter` blur, a specular rim (strong white inset on the top edge, a softer return on the bottom), a faint inner shading for thickness, and a soft drop shadow. It reads as a lens laid on the page — the paper texture stays visible through it, distorted. On press the rim inverts to a recess.
+
+This does not contradict the search overlay's ban on `backdrop-filter` (below). That ban is about a **surface the reader reads through**; the disc is a **control the reader looks at**. Blur that dims a page of text serves the interface; blur that gives a 44px control physical depth serves the reader's understanding of what it is.
+
+**Behaviour without JavaScript.** The server renders every article and the disc `hidden`. The collapse happens only once the script runs, so a reader without JavaScript — and any crawler or in-page find — gets the whole list. Collapsed items stay in the DOM (`hidden`), never removed.
+
+**Accessibility.** The disc is a real `<button>`, labelled with the count it will reveal (`Show 4 more articles`), and it names the list it controls with `aria-controls`. On press, focus moves to the first newly revealed item's link — necessary because the final press removes the button from under the reader's focus. A polite live region reports the outcome (`4 more articles shown. 5 remaining.`), which focus movement alone cannot convey.
 
 ### Topic List (Index Sidebar)
 
@@ -262,15 +290,19 @@ Located in the left column. `position: sticky; top: 32px`.
 
 ### Code Blocks
 
-**Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: 3px`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
+**Inline code:** `--code-inline-bg` (`#edeae4`) background, `border-radius: var(--radius-sm)`, `padding: 1px 5px`, JetBrains Mono 0.88em, Ink. No border — inline code sits inside a running line, and a drawn box on every occurrence turns a Japanese paragraph into a string of rectangles. The tint alone marks it, and a 1px inset shadow gives the tint an edge without a stroke.
 
-**Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: 2px`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
+**Block code:** `--code-bg` (`#20272f`) background — a dark gray carrying blue, not black. `border: 1px solid --code-edge`, `border-left: 2px solid #e8a030` (amber-lt), `border-radius: var(--radius-lg)`, `padding: 20px`. JetBrains Mono 0.8125rem, `--code-fg` (`#d9d4cb`) — kept warm so the text sits off the cool ground — `line-height: 1.65`.
 
 **Block code is a dark surface; inline code is not.** The two are different objects. A block is a figure the reader stops on — set as a slab, it separates from the prose the way a plate separates from body text in print, and the sharp 1px edge is what makes it read as an object rather than a wash. Inline code is not an object; it belongs to the sentence, so it stays light. Earlier revisions of this document prohibited dark blocks on the grounds that they rupture reading flow; in practice the near-invisible BG-2 wash (a 1.06:1 step from the page) failed to mark the block at all.
 
 **Syntax highlighting** is on, via Shiki with a project theme (`src/config/code-theme.ts`). The token palette is amber, sage, terracotta, parchment, and dusty lavender — muted, warm, and keyed to the page accent rather than a stock high-saturation theme. Every token colour clears 4.5:1 against `--code-bg`. The theme's surface values are duplicated in `--code-*` (tokens.css) because Shiki writes token colours inline while the surface comes from CSS; the two must be changed together.
 
 **Horizontal overflow is signalled without JavaScript.** A block wider than its column shows a light edge on the side that has more content, built from four background layers — two covers attached `local`, two glows attached `scroll`. Scrolling to an end slides the cover over the glow and the signal disappears.
+
+**Copy control.** Each block carries a **copy button in its top-right corner**, drawn as two overlapping squares — the duplication mark, which is what "copy" looks like everywhere else the reader uses a computer. No label; the glyph is the whole affordance. It is invisible until the pointer enters the block, and permanently visible on devices that cannot hover. On success it swaps to a check in amber for 1.5s and its accessible name changes to `Copied`; on failure, to `Failed`.
+
+The button lives in a wrapper the script places around the `<pre>`, not inside it: a `<pre>` scrolls horizontally, and a button inside would scroll away with the code. The block reserves right padding for it so the first line never runs underneath.
 
 **Language labels are not displayed.** The content of the code block identifies its language. A label stating `typescript` above TypeScript code provides zero additional information.
 
@@ -334,7 +366,11 @@ No other transitions exist. This list is exhaustive.
 
 Tab order follows DOM order. The DOM is written in logical reading order so that `tabindex` manipulation is unnecessary.
 
-**Focus outline:** `outline: 2px solid var(--amber); outline-offset: 3px`. Browser default outlines are replaced, never removed. The replacement must provide equal or greater visibility.
+**Focus outline:** `outline: 2px solid var(--amber-text); outline-offset: 3px`, plus a soft `--focus-halo` ring outside it. Browser default outlines are replaced, never removed. The replacement must provide equal or greater visibility.
+
+The ring is drawn with **`outline`, never with `box-shadow` alone**. Forced-colours mode strips box-shadows entirely, so a shadow-only ring vanishes for exactly the users who need it most. `box-shadow` may add a second, softer halo outside the outline — it may not be the ring itself. A focused control changes **one** thing chromatically: the outline. Recolouring the border as well produces two concentric amber rings and reads as an error state.
+
+(Two rules previously passed `--focus-halo` — a bare colour — straight to `box-shadow`. A box-shadow with no lengths is invalid, so those declarations were dropped and the halo never rendered at all.)
 
 **Search modal focus trap:** When open, Tab cycles through modal-internal elements only. Escape closes the modal and returns focus to the element that triggered it.
 
@@ -428,7 +464,7 @@ What the interface deliberately does not do is as important as what it does.
 
 **No social share buttons inside the article body.** A share prompt while reading is a disruption. If the article earns sharing, a single line at the article's end is sufficient.
 
-**No numbered pagination.** Navigation between article sets uses only "← Older" and "Newer →". "Page 3 of 17" serves no reader need.
+**No numbered pagination.** The article list grows in place, four at a time, behind the reveal disc (§4). There are no page numbers and no page URLs. "Page 3 of 17" is a fact about the archive's size, not about anything the reader came to find.
 
 **No loading spinners.** The Astro + Cloudflare Workers architecture eliminates the conditions that produce loading states. If a spinner becomes necessary, the response is architectural correction, not UI design.
 
@@ -437,6 +473,14 @@ What the interface deliberately does not do is as important as what it does.
 **No statistics display on the index page.** Article count, tag count, and publication duration are not shown in the sidebar or anywhere on the index page. These numbers serve the author's vanity, not the reader's needs. They live on a dedicated stats page, if anywhere.
 
 **No vertical section labels.** A rotated "articles" label in the page margin provides no information the reader does not already possess. It is decorative, and decoration that cannot justify itself is clutter.
+
+### Environment Overrides
+
+Two settings come from outside the page and must beat every component that disagrees with them. They live in one unlayered stylesheet loaded last (`environment.css`) — layered rules lose to unlayered ones no matter how specific they are, which is exactly the property needed here. Nothing else may be written there; anything that is has no way left to be overridden but `!important`.
+
+**`prefers-reduced-transparency: reduce`.** Every `backdrop-filter` in the interface — the prose panel and the reveal disc — becomes opaque. Blur does not remove what is behind a surface, it only makes it unreadable while leaving it visible; for a reader who has asked for less transparency, that is the worst of both.
+
+**`print`.** Paper gets the writing and the rules that carry it, nothing else. The texture, header, footer, sidebar, TOC, article actions, reveal disc, and copy buttons are all removed — none of them can be operated on paper. Collapsed articles are printed in full, since the collapse exists to shorten a scroll and paper has none. Code blocks invert to black-on-white: a dark slab at print resolution is a solid rectangle of ink that costs a cartridge and reads worse than the page it came from. Headings avoid breaking away from what follows them; code blocks, quotes, tables, and list items avoid breaking across pages. Links in the prose print their URL after the text, because a link on paper is otherwise a dead end.
 
 ---
 

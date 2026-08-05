@@ -7,7 +7,9 @@ export interface SiteCopy {
   blogSidebar: string;
   breadcrumb: string;
   close: string;
+  codeCopied: string;
   contents: string;
+  copyCodeAria: string;
   copyFailure: string;
   copyFailureLabel: string;
   copyLink: string;
@@ -42,7 +44,9 @@ const SITE_COPY_BY_LANGUAGE: Record<SiteLanguage, SiteCopy> = {
     blogSidebar: 'Blog sidebar',
     breadcrumb: 'Breadcrumb',
     close: 'Close',
+    codeCopied: 'Copied',
     contents: 'Contents',
+    copyCodeAria: 'Copy code to clipboard',
     copyFailure: 'Could not copy the link. Copy the URL from the address bar.',
     copyFailureLabel: 'Failed',
     copyLink: 'Copy link',
@@ -74,7 +78,9 @@ const SITE_COPY_BY_LANGUAGE: Record<SiteLanguage, SiteCopy> = {
     blogSidebar: 'ブログのサイドバー',
     breadcrumb: 'パンくず',
     close: '閉じる',
+    codeCopied: 'コピーしました',
     contents: '目次',
+    copyCodeAria: 'コードをクリップボードにコピー',
     copyFailure: 'Could not copy the link. Copy the URL from the address bar.',
     copyFailureLabel: 'Failed',
     copyLink: 'Copy link',
