@@ -419,6 +419,9 @@ rt {
   font-style: italic;
   line-height: 1.7;
   color: var(--ink);
+  /* 段落を持つ lead (小説の書き出しなど) の改行を保つ。1 行の要約では
+     効果がないので、既存の記事の見た目は変わらない。 */
+  white-space: pre-line;
   padding: 0.5rem 0.75rem 0.5rem 1rem;
   margin-bottom: 0;
   background: var(--amber-tint);

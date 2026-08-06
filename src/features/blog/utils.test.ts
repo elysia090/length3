@@ -8,6 +8,7 @@ import {
   formatDate,
   notDraft,
   processPost,
+  toSingleLine,
   toSlug,
 } from './utils';
 
@@ -198,6 +199,28 @@ describe('notDraft', () => {
   });
 });
 
+describe('toSingleLine', () => {
+  it('leaves a single-line description untouched', () => {
+    expect(toSingleLine('A one line excerpt.')).toBe('A one line excerpt.');
+  });
+
+  it('drops the break and the ASCII spacing around it', () => {
+    expect(toSingleLine('first line  \n  second line')).toBe('first linesecond line');
+  });
+
+  it('keeps the ideographic indent that opens the next paragraph', () => {
+    expect(toSingleLine('　一行目。\n　二行目。')).toBe('　一行目。　二行目。');
+  });
+
+  it('handles CRLF', () => {
+    expect(toSingleLine('　一行目。\r\n　二行目。')).toBe('　一行目。　二行目。');
+  });
+
+  it('closes up a blank line between paragraphs', () => {
+    expect(toSingleLine('　一行目。\n\n　二行目。')).toBe('　一行目。　二行目。');
+  });
+});
+
 describe('processPost', () => {
   it('derives slug from entry id', () => {
     const entry = makeEntry({ id: 'hello.mdx', tags: ['astro'] });
@@ -209,6 +232,12 @@ describe('processPost', () => {
     const entry = makeEntry({ description: 'My excerpt', tags: ['astro'] });
     const result = processPost(entry, buildTagResolver([entry]));
     expect(result.description).toBe('My excerpt');
+  });
+
+  it('flattens a multi-line description for the card excerpt', () => {
+    const entry = makeEntry({ description: '　一行目。\n　二行目。', tags: ['astro'] });
+    const result = processPost(entry, buildTagResolver([entry]));
+    expect(result.description).toBe('　一行目。　二行目。');
   });
 
   it('maps tags to canonical hrefs through the resolver', () => {

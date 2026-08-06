@@ -114,6 +114,19 @@ export function buildTagResolver(posts: BlogPost[]): TagResolver {
 }
 
 /**
+ * Collapses a multi-line description onto one line.
+ *
+ * A description may carry line breaks when it doubles as the article lead
+ * (the lead renders them with `white-space: pre-line`). Meta tags and card
+ * excerpts are single-line contexts, so the breaks are dropped there. Only
+ * ASCII spacing around the break is trimmed — U+3000 is a Japanese paragraph
+ * indent, not padding.
+ */
+export function toSingleLine(text: string): string {
+  return text.replace(/[ \t]*\r?\n[ \t]*/g, '');
+}
+
+/**
  * Converts a raw blog collection entry into a ProcessedPost ready for
  * rendering. Centralised here so every page derives slugs, reading time, and
  * tag links from the same logic.
@@ -125,7 +138,7 @@ export function processPost(entry: BlogPost, tagResolver: TagResolver): Processe
     entry,
     slug: toSlug(entry.id),
     readingTime: estimateReadingTime(entry.body ?? ''),
-    description: entry.data.description,
+    description: toSingleLine(entry.data.description),
     tags: tagNames.map((name) => tagResolver.linkFor(name)),
   };
 }
