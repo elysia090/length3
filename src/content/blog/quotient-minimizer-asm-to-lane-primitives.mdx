@@ -1,0 +1,1178 @@
+---
+title: Clangが吐いた158命令から、観測と未来で商化して1〜8命令のlane primitiveを機械に導出させよう
+description: predicate、prefix、rank と select、compact と expand、run boundary、Morton permutation。表面上は違って見える処理が、少数の同じ抽象作用へ何度も落ちる。手で何度もやった導出を Quotient Minimizer という solver へ移し、ordinary C を Clang -O2 に通した実アセンブリから意味を取り直して、物理代表を選び直すところまで通す。
+publishDate: 2026-08-07
+tags: [simd, bitwise, pdep, clmul, superoptimizer, x86, c]
+draft: false
+lang: ja
+---
+
+前回まででやっていたのは、一個ずつ手で導出することだった。
+
+8 lane の mask から rank を作るなら singleton mask を basis として入れて方程式を立て、deposit position と multiplier を逆算し、256 通りを全数照合する。prefix XOR なら shift と XOR の木を自分で組む代わりに、乗算器の内部にすでに置かれている木を一命令として借りる。compact や stable partition では、途中で作っていた destination や rank が本当に最終結果から観測されるのかまで戻って確かめ、観測されないと分かったらその中間表現ごと消す。
+
+それを何度も繰り返しているうちに、個々の bit trick を集めているという見え方ではなくなった。predicate、prefix、rank と select、compact と expand、run boundary、Morton permutation、block offset、polynomial accumulator と、表面上はかなり違って見える処理が、少数の同じ作用へ何度も落ちてくるからである。
+
+そこで今回は、まず現在ある結果を最初から全部並べる。そのあとで、なぜこの表がこういう形に埋まったのかを順に見ていき、最後に同じ導出を機械へ移す。
+
+現在は Python の参照関数を target にするだけでなく、ordinary C を Clang の `-O2` に通して出た実際の x86-64 assembly を入力にし、そこから有限領域の実行あるいは probe によって意味を取り直し、quotient を取って抽象作用へ落とし、物理代表を選び直して target ISA へ降ろすところまで通っている。つまり題名の後半にある「それを機械に出させる」は、もう構想だけの話ではない。
+
+記事は大きく三部に分かれる。前半は現在の primitive の一覧で、何が何命令で出るかだけを見る。中盤は、その表を埋める過程で内部表現や抽象 class の定義がどう変わったかで、ここがいちばん時間を食った部分である。後半は同じ導出を機械へ移す話で、Quotient Minimizer という solver の構造と、それが実 assembly からどこまで戻れるかを書く。
+
+途中で四回ほど脇道へ入る。1987 年の newsgroup 投稿とその著者の博士論文、`PDEP` が 5 年間ほとんど嘘だった話、35 年前から hardware にある専用命令、そして同じ 1987 年の superoptimizer。どれも単なる余談ではなく、その直前に出てきた設計判断を外側から照らしてくれた話である。脇道に入ったあとには、必ずその判断へ戻ってくる。
+
+## 0. 前回まで
+
+読んでいなくても続きが読めるように、今回使うものだけ再掲する。前の記事は[全1の幾何級数カーネル](https://length3.com/ones-kernel-multiplier-affine-monoid)である。
+
+### 二行
+
+最初の出発点は、`x * 0x0101010101010101` が byte 単位の prefix sum になり、`CLMUL(x, 0xFFFFFFFFFFFFFFFF)` が bit 単位の prefix XOR になる、という二行だった。
+
+どちらも入力をずらしたコピーを何個も作って一つの木で畳み込んでおり、整数乗算なら足し算、carry-less multiplication なら XOR で畳んでいるという違いしかない。
+
+prefix scan を素直に書けば `x << 1`、`x << 2`、`x << 4` と自分で依存木を組むことになるが、乗算器の内部には「入力の shifted copy を大量に作って一つへ畳み込む」回路がすでに置かれている。必要な kernel さえ選べば、その木を一命令として借りられる。
+
+ただし IMUL と CLMUL には決定的な違いがあって、整数乗算には carry があり、carry-less multiplication には carry がない。
+
+8 個の predicate bit を byte lane ごとの prefix count にしたいなら、まず `PDEP(m, 0x0101010101010101)` で一 bit ずつ byte へ隔離してから `* 0x0101010101010100` を行う必要がある。一方、GF(2) 上の prefix XOR では bit 同士が XOR されるだけなので、carry を防ぐための lane isolation が要らない。
+
+この意味で、**deposit の値段は carry の値段である**、というのが前回までの最初の観察だった。
+
+### 賃借
+
+ここで数えている span は、数学的な式の木の深さそのものではなく、宣言した ISA へ lowering した後に残る物理命令間の依存深さである。
+
+64-bit prefix XOR を `x ^= x << 1` から `x ^= x << 32` まで六段組めば複数段の依存が残るが、`CLMUL(x, ~0)` へ lowering すれば ISA の上では一命令になる。
+
+内部で何段の XOR tree が動いているかを、こちらの span として数え直すことはしない。その木は CPU 設計者がすでにシリコンの中で払い終えているからで、この意味で乗算器を賃借している。
+
+### 四つの鍵
+
+物理代表が複数ある場合に備えて、比較の順序を固定してある。
+
+第一鍵が lowering 後の依存深さである span、第二鍵が lowering 後の総仕事量である work、第三鍵が artifact 全体の完全符号による記述長 `L(z)`、第四鍵が長さまで同着した場合の安定な全順序 `rank` である。
+
+Brent 型の下界では `T_p >= span` なので、work をいくら削っても span より速くはならない。だから span を最初の鍵に置き、その同着を work で解く。
+
+第三鍵として記述長を入れたのは、実際に必要になったからである。ある lookup table 版と 2 命令版が span 2 / work 2 で完全に同着し、実測差も約 1% しかなかったのに、artifact 全体を数えると 2053 byte と 19 byte で 110.9 倍違った。表を「環境にもともと存在するもの」として無料扱いすると、比較規則そのものが壊れる。そこで `E` という完全符号を使って、opcode も constant も table も含めた artifact 全体を数える。
+
+第四鍵の `rank` は span / work / L(z) まで全部同じ解が複数残った場合に唯一の canonical representative を選ぶためにあり、これが後で 502 solutions という形で本当に必要になる。
+
+### affine action
+
+1 block の吸収を `h -> (h + m)k` と書けば `h -> kh + km` なので `h` について affine であり、`(α, β) : h -> αh + β` と表せば合成は `(α1α2, α2β1 + β2)` になる。これは写像合成そのものなので、結合律を別に証明する必要がない。
+
+`α = 1` なら additive scan になり、`α = k` なら Horner 型の polynomial accumulator になる。1-bit scalar の GF(2) では非零 scalar が `1` しかないため係数選択にほとんど自由度がなく、lane を広げて初めて非自明な kernel の選択空間が生まれる。
+
+鍵には広さが要る。
+
+ここまでが前回まで。
+
+## 1. 何命令で何ができるか
+
+まず現在の表を置く。
+
+ここでは core op と standalone asm instruction count を分けて考える。semantic kernel 自体が `PDEP + IMUL` の二命令でも、独立した関数にすれば ABI move や constant materialization が付くことがある。逆に hot loop へ inline すれば、constant load は loop の外へ出せる。
+
+したがって core op は「意味を実現している中心の物理作用」、standalone instruction count は「独立関数として compiler が実際に出した列」として別に扱う。
+
+### predicate
+
+内部 predicate は、selected lane の bit 7 が立つ spread 形を基本にする。8-bit の dense mask ではなく、64-bit word の各 byte の最上位 bit で lane を表す形である。なぜこちらを界面にしたのかは §3 で書く。
+
+| core ops | primitive | 意味 |
+| -------- | --------- | ---- |
+| 4 | `zero_spread(v)` | `lane == 0` |
+| 5 | `eq_spread(x,c)` | `lane == c` |
+| 7 | `lt_spread(x,c)` | unsigned `lane < c` |
+| 7 | `range_spread(x,lo,hi)` | `lo <= lane <= hi` |
+
+現在の scalar `range_spread` は `lo <= hi < 0x80` を前提にする。
+
+`lane >= 0x80` だけが欲しく、consumer が HIGH bit 以外を観測しないなら `x` をそのまま渡してよいので、0 core ops になる。一方、canonical な `00/80` spread word 自体が API なら `x & HIGH` の 1 op が必要になる。この違いは、後で observation quotient の話へそのまま戻ってくる。
+
+SSE2 / SSE4.1 側へ降ろすと、同じ predicate を 16 lane まとめて扱える。`eq16` が `PCMPEQB PMOVMSKB` の 2 core ops、`lt16` が `PXOR PCMPGTB PMOVMSKB` の 3 core ops、`range16` が `PSUBB PMINUB PCMPEQB PMOVMSKB` の 4 core ops になる。
+
+### prefix と scan
+
+右の列の residual freedom は、宣言した grammar の中で仕様を満たした解が何個残ったかである。1 なら定数が一意に決まり、複数なら第四鍵で選ぶことになる。詳しくは §12 で書く。
+
+| core ops | primitive | residual freedom |
+| -------- | --------- | ---------------- |
+| 2 | `ranks8` exclusive | 502 |
+| 2 | `inclusive_rank8` | 1 |
+| 2 | `prefix_parity_mask8` | 1 |
+| 2 | `quote_state_before8` | 502 |
+| 2 | `ranks16_nibble` | 26 |
+| 1 | `prefix_xor64` | 1 |
+| 1 | `block_offsets8` | — |
+
+`ranks8` は 8-bit predicate mask から 8 個の byte-sized exclusive rank を作り、`inclusive_rank8` は自分自身を含む prefix count を作る。`prefix_parity_mask8` は 8-bit predicate mask の running XOR を byte ごとの `00/FF` へ直接展開し、`quote_state_before8` は各 byte に「その byte に入る直前の parity」を置く exclusive prefix parity である。`ranks16_nibble` は 16-bit predicate mask から 16 個の 4-bit exclusive rank を作る。
+
+これらが全部 1 から 2 core ops まで落ちる。
+
+### mask と address と permutation
+
+`byte_mask8` が work 2 / span 2、`ranks8` が work 2 / span 2、`select8` が work 3 / span 3、`shuffle_control8` が work 4 / span 4 で、`ranks8` と `select8` を両方欲しいときは shared `PDEP` があるため work 4 / span 3 になる。
+
+`2 + 3 = 5` ではないが、3 total ops でもない。この distinction は、後で span を dependency DAG から導出するときに効いてくる。
+
+Morton dilate と Morton compact はどちらも一命令だが、前者は `PDEP`、後者は `PEXT` に落ちる。この二つが後で、抽象 class を instruction 名で呼んでいた最初の分類を壊すことになる（§7）。
+
+### 語を動かす
+
+`compact8(x,m)` が 3 core ops で selected lane を前へ詰め、`expand8(p,m)` が 3 core ops で packed word を元の lane position へ戻す。同じ byte mask 上で `PEXT` と `PDEP` を使うので、
+
+```text
+PDEP(PEXT(x,bm),bm) == x & bm
+```
+
+が成り立ち、全 256 masks と random payload で照合した。
+
+`stable_partition8` は 8 core ops で selected を元順に詰め、その後ろへ rejected を元順に置く。`compact_nonzero8` は 7 core ops で、zero/nonzero predicate の生成から dynamic compaction までを一本につなぐ。
+
+### run と boundary
+
+`changes(x)` が 2 core ops で隣接 bit が違う場所を出し、`starts(x)` が 2 core ops で `0 -> 1` boundary、`ends(x)` が 2 core ops で `1 -> 0` boundary を出す。`run_ids8(m)` は 4 core ops で、run start の prefix count を各 lane に置く。
+
+### compiler と比較した現在の相対値
+
+ordinary C を Clang `-O2` に通した実装との比較では、同一計測内で次の値が出ている。
+
+| primitive | Clang `-O2` 比 |
+| --------- | -------------- |
+| `inclusive_rank8` | 約 1.94 倍 |
+| `prefix_parity_mask8` | 約 2.32 倍 |
+| `quote_state_before8` | 約 3.90 倍 |
+| `ranks16_nibble` | 約 3.67 倍 |
+| Morton dilate32 | 約 6.61 倍 |
+| Morton compact-even | 約 5.47 倍 |
+| `run_ids8` | 約 4.68 倍 |
+| `compact_nonzero8` | 約 4.74 倍 |
+
+この表だけを見ても、かなり普通の systems primitive が 1 から 8 core ops に集中していることは分かる。
+
+ただし今回の主題は「変な命令を知っていると速い」という話ではない。この表を埋める過程で、そもそも何を内部表現として持つべきか、何を一つの抽象 class と呼ぶべきか、何を solver が自由度として返すべきかまで変わった。
+
+ここからは、表の各行を増やした話ではなく、表を埋めることで設計側の前提がどう壊れたかを見ていく。
+
+## 2. zero-byte idiom が最初に壊れた
+
+zero byte detection で広く知られている式がある。
+
+```c
+(v - 0x0101010101010101) & ~v & 0x8080808080808080
+```
+
+これは有名だし、実際に正しい用途がある。ただしその仕様は「少なくとも一つ zero byte が存在するか」であって、今回欲しかったのは「どの byte が zero なのかを lane ごとに正確に示す」mask だった。
+
+この二つは同じではない。
+
+`v = 0x12b92a01000bb5f9` を入れてみると、byte 3 が `0x00` で、その直上の byte 4 が `0x01` になっている。zero byte だけを per-lane で示すなら byte 3 だけが立たなければならない。ところが byte 3 で発生した borrow が byte 4 へ伝わり、`0x01 - 1 - borrow = 0xFF` になるため、byte 4 の high bit まで立ってしまう。
+
+期待は byte 3 だけ、実際は byte 3 と byte 4 の両方である。
+
+つまりこの idiom が間違っているのではない。**observation が違う。** `has_zero(v)` という一 bit の observation に対しては十分だが、`zero_mask(v)` という per-lane observation に対しては情報が粗すぎる。
+
+正確な per-lane zero spread は次の形になる。
+
+```c
+static inline uint64_t zero_spread(uint64_t v)
+{
+    return ~(((v & 0x7f7f7f7f7f7f7f7full)
+              + 0x7f7f7f7f7f7f7f7full) | v)
+           & 0x8080808080808080ull;
+}
+```
+
+この式は byte-repeated constant を 256 通り列挙して見つかった。
+
+ここだけでも「仕様をどう観測するか」が実装を決めていることは分かるが、この話の出所を追うと、その偶然が少し出来すぎていた。
+
+### 脇道: 1987 年の投稿と、その著者の博士論文
+
+この idiom の出所を調べたら、思っていたより遠くまで戻った。
+
+Sean Anderson の Bit Twiddling Hacks が典拠として挙げているのは、1987 年 4 月 27 日の newsgroup 投稿で、著者は Alan Mycroft である。1998 年の Linux kernel mailing list で `strcpy` を速くする議論をしている人たちが、コメントに「この magic check は A. Mycroft が設計した」と書いて引き継いでいるのも見つかった。
+
+その Mycroft が誰かというと、Cambridge の計算機研究室の教授で、Norcroft C compiler の共同著者で、あとから Raspberry Pi Foundation の設立にも関わっている。そして 1982 年に Edinburgh で取った博士号の題目は、applicative program に対する abstract interpretation と最適化変換であり、指導教員は Rod Burstall と Robin Milner だった。
+
+abstract interpretation というのは、乱暴に言えば、プログラムの完全な意味をそのまま持つ代わりに、いま答えたい質問に必要な性質だけを残した抽象領域へ写し、その上で計算する技法である。
+
+この記事でやっていることとかなり近い。観測に必要な区別だけを残し、それ以外を quotient で潰し、潰した先で解く。
+
+つまり、俺の実装を壊した式を書いた人と、俺がその壊れ方を説明するのに使っている枠組みに深く関わっていた人が同じだった。
+
+もちろんそこに因果はない。ただ、bit を数えている側と意味を抽象化している側が別の界隈に見えるのは、単にこちらの視野の問題で、40 年前には同じ人の中に両方あった、という程度のことは言える。
+
+さらに面白いのは、さっきの 1998 年の kernel mailing list のスレッドである。
+
+参加者の一人が Mycroft の式から `& ~(w)` を削って三命令に短くできると言い、別の一人がそれは `0x80` を null と誤検出すると指摘し、そこで三人目が「たいして問題ではない、どうせ null byte の位置を知りたくてその後は byte 単位でコピーするのだから」と返して、その関数を `word_has_probably_nullbyte` と呼ぶことを提案している。
+
+**observer を明示すれば近似が正当化される、という判断が、1998 年に変数名の中に埋め込まれていた。**
+
+彼らは quotient という語を使っていないし、observer を型として持ってもいない。それでも、何を観測するかを決めれば実装の正しさの基準が変わることは完全に理解していて、それを識別子の `probably` という一語に押し込んでいた。
+
+俺が後で observation quotient を明示的な引数として定義することになるのは、要するにこの `probably` を名前の中から引きずり出して型にする作業である。
+
+ここで脇道から本筋へ戻ると、最初に壊れたのは zero-byte idiom そのものではなかった。「出力とは exact な値そのものだ」という暗黙の前提と、「必要な情報だけ見ればよい」という実装側の前提を、同じ場所で混ぜていたことが問題だった。
+
+その区別を explicit observer として持つ必要がある。§10 で定義を戻す。
+
+## 3. 8-bit mask を内部界面にしたのも間違いだった
+
+zero predicate を正確な spread 形で作れるようになったあと、最初はそこから 8-bit mask を作っていた。predicate から spread を作り、`msb_mask8` で dense な 8-bit mask にし、`PDEP(mask, ONES)` で byte-lane representation へ戻す、という流れである。
+
+しかし `msb_mask8` がやっているのは各 byte の high bit を 8-bit mask へ gather することで、その直後の `PDEP(mask, ONES)` がやっているのは、その 8 個の bit を byte lane へ戻すことである。つまり spread から dense mask を経由して、また spread に近い lane 表現へ帰る往復を、自分で作っていたことになる。
+
+途中の 8-bit mask を消せば、byte mask が欲しいなら `(s >> 7) * 0xFF`、rank が欲しいなら `(s >> 7) * 0x0101010101010100`、個数が欲しいなら `POPCNT(s)` だけでよい。spread 形では一 lane に高々一 bit しか立たないので、`POPCNT(s)` がそのまま selected lane 数になる。
+
+この表現変更だけで `eq` が 11 から 5、`lt` が 15 から 7、`range` が 32 から 7 まで落ちた。
+
+ここで重要なのは、11 命令のコードから 6 命令ぶんの peephole optimization を見つけたのではないということである。**往復していた中間表現そのものを消した。**
+
+8-bit mask は便利だが、内部界面として常に正しいわけではない。table index にするとき、外部 API が mask を要求するとき、別の width の世界へ渡すときには必要になる。しかし predicate から rank、count、byte mask、compaction へそのまま進むなら、spread を保持した方が安い。
+
+この時点で、最適化は「命令の選び方」だけの問題ではなく、どの representation を途中に存在させるかの問題になった。
+
+次の unsigned comparison でも、同じことが別の形で出る。今度は representation を消すのではなく、64-bit arithmetic として見えていた問題を、lane-safe arithmetic と小さい Boolean function に分解する。
+
+## 4. unsigned byte comparison を lane-safe にする
+
+`eq` は XOR の後に zero detection を使えばよいので簡単だった。問題は unsigned byte の `<` である。
+
+64-bit integer として普通に subtraction すると、ある byte の borrow が隣の byte に伝わって、zero-byte idiom と同じ事故が起きる。
+
+そこで high 1 bit と low 7 bits を分ける。`z = (x | HIGH) - (y & LOW7)` と置くと、各 byte だけを見れば `x | HIGH` は `0x80` から `0xFF`、`y & LOW7` は `0x00` から `0x7F` なので、差は必ず 1 から 255 に収まる。つまり各 byte の subtraction が必ず非負になり、byte をまたぐ borrow が発生しない。
+
+そして `z` の bit 7 は `x_low >= y_low` を表すので、残る仕事は、元の `x` と `y` の high bit が `0 < 1` なのか、同じ high bit の下で low 7 bits が小さいのかを組み合わせることだけになる。
+
+```c
+static inline uint64_t lt_bytes(uint64_t x, uint64_t y)
+{
+    uint64_t z = (x | HIGH) - (y & LOW7);
+    return ((~x & y) | (~(x ^ y) & ~z)) & HIGH;
+}
+```
+
+random 2×10⁵ words で照合した。
+
+さらに面白いのは、`z` まで作った後は bit 7 しか見ないことだった。つまり残りは 64-bit arithmetic problem ではなく、3-input Boolean function に落ちる。truth table にすると `lt` は `0x4D`、`range` は `0x40` になり、この大きさなら straight-line Boolean program を全探索できる。
+
+したがって `lt_spread = 7 core ops` という結果は、64-bit expression を手探りで短くしたものではなく、lane-safe arithmetic と tiny Boolean synthesis に分解した結果である。
+
+この「意味を小さい class に落としてから解く」というやり方が、後で QM の `POINT` class になる。
+
+## 5. 502 はどこから来たのか
+
+最初に `ranks8` を手で導出したときは、`PDEP` と `IMUL` を組み合わせる x86 固有の小技に見えていた。8-bit predicate mask から 8 個の exclusive rank を byte lane に作るなら、`PDEP(m, 0x0101010101010101)` してから `* 0x0101010101010100` するだけで、2 core ops で終わる。
+
+solver に定数を逆算させると、候補 511 のうち 502 個が全 256 mask を通った。canonical representative は `D = 0x0101010101010101` と `M = 0x0101010101010100` で、手で選んだものと一致する。
+
+最初はこの 502 も、`PDEP + IMUL` という妙な組み合わせに固有の現象に見えた。
+
+しかし inclusive rank を解くと状況が変わる。乗数を `0x0101010101010101` にするだけで 2 core ops のままなのに、今度は residual freedom が 1 になる。
+
+さらに同じことを CLMUL 側でやってみる。8-bit predicate mask の inclusive running parity を byte ごとの `00/FF` に直接展開するなら、`PDEP(m, ONES)` の後に `CLMUL(..., 0xFFFFFFFFFFFFFFFF)` で 2 core ops、residual freedom は 1。ところが exclusive prefix parity、つまり各 byte に「その byte へ入る直前の quote state」を置くほうにすると、`CLMUL(..., 0xFFFFFFFFFFFFFF00)` になって、また候補 511 のうち 502 solutions が出る。
+
+| | inclusive | exclusive |
+| ---- | --------- | --------- |
+| IMUL rank | 1 | 502 |
+| CLMUL parity | 1 | 502 |
+
+この時点で 502 は `IMUL` 固有の怪現象ではなくなった。違う multiplication family に、同じ境界条件から同じ residual freedom が出ている。
+
+理由は basis image を見れば分かる。solver は `target(1 << lane)` を basis image として取り、そこから deposit position と kernel を逆算する。ところが `ranks8(1) = 0x0101010101010100` は下位 8 bits が zero である。lane 0 の像に trailing zero が 8 個あるぶんだけ、shift で machine word の外へ落ちる kernel high bits が生まれ、そこは最終 output から観測できないので、複数の kernel が同じ target を実現できてしまう。候補数は `511 = sum_(p0=0..8) 2^p0` になり、そのうち 9 個が他 lane の制約で落ちて 502 個が残る。
+
+inclusive では basis lane 0 の像が低位から始まるのでこの自由度がなく、CLMUL の exclusive parity でも同じ boundary が生まれるため、同じ 502 が現れる。
+
+つまり **residual freedom は multiplication instruction 固有ではなく、仕様の境界条件から生まれる。** inclusive と exclusive は、その最小の例だった。
+
+### lane width を変えても残る
+
+8-lane / byte だけなら、まだ偶然の bit hack と見える。そこで solver を IMUL と CLMUL の両方、`input_bits` を 1 から 16 まで一般化した。
+
+16-bit predicate mask から 16 個の 4-bit exclusive rank を作る場合、`PDEP(m, 0x1111111111111111)` の後に `* 0x1111111111111110` で終わる。やはり 2 core ops で、solver は候補 31 のうち 26 solutions を返した。全 65,536 inputs で照合した。
+
+8 lane の `0101...` が 16 lane の `1111...` に変わっただけで、導出の構造は同じである。
+
+ここで lane width の条件も整理できる。binary predicate の exclusive prefix count なら最大 accumulator は `n-1` なので `2^w >= n`、すなわち `w >= ceil(log2 n)` が必要十分になる。16 lanes / 4-bit rank は、ちょうどこの境界に乗る。一方 inclusive prefix の最大値は `n` なので、`w >= ceil(log2(n+1))` が必要になる。
+
+したがって一般条件は「最大 accumulator が lane の表現範囲へ収まること」であって、`w >= ceil(log2 n)` は binary exclusive prefix の場合に出る形にすぎず、すべての convolution に対する一般法則ではない。
+
+また w-bit coefficient space の非零 kernel 数は `2^w - 1` だが、これは residual freedom そのものではない。kernel space は探索開始時に選べる係数空間の大きさで、residual freedom は target の制約を全部課した後に残る解数であり、別の量である。`w=8` だから 255 solutions というわけではなく、exclusive rank では 502 solutions が残るし、inclusive rank では 1 しか残らない。
+
+「鍵には広さが要る」という話と lane accumulator の余地は、同じ `w` という資源を別の方向から見ているが、同じ不等式ではない。
+
+## 6. 差分作用素とその逆元だった
+
+`prefix_xor64` を一 CLMUL にしたとき、`0xFFFFFFFFFFFFFFFF` は便利な all-ones kernel として見えていた。その後 `changes` を並べると、この定数がなぜ all ones なのかが見える。
+
+64-bit word を `GF(2)[x] / (x^64)` の多項式として読むと、`changes(v) = v ^ (v << 1)` は `(1+x)v` である。ここで `S = 1 + x + x^2 + ... + x^63` と置くと、
+
+```text
+(1+x)S = 1 + x^64 = 1 mod x^64
+```
+
+なので、`S` は `(1+x)` の逆元になる。binary word としての `S` は、ちょうど `0xFFFFFFFFFFFFFFFF` である。したがって `CLMUL(v, ~0)` の low half が prefix XOR になる。
+
+random 2×10⁵ words で `prefix_xor(changes(v)) == v` と `changes(prefix_xor(v)) == v` の両方を照合した。
+
+つまり **transition と prefix scan は、同じ商環における差分作用素とその逆である。** 微分と呼ぶより差分作用素と呼ぶ方が正確だが、all-ones kernel が偶然便利だったわけではなく、`1+x` の逆元だから all ones になる、という点は同じである。
+
+`starts` は `x & ~(x << 1)` なので、差分で現れる boundary のうち `0 -> 1` 側だけを残している。`run_ids8` はこの `starts` を作ったあと、その inclusive rank を取ればよい。抽象的には POINT から prefix rank への合成であり、2 core ops と 2 core ops で 4 core ops まで落ちる。全 256 inputs で照合し、Clang `-O2` 比では約 4.68 倍だった。
+
+新しい primitive を増やしたつもりが、すでに持っていた差分と prefix の合成だった。
+
+### block 間 scan も同じ乗算だった
+
+8 block の local count を byte ごとに `counts = 0x0408050207000103` と packed しておき、`0x0101010101010101` を掛けると `0x1e1a120d0b040403` になり、byte ごとに読むと `[3, 4, 4, 11, 13, 18, 26, 30]` になる。
+
+local rank も `PDEP` と `IMUL` だったし、block 間も `IMUL` 一つである。階層は違うが、packed digits に all-ones convolution を掛けるという作用は同じで、前回 CLMUL の running parity で「二段目も同じ命令」となったのと同じ構造が IMUL 側でも出た。
+
+prefix の種類や lane 幅を変えても同じ作用が戻ってくるところまで来ると、命令名ではなく作用そのものを分類したくなる。次の Morton は、その分類を一度壊して、逆に抽象 class をはっきりさせた例である。
+
+## 7. Morton が分類を壊した
+
+solver の最初の版では、`LIN_CONST` をほとんど `PDEP` の別名として扱っていた。rank の入口が `PDEP(m,D)` だったからで、内心では deposit class と呼んでいた。
+
+しかし Morton dilate を入れる。32-bit input を 64-bit word の偶数 bit position へ拡散する ordinary C を Clang `-O2` に通すと、手元の例では 49 instructions になった。意味だけ取り出して物理代表を探すと、`PDEP(x, 0x5555555555555555)` に一意に落ちる。1 core op で、Clang `-O2` 比 約 6.61 倍。
+
+ここまでは `LIN_CONST = PDEP` でも説明できる。
+
+しかし逆の Morton compact を入れる。偶数 bit position から dense 32-bit word へ回収する ordinary C は 43 instructions で、物理代表は `PEXT(x, 0x5555555555555555)` に一意に落ちた。こちらも 1 core op、Clang `-O2` 比 約 5.47 倍である。
+
+片方は `PDEP`、片方は `PEXT`。それでもどちらも入力 bit を固定された位置へ線形に写す constant GF(2)-linear map なので、抽象 class は同じ `LIN_CONST` にすべきだった。
+
+したがって `LIN_CONST` という抽象作用があり、その物理代表として constant PDEP、constant PEXT、shift/XOR network、constant CLMUL、GFNI の linear map などが並ぶ、という構造になる。
+
+ここで初めて、**abstract class と instruction mnemonic を一対一対応させてはいけない**という原則が具体例から出た。
+
+この原則を置くと、逆に「hardware の側には、この意味 class を直接実装したものがないのか」という疑問が出る。調べると、かなり露骨なものがすでにあった。
+
+### 脇道: この class にはすでに専用命令がある
+
+Intel の GFNI 拡張にある `GF2P8AFFINEQB` は、8×8 の bit matrix を GF(2) 上で 8-bit の列ベクトルへ掛ける命令で、要するに**各 byte に対する任意の constant GF(2)-linear map を一命令で実行する。** AVX の枠組みの中で動くので、512-bit register なら 64 byte 分の変換を並列にかけられる。Ice Lake 以降で使える。
+
+しかも面白いのは、この命令がおそらく SM4 や AES の acceleration を狙って入ったにもかかわらず、実際には bit reversal、8×8 bit matrix transpose、byte 内の任意 permutation、bit replication、bit interleave といった、暗号と何の関係もない用途で使われていることである。
+
+Geoff Langdale の言い方を借りれば、この命令は各 bit を同じ byte 内の任意の bit の XOR で置き換えられる。誰かが「programmable gate array の変な形をエミュレートしている」と書いているのも見た。
+
+さらに遡ると、Cray は 1990 年に 64×64 の bit matrix multiply を特許にしている。今日いちばん近い等価物が AVX-512 の 8×8 GF(2) affine transform だ、という整理も見つかった。
+
+つまり `LIN_CONST` は俺が発明した抽象ではない。hardware の側が 35 年にわたって、幅と名前を変えながらこの class の周りを行ったり来たりしてきた。Cray が 64×64 でやり、BMI2 が `PDEP` / `PEXT` という非対称な形でやり、GFNI が 8×8 の行列という素直な形でやっている。
+
+そしてこれが、class を mnemonic で名付けてはいけないことの一番強い理由になる。同じ class を実装する二つ目の命令が現れた瞬間に、mnemonic 由来の名前は必ず壊れる。一つしか知らないうちは、それが偶然だと気づけない。俺の場合は Morton compact が二つ目だったが、GFNI を先に知っていれば `PDEP` を見た時点で気づけたはずである。
+
+脇道から戻ると、`LIN_CONST` を意味 class として持つ理由は、単に portable backend を綺麗にするためではない。同じ意味に対する hardware の実装が、世代や ISA によって別の形で現れる以上、抽象作用と物理代表を最初から分離しておかないと設計が持たない。
+
+この区別は §14 で、そのまま ISA lowering の構造になる。
+
+## 8. destination を計算する必要が消えた
+
+rank や select を作っていると、stable partition も最初は rank から destination を出して scatter する、という形で考えたくなる。
+
+しかし final observation が「selected を元順に並べ、その後ろに rejected を元順に並べたもの」だけなら、各 lane の destination number を materialize する必要はない。selected を monotone compaction し、rejected も monotone compaction すればよい。
+
+`bm = byte_mask8(m)` として `yes = PEXT(x, bm)`、`no = PEXT(x, ~bm)`、`k = popcount(m)` を作り、
+
+```text
+yes | (no << (8*k))
+```
+
+を返す。packed result まで作る現在の x86 core count は 8 である。
+
+しかし output が二本の stream なら、最後の concatenate 自体も要らない。selected stream と rejected stream へ別々に書けばよい。これは `stable_partition` の最終 output を packed word として観測するか、two streams として観測するかで、必要な computation が変わる例でもある。
+
+compact と expand も `PEXT` と `PDEP` の圧縮・展開の対として、
+
+```text
+PDEP(PEXT(x,bm),bm) == x & bm
+```
+
+を満たす。これで mask 演算系は predicate から destination、movement、inverse までかなり閉じた。
+
+`compact_nonzero8` も同じ考え方で、8-bit mask を内部に作って保存する必要がない。`s = (((x & LOW7) + LOW7) | x) & HIGH` で nonzero lane の HIGH bit spread を作り、`bm = (s >> 7) * 0xFF` で byte mask へ展開して、そのまま `PEXT(x, bm)` に渡せば 7 core ops で終わる。全 256 tagged patterns と random 200,000 words で照合し、Clang `-O2` 比 約 4.74 倍だった。
+
+「8-bit mask を内部界面にしない」という表現選択が、predicate だけでなく final compaction まで効いている。
+
+ここまで来ると、同じ種類の判断を何度も手でしていることになる。定数を解く、basis を選ぶ、observer を確認する、representation を消す、意味 class を選び直す。そろそろ手順そのものを機械へ渡す段階になる。
+
+## 9. 同じ手続きを何度もやったなら、それは手続きである
+
+ここまでの primitive は、最初は全部手で導出した。basis input を入れて出力を見て、shift position と multiplier を逆算し、定数を列挙し、Boolean truth table を作り、256 通りを全部照合する。そして representation の往復に気づいたら、その中間表現を消す。
+
+同じ手続きを何度もやった。
+
+**同じ手続きを何度もやったなら、それは手続きである。**
+
+欲しいものは、単に「与えられた semantics と等価な短い命令列」を探す synthesizer ではない。physical search の前に、何が観測されるか、未来が何を区別できるかを使って、そもそも保持する必要のない distinction を消したい。
+
+そのための solver を Quotient Minimizer と呼ぶことにする。
+
+この名前を付けたところで、当然 superoptimizer との違いを整理する必要が出た。調べると、こちらも 1987 年へ戻った。
+
+### 脇道: 1987 年に、同じ年に
+
+superoptimizer という語は、Henry Massalin が 1987 年の ASPLOS で作った。論文名は `Superoptimizer: a look at the smallest program` で、本文はたった 5 ページである。Alan Mycroft が例の zero-byte idiom を newsgroup へ投稿したのと同じ年だ。
+
+やっていることは容赦なく単純で、命令集合の部分集合を選び、長さ 1 の全命令列、長さ 2 の全命令列、と順に生成して、目的の関数と同じ答えを返すものが出たら止める。等価性の確認は probabilistic test なので、通ったものが本当に等価とは限らず、最後は人間が解析的に確かめる。
+
+当時の実行環境は 16 MHz の 68020 で、12 命令の列を出すのに数時間かかったと論文に書いてある。生成された列については、元のソースプログラムとほとんど似ていない込み入った bit-fiddling になった、と本人が書いている。
+
+名前の由来も面白い。Massalin が super を付けざるを得なかったのは、当時すでに optimizer という語が「最適化するもの」ではなく「改善するもの」の意味へ堕ちていたからである。最適を主張したいのに、その語がもう空いていなかった。
+
+これは他人事ではない。俺が Quotient Minimizer と呼んでいるのも optimizer という語が使いにくいからで、しかも minimizer だけでも足りない。やっているのは最小化だけではなく、同値類を決めた上での代表元選択だからである。同値類を先に決め、その中から canonical な代表を選ぶ。だから quotient が名前に要る。
+
+そして手法の関係も、対比として綺麗に立つ。Massalin は命令空間そのものを探索した。QM は探索する前に、observer と future の両方から観測不能な区別を潰して、問題を小さくしてから探索する。線形な部分は探索すらせず、basis image から閉形式で解ける。1987 年に数時間かかっていた長さ 12 の探索が、いまも本質的には難しいままで、だから前処理で削るしかない。
+
+この系譜には後続がいくつもある。1992 年に GCC 向けの GNU Superoptimizer が作られ、2002 年の Denali は探索を SAT へ落とし、Bansal と Aiken は brute-force から peephole superoptimizer を自動生成し、STOKE は loop-free x86 を stochastic search で扱い、Souper は LLVM IR の dataflow 部分集合を、Minotaur はそれを SIMD へ広げた。
+
+QM が general SMT solver を自前で再実装する意味はない。先に quotient と正規化と閉形式 solver と小さい全探索で問題を削り、それでも残った部分を既存の solver に渡すのが正しい。
+
+ここで本筋へ戻る。superoptimizer との差を名前で主張するだけでは意味がなく、実際に「何を quotient するのか」を solver の入力として定義しなければならない。最初に必要になったのが observation quotient で、その定義は prototype を一度書き直すことになった。
+
+### 現在の流れ
+
+大きな流れは、Stage 0 で specification と observer を受け取り、Stage 1 で quotient を取り、Stage 2 で抽象・物理代表を探索し、Stage 3 で target ISA へ降ろして検証する、という四段になる。
+
+## 10. observation quotient は observer の kernel
+
+ここは最初の prototype から定義を修正したところである。
+
+最初の prototype には、output の bit を全部走査して「全 input に対して常に zero」なら don't-care へ落とす処理を入れていた。賢いつもりだった。
+
+これは嘘である。
+
+API が exact な `uint64_t` を返すなら、bit 57 が常に zero であることも仕様の一部で、呼ぶ側がそこを見ないと決めた覚えはこちらにはない。落とせるかどうかを決めるのは observer であって、観測結果の統計ではない。
+
+そこで observer を明示する。
+
+```text
+obs : Output -> Observable
+```
+
+を引数として受け取り、
+
+```text
+y ~ y'
+iff
+obs(y) == obs(y')
+```
+
+と定義する。つまり **observation quotient は `obs` の kernel equivalence である。**
+
+observer を指定しなければ `obs = identity` とし、この場合は output の bit を一つも勝手に消さない。caller が `output & HIGH` しか見ないなら、その observer を明示して初めて lower 7 bits を quotient できる。
+
+この定義にすると、前に出た二つの話が同じ場所へ入る。zero-byte idiom は `obs(v) = has_any_zero_byte(v)` なら正しく、`obs(v) = exact_zero_lane_mask(v)` なら正しくない。同様に `lane >= 0x80` predicate で、consumer が HIGH bits だけを見るなら raw `x` を 0 op で渡せるが、canonical な `00/80` output が API なら `x & HIGH` が必要になる。
+
+したがって、**don't-care は solver が推測するものではなく、API 境界が宣言するもの**ということになる。
+
+1998 年に `word_has_probably_nullbyte` と名付けた人たちが正しかった。彼らは observer を型では持っていなかったが、名前の中には持っていた。
+
+observation quotient が現在の API 境界を見るものだとすると、もう一つ、時間方向に同じ問題がある。現在は違って見える二つの state が、どんな未来を付けても最後まで区別できないなら、その区別も保持する理由がない。
+
+## 11. future quotient は別の方向を見る
+
+observation quotient と future quotient はどちらも「区別できないものを潰す」ので似て見えるが、誰が区別するかが違う。observation quotient は現在の explicit observer が output を区別できるかを見て、future quotient はどんな continuation を後ろへ付けても区別できない state / representation を見る。
+
+例えば `feed(s,b) = b` という transition を考える。`read_state(s)=s` なら logical state は 256 個区別されるので、state の observable quotient 自体は identity である。しかし transition action は `f_b(s) = b` で source state に依存せず、`f_b o f_a = f_b` なので right-zero action になる。
+
+このとき消えるのは 256 個の logical state そのものではなく、source-state-dependent transition representation のほうである。未来へ渡すために source state ごとの transition row を保持する必要がない。
+
+前の記事で 27 byte の machine を扱ったとき、最終的に stream 間の state handoff が消えたのは、こちら側の quotient だった。
+
+つまり observation quotient は現在の observer が見ない区別を消し、future quotient は continuation が将来見分けられない区別を消す。この二つを混ぜると、何を消してよいかの判定そのものが壊れる。
+
+そして quotient を取ったあとに初めて、物理代表を何通り作れるのかという Stage 2 の問題が始まる。
+
+## 12. 解の個数も出力である
+
+Stage 2 の出力は `(program, residual freedom)` にする。residual freedom は、現在の grammar と objective stratum の中で semantics を満たして残った解の数である。
+
+0 ならその search family では表現不能、1 なら physical parameters が一意、`n > 1` なら primary objective まで同着した解が n 個あって、第四鍵の `rank` が必要になる。
+
+`ranks8` では 502 solutions が残り、`bytemask8` は candidate 1 で solution 1 になる。`select8` を `LIN_CONST ; CONV` だけで解こうとすると `select8(1)=0` なので lane 0 の方程式が成立せず、その family では solution 0 になる。しかし grammar を `PERM_DYN_G` まで広げると solution 1 が出る。
+
+つまり 0 という結果は「この関数は実現不能」という意味ではなく、**現在の abstract family では表現不能**という情報である。
+
+residual freedom は debug counter ではなく、「この定数を設計者がどれだけ自由に選べたか」を測る量である。ただし solution 1 だから「定義上 nothing-up-my-sleeve number」とまでは言わない。正確には、明示した specification と grammar と objective の範囲内では設計者に追加の選択自由度がない、ということであり、その意味で nothing-up-my-sleeve 的な性質を持つ。
+
+ここまでで quotient と solver の出力が決まった。残るのは、solver がどんな abstract program を探索するかである。
+
+## 13. 抽象 class は四つ、guard は導出する
+
+現在までの小さい bit-vector kernel は、大きく POINT、LIN_CONST、CONV、PERM_DYN の四つの class へ整理できる。これは任意の assembly がこの四つに閉じるという主張ではなく、現在扱っている corpus がこの四類型へかなり自然に落ちるという意味である。
+
+**POINT** は lane-local な非線形作用で、zero test、comparison、range、carry isolation、Boolean selection、run boundary などが入る。`lt_bytes` の high-bit / low-7-bit 分解や truth-table search はここへ入る。
+
+**LIN_CONST** は constant GF(2)-linear map で、Morton dilate の constant `PDEP` も Morton compact の constant `PEXT` もここに入る。重要なのは physical instruction 名ではなく意味なので、物理代表として `PDEP(mask)`、`PEXT(mask)`、shift/XOR network、constant CLMUL、GFNI の linear map などが並ぶ。GFNI の affine form で constant offset が非零なら、linear part と constant translation に分ければよい。
+
+**CONV** は lane index / bit index 上の convolution で、IMUL なら integer addition を使う convolution、CLMUL なら GF(2) addition を使う convolution になる。元は `CONV_Z`、`CONV_GF2`、`CONV_GF128` のように代数系ごとに production を分けていた。しかし物理 grammar の側で見ると、現在使う multiplication family は基本的に IMUL と CLMUL なので、`CONV(mul, lane_width)` として持ち、solver 側にはさらに `input_bits` を渡す。現在は mul が IMUL と CLMUL、`input_bits` が 1 から 16 まで一般化できている。
+
+**PERM_DYN** は runtime data に依存する permutation / gather / scatter で、`PEXT(K, variable_mask)` や `PDEP(data, variable_mask)` はこちらに入る。constant-mask の PEXT/PDEP とは意味上の class が違う。
+
+差は portable lowering ではっきり出る。`LIN_CONST` は constant map なので shift/XOR/mul の直線列へ展開できるが、`PERM_DYN` は runtime mask dependent なので loop か table か vector permute が要る。`select8` が BMI2 x86 では 3 core ops なのに、portable lowering では十数 ops になる理由がここにある。
+
+### guard は instruction ごとに宣言しない
+
+CONV では accumulator が本来の表現領域から escape することがあるので、何が escape するのか、その escape 処理が線形かを見る必要がある。
+
+IMUL の escape は carry である。GF(2) 的に見ると carry は非線形なので、lane isolation や widening を accumulation の後へ移動できない。実験すると、guard を前に置いた場合は 256 中 256 一致し、guard を後ろへ移した場合は 255 中 1 しか一致しなかった。したがって guard は widen / isolate before であり、影響する使用ごとに毎回払う。
+
+CLMUL の escape は degree overflow、つまり high half だが、quotient が単に `mod x^64` なら low half を取るだけでよいので、明示的な guard cost は 0 である。`prefix_xor64` が 1 CLMUL で閉じる理由がこれである。
+
+一方、`x^128 + x^7 + x^2 + x + 1` のような非自明な多項式で reduction するなら明示的な reduction が必要になる。しかし reduction は GF(2)-linear なので、
+
+```text
+reduce(p) ^ reduce(q) = reduce(p ^ q)
+```
+
+が成り立つ。各 term ごとに reduction を払う代わりに、wide product を全部 XOR fold してから最後に一回だけ reduce へ移動できる。
+
+つまり **quotient が truncation なら guard は 0、escape 処理が線形なら後払いで amortize、非線形なら前払い**、という一つの規則になる。`PDEP` による lane isolation と polynomial の deferred reduction が、別々の hack ではなく同じ guard rule の別ケースになる。
+
+前回の GF(2^128) accumulator も、この規則の中に残る。`h <- (h xor m) * k` を block ごとに行うとき、wide CLMUL product と reduction を毎回払う素朴な形では、prototype の cost model 上、block ごとに 3 CLMUL の wide multiplication と 2 CLMUL の reduction 相当を払うので、8 blocks で 40 core ops、5.00 / block になる。しかし reduction が linear なので、8 個の wide product を先に XOR fold して最後に一回だけ reduce すれば 26 core ops、3.25 / block になり、比率は 1.54 倍である。random key と blocks で意味保存を確認した。
+
+並べるとこうなる。byte rank では carry が nonlinear なので guard を前払いする。`mod x^64` の CLMUL では truncation だけなので guard cost は 0。GF(2^128) reduction は linear なので後ろへ移して amortize できる。
+
+前は別々の観察だったものが、一つの規則へ入った。
+
+抽象 class と guard が決まれば、次はそれを各 ISA の物理代表へ落とすだけである。ただし、ここで「一命令」という数え方をそのまま性能だと思うと、次の脇道で痛い目を見る。
+
+## 14. 同じ abstract program を ISA ごとに降ろす
+
+`ranks8` を例にすると、solver が返す abstract program は `LIN_CONST ; CONV` である。x86-64 BMI2 へ降ろせば `PDEP` と `IMUL` になり、portable backend では constant linear deposit を `IMUL AND BSWAP SHR` へ展開してから rank 用の IMUL を行う。
+
+prototype の現在の符号化では、x86 が span 2 / work 2 で `L = 148 bit = 19 byte`、portable が span 5 / work 5 で `L = 224 bit = 28 byte` になる。
+
+`select8` は `LIN_CONST ; CONV ; PERM_DYN_G` なので、x86 では `PDEP IMUL PEXT` の span 3 / work 3 で `L = 214 bit = 27 byte`、portable では `IMUL AND BSWAP SHR IMUL` のあとに 8 段の loop が付いて span 13 / work 13 で `L = 756 bit = 95 byte` になる。`shuffle_control8` はさらに final NOT が付き、x86 が span 4 / work 4 で 27 byte、portable が span 14 / work 14 で 95 byte になる。
+
+ここで `LIN_CONST` と `PERM_DYN` を分けた意味がはっきり出る。前者は constant map なので portable な直線列へ落とせるが、後者は runtime mask dependent なので一般には loop か別の permutation primitive が要る。
+
+そして x86 backend はそのまま C を吐ける。
+
+```c
+static inline uint64_t ranks8(uint8_t m)
+{
+    uint64_t t0 = _pdep_u64((uint64_t)m,
+                            0x0101010101010101ull);
+    uint64_t t1 = t0 * 0x0101010101010100ull;
+    return t1;
+}
+
+static inline uint64_t select8(uint8_t m)
+{
+    uint64_t t0 = _pdep_u64((uint64_t)m,
+                            0x0101010101010101ull);
+    uint64_t t1 = t0 * 0x00000000000000FFull;
+    uint64_t t2 = _pext_u64(0x0706050403020100ull, t1);
+    return t2;
+}
+
+static inline uint64_t shufctl8(uint8_t m)
+{
+    uint64_t t0 = _pdep_u64((uint64_t)m,
+                            0x0101010101010101ull);
+    uint64_t t1 = t0 * 0x00000000000000FFull;
+    uint64_t t2 = _pext_u64(0xF8F9FAFBFCFDFEFFull, t1);
+    return ~t2;
+}
+```
+
+生成した C も compiler に通し、全 256 masks で再照合する。つまり spec から quotient、abstract program、ISA lowering、interpretation、verification、C emission までが一周する。
+
+ここまでの表では `PDEP` を 1 core op と数えている。それ自体は ISA-level の記述として正しいが、その数字が実 machine 上の cost と同じだと思うと危ない。
+
+### 脇道: その ISA 宣言は、5 年間ほとんど嘘だった
+
+「x86-64 BMI2 なら `PDEP` は 1 命令」と書くとき、俺はそれを ISA の性質として書いている。しかしこの宣言は、ある時期の x86 機械のかなりの割合に対して、事実上の嘘だった。
+
+BMI2 は Haswell で入った。ところが AMD 側は、Excavator から Zen 2 まで `PDEP` と `PEXT` を microcode で実装していて、latency が 18 cycle あった。Zen 3 でようやく完全な hardware 実装になり、3 cycle になっている。
+
+18 対 3 は桁が違うので、この間の AMD 機では `PDEP` / `PEXT` を使わず、他の命令で書き直したほうが速いことがよくあった。実際、Zach Wegner の zp7 という software 実装のほうが、それらの機械では速い。Dolphin emulator の開発ノートにこの問題が出てくるのも見つかった。
+
+Zen 3 が出たのが 2020 年 11 月なので、2015 年頃から 5 年ほど、AMD の主要 x86 機で `PDEP` は「1 命令だが 18 cycle」だった。そして Zen 5 になると逆に振り切れて、PDEP/PEXT が multiply や CRC と port を共有せず、3 個の ALU で 3/cycle の throughput が出る。x86 で初めて 1/cycle を超えたらしい。
+
+この歴史そのものが、**ISA を明示的な引数にすべき理由**になっている。
+
+`ranks8` は 2 core ops である、という文には、どの ISA の上でか、という括弧が必ず要る。しかもその括弧の中身は固定ではなく、同じ名前の拡張を名乗る機械の間で 6 倍動き、10 年で 2 回向きが変わっている。これを背景の前提として暗黙に持っていると、`ranks8` が 2 命令だという結論だけが独り歩きして、実際には 36 cycle 払っている環境が出る。
+
+だから QM では ISA を「各抽象演算をどう降ろすかの表」として外から渡し、portable backend を常に並べて出す。portable の `IMUL AND BSWAP SHR` が 4 命令なのは負けているように見えるが、18 cycle の `PDEP` に対しては勝っている可能性が十分にある。どちらが勝つかは表を差し替えて測る話であって、抽象作用の側の問題ではない。抽象作用は両方とも `LIN_CONST` のままである。
+
+この脇道から戻ると、ISA と microarchitecture を分ける理由が一つ増える。抽象 program は機械世代に依存せず、その物理代表と cost profile だけを差し替えたい。
+
+そして、入力側についても同じことが言える。solver の target を綺麗な Python 関数に限定する必要はない。compiler が吐いた assembly からでも、意味だけ取り直せればよい。
+
+## 15. ordinary C から actual asm を通して戻す
+
+Python の reference function を target にしているだけなら、人間がすでに意味をきれいにしてから solver に渡している、とも言える。
+
+そこで ordinary C を Clang `-O2` に通し、実際に出た x86-64 assembly を入力にする。現在の path は、ordinary C から compiler を通して actual asm を得て、concrete あるいは finite な semantics を取り出し、explicit observer を与えて quotient し、POINT / LIN_CONST / CONV / PERM_DYN の抽象作用へ落とし、物理代表を探し、target へ lowering して検証する、という形になっている。
+
+既出の primitive でも、かなり大きい compiler output から元の小さい構造へ戻る。
+
+| target | compiler asm | 抽象 program | x86 core ops |
+| ------ | ------------ | ------------ | ------------ |
+| `ranks8` | 37 | `LIN_CONST ; CONV(IMUL,8)` | 2 |
+| `select8` | 69 | `LIN_CONST ; CONV ; PERM_DYN_G` | 3 |
+| `compact8` | 76 | dynamic compaction | 3 |
+| `stable_partition8` | 158 | 二本の monotone compaction | 8 |
+
+`ranks8` は residual freedom 502、`select8` は 1 である。
+
+`compact8` の compiler asm は 76 instructions あって branch も含む。しかし predicate mask が 8 bits なら input domain は 256 通りしかないので、全 path を execution semantics へ潰してしまえば control-flow graph 自体を Stage 2 へ持ち込む必要がなく、dynamic compaction という pure semantics として扱える。物理代表は 3 core ops の `byte_mask + PEXT` へ戻る。
+
+`stable_partition8` の compiler asm は 158 instructions で、これも finite mask domain 上で branch を semantics へ吸収すると、selected を gather し、rejected を gather して concatenate する、という構造へ戻る。
+
+重要なのは、**158 instructions を局所 peephole で 8 instructions に削ったのではない**ということである。158 instructions が実装している関数を一度意味へ戻し、その関数に必要のない intermediate distinction を落とし、その後で別の物理代表を選び直した。
+
+ここまで来ると QM は「変な assembly optimizer」というより、assembly を semantic specification へ戻す frontend と、その specification の quotient / synthesis backend に近くなる。
+
+branch の存在そのものは、QM を適用できない理由にはならない。8-bit mask が branch condition に使われているなら input は 256 通りしかないので、branchy program を全有限入力で実行して finite な input/output relation にしてしまえば、control flow は semantics の中へ吸収できる。
+
+もちろん arbitrary 64-bit input を 2^64 通り実行することはできない。その場合は class に応じて basis probes、boundary probes、symbolic extraction、CEGIS、SMT を使い分けることになる。線形な map なら basis image だけで十分だし、16-bit mask なら 65,536 exhaustive inputs がまだ現実的だし、8-bit の branchy kernel なら 256 inputs を全部踏める。つまり probe の選び方自体も、target の abstract structure から導出できる。
+
+ここまでできると、次に問題になるのは assembly の instruction coverage だった。最初は interpreter を育てればよいと思っていたが、その考え方自体がずれていた。
+
+## 16. opcode 網羅率という指標が間違っていた
+
+最初は handwritten の Python interpreter に x86 instruction の意味を一個ずつ足していた。`PDEP` を足し、`PEXT` を足し、`IMUL` を足す。動くたびに進んでいる感じがして、正直に言うと楽しかった。
+
+ある日、x86-64 に命令がいくつあるか数えた。
+
+そこで気づいたのは、opcode を足し続けても終わらないということではない。**opcode 網羅率という指標そのものが、この問題に対して間違っている**ということだった。
+
+QM が必要としているのは対象関数の観測可能な意味であって、各命令の denotational semantics ではない。そして観測可能な意味を返す装置なら、目の前にある。CPU である。
+
+そこで現在は、`.s` や `.o` から typed ABI harness を作り、native x86-64 CPU あるいは external runner を semantics oracle として呼んで concrete result を得る、という構成にしている。handwritten interpreter は `PDEP`、`PEXT`、`IMUL`、AND、XOR、shift のような頻出 small-kernel の fast path に格下げし、命令網羅性は実 CPU / execution backend に任せる。
+
+この構造で、回帰では scalar integer、BMI と BMI2、SSE、AVX2、AVX-512、ZMM、k-mask、AES-NI、x87 の 80-bit、RIP-relative addressing、internal call、finite loop、Microsoft x64 ABI、pointer input、pointer output、128-bit return まで通した。
+
+ここでいう「対応」は、Python に全 opcode の denotational semantics を実装したという意味ではない。typed ABI harness が target function を呼び、必要な probe を与え、実 CPU や runner を semantics oracle として concrete result を得る、という意味である。
+
+### 「x86 完全対応」の境界は opcode 数ではない
+
+この設計にすると、未対応の意味も変わる。
+
+`RDTSC` を interpreter に足すことはできるが、何を返せばよいのか。時刻を返すなら、それは関数ではなく環境を持つ計算になる。`RDRAND` なら決定的関数ですらなく、仕様が関係になる。`CPUID` なら machine environment が要る。fault を observable にするなら observer に戻り値だけでなく例外事象を入れることになるし、concurrency なら memory model と interleaving が必要になる。
+
+どれも単なる「未対応の命令」ではない。environment、nondeterminism、observer、exception semantics を増やす話であって、命令表とは別の軸である。
+
+だから現在の frontend の境界は、命令の集合ではなく「deterministic application-level x86-64 function」と置いている。ISA coverage と specification model を分けたほうが、構造としてずっと素直になる。
+
+この分離をすると、最後に cost model 側も同じように層を分けたくなる。ISA 上の一命令、compiler が出す一命令、CPU が一 cycle で処理できる仕事は、全部別の量だからである。
+
+## 17. 三つの層を混ぜない
+
+ここまで `37 -> 2` や `158 -> 8` と書いてきたが、2 や 8 が何を数えているかは明確にしておく必要がある。
+
+core-op count は semantic kernel の中心作用だけを見る。standalone function の asm には constant materialization、ABI moves、register setup、return preparation などが付くし、逆に hot loop 内では constant を loop invariant として外へ出せることがある。さらに CPU 上の速度を議論するなら latency、reciprocal throughput、uops、ports、register pressure、spill まで必要になる。
+
+| layer | 数えるもの |
+| ----- | ---------- |
+| semantic / ISA | span、work、`L(z)`、rank |
+| standalone code | actual instruction count、code size |
+| microarchitecture | cycles、latency、throughput、uops、register pressure |
+
+`PDEP` が ISA 上 1 op でもすべての CPU で同じ cost ではないことは、前節の Zen の話でもう見た。逆に 2 core ops の kernel が standalone function で 6 instructions になっていても、inline した hot loop ではその 6 が全部毎 iteration 必要とは限らない。
+
+この三つは混ぜない。
+
+### span はまだ近似である
+
+現在の prototype には、まだ一つ明確な近似が残っている。一部の lowering で `span = len(seq)` としていて、完全な straight chain なら正しいが、共有と並列枝がある場合は違う。
+
+`ranks8 + select8` は shared `PDEP` を持つので、`PDEP` から二本の `IMUL` へ分かれ、片方の後ろに `PEXT` が付く形になり、work 4 / span 3 になる。
+
+分かっているのに自動化していないのは、lowering を DAG として持つと表の形が変わるからで、要は面倒だからである。最終的には lowering 自体を dependency DAG として持ち、work を node count、span を longest path として導出することになる。span を命令 table に手で書くのではなく、lowered dependency graph から出す。これが現在残っている明確な TODO の一つである。
+
+## 18. まだ人間が与えている部分
+
+ここまで動いていても汎用 superoptimizer ではないので、境界を書いておく。
+
+`lt_bytes` では high 1 bit と low 7 bits へ分ける構造を人間が与えた。その後の tiny Boolean search は自動だが、「この representation に分けると問題が小さくなる」という発見自体はまだ完全自動ではない。ここは quotient / representation discovery の次の対象になる。
+
+64-bit constant が複数あって basis probe だけでは閉じない target もあるが、そこは素直に CEGIS や SMT へ流せばよい。前に書いた通り、QM の価値は general SMT solver を自前で再実装することではなく、先に quotient、正規化、閉形式の線形 solver、小さい全探索で問題を削って、それでも残った部分だけを一般 solver に渡すことである。
+
+dependency costing は前節の通り DAG へ移す。time、randomness、fault、concurrency を扱うなら observer と environment model を拡張するが、これも opcode table を増やす話とは別である。
+
+## 19. 削っているのは命令だけではない
+
+個々の結果だけを見ると、`PDEP` が便利、`PEXT` が便利、`CLMUL` で prefix XOR、という bit trick 集にも見える。しかし表を全部並べると、違うものが見える。
+
+zero-byte idiom では、observer を変えると正しい実装が変わった。spread では、内部 representation を一つ消すだけで命令数が半分近くまで落ちた。rank と parity では、IMUL と CLMUL という別の multiplication family に、inclusive と exclusive という同じ boundary condition から同じ residual freedom が現れた。Morton では、`PDEP` と `PEXT` という逆向きの instruction が同じ `LIN_CONST` class に入り、その class にはすでに Cray の 64×64 BMM と GFNI の 8×8 affine という専用命令が歴史の両端にあった。stable partition では、destination を計算する必要自体が消えて、二本の monotone compaction になった。compiler asm では、37 / 69 / 76 / 158 instructions の列を直接書き換えるのではなく、一度 semantics に戻すことで 2 / 3 / 3 / 8 core-op 級の別表現を選べた。x86 frontend では、opcode coverage を自前 interpreter の行数で測る必要すらなくなった。
+
+つまり QM が削っているものは命令だけではない。観測されない bit、未来に不要な state distinction、不要な intermediate representation、ISA mnemonic に引きずられた抽象 class、毎回払う必要のない guard。そういう区別を物理 synthesis より前に消して、その後に残った作用だけを ISA の上で最小の representative にする。
+
+## 20. まとめ
+
+### 表として
+
+8 lane の mask 演算系は、predicate から prefix、rank と select、compact と expand、partition、stream output、block offset までかなり閉じている。さらに 16-lane の nibble rank、Morton permutation、run ID、prefix parity も同じ作用の中へ入った。
+
+predicate は spread 形で 4 から 7 core ops、mask から address は 2 から 4、語を動かすのは 3 から 8、run と boundary は 2 から 4、block 間の offset は 1。SSE2 へ降ろせば predicate は 16 lane を 2 から 4 core ops で扱える。
+
+ordinary C を Clang `-O2` に通した実装との相対比較では、`inclusive_rank8` の約 1.94 倍から Morton dilate32 の約 6.61 倍までの範囲に収まっている。
+
+### 表を埋める過程で変わったこと
+
+zero-byte の有名な式は、zero の存在判定には使えるが exact な per-lane mask には使えない。borrow が `0x01` lane へ伝播して偽陽性を作るからで、これは bit hack の注意事項ではなく、observer が違えば正しい実装が違うという最初の具体例だった。その式は 1987 年の Alan Mycroft の投稿が出典で、当の Mycroft の博士論文は abstract interpretation であり、1998 年の kernel mailing list ではこの式を使う関数を `word_has_probably_nullbyte` と名付ける提案が出ている。observer を明示すれば近似が正当化されるという判断が、識別子の一語に埋まっていた。
+
+8-bit mask も内部界面としては不要だった。spread をそのまま保持すると predicate から rank、byte mask、count、compaction まで直結でき、`eq` が 11 から 5、`lt` が 15 から 7、`range` が 32 から 7 まで落ちる。これは peephole optimization ではなく、往復していた中間表現そのものを消した結果である。
+
+unsigned byte comparison は high bit と low 7 bits に分けることで lane-safe な subtraction にでき、残りは 3-input の tiny Boolean function として全探索できる。lane-safe arithmetic と tiny Boolean synthesis への分解が、後の `POINT` class になった。
+
+prefix 側では IMUL rank と CLMUL parity が同じ deposit から convolution への形に落ち、inclusive では residual freedom 1、exclusive では両方 502 になった。residual freedom は multiplication instruction 固有ではなく boundary condition から生じる。solver は 8-bit の `PDEP + IMUL` 専用から IMUL と CLMUL、`input_bits` 1 から 16 まで一般化でき、16 lane / 4-bit exclusive rank でも 31 candidates / 26 solutions を全 65,536 inputs で再現した。
+
+lane width の一般条件は最大 accumulator が lane に収まることで、binary exclusive prefix では `w >= ceil(log2 n)`、inclusive では `w >= ceil(log2(n+1))` になる。`2^w-1` は kernel search space の大きさであって residual freedom そのものではない。
+
+run/transition と prefix XOR は `GF(2)[x]/(x^64)` 上の差分作用素 `(1+x)` とその逆元だった。all-ones kernel は偶然ではなく、`(1+x)^-1` だから all ones になる。
+
+Morton dilate と Morton compact はそれぞれ一意な `PDEP` と `PEXT` に落ちるが、意味としてはどちらも constant GF(2)-linear map なので同じ class に入る。abstract class と instruction mnemonic を一対一対応させてはいけない。GFNI の `GF2P8AFFINEQB` が任意の 8×8 GF(2) 行列を byte ごとに掛ける命令で、Cray が 1990 年に 64×64 の bit matrix multiply を特許にしていることを考えると、この class は 35 年にわたって幅と名前を変えながら hardware の側に現れ続けている。
+
+### solver として
+
+observation quotient は explicit observer の kernel として定義する。observer 未指定時は identity であり、常に zero の output bit も exact API の一部なら勝手に don't-care へ落としてはいけない。don't-care は solver が推測するものではなく、API 境界が宣言するものである。
+
+future quotient は別で、現在の observer ではなく continuation が区別できるかを見る。`feed(s,b)=b` のような right-zero action では logical state を消すのではなく、future に不要な source-state-dependent transition representation を消せる。
+
+Stage 2 は program だけでなく `(program, residual freedom)` を返す。0 は現在の family で表現不能、1 は physical parameter が一意、`n>1` は primary objective まで同着した解が n 個あることを意味する。
+
+抽象空間は POINT / LIN_CONST / CONV / PERM_DYN に整理し、`CONV` は代数系名ではなく multiplication family と lane width の組として持つ。guard は instruction ごとに宣言せず、escape と線形性から導出する。quotient が truncation なら guard は 0、escape 処理が線形なら後払いで amortize、非線形なら前払い。この一つの規則で、`PDEP` による lane isolation と GF(2^128) の deferred reduction の両方が説明できる。
+
+### ISA と frontend
+
+同じ abstract program を ISA ごとに降ろすと、`select8` が x86 で 3 core ops、portable で十数 ops になる。
+
+そしてこの ISA 宣言は固定ではない。Excavator から Zen 2 までの AMD は `PDEP` / `PEXT` を microcode で実装していて latency 18 cycle であり、Zen 3 の 3 cycle と桁が違って、その期間は software emulation のほうが速かった。だから ISA は背景の前提ではなく明示的な引数であるべきで、portable backend を常に並べて出す。
+
+ordinary C を Clang `-O2` に通した実 assembly からも end-to-end で戻った。`ranks8` は 37 asm instructions から 2 core ops、`select8` は 69 から 3、`compact8` は 76 から 3、`stable_partition8` は 158 から 8 core-op 級の構造へ戻る。これは compiler asm を peephole で直接縮めたのではなく、一度関数の semantics へ戻し、観測されない intermediate distinction を落とし、その semantics に対して別の物理代表を選び直した結果である。branch も input domain が有限なら execution semantics へ潰せる。
+
+x86 frontend は handwritten opcode interpreter を中心にせず、typed ABI harness から native CPU / external runner を semantics backend として使う。`RDTSC / RDRAND / CPUID / syscall / fault / concurrency` は単なる opcode coverage の不足ではなく、environment / nondeterminism / observer / exception semantics を増やす問題として分離する。
+
+core-op count、standalone asm instruction count、uarch benchmark も別 layer で持つ。現在の prototype に残る `span = len(seq)` は straight chain に対する近似であり、shared work や parallel branch は dependency DAG の longest path に置き換える。
+
+### 名前について
+
+superoptimizer という語は 1987 年に Henry Massalin が作った。当時すでに optimizer が「改善器」の意味へ堕ちていたので、最適を主張するには super を付けるしかなかった。同じ理由で optimizer は使いにくいし、やっているのは単なる最小化ではなく同値類からの代表元選択なので、quotient が名前に要る。Massalin は命令空間そのものを探索したが、QM は探索の前に観測不能な区別を潰して問題を小さくする。
+
+最終的に作っているものは、assembly の文字列を短くする machine ではない。**assembly を一度意味へ戻し、observer と future の両方から観測不能な区別を quotient し、残った作用に対して最小の物理代表を選び直す machine である。**
+
+コンパイラは、この手のことを何一つやってくれない。だからこちらで一度意味へ戻す。余計な区別を消してから、もう一度機械へ降ろす。
+
+だから今日も惰眠を貪れる。
+
+## 21. 参考
+
+- Alan Mycroft の zero-byte idiom の出典は 1987 年 4 月 27 日の newsgroup 投稿で、Sean Anderson の Bit Twiddling Hacks に典拠が記されている
+- `word_has_probably_nullbyte` の命名は 1998 年 4 月の Linux kernel mailing list の `faster strcpy()` スレッド
+- Henry Massalin, `Superoptimizer: a look at the smallest program`, ASPLOS II, 1987, pp. 122–126
+- AMD の PDEP/PEXT microcode 実装と Zen 3 での改善は、x86 Bit manipulation instruction set の記述と AMD の最適化ガイドに基づく。Zen 5 の throughput は Alexander Yee の Zen 5 teardown
+- `GF2P8AFFINEQB` の仕様は Intel SDM および Intel の GFNI technology guide。out-of-band な用途の一覧は animetosho の gist と Geoff Langdale の記事
+- Cray の bit matrix multiply 特許 (1990) への言及は bit manipulation instruction sets の概説より
+
+## 22. 付録 A: primitive
+
+```c
+#ifndef LANECODE_H
+#define LANECODE_H
+
+#include <immintrin.h>
+#include <stdint.h>
+#include <string.h>
+
+#define LC_ONES 0x0101010101010101ull
+#define LC_HIGH 0x8080808080808080ull
+#define LC_LOW7 0x7f7f7f7f7f7f7f7full
+#define LC_IOTA 0x0706050403020100ull
+
+/* ------------------------------------------------------------------
+ * predicate -> spread
+ * ------------------------------------------------------------------ */
+
+/*
+ * Exact per-lane zero predicate.
+ *
+ * The classic
+ *
+ *     (v - ONES) & ~v & HIGH
+ *
+ * is useful for testing whether at least one zero byte exists, but it
+ * is not an exact per-lane zero mask. Borrow can propagate into an
+ * adjacent 0x01 byte and create a false-positive lane.
+ */
+static inline uint64_t
+lc_zero_spread(uint64_t v)
+{
+    return _andn_u64(
+        ((v & LC_LOW7) + LC_LOW7) | v,
+        LC_HIGH);
+}
+
+/* 5 core ops when c is a compile-time constant. */
+#define LC_EQ_SPREAD(x, c) \
+    lc_zero_spread((x) ^ ((uint64_t)(c) * LC_ONES))
+
+/*
+ * Unsigned byte-wise x < c.
+ *
+ * z = (x | HIGH) - (c & LOW7) cannot borrow across byte lanes.
+ * The remaining high-bit relation is a small Boolean function.
+ */
+#define LC_LT_SPREAD(x, c) __extension__ ({                        \
+    uint64_t x_ = (x);                                             \
+    uint64_t y_ = (uint64_t)(c) * LC_ONES;                         \
+    uint64_t z_ = (x_ | LC_HIGH) - (y_ & LC_LOW7);                 \
+    uint64_t u_ = x_ ^ z_;                                         \
+    uint64_t e_ = x_ ^ y_;                                         \
+    _andn_u64(x_ ^ _andn_u64(e_, u_), LC_HIGH);                    \
+})
+
+/* Requires lo <= hi < 0x80. */
+#define LC_RANGE_SPREAD(x, lo, hi) __extension__ ({                \
+    uint64_t x_ = (x);                                             \
+    uint64_t z1_ = (x_ | LC_HIGH)                                  \
+                 - ((uint64_t)(lo) * LC_ONES);                     \
+    uint64_t z2_ = (((uint64_t)(hi) * LC_ONES) | LC_HIGH)          \
+                 - (x_ & LC_LOW7);                                 \
+    _andn_u64(x_, z1_ & z2_) & LC_HIGH;                            \
+})
+
+/* ------------------------------------------------------------------
+ * spread consumers
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_byte_mask_from_spread(uint64_t s)
+{
+    return (s >> 7) * 0xFFull;
+}
+
+static inline uint64_t
+lc_ranks_from_spread(uint64_t s)
+{
+    return (s >> 7) * 0x0101010101010100ull;
+}
+
+static inline unsigned
+lc_popcount_from_spread(uint64_t s)
+{
+    return (unsigned)__builtin_popcountll(s);
+}
+
+static inline uint8_t
+lc_mask_from_spread(uint64_t s)
+{
+    return (uint8_t)_mm_movemask_epi8(
+        _mm_cvtsi64_si128((long long)s));
+}
+
+/* ------------------------------------------------------------------
+ * SIMD physical representatives
+ * ------------------------------------------------------------------ */
+
+static inline uint32_t
+lc_eq16(__m128i x, uint8_t c)
+{
+    return (uint32_t)_mm_movemask_epi8(
+        _mm_cmpeq_epi8(x, _mm_set1_epi8((char)c)));
+}
+
+static inline uint32_t
+lc_lt16(__m128i x, uint8_t c)
+{
+    return (uint32_t)_mm_movemask_epi8(
+        _mm_cmpgt_epi8(
+            _mm_set1_epi8((char)(c ^ 0x80)),
+            _mm_xor_si128(x, _mm_set1_epi8((char)0x80))));
+}
+
+/* Requires lo <= hi. */
+static inline uint32_t
+lc_range16(__m128i x, uint8_t lo, uint8_t hi)
+{
+    __m128i t = _mm_sub_epi8(x, _mm_set1_epi8((char)lo));
+
+    return (uint32_t)_mm_movemask_epi8(
+        _mm_cmpeq_epi8(
+            _mm_min_epu8(t, _mm_set1_epi8((char)(hi - lo))),
+            t));
+}
+
+/* ------------------------------------------------------------------
+ * mask -> address
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_byte_mask8(uint8_t m)
+{
+    return _pdep_u64((uint64_t)m, LC_ONES) * 0xFFull;
+}
+
+/* Exclusive rank. */
+static inline uint64_t
+lc_ranks8(uint8_t m)
+{
+    return _pdep_u64((uint64_t)m, LC_ONES)
+         * 0x0101010101010100ull;
+}
+
+/* Inclusive rank. */
+static inline uint64_t
+lc_inclusive_ranks8(uint8_t m)
+{
+    return _pdep_u64((uint64_t)m, LC_ONES) * LC_ONES;
+}
+
+static inline uint64_t
+lc_select8(uint8_t m)
+{
+    return _pext_u64(LC_IOTA, lc_byte_mask8(m));
+}
+
+static inline uint64_t
+lc_shuffle_control8(uint8_t m)
+{
+    return ~_pext_u64(~LC_IOTA, lc_byte_mask8(m));
+}
+
+/* ------------------------------------------------------------------
+ * compact / expand / partition
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_compact8(uint64_t x, uint8_t m)
+{
+    return _pext_u64(x, lc_byte_mask8(m));
+}
+
+static inline uint64_t
+lc_expand8(uint64_t p, uint8_t m)
+{
+    return _pdep_u64(p, lc_byte_mask8(m));
+}
+
+static inline uint64_t
+lc_stable_partition8(uint64_t x, uint8_t m)
+{
+    const uint64_t bm = lc_byte_mask8(m);
+    const unsigned k  =
+        (unsigned)__builtin_popcount((unsigned)m);
+    const uint64_t yes = _pext_u64(x, bm);
+    const uint64_t no  = _pext_u64(x, ~bm);
+
+    return yes | (no << (8u * (k & 7u)));
+}
+
+/* ------------------------------------------------------------------
+ * stream output
+ *
+ * PRECONDITION:
+ *
+ * The destination has at least 7 writable bytes of slack past the
+ * logical end, because these variants always perform an 8-byte store.
+ * Use a bounded tail store when this cannot be guaranteed.
+ * ------------------------------------------------------------------ */
+
+static inline void
+lc_compress_store8(uint8_t **dst, uint64_t x, uint8_t m)
+{
+    const uint64_t packed = lc_compact8(x, m);
+
+    memcpy(*dst, &packed, 8);
+    *dst += __builtin_popcount((unsigned)m);
+}
+
+static inline void
+lc_split_store8(uint8_t **yes, uint8_t **no,
+                uint64_t x, uint8_t m)
+{
+    const uint64_t bm = lc_byte_mask8(m);
+    const unsigned k  =
+        (unsigned)__builtin_popcount((unsigned)m);
+    const uint64_t a = _pext_u64(x, bm);
+    const uint64_t b = _pext_u64(x, ~bm);
+
+    memcpy(*yes, &a, 8);
+    memcpy(*no,  &b, 8);
+
+    *yes += k;
+    *no  += 8u - k;
+}
+
+/* ------------------------------------------------------------------
+ * difference / prefix
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_changes(uint64_t x)
+{
+    return x ^ (x << 1);
+}
+
+static inline uint64_t
+lc_starts(uint64_t x)
+{
+    return x & ~(x << 1);
+}
+
+static inline uint64_t
+lc_ends(uint64_t x)
+{
+    return x & ~(x >> 1);
+}
+
+/* Multiply by (1+x)^-1 in GF(2)[x]/(x^64). */
+static inline uint64_t
+lc_prefix_xor64(uint64_t x)
+{
+    return (uint64_t)_mm_cvtsi128_si64(
+        _mm_clmulepi64_si128(
+            _mm_cvtsi64_si128((long long)x),
+            _mm_set1_epi64x(-1),
+            0));
+}
+
+/* ------------------------------------------------------------------
+ * prefix parity
+ * ------------------------------------------------------------------ */
+
+/* Inclusive running parity expanded as 00/FF bytes. */
+static inline uint64_t
+lc_prefix_parity_mask8(uint8_t m)
+{
+    const uint64_t a = _pdep_u64((uint64_t)m, LC_ONES);
+
+    return (uint64_t)_mm_cvtsi128_si64(
+        _mm_clmulepi64_si128(
+            _mm_cvtsi64_si128((long long)a),
+            _mm_set1_epi64x(-1),
+            0));
+}
+
+/* Exclusive running parity: quote state entering each byte. */
+static inline uint64_t
+lc_quote_state_before8(uint8_t q)
+{
+    const uint64_t a = _pdep_u64((uint64_t)q, LC_ONES);
+
+    return (uint64_t)_mm_cvtsi128_si64(
+        _mm_clmulepi64_si128(
+            _mm_cvtsi64_si128((long long)a),
+            _mm_set_epi64x(
+                0,
+                (long long)0xFFFFFFFFFFFFFF00ull),
+            0));
+}
+
+/* ------------------------------------------------------------------
+ * 16 lanes, 4-bit exclusive rank
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_ranks16_nibble(uint16_t m)
+{
+    return _pdep_u64((uint64_t)m,
+                     0x1111111111111111ull)
+         * 0x1111111111111110ull;
+}
+
+/* ------------------------------------------------------------------
+ * Morton: two physical representatives of one LIN_CONST class
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_morton_dilate32(uint32_t x)
+{
+    return _pdep_u64((uint64_t)x,
+                     0x5555555555555555ull);
+}
+
+static inline uint32_t
+lc_morton_compact_even(uint64_t x)
+{
+    return (uint32_t)_pext_u64(x,
+                               0x5555555555555555ull);
+}
+
+/* ------------------------------------------------------------------
+ * run IDs
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_run_ids8(uint8_t m)
+{
+    const uint8_t starts =
+        (uint8_t)(m & (uint8_t)~((uint8_t)(m << 1)));
+
+    return lc_inclusive_ranks8(starts);
+}
+
+/* ------------------------------------------------------------------
+ * compact non-zero bytes
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_compact_nonzero8(uint64_t x)
+{
+    const uint64_t spread =
+        (((x & LC_LOW7) + LC_LOW7) | x) & LC_HIGH;
+    const uint64_t bm = (spread >> 7) * 0xFFull;
+
+    return _pext_u64(x, bm);
+}
+
+/* ------------------------------------------------------------------
+ * block prefix
+ *
+ * Requires every inclusive prefix to fit in one byte.
+ * ------------------------------------------------------------------ */
+
+static inline uint64_t
+lc_block_offsets8(uint64_t counts)
+{
+    return counts * LC_ONES;
+}
+
+#endif /* LANECODE_H */
+```
+
+`_andn_u64` は BMI1 intrinsic なので、GCC や Clang で使う場合は `-O2 -mbmi -mbmi2 -mpclmul -maes -msse4.1` のように BMI1 も有効化する。
+
+## 23. 付録 B: Quotient Minimizer prototype
+
+本文で使っている Quotient Minimizer の Python prototype はここに置いている。
+
+[qm-prototype-20260807.py — Quotient Minimizer prototype](https://gist.github.com/elysia090/09e17f70e4f2d8dd7b65b23702f6340f)
+
+Python 標準ライブラリだけで走る。単一ファイルの中で、spec から quotient、abstract program、ISA lowering、span / work / L(z) / rank の計測、命令列の自己解釈、検証、C emission まで一周する。
+
+中心になっているのは、線形 target を basis image から解く閉形式 solver、byte-repeated constant の全列挙、bit 7 に落とした小さい Boolean straight-line search、x86 と portable の lowering、そして lowering 後の命令列の自己解釈である。
+
+`ranks8` に対しては候補 511 のうち 502 solutions を再現し、`bytemask8` は候補 1 で solution 1、`select8` は `LIN_CONST ; CONV` family だけでは 0 solution になって、`PERM_DYN_G` まで広げると一意な解が出る。
+
+x86 BMI2 backend と portable backend の両方を同じ target に対して interpreter 上で照合できるので、手元の CPU がその lowering を直接持っていなくても、lowering 自体の意味検証はできる。
+
+広い x86 frontend については、Python interpreter に全 opcode を抱え込ませるのではなく、本文で書いた typed ABI harness と native / external execution backend を外側へ置く。
+
+### 検証
+
+全数で照合したものから書く。`byte_mask8`、`ranks8`、`select8`、`shuffle_control8` は 256 masks の全数、`ranks16_nibble` は 65,536 inputs の全数である。compact / expand / stable partition も全 mask に random payload を組み合わせた。
+
+乱択で照合したものは、`eq` と `lt`、`prefix_xor o changes` と `changes o prefix_xor` が random 2×10⁵、`compact_nonzero8` が全 256 tagged patterns に加えて random 2×10⁵、`range` と `block_offsets8` が random 2×10⁴、GF(2^128) の deferred reduction が random keys と blocks である。
+
+QM が生成した x86 C についても compiler に通し、有限 domain を持つものは全数、その他は参照実装との random comparison で再照合している。
+
+### compiler comparison
+
+ordinary C を Clang `-O2` に通した実 assembly を基準にした現在の相対比較は、`inclusive_rank8` が約 1.94 倍、`prefix_parity_mask8` が約 2.32 倍、`quote_state_before8` が約 3.90 倍、`ranks16_nibble` が約 3.67 倍、Morton dilate32 が約 6.61 倍、Morton compact-even が約 5.47 倍、`run_ids8` が約 4.68 倍、`compact_nonzero8` が約 4.74 倍となっている。
+
+これらは、それぞれ同一計測内での相対値として扱う。また core-op count、standalone asm instruction count、measured cycles は別の量なので混ぜない。
+
+### 計測環境
+
+主な現在の計測環境は Intel Xeon @ 2.80GHz の 1 vCPU、L1d 32 KiB / L2 1 MiB / L3 33 MiB、Ubuntu 24.04、gcc 13.3.0 である。primitive に応じて `-O2 -mbmi -mbmi2 -mpclmul -maes -msse4.1` などを使う。
+
+以前の記事の一部は Intel Xeon @ 2.10GHz の別マシンで測っているため、別環境間の絶対値は直接比較しない。相対比較は各計測の中で閉じている。
