@@ -7,7 +7,7 @@ draft: false
 lang: ja
 ---
 
-前回まででやっていたのは、一個ずつ手で導出することだった。
+[前回まで](https://length3.com/ones-kernel-multiplier-affine-monoid)でやっていたのは、一個ずつ手で導出することだった。
 
 8 lane の mask から rank を作るなら singleton mask を basis として入れて方程式を立て、deposit position と multiplier を逆算し、256 通りを全数照合する。prefix XOR なら shift と XOR の木を自分で組む代わりに、乗算器の内部にすでに置かれている木を一命令として借りる。compact や stable partition では、途中で作っていた destination や rank が本当に最終結果から観測されるのかまで戻って確かめ、観測されないと分かったらその中間表現ごと消す。
 
@@ -21,9 +21,9 @@ lang: ja
 
 途中で四回ほど脇道へ入る。1987 年の newsgroup 投稿とその著者の博士論文、`PDEP` が 5 年間ほとんど嘘だった話、35 年前から hardware にある専用命令、そして同じ 1987 年の superoptimizer。どれも単なる余談ではなく、その直前に出てきた設計判断を外側から照らしてくれた話である。脇道に入ったあとには、必ずその判断へ戻ってくる。
 
-## 0. 前回まで
+## 0. [前回まで](https://length3.com/ones-kernel-multiplier-affine-monoid)
 
-読んでいなくても続きが読めるように、今回使うものだけ再掲する。前の記事は[全1の幾何級数カーネル](https://length3.com/ones-kernel-multiplier-affine-monoid)である。
+読んでいなくても続きが読めるように、今回使うものだけ再掲する。前の記事は「全1の幾何級数カーネルから、乗数を選ぶだけで1命令のprefix XORと40バイト定数のtranscript summaryを構成しよう」である。
 
 ### 二行
 
