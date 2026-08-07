@@ -611,6 +611,90 @@ static inline uint64_t select8(uint8_t m) {
 
 **この「解の個数」は、記事の最後で暗号の話に化ける。** 覚えておいてほしい。
 
+### ついでに: stable partition は rank を経由しない
+
+前の記事では stable partition を rank から出した。lane i の行き先を、selected なら `r_i`、rejected なら `k + i - r_i` と書いて、destination の packed 語を作る。あれは **address を作る話**で、作ったあとに byte を動かす仕事が丸ごと後ろに残る。
+
+ところが定義に戻ると、address が一度も要らない。
+
+```text
+x = (x_0, x_1, ..., x_7)
+m = (m_0, m_1, ..., m_7),   m_i ∈ {0,1}
+
+P(x, m) = (x_i | m_i = 1) ‖ (x_i | m_i = 0)
+```
+
+selected を元順で並べ、その後ろに rejected を元順で並べる。それだけである。
+
+deposit は同じものを使う。
+
+```text
+b = PDEP(m, 0x0101010101010101)
+```
+
+byte i の値は `m_i ∈ {0,1}` である。これを 255 倍する。
+
+```text
+B(m) = b · 255
+```
+
+各 byte の値は 0 か 1 で、積の bit 範囲は互いに重ならないので、
+
+```text
+B_i = 0xFF   (m_i = 1)
+      0x00   (m_i = 0)
+```
+
+となる。ここまでは `bytemask8` そのものである。
+
+PEXT は mask で選んだ bit を **source 順のまま**低位へ詰める。ここで初めて source を可変にする。宣言した文法では PEXT の source は定数 `K` だった。ここは文法を一段広げているので、第 6 節の最小性の主張とは並べられない。
+
+```text
+Y = PEXT(x,  B(m)) = (x_i | m_i = 1)
+N = PEXT(x, ¬B(m)) = (x_i | m_i = 0)
+```
+
+両方とも元の lane 順を保存する。**stable 性はこの時点で得られている。** あとは Y が占める `8k` bit の上へ N を置くだけである。`k = popcount(m)`。
+
+```text
+P(x, m) = PEXT(x, B(m)) | (PEXT(x, ¬B(m)) << 8k)
+```
+
+k = 8 のとき rejected 側は空なので N = 0、shift 量は何でもよい。C の shift-by-64 が未定義なのを避けて `k & 7` にしておく。
+
+```c
+/* 8 byte を mask=1, mask=0 の順に stable partition */
+static inline uint64_t stable_partition8(uint64_t x, uint8_t mask)
+{
+    const uint64_t b   = _pdep_u64((uint64_t)mask, LC_DEPOSIT);
+    const uint64_t bm  = b * LC_MASK_MUL;
+    const uint64_t yes = _pext_u64(x,  bm);
+    const uint64_t no  = _pext_u64(x, ~bm);
+    const unsigned k = (unsigned)__builtin_popcount((unsigned)mask);
+    /* k=8 のとき no=0 なので shift=0 でよい。C の shift-by-64 を避ける。 */
+    return yes | (no << (8u * (k & 7u)));
+}
+```
+
+一行で言うとこうである。
+
+```text
+stable partition
+  = selected を元順で列挙 ‖ rejected を元順で列挙
+  = stable_compact(x, m) ‖ stable_compact(x, ~m)
+  = PEXT(x, B(m)) ‖ PEXT(x, ¬B(m))
+```
+
+`¬B(m) = B(~m)` なので、二本目は補集合の compaction でしかない。deposit は共有できるから、PDEP と MUL は一組で足りる。
+
+**rank、destination、scatter が全部消える。** rank が返すのは address であって、address は「byte を動かす」という仕事を必ず後ろに残す。compaction を二回やる形は結果の語を直接返すので、動かす仕事がそもそも発生しない。
+
+span は `PDEP → MUL → NOT → PEXT → SHL → OR` で 6、work は shift 量の作り方で 8〜9 命令になる。rank 版より命令数は多く見えるが、rank 版の work には**適用の 8 本が入っていない**。四つの鍵で比較したいなら、比較対象は destination の生成ではなく、destination の生成と適用の合計である。
+
+第 2 節では「借りずに自分で持つ」を書いたが、ここはもっと単純な話で、**中間表現を作らなかった**だけである。rank は正しい。この用途では作らなくてよかった。
+
+256 通りの mask × 4×10³ 語で、定義通りの参照実装とも、rank 経由の destination を実際に適用した結果とも、完全一致を確認した。
+
 ### 副産物: rank と select は最初の命令を共有する
 
 ```text
@@ -732,7 +816,7 @@ scan が作るのは prefix である。`[0, i]` を畳んだ値。一方、並�
 
 ## 9. 演算則を変える
 
-`ranks8` が 2 命令、`select8` が 3 命令で出た。そこから自明に落ちるもの — compaction、filtering、touched list、sparse offset、stable partition、Morton code、radix sort の 1 pass — は、わざわざ書いても面白くない。全部「mask から address を作って動かす」の言い換えである。
+`ranks8` が 2 命令、`select8` が 3 命令で出た。そこから自明に落ちるもの — compaction、filtering、touched list、sparse offset、Morton code、radix sort の 1 pass — は、わざわざ書いても面白くない。全部「mask から address を作って動かす」の言い換えである。
 
 書く価値があるのは、この手法が**効かない**入力の方である。
 
@@ -1218,13 +1302,40 @@ Summary  block 整合のときだけ意味を持つ。整合 summary は monoid 
 
 代数が決まったので、あとは式変形と代入で落とす。四つの鍵で読める。
 
-### 代入 1: af_pow を popcount 回に
+### 代入 1: af_pow を popcount − 1 回に
 
 combine は `k^(l₂)` を要求する。素朴には l₂ 回の乗算。
 
-`pw2[i] = k^(2^i)` を 64 個 precompute すると、`k^n` は `popcount(n)` 回で済む。そして木が揃っていて n が 2 冪なら 1 回。
+`pw2[i] = k^(2^i)` を 64 個 precompute すると、`k^n` は `popcount(n)` 回で済む。
 
-最初は level 表（`k^(8·2^d)` を段ごとに）を持つつもりだったが、pw2 があれば要らなかった。
+ここでもう一段ある。`r = 1` から始めて下位 bit から畳むと、**最初の 1 回は必ず `1 · pw2[i]` である。** 単位元との積を、体の乗算として本当に実行している。最下位の立っている bit を `ctz` で取り出して、それをそのまま `r` の初期値にすれば、この一回が消える。
+
+```c
+static inline __m128i af_pow(const af_ctx *c, unsigned L, uint64_t n)
+{
+    if (n == 0)
+        return _mm_cvtsi64_si128(1);
+    unsigned i = (unsigned)__builtin_ctzll(n);
+    __m128i r = c->pw2[L][i];                 /* 単位元との積を踏まない */
+    for (n >>= i + 1, ++i; n; ++i, n >>= 1)
+        if (n & 1)
+            r = af_mul(r, c->pw2[L][i]);
+    return r;
+}
+```
+
+`popcount(n) - 1` 回になる。そして木が揃っていて n が 2 冪なら、`popcount(n) - 1 = 0`。**af_pow は `pw2[L][i]` の表引きだけになり、体の乗算が一回も起きない。**
+
+balanced tree の combine は lane あたり
+
+```text
+before   af_pow 1 mul + β transform 1 mul + xor
+after    af_pow 0 mul + β transform 1 mul + xor
+```
+
+になる。木の内部節点で毎回払っていた方を、丸ごと落としたことになる。
+
+最初は level 表（`k^(8·2^d)` を段ごとに）を持つつもりだったが、pw2 があれば要らなかった。そして単位元との積を踏まなくなった今、level 表を持つ動機は完全に消えた。2 冪の指数はもう乗算を一つも要求しない。
 
 単発 combine を wall-clock の ns で測ると timer resolution や compiler optimization の影響を受けるので、性能値を出すなら大量反復して cycles/combine を測る。
 
@@ -1322,7 +1433,7 @@ combine は単発 wall-clock では測定分解能以下になりやすいため
 
 ```text
 GF(2^128) の結合・可換・分配・単位元        OK (2e4 triples)
-af_pow == 素朴な k^n                        OK (3e3)
+af_pow == 素朴な k^n                        OK (n=0..300 全数 + 2e5 乱択)
 Aff(R) の結合律と両側単位元                 OK (3e3 triples)
 summarize(a‖b) = combine(..)  整合境界      OK (5e3 splits)
 update: byte 単位、分割不変                 OK (5e3 random splits)
@@ -1370,12 +1481,14 @@ span/work は物理時間そのものではない。物理時間の候補を並�
 - 探索では span → work → L(z) → rank の辞書順を目的関数として採用する。これは Brent/Amdahl から唯一強制される順序ではなく、無限並列極限を優先するという設計選択
 - `ranks8` は work 2 で生き残り 502 個、rank が一意に決める。`bytemask8` は解が一意。`select8` は work 2 に解が無い。解の個数 0 / 1 / 502 は自由度の測定値
 - LUT 版は span 2 / work 2 で 2 命令版と同着し、速度も 1% 差。分けるのは記述長で 110.9 倍
+- **stable partition は rank も destination も scatter も要らない。** 定義に戻ると `PEXT(x, B(m))` と `PEXT(x, ¬B(m))` を並べるだけで、address という中間表現を作らなかったぶん、適用の仕事がそもそも発生しない
 - scan の DAG 族は「どの区間を実体化するか」で読める。必要な reach が k なら `ceil(log2 k)` 段で止めてよい
 - **prefix の共有と未来の共有は別物。** 前者は計算済み prefix の再利用、後者は観測上の状態同値。丸一日混同していた
 - definite でない述語でも有限 monoid に落ちれば scan にできる。引用符 parity は ℤ/2 の scan で、64 bit prefix XOR は `CLMUL(x, ~0)` 1 命令
 - **GF(2) の 1-bit scalar の非零元は 1 しかない。** extension field の element を一 symbol に持ち上げると大きな秘密係数空間が生まれる。鍵には広さが要る
 - 1 block 吸収は `h ↦ kh + km`、h について affine。`Aff(R)` の合成は写像合成なので結合的。prefix XOR は α=1 translation submonoid、polynomial MAC は `(k,km)` の one-block map が生成する monoid
 - `absorb = apply ∘ summarize` は定義から出る。fork は pure squeeze を選んだ結果として state copy に落ちる
+- **`af_pow` は最下位の立っている bit を初期値に取ると `popcount(n) - 1` 回。** balanced tree では指数が 2 冪なので表引きだけになり、combine の内部節点から体の乗算が一つ消える
 - affine Summary は serialized で 1 lane 24 byte / 2 lane 40 byte の定数サイズ。C struct の `sizeof` は alignment により 32 / 48 byte 程度になる
 - BLAKE3 と比較するなら公式 CV stack 単体ではなく、任意区間を後から再結合するために head/tail と CV stack を保持する BLAKE3 風 Summary と比較する
 - **層の分離は必要。** framing、algebraic compression、final PRF を分ける
@@ -1411,11 +1524,12 @@ span/work は物理時間そのものではない。物理時間の候補を並�
  * 表は一切持たない。定数はすべて singleton の方程式から強制されたもので、
  * 256 通りの mask 全数で照合してある。
  *
- *   byte_mask8       span 2  work 2
- *   ranks8           span 2  work 2      lane i はどこへ行くか (scatter)
- *   select8          span 3  work 3      slot j には誰が来るか (gather)
- *   shuffle_control8 span 4  work 4      PSHUFB 互換
- *   prefix_xor64     span 1  work 1      carry-less なので deposit が要らない
+ *   byte_mask8        span 2  work 2
+ *   ranks8            span 2  work 2     lane i はどこへ行くか (scatter)
+ *   select8           span 3  work 3     slot j には誰が来るか (gather)
+ *   shuffle_control8  span 4  work 4     PSHUFB 互換
+ *   stable_partition8 span 6  work 8     address を作らず語を直接返す
+ *   prefix_xor64      span 1  work 1     carry-less なので deposit が要らない
  *
  * BMI2 / PCLMUL が無い環境向けの移植版も下にある。意味は同じで速度だけ違う。
  */
@@ -1478,6 +1592,16 @@ static inline uint64_t lc_compact8(uint64_t payload, uint8_t mask)
     return _pext_u64(payload, lc_byte_mask8(mask));
 }
 
+/* selected を元順で、続けて rejected を元順で。deposit は一組で足りる */
+static inline uint64_t lc_stable_partition8(uint64_t x, uint8_t mask)
+{
+    const uint64_t bm  = lc_spread8(mask) * LC_MASK_MUL;
+    const uint64_t yes = _pext_u64(x,  bm);
+    const uint64_t no  = _pext_u64(x, ~bm);
+    const unsigned k   = (unsigned)__builtin_popcount(mask);
+    return yes | (no << (8u * (k & 7u)));   /* k=8 では no=0 */
+}
+
 static inline void lc_ranks_and_select8(uint8_t mask, uint64_t *ranks, uint64_t *select)
 {
     const uint64_t b = lc_spread8(mask);
@@ -1523,6 +1647,13 @@ static inline uint64_t lc_compact8(uint64_t payload, uint8_t mask)
         if ((mask >> i) & 1u)
             out |= ((payload >> (8u * i)) & 0xFFull) << (8u * j++);
     return out;
+}
+
+static inline uint64_t lc_stable_partition8(uint64_t x, uint8_t mask)
+{
+    const unsigned k = (unsigned)__builtin_popcount(mask);
+    return lc_compact8(x, mask)
+         | (lc_compact8(x, (uint8_t)~mask) << (8u * (k & 7u)));
 }
 
 static inline void lc_ranks_and_select8(uint8_t mask, uint64_t *ranks, uint64_t *select)
@@ -1581,11 +1712,13 @@ static inline uint64_t lc_prefix_xor64(uint64_t x)
 ```text
 == BMI2 + PCLMUL ==
   byte_mask8 / ranks8 / select8 / shuffle_control8 / partition : OK (256 masks)
+  stable_partition8 == 定義 == destination 経由                : OK (256 masks x 4e3 words)
   compact8 / prefix_xor64 / LC_SCAN reach                      : OK (2e5 cases)
   lc_steps_for_reach(1,2,3,8,64) = 0 1 2 3 6
 
 == portable (no BMI2, no PCLMUL) ==
   byte_mask8 / ranks8 / select8 / shuffle_control8 / partition : OK (256 masks)
+  stable_partition8 == 定義 == destination 経由                : OK (256 masks x 4e3 words)
   compact8 / prefix_xor64 / LC_SCAN reach                      : OK (2e5 cases)
   lc_steps_for_reach(1,2,3,8,64) = 0 1 2 3 6
 ```
@@ -1719,10 +1852,17 @@ static void af_init_ctx(af_ctx *c, const uint8_t key[AF_KEYBYTES])
     );
 }
 
+/*
+ * popcount(n) - 1 回。最下位の立っている bit を初期値に取るので、
+ * 単位元との積を踏まない。n が 2 冪なら乗算は 0 回で表引きだけ。
+ */
 static inline __m128i af_pow(const af_ctx *c, unsigned L, uint64_t n)
 {
-    __m128i r = _mm_cvtsi64_si128(1);
-    for (unsigned i = 0; n; ++i, n >>= 1)
+    if (n == 0)
+        return _mm_cvtsi64_si128(1);
+    unsigned i = (unsigned)__builtin_ctzll(n);
+    __m128i r = c->pw2[L][i];
+    for (n >>= i + 1, ++i; n; ++i, n >>= 1)
         if (n & 1)
             r = af_mul(r, c->pw2[L][i]);
     return r;
@@ -2022,7 +2162,7 @@ static void af_derive(const af_ctx *c,
 ```text
 AF_LANES=1  output=16 byte
   GF(2^128) assoc/comm/distrib/id (2e4)          OK
-  af_pow == naive k^n (3e3)                      OK
+  af_pow == naive k^n (n=0..300, 2e5 random)     OK
   Aff(R) assoc + two-sided identity (3e3)        OK
   summarize(a||b)=combine(..) aligned (5e3)      OK
   update: byte-granular, split-invariant (5e3)   OK
