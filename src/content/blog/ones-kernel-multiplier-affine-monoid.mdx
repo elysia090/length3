@@ -1,0 +1,2062 @@
+---
+title: 全1の幾何級数カーネルから、乗数を選ぶだけで1命令のprefix XORと40バイト定数のtranscript summaryを構成しよう
+description: 乗数を選ぶまで monoid は決まらない。x * ONES と CLMUL(x, ONES) はどちらも全 1 の幾何級数 kernel との畳み込みで、演算則が carry を持つかどうかだけが違う。同じ形の分岐を、係数を秘密鍵へ一般化するところまで進めると、固定長 summary を持つ affine な keyed transcript が出てくる。
+publishDate: 2026-08-07
+tags: [simd, bitwise, clmul, monoid, cryptography, parallel, c]
+draft: false
+lang: ja
+---
+
+まずこの二行を持って帰ってほしい。
+
+```text
+x * 0x0101010101010101           byte 単位の prefix sum
+CLMUL(x, 0xFFFFFFFFFFFFFFFF)     bit  単位の prefix XOR
+```
+
+やっていることは同じである。全 1 の幾何級数 kernel を掛けている。演算則が違うだけだ。
+
+`Z/2^64` の通常乗算には桁上がりがあるので、隣の lane へ漏れないように PDEP で 1 bit ずつ byte へ隔離してやる必要がある。GF(2) 上の carry-less 乗算には桁上がりが無いので、隔離が要らない。片方は 2 命令、片方は 1 命令。差はそこにある。
+
+この二例については、
+
+**全 1 の幾何級数 kernel を掛ける = 加法による prefix scan。**
+
+即使える形にすると、こうなる。64 bit 語の bit 単位 prefix XOR が、6 段の shift fold から 1 命令になる。
+
+```c
+static inline uint64_t prefix_xor64(uint64_t x) {
+    return (uint64_t)_mm_cvtsi128_si64(_mm_clmulepi64_si128(
+        _mm_cvtsi64_si128((long long)x),
+        _mm_set1_epi64x((long long)0xFFFFFFFFFFFFFFFFull), 0));
+}
+```
+
+256 MiB の実測で、6 段版が 26.81 GB/s、この 1 命令版が 30.82 GB/s。分岐で書いた素朴版が 0.65 GB/s なので、素朴版比 47.2 倍である。定数は勘で選んだのではなく、`CLMUL(1, C) = C` と `prefix_xor(1) = 全 1` の二本から一意に強制される。
+
+ここまでが今日の最初の持ち帰りである。以降は、この一行がどこまで伸びるかの話をする。
+
+先に行き先を書いておく。全 1 の係数を秘密の係数へ一般化すると、同じ affine な合成則から polynomial MAC が出てくる。2 本の独立な 128 bit lane を使った 256 bit 出力版の keyed transcript hash が 0.97 cycle/byte、serialized Summary が 40 byte 定数である。
+
+ここで言う「256 bit」は 256 bit 出力かつ独立 128 bit polynomial lane が 2 本という意味であって、「256 bit security」を意味しない。後半は研究用の設計と実装であり、既存の標準暗号の代替として使う話ではない。
+
+途中で二日溶かした寄り道が二つあって、そっちの方が面白かったので全部書く。前の記事（[末尾1バイトで商化したCSR](https://length3.com/tail-byte-quotient-csr-map-rank)）を読んでいなくても読めるように、必要なものは全部再掲する。
+
+## 1. 賃借であって発明ではない
+
+さっきの `x * ONES` に、もう一段ある。
+
+乗算器の中身は、x をずらしたコピーをまとめる回路である。係数が全部 1 のとき、それは prefix scan と同じ畳み込みを計算している。つまりこの 1 命令は、俺が何かうまいことを見つけたわけではない。誰かがシリコンで払い終えた木を借りているだけである。
+
+賃借であって発明ではない。ISA というのは、既に払われた計算の一覧表である。
+
+これに気づいたとき、椅子から少し落ちた。そして同時に、二日溶かしていた理由も分かった。
+
+俺は「DAG の深さ」と「span」が同じものだと思っていた。
+
+違う。
+
+`x * 0x0101010101010101` を bit-level の抽象 DAG として描けば、partial product と加算の木が要る。ところが命令としては一つである。IMUL が一発あるだけだ。
+
+じゃあ span は log なのか 1 なのか。
+
+答えは「宣言した計算文法による」で、それ以外の答えは無い。**本稿で span と呼ぶのは、宣言した命令集合の中での依存深さである。抽象 DAG の深さではない。** 文法を先に宣言しないと、第一鍵は大小どころか定義すらされていない。
+
+後で「探索する物理文法を先に宣言する」と書くのは、格好つけではなくてこれが理由である。
+
+ついでに、この境界で迷子になりやすい単位を並べておく。basic block、chunk、register width、machine word、cache line、page、TLB、NUMA。全部「まとまり」ではあるが、誰が何のためにまとめたかが違う。basic block は制御解析の単位、register width と machine word は ISA や計算模型のデータ単位、cache line は転送単位、page と TLB は address 変換の単位、NUMA は配置と距離の問題である。chunk は文脈によって何にでもなるので、最も信用してはいけない。
+
+この「誰の粒度なのか」を忘れると、抽象 DAG の深さと命令の span を同じものだと思い始める。俺は思った。二日払った。
+
+そして先に言っておくと、この記事の最後は、まったく同じ問いに戻ってくる。粒度を変えると、選べるものが変わる。
+
+## 2. 同着してしまった
+
+借りられるものが分かると、逆の選択肢が見えてくる。借りずに、自分で持つ。
+
+8 byte を stable に詰めるとき、各 lane の行き先は mask の exclusive prefix popcount になる。出し方が二つある。
+
+- 256 要素の shuffle 表を引いて PSHUFB 一発
+- 定数二つと PDEP + IMUL の 2 命令
+
+この二つは、ここで採用する span/work モデルでは完全に同着する。どちらも span 2、work 2。実測の速度差は 1% だった。
+
+じゃあどっちを採るんだ。
+
+時間で決まらない。好みで決めると次の日には自分でも理由を忘れている。だから完全な符号を一つ定義した。使い所はこの一箇所だと思っていた。結果的に二箇所になった。
+
+先に答えだけ書く。**2053 byte 対 19 byte。110.9 倍。** 表を引く方を捨てた。遅いからではない。1% しか違わないからだ。
+
+以下、その 110.9 倍がどうやって数になったかを書く。正直に言うとカス作業の回である。
+
+## 3. なぜ既存の道具では決まらないか
+
+codec を定義する作業というのは、だいたいカスである。
+
+頻繁に使うわけでもない。証明を正当化する作業がひたすらダルい。そして書き終えて実際に使うと、「で、何でそれ使おうと思ったん？」と聞かれる。聞かれた側は、自分でも三行で答えられないことに気づいて黙る。
+
+俺は競プロも CTF も知らない。あの界隈の速さは本当に別物だと思う。ただ、趣味の範囲で誤魔化しきれる域からは、いつのまにかはみ出てしまった。謎符号化にはっきり官能を感じるタイプのギークで、並列性とストレージの伸びに対して無茶をやりたい。書き方はなるべくエレガントでありたい。かっこつけではなく、俺には研究者みたいなクソデカワーキングメモリが無いからである。
+
+頭に乗らない設計は、俺には無いのと同じだ。そしてエレガントに書けているということは、だいたい移植性が良いということでもある。定数二つと命令二つなら、どの箱でも同じ顔をしている。
+
+その上で、コンパイラがよしなにやってくれないことを自分でやれると、ウキウキで惰眠を貪れる。ハイになれる。この一点のために全部やっている節がある。
+
+さて、codec とは何か。対象を一意な bit 列へ写し、そこから元の対象へ厳密に戻すための規則、要は符号化である。
+
+問題は、手近にある道具がどれも「厳密に戻す」をやっていないことだ。なぜ既製品で済まないのかを先に潰しておかないと、この後の全部が趣味に見える。
+
+### compiler は区別を捨てる装置である
+
+プログラミング言語は、雑に何をやっているのか。海外の教科書、講義資料、講義ノートを漁ると、答えが書かれていないのではなかった。分野ごとに必要な写像だけを残し、それ以外を意図的に捨てていた。
+
+ここで AST と CFG を思い出そう。
+
+幸いなことに、我々には C がある。Fortran に哀愁を感じてもよいが、ここでは C を、機械の機能を比較的素直に触るための便利な薄い層として考える。
+
+Ritchie 自身の言い方では、C は Unix を書くための system implementation language である。整数、address、分岐、load、store といった、実機の操作へ素直に対応するものを書き、具体的な機械語への割り当ては compiler へ渡す。C は BCPL と B から派生し、Unix と並行して、現実の小さな計算機で実用になるように作られた。
+
+この時点ですでにかなり Unix 的である。
+
+巨大な体系を先に完成させるのではなく、小さい部品と接続面を置き、実際に使いながら足りない区別を足していく。天才的だと思う。ベル研究所には一生頭が上がらないし、それはそれとして、あらゆる強い言葉で独占に対する懸念を示していきたい。研究成果が強すぎて独占禁止法の話まで付いてくる組織、情報量が多い。
+
+source を投げると、compiler はそれを token へ切り、AST を作り、型などを確かめ、IR へ下ろす。LLVM IR では関数が basic block の列になり、その遷移が CFG を作る。entry からある block へ至るすべての経路が別の block を通るなら、後者は前者を dominate する。
+
+ここで、何で bit じゃねえんだよ、と思った。
+
+機械は最終的に bit で動いている。だったら最初から program を bit の DAG として書けばよいではないか。わざわざ AST を作り、命令を作り、命令を block へまとめ、その block を node にして graph を作る。ずいぶん遠回りに見える。
+
+調べると、遠回りではなかった。
+
+CFG は program を細かく分解したものではなく、制御について不要な細部を潰したものである。
+
+basic block の内部では、命令は先頭から末尾まで直線的に実行される。途中の命令へ外から飛び込まず、途中の命令から外へ飛び出さない。ならば到達可能性だけを考える限り、中に命令が一つあろうが百個あろうが、各命令位置を別々の node として持つ意味はない。
+
+```text
+instruction → instruction → instruction → branch
+\____________________________________________/
+                  one block
+```
+
+制御が分かれる末尾と、制御が合流する先頭だけを残し、その間を一つに潰したものが basic block である。
+
+つまり block は、たまたま都合のよい粒度なのではない。制御の観測で区別できない命令位置を、先に同一視した結果である。
+
+超 JIT っぽい。
+
+しかし歴史は逆で、JIT がこの古い模型を引き継いでいる。1959 年には Prosser が flow diagram を Boolean matrix で扱い、dominance の考えを導入していた。1969 年の OS/360 FORTRAN H の optimizer では、dominance を使った共通式除去と loop 検出が実装されている。Frances Allen が 1970 年に control-flow analysis を整理した時点で、現在の compiler の骨格はかなり揃っていた。
+
+この辺りを「粒度を揃えて式変形すれば N を畳める」と呼びたくなるが、厳密には二段ある。
+
+basic block 化は、制御について区別しなくてよい program point を一つへ潰し、graph の点を揃える操作である。その後に、到達可能性や dominance といった関係を matrix、table、tree などへ移し、graph の問いを計算できる形にする。
+
+先に同値関係を置き、その商の上で演算する。
+
+software は妥協と hack の産物だ、という悪口を言いたくなるが、ここは妥協というより正規化である。すべての命令位置を保存すれば情報は増える。しかし、制御解析の答えは増えない。ならば不要な自由度を先に消す。
+
+### bit はどこへ行ったのか
+
+消えてはいない。LLVM でも条件分岐が読む値は i1、正真正銘の 1 bit である。ただし、その bit は node ではない。
+
+```llvm
+br i1 %cond, label %yes, label %no
+```
+
+`%cond` は、どちらの edge を選ぶかを表す値である。`%yes` と `%no` は、次に実行する場所である。
+
+bit は判断で、block は制御状態だ。
+
+一瞬で正規化されてやがる。
+
+data と control を同じ箱へ突っ込まないから、graph を小さく保ったまま、到達可能性、loop、dominance、definition と use を別々に解析できる。何でも bit 列として統一することはできるが、その結果、毎回フリップフロップから考え直すことになる。それは統一ではなく、抽象化を剥がしただけである。
+
+ちなみに LLVM には、本当に bitcode という名前の形式がある。
+
+ついに bit の DAG が出てきたかと思って仕様を開くと、最初に出てくるのは block と record と abbreviation である。LLVM IR を bitstream へ落とした瞬間、人類は直ちに境界を作り、record へ束ね、block を入れ子にし、可変長整数と自己記述的な省略形を導入している。しかも reader が組み込みの知識へ依存しないよう、abbreviation 自体を stream へ格納する。
+
+bitcode の bit は、意味論上の node ではない。artifact を記録する最小単位である。
+
+乗算命令を bitcode へ保存しても、partial product と加算木には展開されない。「これは乗算である」という IR 上の構造が保存される。
+
+何でも bit へ落とせることと、bit のまま考えることは別である。
+
+そしてここが第 1 節と同じ境界である。bit まで下ろせば、加算は carry の DAG になり、乗算は partial product と加算木になり、load は address decoder と memory の話になる。そこでは確かに全部が bit で書ける。ただし、どの DAG が一命令としてシリコンに埋め込まれているかという情報を、こちらでもう一度組み立て直すことになる。
+
+compiler が basic block を見ている間、乗算は一つの node だ。回路まで下りれば、その中には巨大な DAG がある。
+
+### 型は現実に負けてから生まれた
+
+この区別は、C の生まれ方にも埋まっている。
+
+BCPL と B は、memory を word あるいは cell の一次元配列として見ていた。一つの cell は固定長の bit pattern であり、整数なのか pointer なのかは、それにどの演算を適用するかで決まる。かなり素直である。俺が最初に欲しがった「全部 bit でよくないか」に近い。
+
+ところが PDP-11 は byte-oriented だった。word を単位とする B の pointer では、hardware の byte address へ変換するたびに scale が要る。文字を一つ触るために、packed string を cell へ展開し、また詰め直すのも馬鹿らしい。浮動小数点を一つの word へ収める前提も崩れた。
+
+そこで Ritchie は char と int を分け、pointer が指す型によって加算の scale を変える仕組みを入れた。B から C への移行は、抽象的な型理論から始まったというより、word の模型が byte-addressed machine に負けたところから始まった。
+
+ここが妙に好きである。
+
+型を先に作り、現実を分類したのではない。同じ cell として扱っていたら実機との接続で無理が出て、区別が後から発見された。
+
+俺もミンスキー機械を触っていると、似た気分になる。自然数だけで全部書ける。辞書も tuple も列も、全部自然数へ符号化できる。
+
+もちろん書ける。
+
+書けることと、頭に乗ることは別である。
+
+ある時点で「これは辞書として扱う」「これは tuple として扱う」と決めた方がよい。万能な計算模型を手に入れても、設計は免除されない。チューリング完全であることと、速いことも、頭に乗ることも、まったく別問題である。
+
+生 pointer が実際に何なのか、provenance をどこへ置くのか、整数と pointer を往復したときに何が保存されるのか、という話はここではしない。あれを始めると、C 規格、compiler、OS、hardware が別々の顔でこちらを見てくる。今日は codec だけで十分つらい。
+
+C 規格にも、この境界は残っている。個別に address を持てる最小単位は bit ではなく byte であり、bit は object representation の内部にある。bit-field は bit 数を指定できるが、その bit-field 自体も何らかの storage unit の中に置かれる。
+
+### いちばん左が怪しい
+
+メンタルモデルとしては、ひとまずこれでよい。
+
+```text
+source bytes
+  → characters
+  → preprocessing tokens
+  → AST
+  → IR / CFG
+  → machine code
+```
+
+ただし、いちばん左だけが妙に怪しい。
+
+compiler の入口では、source file は文字列である、と言いたくなる。しかし kernel から見れば、まだ byte 列である。その中身が文字なのか画像なのかを決めるのは、読む側の program だ。
+
+Linux の pathname も、kernel 側の規則はかなり露骨である。途中に NUL を含まない byte 列で、`0x2f` だけが directory separator として特別扱いされる。改行 byte を含む filename すら Linux は許す。kernel にとって改行は行の終端ではなく、filename に入っている少し迷惑な byte である。
+
+Unix 的である。責任分界が明快すぎて、境界の外側にいる人間だけが困る。
+
+そこで、まず ASCII 互換に祈る。正確には、ASCII そのものに祈っているわけではない。C の構文に使う英字、数字、括弧、演算子、空白が、それぞれ識別できる文字として現れることに祈っている。
+
+実用上は UTF-8 環境を仮定する。UTF-8 では ASCII 範囲の文字が同じ値の 1 byte で現れ、multibyte sequence の途中に ASCII byte は現れない。したがって `if`、`(`、`)`、`{`、`}`、`;` のような C の構文文字は、byte 列の上でも素直に見つけられる。
+
+UTF-8 がこの形なのも偶然ではない。1992 年、Rob Pike が示した条件をもとに Ken Thompson が設計し、既存の Plan 9 や ASCII 依存の software へ破壊的でない形で Unicode を導入することが目的に含まれていた。
+
+codec を白紙の上で最短にしたのではない。すでに存在する filesystem、parser、C string、command、protocol を壊さない形を選んだ。**符号の形を決めるのは情報理論だけではない。すでに配備された decoder の量も効く。** codec は数学的な写像だが、採用される codec は移行費用まで背負っている。
+
+ここで初めて、source file は文字列になり、その文字列が token 列になる。普段「source を parser へ渡す」と一行で済ませている部分には、
+
+```text
+bytes → characters → tokens → program
+```
+
+という別々の写像が重なっている。しかも、この写像は最初から多対一である。
+
+コメントは空白へ置き換えられる。空白の数は消える。macro は展開される。余分な括弧や表記の差も、同じ AST へ落ち得る。
+
+```c
+x + (y * z)
+x+y*z
+```
+
+この二つは同じ木になり得る。
+
+parser は文字列から program を取り出す decoder ではあるが、strict inverse ではない。AST から元の source file を一字一句復元できないし、compiler にはその必要もない。
+
+ようやく最初の話へ戻れる。
+
+処理系は、入力に含まれる情報をすべて保存しているのではない。後段の質問に必要な区別だけを残し、不要な区別を段階ごとに捨てている。空白とコメントの違いを捨てる。表記の違いを捨てる。直線区間の内部位置を捨てる。具体的な register 配置を捨て、IR 上の値として扱う。
+
+compiler は情報を保存し続ける装置ではない。目的ごとに同値関係を置き、その商を次の段へ送る装置である。
+
+その木に挙動を与えるのが semantics である。
+
+```text
+text  --parse-->  program  --semantics-->  behavior
+```
+
+ここにも一意な往復はない。同じ挙動を持つ program はいくらでもある。一つの program に複数の許された挙動がある場合もある。
+
+compiler が行うのも、符号化して元へ戻すことではない。source program を target program へ移し、その挙動を対応させることである。
+
+```text
+program_s  --compile-->  program_t
+semantics_t(compile(p)) ≈ semantics_s(p)
+```
+
+したがって、普通のプログラミング言語も compiler も、今回欲しい意味での codec ではない。片道である。
+
+### 費用は環境へ逃げられる
+
+もう一つ嫌な資料がある。Ken Thompson の Reflections on Trusting Trust である。
+
+Thompson は、compiler binary にだけ存在する知識を、compiler 自身の再 compile によって次の binary へ引き継げることを示した。source から仕込みを削除しても、すでに汚染された compiler が同じ仕込みを出力へ再注入できる。source を全部読んでも、実際に使われた変換規則が source の中にすべて存在するとは限らない。
+
+```text
+source + compiler の内部状態 → artifact
+```
+
+ならば、source の長さだけを数えても意味がない。変換規則の一部が compiler、loader、release 固有の table、hardware へ逃げているなら、その環境を含めて初めて一つの記述になる。
+
+これは今回の話にそのまま刺さる。
+
+「LUT は環境に最初からあるので無料です」と言い始めると、source に書かれていない知識を decoder が当然知っていることにしている。圧縮したのではない。費用を環境側へ移しただけである。
+
+そして第 1 節の賃借と並べると、境界がはっきりする。乗算器の中の加算木は ISA が宣言しているから借りてよい。256 要素の表は誰も宣言していないから、自分で持つしかない。同じ「環境にある」でも、この二つは全然違う。
+
+codec が必要になるのは、捨てずに数えたいときである。
+
+program そのものを保存し、比較し、長さを数える。どの bit 列がどの program に対応するかを固定し、同じ program を複数の bit 列で二重に表さない。
+
+計算可能性論では、式や proof を自然数へ写す仕組みを Gödel numbering と呼ぶ。そこで重要なのは、syntax を数として扱え、数の上の機械的な操作へ移せることである。
+
+Kolmogorov complexity では、万能な記述言語を取り替えても complexity の差は加法定数に収まる。そのため十分に長い対象については、具体的な万能機の違いを定数として扱える。
+
+今回は、その加法定数を捨てられない。
+
+比較したいのは、同じ span、同じ work で並んだ二つの有限な実装である。欲しいのは漸近的な短さではなく、正確な bit 数だ。148 bit と 16418 bit を比べるときに、「記述言語を替えれば定数だけ違う」は何の救いにもならない。その定数を測るためにやっている。
+
+表、命令、定数、長さ header、decoder をどこへ置いたか。その全部が判定に入る。
+
+したがって、今回 codec と呼ぶものは、宣言した物理文法の program を一つの global な bit 列へ写し、受理した bit 列から同じ program だけを厳密に戻す規則である。
+
+```text
+encode : Prog → Bit*
+decode : Bit* ⇀ Prog
+decode(encode(z)) = z
+encode(decode(b)) = b    /* decode が受理する b について */
+```
+
+一つの program に二つの bit 列を与えない。一つの bit 列を二つの program として読まない。release 固有の表や暗黙の境界を要求しない。byte へ pack した後まで含めて artifact を一つにする。
+
+compiler は、不要な区別を捨てることで成立していた。今回は逆に、最後の 1 bit まで区別を固定する。
+
+ここまでやって、ようやく「短い」が数になる。
+
+## 4. 符号 E
+
+### 定義
+
+`Bit = {0,1}`。自然数に対する完全な scalar 符号を一つ置く。
+
+```text
+E(0) = 0
+E(n) = 1 || 0^k || bin(n),   n > 0,  k = floor(log2 n)                (1.1)
+```
+
+decoder は先頭 bit を読む。先頭が 1 なら k 個のゼロを数え、次の 1 を payload の先頭 bit として読み、そこからさらに k bit 読む。`2^k <= n < 2^(k+1)` のとき `|E(n)| = 2k+2` なので
+
+```text
+sum_(n>=0) 2^(-|E(n)|)
+ = 1/2 + sum_(k>=0) 2^k · 2^(-(2k+2))
+ = 1                                                                  (1.2)
+```
+
+decoder が停止することが、そのまま prefix free であることを与える。
+
+### 木としての読み方
+
+やっていることは一行で言える。正整数側の gamma 木を丸ごと右部分木へ移し、空いた左の一葉を 0 専用にした。
+
+Elias gamma は正整数の上ですでに完全である。長さ 2k+1 の語が `2^k` 本あって、和はちょうど 1 になる。これに 1 を前置すると全体が 1/2 に縮む。残った 1/2 を、ちょうど 1 語、深さ 1 の左の葉 `0` で埋める。それで ℕ 全体の上で完全になる。
+
+見た後は自明である。だからこそ「普通に Elias 系だろ」で流されると頭を抱える。n+1 シフトをかけても ℕ の上で完全にはなるので、Kraft 和だけを見ているなら区別がつかない。区別がつくのは、この符号を program の長さヘッダとして**使ったとき**である。
+
+program は有限 payload `z ∈ Prog = Bit*`。global code、長さ、Kraft 重みはこれしかない。
+
+```text
+code(z) = E(|z|) || z
+L(z)    = |E(|z|)| + |z|
+w(z)    = 2^(-L(z))                                                   (1.3)
+```
+
+長さ n の payload は `2^n` 本あるので、代入するだけで
+
+```text
+sum_(z in Prog) w(z) = sum_(n>=0) 2^n · 2^(-|E(n)|-n) = 1             (1.4)
+```
+
+`|z| = 0`、つまり**空 program に対応するのが、あの左の一葉である。** payload 空間の単位元と、符号木の深さ 1 の葉が、ちょうど向き合っている。ここが一番好きな部分だ。n+1 シフトの流儀だとこれが潰れて、`bin(n)` が語の中に逐語で現れなくなり、strict inverse がインクリメントを持ち、後で書く rank が安定しなくなる。
+
+### 148 bit の中身
+
+儀式に見えると困るので、一度だけ開ける。
+
+```text
+ranks8 = PDEP(m, D) * M
+  payload   PDEP opcode  2
+            D           64
+            MUL  opcode  2
+            M           64
+                       ---
+                       132 bit
+  header    E(132) は k = 7 なので 2·7 + 2 = 16 bit
+  L(z) = 148 bit,  file = ceil(148/8) = 19 byte
+
+LUT + PSHUFB
+  payload   表  256 × 64 = 16384
+            load opcode      2
+            PSHUFB opcode    2
+                         -------
+                         16388 bit
+  header    E(16388) は k = 14 なので 30 bit
+  L(z) = 16418 bit,  file = 2053 byte
+```
+
+ここで「符号の選び方で結論が変わるのでは」という最大の反論が死ぬ。header は 16 bit と 30 bit、差は誤差である。**効いているのは 16384 bit の表だけで、これはどんな合理的な自己区切り符号でも動かない。** 符号を厳密にやったのは、この一行を言うためである。
+
+以下の数字も全部この足し算で出る。`select8` は PEXT opcode 2 + K 64 が乗って payload 198、header 16 で 214。`shufctl8` は NOT が 2 増えて 200 + 16 で 216。`ranks8 + select8` は 66 × 4 = 264、`E(264)` が 18 bit で 282。CLMUL 版は 66 + 14 で 80。
+
+### 六つの性質
+
+**全 payload 共通の global code。** ローカルな codebook は許さない。一つの短い語を違う未来に使い回すことは、省略された release 固有の decoder を要求するので禁止である。表を「環境に元からあるもの」として無料で数える逃げ道が、これで塞がる。
+
+**完全な Kraft 空間。** (1.4)。数値でも確認した。`|z| < 400` までで 0.998596、残差 1.4e-3、Fraction で厳密計算。
+
+**一意な長さ。** `L(z)` は `|z|` だけの関数である。長さの梯子は
+
+```text
+|E(n)| for n = 0..8 :  1, 2, 4, 4, 6, 6, 6, 6, 8
+```
+
+**一意な artifact。** byte 成果物は、packing に必要なゼロ bit を 0 個から 7 個だけ後ろに足したものである。loader は `E(|z|)` を 1 つ decode し、ちょうど `|z|` bit の payload を読み、**1 byte 未満の全ゼロ接尾だけ**を受理する。したがって
+
+```text
+model_bits  = L(z)
+file_bytes  = ceil(L(z)/8)                                            (1.7)
+```
+
+`pack(code(z))` が唯一の byte 列で、unpack がその厳密な逆である。program と file が一対一に対応する。
+
+**高速な strict inverse。** 先頭 bit を見る、ゼロを数える、k+1 bit 読む。加算も減算もない。payload の bit は語の中に逐語で並んでいるので、切り出しは shift と mask だけである。
+
+**探索で安定した rank。** 最終的な tie break は、可変長語の辞書順ではなく rank である。
+
+```text
+rank(z) = 2^|z| + value(z)                                            (1.5)
+```
+
+`value(z)` は普通の 2 進値で `value(empty) = 0`。すると `|z| <= log2 rank(z) < |z|+1` なので
+
+```text
+L(z) = log2 rank(z) + O(log log(2 + rank(z)))                         (1.6)
+```
+
+なぜ辞書順では駄目なのかは、並べると一目で分かる。
+
+```text
+|z|=0 : 0
+|z|=1 : 11 || z        -> 110, 111
+|z|=2 : 1010 || z
+|z|=3 : 1011 || z
+|z|=4 : 100100 || z
+```
+
+artifact の bit 列を辞書順に並べると `0, 100100.., 1010.., 1011.., 110, 111`、つまり `|z| = 0, 4, 2, 3, 1` の順になる。長さ順とまったく違う。rank は長さで先に切ってから値で切るので、探索の生き残りを並べたときに順序が動かない。
+
+### 壊し方
+
+先に決めておく。E を切り詰める、ゼロでない padding bit を受理する、丸ごと 1 byte の接尾を受理する、rank 順を変える、一つの payload に二つの global word を与える。**どれも reject しなければならない。** 逆に、code bit を実体化したり、load のあとに padding を保持し続けたりするのは過剰制約である。どちらも観測できない。
+
+この符号は、記事の後半でもう一度出てくる。そのときは別の性質だけを使う。
+
+## 5. 鍵の順序を span/work で固定する
+
+符号が決めるのは記述である。時間ではない。span のような単位に実時間を一意に割り当てるところまでは、この符号だけでは行かない。機械ごとの latency、throughput、実行 port、memory bottleneck が入る。
+
+なので、ここでは実時間そのものではなく、探索の目的関数を先に固定する。
+
+Brent 型の bound はこう書ける。
+
+```text
+T_p <= span + (work - span)/p
+T_p >= span
+```
+
+`p → ∞` では span が消えない。`p = 1` では work が効く。
+
+ただし、ここから「span を第一鍵、work を第二鍵にすることが数学的に唯一強制される」わけではない。たとえば span が 1 だけ小さく、work が桁違いに大きい program を、有限の p で本当に選ぶかは別問題である。
+
+そこで本稿では目的を明示する。
+
+**まず無限並列極限で消えない依存深さを最小化し、その同着を総 work で解く。**
+
+この辞書順を採用する。
+
+時間の鍵が二つとも同着したら、このモデルの実行側にはもう区別する材料が無い。そこで初めて記述側へ落ちる。
+
+1. **span** : 宣言した命令文法での依存深さ
+2. **work** : 宣言した命令の総数
+3. **L(z)** : 時間モデルが同着したあとの、完全な符号での記述長
+4. **rank** : 長さも同着のときの、canonical な全順序
+
+この四つを、記事の最後まで一貫して使う。
+
+## 6. 文法を宣言して、導出する
+
+### 文法
+
+探索する物理文法はこれだけである。source-blind で、段階が固定されている。
+
+```text
+a = PDEP(m, D)      # deposit
+b = a * M           # multiply
+s = PEXT(K, b)      # extract、定数 source・可変 mask
+```
+
+program はこの pipeline の接頭辞である。work 1 は `PDEP(m,D)` か `m*M`、work 2 は `PDEP(m,D)*M`、work 3 は全部。以降の最小性はすべて**この宣言した文法の中での**最小性である。そう書いておかないと嘘になる。
+
+定数は勘で当てない。singleton mask `m = 1<<lane` に対して PDEP は 1 bit を 1 箇所へ落とすだけなので、
+
+```text
+target(1 << lane) = (M << p_lane) mod 2^64
+```
+
+が成り立つ。`p_lane` は D の lane+1 番目に立っている bit の位置である。最初に置かれる bit の位置を決めると M の低い側が強制され、語外へ落ちる分だけが自由になる。あとは `p_lane` を昇順に伸ばし、256 通りの mask 全部で照合する。
+
+### 2 命令: rank
+
+target は `ranks8(m)`、byte k が `popcount(m & ((1<<k)-1))` のもの。
+
+```text
+work 1  m * C          rejected: C forced by m=1 -> 0x0101010101010100; fails m=2
+work 1  PDEP(m, D)     rejected: popcount invariant; m=1: popcount 1 -> 7
+work 1  PEXT(...)      rejected: output confined to 8 bits; m=1 needs 0x101010101010100
+work 2  PDEP(m,D)*M    survivors: 502
+        minimal by rank: D=0x0101010101010101  M=0x0101010101010100
+```
+
+work 1 の棄却は三つの独立した反例で、どれも実装されている。`m*C` は m=1 で定数が確定して m=2 で落ちる。PDEP は popcount を保存するのに `ranks8(1)` は 7 bit 立っている。PEXT 系は出力が 8 bit に閉じ込められるので、64 bit に広がる target を作れない。
+
+そして 502 個は全部 span 2 / work 2 / payload 長も同着なので、第四鍵だけが区別する。
+
+```text
+D=0x0101010101010101 M=0x0101010101010100   rank = 2^132 + 0x40404...0100
+D=0x0201010101010101 M=0x0101010101010100   rank = 2^132 + 0x80404...0100
+D=0x0202020202020202 M=0x0080808080808080   rank = 2^132 + 0x80808...8080
+...
+D=0x8080808080808080 M=0xfe02020202020202   rank = 2^132 + 0x20202...2202
+```
+
+```c
+static inline uint64_t ranks8(uint8_t m) {
+    return _pdep_u64((uint64_t)m, 0x0101010101010101ull) * 0x0101010101010100ull;
+}
+```
+
+`0x0101010101010100` は `0x0101010101010101 << 8` なので、乗算は「byte ごとの prefix sum」と「1 byte ずらし」を同時にやる。各 byte の最大値は 7 なので繰り上がらない。
+
+### ついでに: byte mask
+
+select へ行く前に、選ばれた lane に `0xFF` を置く mask を同じ手続きにかける。
+
+```text
+work 1  m * C          rejected: C forced by m=1 -> 0x00000000000000ff; fails m=2
+work 1  PDEP(m, D)     rejected: popcount invariant; m=1: popcount 1 -> 8
+work 1  PEXT(...)      rejected: output confined to 8 bits; m=2 needs 0xff00
+work 2  PDEP(m,D)*M    survivors: 1
+        minimal by rank: D=0x0101010101010101  M=0x00000000000000ff
+```
+
+**1 個。** rank code には 502 個あったのに、こちらは一意である。導出を追えば理由が出る。`ranks8(1) = 0x0101010101010100` は末尾に 8 個のゼロを持つので、最初の bit を置ける位置が 9 通りあり、そのぶん語外へ落ちる自由 bit が出る。`bytemask8(1) = 0xFF` は末尾ゼロが無いので、最初の位置は 0 しかなく、`M = 0xFF` が即座に確定し、以後の位置も一意に決まる。
+
+### 3 命令: select
+
+`select8(m)` は、byte j が「j 番目に立っている lane の番号」であるもの。rank が scatter（lane はどこへ行くか）なら、こちらは gather（slot には誰が来るか）である。
+
+```text
+work 1  m * C          rejected: C forced by m=1 -> 0x0; fails m=2
+work 1  PDEP(m, D)     rejected: popcount invariant; m=1: popcount 1 -> 0
+work 1  PEXT(...)      rejected: output confined to 8 bits; m=3 needs 0x100
+work 2  PDEP(m,D)*M    survivors: 0
+```
+
+work 2 は空である。導出で見るとこうなる。`select8(1) = 0` なので lane 0 の方程式は `M << p_0 ≡ 0`。最初に非零になるのは lane 1 で `select8(2) = 1`、つまり `M << p_1 = 1` だから M は奇数で `p_1 = 0`。しかし位置は昇順でなければならないので `p_0 < 0` が要求されて矛盾する。select は PDEP と MUL だけでは出ない。
+
+だから work 3 へ上がる。そして三つ目の定数は列挙する必要すらない。
+
+```text
+bytemask8(0xFF) = 0xffffffffffffffff
+```
+
+全 bit が立つので `PEXT(K, ~0) = K`。したがって
+
+```text
+K = select8(0xFF) = 0x0706050403020100
+```
+
+**一本の式で強制される。** これは恒等置換である。lane 番号を並べた定数を mask で詰めれば必要な置換が出る、という言い方をしたくなるが、実際には `m = 0xFF` の一点から落ちてくるだけで、探索の余地は無い。
+
+```c
+#define IOTA 0x0706050403020100ull
+
+static inline uint64_t byte_mask8(uint8_t m) {
+    return _pdep_u64((uint64_t)m, 0x0101010101010101ull) * 0xFFull;
+}
+
+static inline uint64_t select8(uint8_t m) {
+    return _pext_u64(IOTA, byte_mask8(m));
+}
+```
+
+256 通り全部で照合済み。
+
+### 解の個数が、自由度を測っている
+
+三つ並べると、0 と 1 と 502 が出た。これは探索結果というより測定値である。
+
+```text
+0     その work では表現不能           select8   （方程式が矛盾する）
+1     定数が強制される                bytemask8 （末尾ゼロが無い）
+502   語外へ落ちる自由 bit がある      ranks8    （末尾ゼロが 8 個）
+```
+
+理由は全部 `target(singleton)` の末尾ゼロの個数から出る。末尾ゼロが t 個あれば、最初の bit を置く位置が t+1 通りあり、ずらした分だけ M の上位が語外へ落ちて自由になる。
+
+そして、これがそのまま「第四鍵はいつ要るのか」の答えになっている。解が 0 個ならその work では不可能。1 個なら鍵は要らない、定数が導出で決まる。複数あるときだけ rank が働く。今回、列挙が要ったのは 502 の一件だけである。
+
+**この「解の個数」は、記事の最後で暗号の話に化ける。** 覚えておいてほしい。
+
+### 副産物: rank と select は最初の命令を共有する
+
+```text
+ranks8    : PDEP(m, 0x0101010101010101) * 0x0101010101010100
+bytemask8 : PDEP(m, 0x0101010101010101) * 0x00000000000000ff
+```
+
+**deposit 定数が同じである。** 探索は独立に走らせたのに、両方とも「lane ごとに 1 bit」に収束した。分岐しているのは乗数だけで、`0x0101010101010100` なら prefix sum を一段ずらして rank になり、`0xFF` なら各 lane を 8 bit へ広げて byte mask になる。
+
+だから両方欲しいときは足し算ではない。
+
+```c
+uint64_t b = _pdep_u64(m, 0x0101010101010101ull);   /* 共有 */
+uint64_t ranks = b * 0x0101010101010100ull;         /* scatter addresses */
+uint64_t sel   = _pext_u64(IOTA, b * 0xFFull);      /* gather addresses  */
+```
+
+work 4、span 3。2 + 3 = 5 ではない。scatter と gather は同じ堆積の上に立っていて、乗数を選ぶところで初めて分かれる。
+
+**乗数を選ぶところで初めて monoid が決まる。**
+
+この一文が、この記事の題名の意味である。ここではまだ「同じ PDEP の上で prefix sum と broadcast に分かれる」という程度の話だが、後で演算則が変わり、最後には鍵が入る。
+
+## 7. 四つの鍵が全部仕事をした
+
+生き残りを並べる。
+
+```text
+span 1  work 1  L=   80 bit  file=   10 byte   prefix_xor64 = CLMUL(x, ~0)
+span 2  work 2  L=  148 bit  file=   19 byte   bytemask8 = PDEP*MUL
+span 2  work 2  L=  148 bit  file=   19 byte   ranks8    = PDEP*MUL
+span 2  work 2  L=16418 bit  file= 2053 byte   256 要素の shuffle LUT + PSHUFB
+span 3  work 3  L=  214 bit  file=   27 byte   select8   = PEXT(K, PDEP*MUL)
+span 3  work 4  L=  282 bit  file=   36 byte   ranks8 + select8（PDEP 共有）
+span 4  work 4  L=  216 bit  file=   27 byte   shufctl8  = NOT PEXT(~K, PDEP*MUL)
+```
+
+鍵ごとに何が分かれたか。
+
+- span が分けたもの: より浅い依存で表現できるもの
+- work が分けたもの: `select8`（3）と `ranks8`（2）
+- length が分けたもの: LUT 版と 2 命令版。**これが最初の問いである**
+- rank が分けたもの: `ranks8` の 502 個の同着と、同じ span/work/L に残った program
+
+ここで、算術族だけを縦に見てほしい。
+
+```text
+80, 148, 148, 214, 216, 282        最大でも 3.5 倍しか動かない
+16418                              110.9 倍
+```
+
+**L(z) は、命令の違いにはほとんど反応しない。表にだけ 100 倍で反応する。** 第三の鍵は恣意的な物差しではなく、このモデルではメモ化された知識を検出する鍵である。span と work から見れば表は 1 load なので無料に見える。記述長だけが表を見る。
+
+最後の行、`shufctl8` も書いておく。PSHUFB は制御 byte の bit 7 が立っていれば出力を 0 にする慣習なので、使わない lane には `0x80` 以上を入れる必要がある。これは work 3 では出ない。`PEXT(K, e) < 2^popcount(e)` なので、`popcount(m)` より上の lane は常に 0 になるからである。一段上げて補集合を取ると出る。
+
+```c
+static inline uint64_t shuffle_control8(uint8_t mask) {
+    return ~_pext_u64(~IOTA, byte_mask8(mask));
+}
+```
+
+選ばれた lane は `~(~i) = i` で戻り、余った lane は `0xFF` になって bit 7 が立つ。2053 byte の LUT と同じものが、27 byte で書ける。
+
+つまり同じことが二回起きている。表が出てきて、時間の鍵で同着して、記述長で 100 倍負ける。n=2 で再現した。
+
+この形は記事の後半でもう一度出てくる。
+
+## 8. 区間 — prefix の共有と、未来の共有
+
+`x * ONES` が prefix scan だという話をしたので、そこを掘る。ここが前半でいちばん時間を使った場所である。
+
+DAG を書けるようになるには、ノードに名前が要る。名前が付かないと辺も書けない。scan の DAG でのノードの名前は**区間 `[i, j)`** である。辺は区間の連結。これに気づくまでが長かった。Hillis–Steele、Sklansky、Kogge–Stone、Brent–Kung、名前がいっぱいあって全部違う絵に見えるが、違うのは**どの区間を実体化するか**だけである。
+
+区間で考えると、簡潔に書ける形が一つある。
+
+```c
+/* scan の DAG 全体が、この一行の不変条件で書ける: reach が倍になる */
+#define SCAN(x, steps, OP) \
+    for (unsigned d = 1, s = 0; s < (steps); ++s, d <<= 1) (x) = OP((x), (x) << d)
+```
+
+steps 回まわしたあと、bit i は区間 `[i - 2^steps + 1, i]` を畳んだ値になっている。それだけ。0〜6 段で全部照合した。
+
+```text
+steps=0 -> reach  1   OK
+steps=1 -> reach  2   OK
+steps=2 -> reach  4   OK
+steps=3 -> reach  8   OK
+steps=4 -> reach 16   OK
+steps=5 -> reach 32   OK
+steps=6 -> reach 64   OK
+```
+
+ここからが変に有用な部分である。
+
+**必要な reach が k しかないなら、`ceil(log2 k)` 段で止めてよい。** 最後まで回す必要はない。当たり前に見えるが、scan のコードは「64 bit なら 6 段」で丸暗記されていて、途中で止める発想がなかなか出てこない。
+
+そして k というのは、完全未来が末尾 k 要素で決まるかどうか、つまり **definite の次数**そのものである。k = 1 なら 0 段、つまり scan が要らない。
+
+256 MiB の 64 bit 語 scan を、必要な reach ごとに測るとこうなる。
+
+```text
+k <=  1  span 0  work 0  : 48.40 GB/s     <- scan しない (メモリ床)
+k <=  2  span 1  work 1  : 39.31 GB/s
+k <=  4  span 2  work 2  : 29.84 GB/s
+k <=  8  span 3  work 3  : 23.53 GB/s
+k <= 16  span 4  work 4  : 18.88 GB/s
+k <= 32  span 5  work 5  : 15.48 GB/s
+k <= 64  span 6  work 6  : 13.44 GB/s
+```
+
+上から下まで 3.6 倍ある。
+
+泣いた部分も書いておく。俺は二日のうち丸一日、prefix と suffix を混同していた。
+
+scan が作るのは prefix である。`[0, i]` を畳んだ値。一方、並列性を買っているのは suffix 側の同値、つまり「この先の観測で区別できるか」という完全未来の話である。**prefix を共有することと、未来を共有することは、まったく別の操作である。** 前者はストレージが減る。後者は span が減る。同じ「共有」という語を使うから、頭の中で一つの箱に入っていた。
+
+分けて書けるようになってから、急に全部見通せるようになった。そして分けた瞬間に、後で書くトライの違和感の正体も分かった。
+
+## 9. 演算則を変える
+
+`ranks8` が 2 命令、`select8` が 3 命令で出た。そこから自明に落ちるもの — compaction、filtering、touched list、sparse offset、stable partition、Morton code、radix sort の 1 pass — は、わざわざ書いても面白くない。全部「mask から address を作って動かす」の言い換えである。
+
+書く価値があるのは、この手法が**効かない**入力の方である。
+
+### 決まらない述語
+
+「この byte は文字列の内側か」。
+
+引用符で囲まれた区間の内外は、**先行する引用符の個数のパリティ**で決まる。末尾何 byte を見ても答えは出ない。100 MiB 前の引用符が効く。definite ではない。escape 付きの区切り一般も同じ形になる。ここでは k が有限でないので、さっきの表のどの行にも乗らない。
+
+しかし落ちるのは一段だけである。状態が有限 monoid に落ちるなら、結合的な scan で並列化できる。そしてこの場合の monoid は ℤ/2 で、その scan が 1 命令で出る。
+
+### 導出
+
+宣言した文法に、carry-less な乗算を 1 家族足して回す。
+
+```text
+p = CLMUL(x, C)
+```
+
+target は 64 bit の inclusive prefix XOR。定数は列挙しない。`CLMUL(1, C) = C` であり、`prefix_xor(1)` は全 bit が 1 なので
+
+```text
+C = prefix_xor(1) = 0xFFFFFFFFFFFFFFFF
+```
+
+**一本の式で強制される。** `select8` の `K = IOTA` が `m = 0xFF` 一点から出たのと同じ形で、解の個数の表で言えば「1」の行である。exclusive が欲しければ `0xFFFFFFFFFFFFFFFE` で、こちらも一本で決まる。3×10⁵ 語で照合、`SCAN(x, 6, XOR)` とも完全一致。
+
+work 1 / span 1。そしてさっきの表に戻すと、
+
+```text
+k  = 64  span 1  work 1  : 47.34 GB/s   (CLMUL)
+```
+
+**k = 64 を、命令文法上は k = 1 に近い値段で買っている。** 48.40 に対して 47.34、メモリ床に張り付いていて、scan が実質無料になっている。
+
+### carry の値段
+
+冒頭の話がここで閉じる。
+
+`ranks8` の 2 命令のうち、prefix sum 自体を担っているのは乗算である。PDEP は、桁上がりが隣の lane へ漏れないように 1 bit ずつ byte へ隔離している。
+
+隔離せずに直接掛けると一般には壊れる。
+
+```text
+m * 0x0101010101010100 == ranks8(m)
+```
+
+は m = 0, 1 の 2 通りでは一致するが、残り 254 / 256 mask で不一致である。
+
+```text
+PDEP(m, 0x0101..01) * 0x0101..00 == ranks8
+```
+
+は 256 / 256 で一致する。
+
+GF(2) 上の carry-less 演算には桁上がりが無い。だから隔離が要らない。mask はすでに係数列として正しい形をしている。
+
+**deposit 命令の値段は、carry の値段である。**
+
+並べるとこうなる。
+
+| 演算系                     | kernel             | 得られるもの        | 隔離     |
+| -------------------------- | ------------------ | ------------------- | -------- |
+| `Z/2^64` の通常乗算        | `1+256+256²+...`   | byte 単位 prefix sum | 要る     |
+| `GF(2)[x]` の carry-less 乗算 | `1+x+x²+...`    | bit 単位 prefix XOR  | 要らない |
+
+どちらも係数は全 1 の幾何級数である。変えたのは演算則だ。
+
+### 実測
+
+256 MiB、引用符の密度 1/50。「文字列の内側」mask を三通りで作って、出力の完全一致を確認した。mask の抽出は三つで共通なので、測っているのは scan 段だけである。
+
+```text
+byte loop, '"' で分岐        :  0.383 s   0.65 GB/s
+6 段の shift fold + carry    :  0.009 s  26.81 GB/s   41.1x
+CLMUL(mask, ~0) + carry      :  0.008 s  30.82 GB/s   47.2x
+                                                clmul / shift = 1.15x
+```
+
+内訳が面白い。41 倍は分岐を消した時点でほぼ全部取れていて、span 6 / work 6 から span 1 / work 1 へ落として追加で稼げたのは 1.15 倍しかない。**四つの鍵は実時間そのものではない。** 機械が別の箇所で飽和していれば、鍵を改善しても実測は動かない。
+
+ただし記述の側では決着している。CLMUL 版は `L(z) = 80 bit`、10 byte。LUT のように「時間で同着、記述長で決着」になる場合と、ここのように「時間モデルの鍵で先に決着する」場合がある。決まる場所が毎回違うから、四つとも要る。
+
+### 二段目も同じ命令である
+
+block をまたぐ受け渡しは、running parity の 1 bit だけである。結合は XOR で、結合的である。だから block ごとの parity を 64 個集めて 64 bit 語にすれば、それに対して必要なのはまた prefix XOR で、同じ CLMUL 一発である。
+
+span で言うと、`O(n)` の逐次から `O(log n)` の木へ落ちる。definite のときの `O(1)` には届かない。それが「definite でない」ことの値段である。
+
+## 10. 乗数を変える
+
+演算則を変えたら carry が消えた。係数は「全 1」のまま触っていない。
+
+では、係数を変えたらどうなるか。
+
+ここから後半である。橋は思っていたより短かった。
+
+### 全 1 とは何だったのか
+
+`CLMUL(x, ~0)` を式で書く。x の bit を `x_0, x_1, ...` として、結果の位置 j は
+
+```text
+Σ_{i <= j} x_i
+```
+
+つまり係数が全部 1 の畳み込みである。
+
+形式的には、
+
+```text
+X(t) · (1 + t + t² + ...)
+```
+
+の低位係数を読んでいる。
+
+これを block 単位へ持ち上げると、今度は係数列を `1, k, k², ...` に一般化できる。
+
+```text
+Σ_{i <= j} x_i · k^(j-i)
+```
+
+k = 1 を代入すると加法 scan に戻る。**全 1 の prefix kernel は、幾何級数の比が 1 の場合だった。**
+
+そして下の式は、多項式ハッシュの Horner そのものである。`x_i` を blocks、k を鍵と読めば、GHASH / POLYVAL 系と同じ polynomial-evaluation の世界に入る。
+
+### monoid で書く
+
+1 block の吸収を写像として書くと、正体が出る。
+
+```text
+h ↦ (h + m)·k = k·h + k·m
+```
+
+**h について affine である。** つまり吸収写像は
+
+```text
+Aff(R) = {(α, β)}
+```
+
+の元として扱える。作用は
+
+```text
+x ↦ αx + β
+```
+
+で、先に `(α₁,β₁)`、後に `(α₂,β₂)` を適用すると、
+
+```text
+(α₁, β₁) ; (α₂, β₂)
+    = (α₂α₁, α₂β₁ + β₂)
+単位元 = (1, 0)
+```
+
+である。写像の合成なので、結合律は写像合成から直ちに出る。
+
+ここに二つの見方がある。
+
+```text
+α = 1 の部分集合:
+    (1,β₁) ; (1,β₂)
+  = (1, β₁+β₂)
+    加法 monoid
+```
+
+これは本当に `Aff(R)` の translation submonoid である。
+
+一方、1 block の polynomial MAC update は
+
+```text
+(k, km)
+```
+
+という affine map であり、二 block 合成すると linear part は `k²`、l block 合成すると `k^l` になる。
+
+つまり、
+
+```text
+1 block : (k,   β₁)
+2 block : (k²,  β₂)
+...
+l block : (k^l, β_l)
+```
+
+である。
+
+したがって正確には、
+
+**prefix XOR は `Aff(R)` の α=1 translation submonoid。polynomial MAC は linear part k の one-block map が生成する affine monoid。**
+
+である。
+
+α=k の部分集合自体が monoid なのではない。k を一回の遷移として選ぶと、その合成閉包に `k²,k³,...` が現れる。
+
+第 6 節で「乗数を選ぶところで初めて monoid が決まる」と書いた。あそこでは PDEP を共有して prefix sum と broadcast に分かれた。第 9 節では演算則が通常乗算と carry-less 乗算に分かれた。ここでは**比を 1 に固定するか、秘密の k にするか**で加法 scan と polynomial accumulation に分かれている。同じ形の三例目で、いちばん遠くまで行く。
+
+### なぜ橋がここまで短くて、しかもここまで長かったのか
+
+一つ疑問が残る。`CLMUL(x, ~0)` の時点で、なぜ鍵を入れなかったのか。
+
+bit を GF(2) の 1-bit scalar として見る限り、非零 scalar は 1 しかないからである。
+
+もちろん、64 bit の CLMUL operand そのものには `2^64` 通りの polynomial がある。ここで言っているのは、1 bit symbol ごとの Horner 係数として選べる GF(2) scalar の話である。
+
+bit scalar の世界では、
+
+```text
+0, 1
+```
+
+しかなく、非零係数は 1 一択だ。
+
+lane を 128 bit に広げて `GF(2^128)` の元を一つの symbol として扱えば、非零 scalar は `2^128 - 1` 個になる。そこで初めて、128 bit の大きな秘密係数空間を持てる。
+
+**鍵には広さが要る。大きな係数空間は、symbol を extension field まで広げて初めて得られる。**
+
+前半がずっと「誰の粒度なのか」を追いかけていた理由が、ここで回収される。粒度は速さのためだけの話ではない。粒度が、選べる代数と鍵空間を決めている。
+
+第 1 節で span と抽象 DAG の深さを混同して二日払った。あれと同じ間違いを、代数の側でもやりかけた。GF(2) と `GF(2^128)` はどちらも標数 2 の体だが、scalar として選べる係数の数がまったく違う。
+
+まとめて「carry が無い環」と呼んでいると、鍵が入る余地に気づかない。
+
+## 11. 八つの関数が落ちる
+
+欲しかった API はこれだった。BLAKE3、transcript framework、KDF、keyed hash、duplex 的な squeeze、incremental cache を一枚にしたい。
+
+```text
+init(domain, key) -> state
+absorb(state, bytes) -> state
+summarize(bytes) -> summary
+combine(summary_a, summary_b) -> summary
+apply(state, summary) -> state
+commit(state) -> 256-bit output
+derive(state, label, n) -> bytes
+fork(state) -> state
+```
+
+鍵は必須である。
+
+affine monoid を入れると、八つのうち二つは primitive ではなくなる。
+
+`R = GF(2)[x]/(x¹²⁸ + x⁷ + x² + x + 1)`、lane L ごとに秘密鍵 `k_L ∈ R` とする。
+
+1 lane なら、
+
+```text
+State   = R
+Summary = (blocks: u64, β: R)
+```
+
+serialized 表現で 24 byte。
+
+2 lane なら、
+
+```text
+Summary = (blocks: u64, β₀: R, β₁: R)
+```
+
+serialized 表現で 40 byte。
+
+C の構造体としてそのまま置いた場合は 16-byte alignment のため、実際の `sizeof` は典型的には 1 lane 32 byte、2 lane 48 byte になる。以降「24 / 40 byte」と書くときは**論理的な直列化サイズ**を指す。
+
+1 lane の式で書けば、
+
+```text
+summarize(ε)         = (0, 0)
+summarize(1 block m) = (1, k·m)
+combine((l₁,β₁), (l₂,β₂))
+    = (l₁+l₂, k^(l₂)·β₁ + β₂)
+apply(h, (l,β))
+    = k^l·h + β
+```
+
+そして
+
+```text
+absorb(h, bytes) = apply(h, summarize(bytes))
+```
+
+は合成の定義そのものである。
+
+fork も、state が単に固定長の field element と buffering metadata なら構造体コピーでよい。
+
+```text
+fork(h) = h
+```
+
+ただし fork が安いのは、後段の squeeze が元 state を破壊しない設計だからだ。本物の duplex のように squeeze が状態遷移を伴う設計では、意味は異なる。
+
+BLAKE3 流に「commit 用 state を固定し、そこから pure な XOF 的派生を行う」側を選んだ結果として、同じ state から複数の derive を独立に計算できる。
+
+init も落ちる。
+
+```text
+init(domain, key) = absorb(root(key), frame(domain))
+```
+
+残る primitive は root、summarize、combine、apply、squeeze である。
+
+### Summary が定数サイズになる
+
+ここがこの代数の一番強い性質である。
+
+この affine summary は、入力長に関係なく、
+
+```text
+1 lane serialized : 24 byte
+2 lane serialized : 40 byte
+```
+
+で固定される。
+
+なぜなら長さ l が合成時に必要とする情報は `k^l` へ変換でき、β と長さだけで部分列の作用を再現できるからである。
+
+BLAKE3 の公式実装にある CV stack 自体は、最大深さ 54 に対しておよそ 1.7 KiB 級である。一方、任意の byte range を後から連結可能にする Summary を BLAKE3 風の chunk tree 上で持とうとすると、chunk 境界をまたぐ head/tail の raw bytes と CV stack が必要になり、概算で数 KiB 級になる。
+
+たとえば
+
+```text
+head  ≤ 1024 B
+CV stack ≈ 1.7 KiB
+tail  ≤ 1024 B
+length / metadata
+```
+
+という形なら 3.7 KiB 前後になる。
+
+したがって比較すべきなのは、
+
+```text
+BLAKE3 の公式 CV stack       対 affine Summary
+```
+
+ではなく、
+
+```text
+任意区間を再結合するための BLAKE3 風 Summary
+                           対 affine Summary
+```
+
+である。
+
+3.7 KiB を基準にすれば、serialized 40 byte の 2-lane Summary に対しておよそ 90 倍台、24 byte の 1-lane Summary なら 150 倍台になる。
+
+しかし、本質は倍率ではない。
+
+**長さに比例して積まれる木の中間状態が、affine action では `(l, β)` の固定長表現へ畳める。**
+
+これが重要である。
+
+第 4 節で `code(z) = E(|z|) || z` と書いて、長さを別立てのヘッダにした。あれは記述を数えるために必要だった。ここでは長さが `k^l` を通じて affine action の linear part に現れる。
+
+同じ「長さをどこに置くか」という問いに、二つの違う答えが出ている。
+
+そして、これは第 7 節の LUT と同じ形である。
+
+```text
+LUT                   対  代数式
+木の中間状態の列      対  fixed-size affine summary
+```
+
+どちらも、構造を表として持つか、代数から再生成するかの違いである。
+
+## 12. 三つの「できない」
+
+ここからが、この設計で一番おもしろい部分である。式変形をやると、やりたかったが、そのままではできないことが三つ出てくる。
+
+第 6 節で `select8` が work 2 に解を持たなかったのと同じで、導出は「できない」も返す。
+
+### できない 1: 層は分離が強制される
+
+`summarize(a‖b) = combine(...)` は「連結を summary の合成だけで再現できる」と言っている。並列性も incremental cache も、全部ここから出る。
+
+ところが transcript framework が要求するのは、API 上の境目が観測できることである。
+
+```c
+absorb("ab")
+```
+
+と
+
+```c
+absorb("a");
+absorb("b");
+```
+
+を同一視してよい場面と、してはいけない場面がある。
+
+transcript では後者を区別したい。
+
+したがって、raw bytes の concatenation homomorphism と transcript framing は同じ層には置けない。
+
+さらに polynomial accumulator の内部値 β は、鍵が既知なら線形・多項式的な構造をそのまま持つので、そのまま一般用途の digest として公開するものではない。
+
+そこで三層に分ける。
+
+```text
+層0  framing        frame(x) = E(|x|)‖x
+層1  compression    affine monoid
+層2  finalization   PRF
+```
+
+層0 は API 上の区切りを byte stream 上の一意な表現にする。
+
+層1 は結合的・combinable・固定長 Summary を担当する。
+
+層2 は層1の代数構造を外へ直接見せず、commit / derive 用の擬似乱数化を担当する。
+
+そして層0 で使う E は、第 4 節で作ったあれである。
+
+ここが気に入っている。あのとき必要だったのは Kraft 完備性だった。「表を環境側に置いて無料で数える」逃げ道を塞ぐために、和がちょうど 1 でなければならなかった。
+
+ここで必要なのは単射性だけである。byte 境界に揃えると Kraft 完備性はそのままでは使わないが、単射性は生き残る。
+
+**同じ符号の別の性質が、別の仕事をしている。**
+
+### できない 2: 鍵は必須
+
+この polynomial accumulator を公開ハッシュとしてそのまま使うことはできない。
+
+鍵 k が公開なら、内部の polynomial 構造を利用して衝突を構成できる。ここで欲しい性質は、秘密の独立鍵をランダムに選んだときの universal-hash 系の衝突 bound である。
+
+1 lane の fixed-pair collision bound は、メッセージ差分多項式の次数に応じておおむね
+
+```text
+Pr_k[collision] <= degree / 2^128
+```
+
+の形になる。
+
+独立鍵を使った 2 lane なら、同じ fixed pair に対する両 lane 同時衝突確率は独立性の下で積になる。
+
+ただし、これは
+
+```text
+256-bit output
+```
+
+や
+
+```text
+2 × independent 128-bit AU lanes
+```
+
+を意味するのであって、方式全体が 256-bit security を持つことを意味しない。
+
+finalizer に AES-128 を使うなら、その PRF 側の鍵強度も 128 bit 級である。
+
+したがって、この設計を表すときは、
+
+```text
+256-bit output
+two independent 128-bit polynomial lanes
+keyed only
+experimental
+```
+
+までを主張する。
+
+「256-bit secure MAC」とは書かない。
+
+鍵なし公開 hash が欲しいなら、その用途を前提として解析された方式を使う。
+
+### できない 3: byte 単位の一般 combine
+
+これが一番効いた。
+
+b が offset t から始まるとき、b の blocking は `t mod 16` に依存する。ところが `summarize(b)` は t = 0 を仮定して計算済みで、b の生 byte はもう持っていない。再ブロック化なしには直せない。
+
+これは固定 block 化を持つ方式に広く現れる境界問題である。BLAKE3 でも tree の node 結合には chunk/block の境界条件がある。
+
+黙って壊れる代わりに、定義域を切った。
+
+```text
+State    byte 単位。buf に端数を持つ。どこで切っても update は厳密
+Summary  block 整合のときだけ意味を持つ。整合 summary は monoid をなす
+```
+
+**端数は Summary ではなく State の持ち物である。** incremental cache は整合境界でキーを切ればよい。
+
+第 8 節の言葉で言い直すとこうなる。**State は prefix 側の未確定情報を運び、Summary は整合済み区間の作用を運んでいる。** 端数は prefix 側の話なので State に置くのが正しい。丸一日混同していたやつが、ここで設計判断になった。
+
+## 13. 逐次代入で削る
+
+代数が決まったので、あとは式変形と代入で落とす。四つの鍵で読める。
+
+### 代入 1: af_pow を popcount 回に
+
+combine は `k^(l₂)` を要求する。素朴には l₂ 回の乗算。
+
+`pw2[i] = k^(2^i)` を 64 個 precompute すると、`k^n` は `popcount(n)` 回で済む。そして木が揃っていて n が 2 冪なら 1 回。
+
+最初は level 表（`k^(8·2^d)` を段ごとに）を持つつもりだったが、pw2 があれば要らなかった。
+
+単発 combine を wall-clock の ns で測ると timer resolution や compiler optimization の影響を受けるので、性能値を出すなら大量反復して cycles/combine を測る。
+
+鍵で言うと、**span を削っている。** combine は木の内部節点なので、深さぶん直列に効く。
+
+### 代入 2: reduction を後回しにする
+
+CLMUL は 128×128 → 256 を作る。それを 128 に落とす reduction が高い。
+
+chunk 内を展開すると
+
+```text
+β = Σ_{i=1..8} k^(8-i+1) · m_i
+```
+
+red は GF(2)-線形なので `red(ΣP_i) = Σ red(P_i)`。carry-less 積を全部 XOR で溜めて、最後に 1 回だけ reduce できる。
+
+これは第 9 節の「carry-less 演算には整数 carry が無い」の二度目の使用である。あそこでは PDEP が消え、ここでは reduction の回数を amortize できる。同じ線形性が二回、違う場所で金を生んでいる。
+
+```text
+naive      3 CLMUL (Karatsuba) + 2 CLMUL (reduce)  = 5.00 / block
+deferred   3 CLMUL + 2/8                           = 3.25 / block   1.54x
+```
+
+鍵で言うと、**work を削っている。**
+
+### 代入 3: 独立鍵 2 レーン
+
+1 lane の field element は 128 bit。出力を 256 bit にしたければ、独立鍵で 2 本走らせる。
+
+fixed pair に対する universal-hash collision は両レーンで同時に起こる必要があるので、独立鍵なら確率 bound は積になる。
+
+これは出力が 256 bit だから 256-bit security、という話ではない。
+
+素朴には演算 work は 2 倍のはずだが、実測は 1.62 倍だった。**二本が互いの CLMUL latency を隠している。** work は増えても、機械の実行資源が未飽和なら wall-clock は比例しない。
+
+第 9 節で「四つの鍵は実時間そのものではない」と書いたやつの実例である。
+
+### 代入 4: 層0 の framing に byte-lane primitive を使う
+
+前半の道具の置き場所は層0である。最終 partial block のゼロ埋めが分岐なしになる。
+
+```c
+uint64_t keep = byte_mask8((uint8_t)((1u << valid) - 1));
+last &= keep;
+```
+
+ただし警告を一つ。**PDEP / PEXT は microarchitecture によって latency と実装が大きく異なる。** 古い AMD Zen 系などでは重い世代がある。
+
+秘密に依存する値を通すなら、性能だけでなく timing behavior も対象 CPU ごとに確認する必要がある。
+
+ここでは framing 長など公開情報だけに使う。
+
+これも粒度の話である。前半で作った道具は byte lane の道具で、鍵は 128 bit field element に住んでいる。住所が違うものを同じ箱に入れない。
+
+### 代入 5: 定数が一本の式で強制されること
+
+第 6 節で `K = select8(0xFF)` が一点から落ちてきた。第 9 節で `C = prefix_xor(1) = ~0` が一本で決まった。解の個数が 1 の行である。
+
+暗号では、定数の自由選択を避ける文脈で nothing-up-my-sleeve number という考え方がある。
+
+| 定数の出所         | 追加の自由選択記述   |
+| ------------------ | -------------------- |
+| magic table        | 大きい               |
+| sqrt of primes     | 生成規則に縮む       |
+| 一本の式で強制     | 選択自由度がない     |
+
+「0 bit」というのは定数そのものの情報量が 0 という意味ではなく、仕様にすでに含まれる条件から一意に導出され、追加の選択肢を持たないという意味である。
+
+自由に選んだ定数が多ければ、その自由度を説明する記述も増える。
+
+第 6 節で「解の個数が自由度を測っている」と書いた。0 / 1 / 502。あれは探索の副産物だと思っていたが、暗号側から見ると別の意味を持つ。
+
+**記述長は、設計者が外から持ち込んだ自由度にも反応する。**
+
+前半の締めが「記述長は借りそこねた量を測っている」だった。同じ量が、定数設計の文脈では「誰かが選べた余地」にも反応する。
+
+これは定理ではなく示唆である。ただ、四つ目の鍵を自分の設計に向けたときに何が見えるかの実例にはなっている。
+
+## 14. 測る
+
+Xeon 2.80GHz、gcc 13.3、`-O2 -maes -mpclmul -msse4.1`、best of 3。
+
+|                    | 1 lane (128-bit field) | 2 lane (256-bit output) |
+| ------------------ | ---------------------- | ----------------------- |
+| update             | 0.60 cyc/byte          | 0.97 cyc/byte           |
+|                    | 4.67 GB/s              | 2.87 GB/s               |
+| serialized summary | 24 byte                | 40 byte                 |
+| C `sizeof(summary)`| 32 byte                | 48 byte                 |
+| context            | 1344 byte              | 2512 byte               |
+
+combine は単発 wall-clock では測定分解能以下になりやすいため、値を出すなら大量反復と dependency chain を用意し、latency と throughput を分けて測る。
+
+照合したもの。
+
+```text
+GF(2^128) の結合・可換・分配・単位元        OK (2e4 triples)
+af_pow == 素朴な k^n                        OK (3e3)
+Aff(R) の結合律と両側単位元                 OK (3e3 triples)
+summarize(a‖b) = combine(..)  整合境界      OK (5e3 splits)
+update: byte 単位、分割不変                 OK (5e3 random splits)
+absorb = apply ∘ summarize                  OK
+derive の純粋性・fork の独立性・label 分離  OK
+framing が "ab" と "a","b" を分離           OK
+ゼロ延長が衝突しない                        OK
+avalanche sanity check                      97..158 / 256
+```
+
+最後の avalanche は実装の sanity check であって、暗号安全性の根拠ではない。
+
+四つの鍵で読み直す。
+
+- span が決めたもの: combine 用の pw2。木の内部で繰り返す exponentiation chain を浅くする
+- work が決めたもの: deferred reduction と 2 lane の scheduling
+- L(z) が見るもの: 木の中間状態を積む方式と fixed-size algebraic Summary の違い
+- rank が見るもの: 実装候補が他の三鍵で完全同着したときの canonical choice。暗号側では直接の速度判断より、定数の自由度を見る補助線として現れた
+
+そして第 9 節と同じことがまた起きている。**2 lane で演算量はほぼ倍なのに、時間は 1.62 倍しか払っていない。** 機械が飽和していないからだ。飽和していればもっと 2 倍へ近づく。
+
+span/work は物理時間そのものではない。物理時間の候補を並べるための構造である。
+
+## 15. 二度出てくるもの
+
+前半と後半で、同じものが違う顔で二回出た。並べて終わる。
+
+**符号 E。** 前半では Kraft 完備性が要った。表を環境側に置いて無料で数える逃げ道を塞ぐため。後半では単射性だけが要る。transcript の境界を可視化するため。同じ符号の別の性質が、別の仕事をしている。
+
+**メモ化の検出。** LUT 2053 byte 対 2 命令 19 byte。`shufctl8` でも 2053 対 27。後半では tree の中間状態を積む方式と fixed-size affine Summary が対立する。どれも、構造を表で持つか、代数から再生成するかの違いである。
+
+**carry-less 演算の線形性。** 前半では lane 隔離が消えた。後半では複数 wide product を XOR して reduction を後回しにできた。同じ algebraic property が違う場所で効いている。
+
+**乗数を選ぶと合成則が決まる。** PDEP を共有して prefix sum と broadcast に分かれた。通常乗算と carry-less 乗算で carry の有無が分かれた。比を 1 と k に分けると additive scan と polynomial accumulation に分かれた。三例で、いちばん遠いのが最後である。
+
+**「できない」も導出が返す。** `select8` は work 2 に解を持たなかった。raw affine layer はそのまま一般 digest として出せない。byte 非整合位置の general combine は raw bytes なしには定義できない。三つとも、「探したけど見つからなかった」だけではなく、式と定義域から理由を出せる。
+
+**粒度が選べるものを決める。** span は宣言した ISA 文法の深さで、bit-level DAG の深さではない。GF(2) の 1-bit scalar には非零係数が 1 しかないが、`GF(2^128)` の field element を一 symbol にすれば大きな鍵空間が出る。前者に二日払い、後者は前者のおかげで一日で済んだ。
+
+## 16. まとめ
+
+- `x * ONES` と `CLMUL(x, ONES)` は、どちらも全 1 の幾何級数 kernel との畳み込みとして prefix scan を作る。通常整数乗算では carry を lane 間へ漏らさないため PDEP の隔離が要り、carry-less 乗算では要らない。**deposit の値段は carry の値段**
+- **span は宣言した計算文法の中の依存深さである。** 乗算器の内部 DAG を ISA が一命令として提供するなら、それを借りる。本稿の span は抽象回路の depth ではない
+- E は正整数の gamma 木を右部分木へ移し、左の一葉を 0 に与えた完全符号。`code(z) = E(|z|)‖z` で Kraft 和ちょうど 1、長さ一意、artifact 一意、strict inverse に加減算なし。空 program が深さ 1 の葉と向き合う
+- 探索では span → work → L(z) → rank の辞書順を目的関数として採用する。これは Brent/Amdahl から唯一強制される順序ではなく、無限並列極限を優先するという設計選択
+- `ranks8` は work 2 で生き残り 502 個、rank が一意に決める。`bytemask8` は解が一意。`select8` は work 2 に解が無い。解の個数 0 / 1 / 502 は自由度の測定値
+- LUT 版は span 2 / work 2 で 2 命令版と同着し、速度も 1% 差。分けるのは記述長で 110.9 倍
+- scan の DAG 族は「どの区間を実体化するか」で読める。必要な reach が k なら `ceil(log2 k)` 段で止めてよい
+- **prefix の共有と未来の共有は別物。** 前者は計算済み prefix の再利用、後者は観測上の状態同値。丸一日混同していた
+- definite でない述語でも有限 monoid に落ちれば scan にできる。引用符 parity は ℤ/2 の scan で、64 bit prefix XOR は `CLMUL(x, ~0)` 1 命令
+- **GF(2) の 1-bit scalar の非零元は 1 しかない。** extension field の element を一 symbol に持ち上げると大きな秘密係数空間が生まれる。鍵には広さが要る
+- 1 block 吸収は `h ↦ kh + km`、h について affine。`Aff(R)` の合成は写像合成なので結合的。prefix XOR は α=1 translation submonoid、polynomial MAC は `(k,km)` の one-block map が生成する monoid
+- `absorb = apply ∘ summarize` は定義から出る。fork は pure squeeze を選んだ結果として state copy に落ちる
+- affine Summary は serialized で 1 lane 24 byte / 2 lane 40 byte の定数サイズ。C struct の `sizeof` は alignment により 32 / 48 byte 程度になる
+- BLAKE3 と比較するなら公式 CV stack 単体ではなく、任意区間を後から再結合するために head/tail と CV stack を保持する BLAKE3 風 Summary と比較する
+- **層の分離は必要。** framing、algebraic compression、final PRF を分ける
+- この polynomial layer は鍵必須。2 lane は 256-bit output と独立 128-bit polynomial lane を与えるが、256-bit security を意味しない
+- **byte 単位の一般 combine は、block alignment 情報と raw boundary bytes なしにはできない。** したがって Summary の定義域を整合境界へ切る
+- deferred reduction は GF(2) 線形性から出る。2 lane は work をほぼ倍にするが、実測時間は 1.62 倍だった
+- avalanche test は実装 sanity check であって security evidence ではない
+- **記述長は、借りそこねた知識だけでなく、設計者が外から持ち込んだ自由度にも反応する。** 一本の式で強制される定数には追加の選択自由度がない
+
+コンパイラは、この手のことを何一つやってくれない。だから今日も惰眠を貪れる。
+
+### 計測環境
+
+前半（lane code、scan）は Intel Xeon @ 2.10GHz (1 vCPU, family 6 model 207), L1d 32 KiB / L2 1 MiB / L3 33 MiB, 3 GiB RAM, Ubuntu 24.04, gcc 13.3.0, `-O2 -mbmi -mbmi2 -mpclmul -msse4.1`。
+
+後半（affine monoid）は Intel Xeon @ 2.80GHz (1 vCPU), L1d 32 KiB / L2 1 MiB / L3 33 MiB, Ubuntu 24.04, gcc 13.3.0, `-O2 -maes -mpclmul -msse4.1`。
+
+**別の機械なので、前半と後半の絶対値を直接比べない。** 相対比較はそれぞれの節の中で閉じている。
+
+各 throughput 測定は 3 回のうち最良。
+
+定数の照合は 256 通りの mask 全数、CLMUL との一致は 10⁵ 語、reach は 0〜6 段すべて。Kraft 和は `fractions.Fraction` で厳密。体の公理は 2×10⁴ 三つ組、monoid の法則は 3×10³ 三つ組、streaming の分割不変性は 5×10³ 乱択分割。
+
+これらは実装照合であり、暗号安全性の証明ではない。
+
+## 17. おまけ 1: lanecode.h
+
+前半で導出したものを全部 C で書き直した。表は一切持っていない。定数は五つで、どれも singleton の方程式から強制されたものである。BMI2 と PCLMUL がある経路と無い経路の両方でビルドして、256 通りの mask 全数と 2×10⁵ 件の乱択で照合してある。
+
+```c
+/* lanecode.h — 8 lane の rank / select と、演算系ごとの prefix scan
+ *
+ * 表は一切持たない。定数はすべて singleton の方程式から強制されたもので、
+ * 256 通りの mask 全数で照合してある。
+ *
+ *   byte_mask8       span 2  work 2
+ *   ranks8           span 2  work 2      lane i はどこへ行くか (scatter)
+ *   select8          span 3  work 3      slot j には誰が来るか (gather)
+ *   shuffle_control8 span 4  work 4      PSHUFB 互換
+ *   prefix_xor64     span 1  work 1      carry-less なので deposit が要らない
+ *
+ * BMI2 / PCLMUL が無い環境向けの移植版も下にある。意味は同じで速度だけ違う。
+ */
+#ifndef LANECODE_H
+#define LANECODE_H
+
+#include <stdint.h>
+#if defined(__BMI2__) || defined(__PCLMUL__)
+#include <immintrin.h>
+#endif
+
+#define LC_DEPOSIT   0x0101010101010101ull
+#define LC_RANK_MUL  0x0101010101010100ull
+#define LC_MASK_MUL  0x00000000000000FFull
+#define LC_IOTA      0x0706050403020100ull
+#define LC_ONES_GF2  0xFFFFFFFFFFFFFFFFull
+
+#define LC_LANES 8
+
+static inline unsigned lc_lane(uint64_t packed, unsigned i)
+{
+    return (unsigned)(packed >> (8u * i)) & 0xFFu;
+}
+
+static inline uint8_t lc_msb_mask8(uint64_t word)
+{
+    uint64_t b = (word & 0x8080808080808080ull) >> 7;
+    return (uint8_t)((b * 0x0102040810204080ull) >> 56);
+}
+
+#if defined(__BMI2__)
+
+static inline uint64_t lc_spread8(uint8_t mask)
+{
+    return _pdep_u64((uint64_t)mask, LC_DEPOSIT);
+}
+
+static inline uint64_t lc_byte_mask8(uint8_t mask)
+{
+    return lc_spread8(mask) * LC_MASK_MUL;
+}
+
+static inline uint64_t lc_ranks8(uint8_t mask)
+{
+    return lc_spread8(mask) * LC_RANK_MUL;
+}
+
+static inline uint64_t lc_select8(uint8_t mask)
+{
+    return _pext_u64(LC_IOTA, lc_spread8(mask) * LC_MASK_MUL);
+}
+
+static inline uint64_t lc_shuffle_control8(uint8_t mask)
+{
+    return ~_pext_u64(~LC_IOTA, lc_spread8(mask) * LC_MASK_MUL);
+}
+
+static inline uint64_t lc_compact8(uint64_t payload, uint8_t mask)
+{
+    return _pext_u64(payload, lc_byte_mask8(mask));
+}
+
+static inline void lc_ranks_and_select8(uint8_t mask, uint64_t *ranks, uint64_t *select)
+{
+    const uint64_t b = lc_spread8(mask);
+    *ranks  = b * LC_RANK_MUL;
+    *select = _pext_u64(LC_IOTA, b * LC_MASK_MUL);
+}
+
+#else
+
+static inline uint64_t lc_spread8(uint8_t mask)
+{
+    uint64_t s = ((uint64_t)mask * 0x8040201008040201ull) & 0x8080808080808080ull;
+    return __builtin_bswap64(s) >> 7;
+}
+
+static inline uint64_t lc_byte_mask8(uint8_t mask) { return lc_spread8(mask) * LC_MASK_MUL; }
+static inline uint64_t lc_ranks8(uint8_t mask)     { return lc_spread8(mask) * LC_RANK_MUL; }
+
+static inline uint64_t lc_select8(uint8_t mask)
+{
+    uint64_t out = 0;
+    unsigned j = 0;
+    for (unsigned i = 0; i < LC_LANES; ++i)
+        if ((mask >> i) & 1u) out |= (uint64_t)i << (8u * j++);
+    return out;
+}
+
+static inline uint64_t lc_shuffle_control8(uint8_t mask)
+{
+    uint64_t out = 0;
+    unsigned j = 0;
+    for (unsigned i = 0; i < LC_LANES; ++i)
+        if ((mask >> i) & 1u) out |= (uint64_t)i << (8u * j++);
+    for (; j < LC_LANES; ++j) out |= 0xFFull << (8u * j);
+    return out;
+}
+
+static inline uint64_t lc_compact8(uint64_t payload, uint8_t mask)
+{
+    uint64_t out = 0;
+    unsigned j = 0;
+    for (unsigned i = 0; i < LC_LANES; ++i)
+        if ((mask >> i) & 1u)
+            out |= ((payload >> (8u * i)) & 0xFFull) << (8u * j++);
+    return out;
+}
+
+static inline void lc_ranks_and_select8(uint8_t mask, uint64_t *ranks, uint64_t *select)
+{
+    *ranks = lc_ranks8(mask);
+    *select = lc_select8(mask);
+}
+
+#endif
+
+static inline uint64_t lc_partition_destinations8(uint8_t mask)
+{
+    const uint64_t r = lc_ranks8(mask);
+    const uint64_t k = (uint64_t)__builtin_popcount(mask);
+    const uint64_t following = (r >> 8) | (k << 56);
+    const uint64_t selected  = (following - r) * 0xFFull;
+    const uint64_t rejected  = k * LC_DEPOSIT + LC_IOTA - r;
+    return rejected ^ ((rejected ^ r) & selected);
+}
+
+#define LC_SCAN(x, steps, OP) \
+    do { unsigned d_ = 1, s_ = 0; \
+         for (; s_ < (unsigned)(steps); ++s_, d_ <<= 1) (x) = OP((x), (x) << d_); \
+    } while (0)
+
+#define LC_OR(a, b)  ((a) | (b))
+#define LC_XOR(a, b) ((a) ^ (b))
+
+static inline unsigned lc_steps_for_reach(unsigned k)
+{
+    unsigned s = 0;
+    while ((1u << s) < k) ++s;
+    return s;
+}
+
+#if defined(__PCLMUL__)
+static inline uint64_t lc_prefix_xor64(uint64_t x)
+{
+    return (uint64_t)_mm_cvtsi128_si64(_mm_clmulepi64_si128(
+        _mm_cvtsi64_si128((long long)x),
+        _mm_set1_epi64x((long long)LC_ONES_GF2), 0));
+}
+#else
+static inline uint64_t lc_prefix_xor64(uint64_t x)
+{
+    LC_SCAN(x, 6, LC_XOR);
+    return x;
+}
+#endif
+
+#endif /* LANECODE_H */
+```
+
+自己照合の結果。
+
+```text
+== BMI2 + PCLMUL ==
+  byte_mask8 / ranks8 / select8 / shuffle_control8 / partition : OK (256 masks)
+  compact8 / prefix_xor64 / LC_SCAN reach                      : OK (2e5 cases)
+  lc_steps_for_reach(1,2,3,8,64) = 0 1 2 3 6
+
+== portable (no BMI2, no PCLMUL) ==
+  byte_mask8 / ranks8 / select8 / shuffle_control8 / partition : OK (256 masks)
+  compact8 / prefix_xor64 / LC_SCAN reach                      : OK (2e5 cases)
+  lc_steps_for_reach(1,2,3,8,64) = 0 1 2 3 6
+```
+
+`lc_steps_for_reach` の出力が、前半でいちばん気に入っている行である。k = 1 で 0 段。完全未来が末尾 1 要素で決まるなら、scan は要らない。
+
+## 18. おまけ 2: affine.h
+
+後半の実装。研究用プロトタイプであり、標準暗号の代替として使うものではない。
+
+2 lane = 256 bit output であって、256-bit security の主張ではない。
+
+```c
+/* affine.h — experimental affine polynomial transcript primitive
+ *
+ * NOT FOR PRODUCTION CRYPTOGRAPHIC USE.
+ *
+ * 代数
+ *   1 block 吸収は h ↦ k·h + k·m、h について affine。
+ *   一般の affine map は x ↦ αx+β。
+ *
+ *   translation α=1 は加法 monoid。
+ *   polynomial accumulator は one-block map (k, km) を反復合成し、
+ *   l block summary の linear part は k^l になる。
+ *
+ * 層
+ *   0  framing
+ *   1  affine compression / combinable summary
+ *   2  final PRF
+ *
+ * State
+ *   byte 単位。buf に端数を持つ。
+ *
+ * Summary
+ *   block 整合位置だけで定義。
+ *
+ * AF_LANES=1:
+ *   serialized summary = 8 + 16 = 24 byte
+ *
+ * AF_LANES=2:
+ *   serialized summary = 8 + 32 = 40 byte
+ *
+ * C struct の sizeof は alignment により通常これより大きい。
+ */
+#ifndef AFFINE_H
+#define AFFINE_H
+
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdbool.h>
+#include <assert.h>
+#include <wmmintrin.h>
+#include <emmintrin.h>
+
+#ifndef AF_LANES
+#define AF_LANES 2
+#endif
+
+#define AF_CHUNK 8
+#define AF_KEYBYTES (16 * AF_LANES + 16)
+#define AF_OUTBYTES (16 * AF_LANES)
+
+/* ---- GF(2^128), x^128 + x^7 + x^2 + x + 1 ------------------------------ */
+
+static inline void af_mul_wide(__m128i a, __m128i b, __m128i *lo, __m128i *hi)
+{
+    __m128i t0 = _mm_clmulepi64_si128(a, b, 0x00);
+    __m128i t1 = _mm_clmulepi64_si128(a, b, 0x11);
+    __m128i ax = _mm_xor_si128(a, _mm_srli_si128(a, 8));
+    __m128i bx = _mm_xor_si128(b, _mm_srli_si128(b, 8));
+    __m128i t2 = _mm_clmulepi64_si128(ax, bx, 0x00);
+    t2 = _mm_xor_si128(t2, _mm_xor_si128(t0, t1));
+    *lo = _mm_xor_si128(t0, _mm_slli_si128(t2, 8));
+    *hi = _mm_xor_si128(t1, _mm_srli_si128(t2, 8));
+}
+
+static inline __m128i af_reduce(__m128i lo, __m128i hi)
+{
+    const __m128i p = _mm_cvtsi64_si128(0x87);
+    __m128i t = _mm_clmulepi64_si128(hi, p, 0x01);
+    lo = _mm_xor_si128(lo, _mm_slli_si128(t, 8));
+    hi = _mm_xor_si128(hi, _mm_srli_si128(t, 8));
+    t = _mm_clmulepi64_si128(hi, p, 0x00);
+    return _mm_xor_si128(lo, t);
+}
+
+static inline __m128i af_mul(__m128i a, __m128i b)
+{
+    __m128i lo, hi;
+    af_mul_wide(a, b, &lo, &hi);
+    return af_reduce(lo, hi);
+}
+
+/* ---- context ----------------------------------------------------------- */
+
+typedef struct {
+    __m128i pow[AF_LANES][AF_CHUNK + 1];
+    __m128i pw2[AF_LANES][64];
+    __m128i fin[11];
+} af_ctx;
+
+typedef struct {
+    __m128i h[AF_LANES];
+    uint64_t blocks;
+    uint8_t buf[16];
+    uint8_t buflen;
+} af_state;
+
+typedef struct {
+    uint64_t blocks;
+    __m128i beta[AF_LANES];
+} af_summary;
+
+static void af_aes_expand(__m128i k, __m128i out[11]);
+
+static void af_init_ctx(af_ctx *c, const uint8_t key[AF_KEYBYTES])
+{
+    for (unsigned L = 0; L < AF_LANES; ++L) {
+        __m128i k = _mm_loadu_si128((const __m128i *)(key + 16 * L));
+        c->pow[L][0] = _mm_cvtsi64_si128(1);
+        for (unsigned i = 1; i <= AF_CHUNK; ++i)
+            c->pow[L][i] = af_mul(c->pow[L][i - 1], k);
+        c->pw2[L][0] = k;
+        for (unsigned i = 1; i < 64; ++i)
+            c->pw2[L][i] = af_mul(c->pw2[L][i - 1], c->pw2[L][i - 1]);
+    }
+    af_aes_expand(
+        _mm_loadu_si128((const __m128i *)(key + 16 * AF_LANES)),
+        c->fin
+    );
+}
+
+static inline __m128i af_pow(const af_ctx *c, unsigned L, uint64_t n)
+{
+    __m128i r = _mm_cvtsi64_si128(1);
+    for (unsigned i = 0; n; ++i, n >>= 1)
+        if (n & 1)
+            r = af_mul(r, c->pw2[L][i]);
+    return r;
+}
+
+/* ---- 層1 core --------------------------------------------------------- */
+
+static void af_absorb_blocks(const af_ctx *c, __m128i h[AF_LANES],
+                             const uint8_t *m, size_t nblocks)
+{
+    size_t i = 0;
+    while (nblocks - i >= AF_CHUNK) {
+        for (unsigned L = 0; L < AF_LANES; ++L) {
+            __m128i lo, hi;
+            af_mul_wide(
+                _mm_xor_si128(
+                    h[L],
+                    _mm_loadu_si128((const __m128i *)(m + 16 * i))
+                ),
+                c->pow[L][AF_CHUNK],
+                &lo, &hi
+            );
+            for (unsigned j = 1; j < AF_CHUNK; ++j) {
+                __m128i l2, h2;
+                af_mul_wide(
+                    _mm_loadu_si128(
+                        (const __m128i *)(m + 16 * (i + j))
+                    ),
+                    c->pow[L][AF_CHUNK - j],
+                    &l2, &h2
+                );
+                lo = _mm_xor_si128(lo, l2);
+                hi = _mm_xor_si128(hi, h2);
+            }
+            h[L] = af_reduce(lo, hi);
+        }
+        i += AF_CHUNK;
+    }
+    for (; i < nblocks; ++i) {
+        __m128i blk =
+            _mm_loadu_si128((const __m128i *)(m + 16 * i));
+        for (unsigned L = 0; L < AF_LANES; ++L)
+            h[L] =
+                af_mul(
+                    _mm_xor_si128(h[L], blk),
+                    c->pow[L][1]
+                );
+    }
+}
+
+/* ---- 層1 monoid ------------------------------------------------------- */
+
+static inline af_summary af_unit(void)
+{
+    af_summary s;
+    s.blocks = 0;
+    for (unsigned L = 0; L < AF_LANES; ++L)
+        s.beta[L] = _mm_setzero_si128();
+    return s;
+}
+
+/*
+ * Summary は 16-byte aligned interval にのみ定義。
+ * 定義域外を unit として黙って受理してはいけない。
+ */
+static bool af_summarize(const af_ctx *c, const uint8_t *m, size_t n,
+                         af_summary *out)
+{
+    if (n % 16)
+        return false;
+    af_summary s = af_unit();
+    af_absorb_blocks(c, s.beta, m, n / 16);
+    s.blocks = n / 16;
+    *out = s;
+    return true;
+}
+
+static inline af_summary af_combine(const af_ctx *c,
+                                    af_summary x,
+                                    af_summary y)
+{
+    af_summary z;
+    z.blocks = x.blocks + y.blocks;
+    for (unsigned L = 0; L < AF_LANES; ++L)
+        z.beta[L] =
+            _mm_xor_si128(
+                af_mul(x.beta[L], af_pow(c, L, y.blocks)),
+                y.beta[L]
+            );
+    return z;
+}
+
+/*
+ * apply は state 自身も block boundary にいる必要がある。
+ */
+static inline bool af_apply(const af_ctx *c,
+                            af_state *s,
+                            af_summary y)
+{
+    if (s->buflen != 0)
+        return false;
+    for (unsigned L = 0; L < AF_LANES; ++L)
+        s->h[L] =
+            _mm_xor_si128(
+                af_mul(s->h[L], af_pow(c, L, y.blocks)),
+                y.beta[L]
+            );
+    s->blocks += y.blocks;
+    return true;
+}
+
+static inline af_state af_fork(af_state s)
+{
+    return s;
+}
+
+/* ---- byte streaming --------------------------------------------------- */
+
+static void af_update(const af_ctx *c, af_state *s,
+                      const uint8_t *m, size_t n)
+{
+    if (s->buflen) {
+        size_t need = 16u - s->buflen;
+        size_t take = n < need ? n : need;
+        memcpy(s->buf + s->buflen, m, take);
+        s->buflen = (uint8_t)(s->buflen + take);
+        m += take;
+        n -= take;
+        if (s->buflen < 16)
+            return;
+        af_absorb_blocks(c, s->h, s->buf, 1);
+        s->blocks += 1;
+        s->buflen = 0;
+    }
+    size_t full = n / 16;
+    if (full) {
+        af_absorb_blocks(c, s->h, m, full);
+        s->blocks += full;
+        m += full * 16;
+        n -= full * 16;
+    }
+    if (n) {
+        memcpy(s->buf, m, n);
+        s->buflen = (uint8_t)n;
+    }
+}
+
+/* ---- 層0 framing ------------------------------------------------------ */
+
+static size_t af_encode_len(uint64_t n, uint8_t out[17])
+{
+    memset(out, 0, 17);
+    if (n == 0)
+        return 1;
+    unsigned k =
+        63u - (unsigned)__builtin_clzll(n);
+    size_t p = 0;
+#define AF_PUT(b) \
+    do { \
+        out[p >> 3] |= \
+            (uint8_t)((b) << (7 - (p & 7))); \
+        ++p; \
+    } while (0)
+    AF_PUT(1);
+    for (unsigned i = 0; i < k; ++i)
+        AF_PUT(0);
+    for (int i = (int)k; i >= 0; --i)
+        AF_PUT((n >> i) & 1);
+#undef AF_PUT
+    return (2u * k + 2u + 7u) / 8u;
+}
+
+static void af_absorb_framed(const af_ctx *c,
+                             af_state *s,
+                             const uint8_t *m,
+                             size_t n)
+{
+    uint8_t hdr[17];
+    size_t hl = af_encode_len(n, hdr);
+    af_update(c, s, hdr, hl);
+    af_update(c, s, m, n);
+}
+
+static af_state af_init(const af_ctx *c,
+                        const uint8_t *domain,
+                        size_t dlen)
+{
+    af_state s;
+    memset(&s, 0, sizeof s);
+    for (unsigned L = 0; L < AF_LANES; ++L)
+        s.h[L] = _mm_setzero_si128();
+    af_absorb_framed(c, &s, domain, dlen);
+    return s;
+}
+
+/* ---- 層2 final PRF ---------------------------------------------------- */
+
+#define AF_KEYSTEP(i, rc) do { \
+    __m128i t = _mm_aeskeygenassist_si128(out[i - 1], rc); \
+    t = _mm_shuffle_epi32(t, 0xFF); \
+    __m128i v = out[i - 1]; \
+    v = _mm_xor_si128(v, _mm_slli_si128(v, 4)); \
+    v = _mm_xor_si128(v, _mm_slli_si128(v, 4)); \
+    v = _mm_xor_si128(v, _mm_slli_si128(v, 4)); \
+    out[i] = _mm_xor_si128(v, t); \
+} while (0)
+
+static void af_aes_expand(__m128i k, __m128i out[11])
+{
+    out[0] = k;
+    AF_KEYSTEP(1,  0x01);
+    AF_KEYSTEP(2,  0x02);
+    AF_KEYSTEP(3,  0x04);
+    AF_KEYSTEP(4,  0x08);
+    AF_KEYSTEP(5,  0x10);
+    AF_KEYSTEP(6,  0x20);
+    AF_KEYSTEP(7,  0x40);
+    AF_KEYSTEP(8,  0x80);
+    AF_KEYSTEP(9,  0x1B);
+    AF_KEYSTEP(10, 0x36);
+}
+#undef AF_KEYSTEP
+
+static inline __m128i af_prf(const af_ctx *c, __m128i x)
+{
+    x = _mm_xor_si128(x, c->fin[0]);
+    for (unsigned r = 1; r < 10; ++r)
+        x = _mm_aesenc_si128(x, c->fin[r]);
+    return _mm_aesenclast_si128(x, c->fin[10]);
+}
+
+static void af_squeeze(const af_ctx *c,
+                       af_state s,
+                       uint64_t tweak,
+                       uint8_t *out,
+                       size_t n)
+{
+    uint8_t tail[16] = {0};
+    uint8_t taillen = s.buflen;
+    if (taillen) {
+        memcpy(tail, s.buf, taillen);
+        af_absorb_blocks(c, s.h, tail, 1);
+        s.blocks += 1;
+    }
+    uint8_t fin[16] = {0};
+    memcpy(fin, &s.blocks, 8);
+    fin[8] = taillen;
+    af_absorb_blocks(c, s.h, fin, 1);
+
+    for (uint64_t ctr = 0; n; ++ctr) {
+        unsigned L = (unsigned)(ctr % AF_LANES);
+        __m128i x =
+            _mm_xor_si128(
+                s.h[L],
+                _mm_set_epi64x(
+                    (int64_t)tweak,
+                    (int64_t)(
+                        (ctr / AF_LANES) * AF_LANES + L
+                    )
+                )
+            );
+        uint8_t t[16];
+        _mm_storeu_si128(
+            (__m128i *)t,
+            af_prf(c, x)
+        );
+        size_t take = n < 16 ? n : 16;
+        memcpy(out, t, take);
+        out += take;
+        n -= take;
+    }
+}
+
+static inline void af_commit(const af_ctx *c,
+                             af_state s,
+                             uint8_t out[AF_OUTBYTES])
+{
+    af_squeeze(c, s, 0, out, AF_OUTBYTES);
+}
+
+static void af_derive(const af_ctx *c,
+                      af_state s,
+                      const uint8_t *label,
+                      size_t llen,
+                      uint8_t *out,
+                      size_t n)
+{
+    af_absorb_framed(c, &s, label, llen);
+    af_squeeze(c, s, 1, out, n);
+}
+
+#endif /* AFFINE_H */
+```
+
+自己照合の結果。
+
+```text
+AF_LANES=1  output=16 byte
+  GF(2^128) assoc/comm/distrib/id (2e4)          OK
+  af_pow == naive k^n (3e3)                      OK
+  Aff(R) assoc + two-sided identity (3e3)        OK
+  summarize(a||b)=combine(..) aligned (5e3)      OK
+  update: byte-granular, split-invariant (5e3)   OK
+  absorb = apply o summarize                     OK
+  derive pure; fork independent; labels split    OK
+  framing separates "ab" vs "a","b"              OK
+  zero-extension does not collide                OK
+  avalanche sanity check                         44..84 / 128
+  update  64.0 MiB  14.4 ms  4.67 GB/s  0.60 cyc/byte
+
+AF_LANES=2  output=32 byte
+  （同じ 10 項目すべて OK）
+  avalanche sanity check                         97..158 / 256
+  update  64.0 MiB  23.4 ms  2.87 GB/s  0.97 cyc/byte
+```
+
+### まだ埋まっていない穴
+
+正直に書いておく。
+
+まず、この affine 構成全体についての security proof が無い。
+
+field arithmetic と monoid law が正しいこと、streaming の分割不変性が通ること、fixed-pair の polynomial collision bound が書けることと、実際の transcript/MAC/KDF API 全体の安全性は別問題である。
+
+したがって現状は experimental / not for cryptographic use である。
+
+**nonce / context の再利用。** 同じ鍵で複数 transcript を走らせるなら、domain framing で必ず用途を分けること。内部 β は外へ出さない。
+
+**鍵分離。** polynomial lane の鍵と final AES key は独立に導出した方がよい。`AF_KEYBYTES` に独立 raw key を詰めるだけでなく、一つの master key から明示的な label 付き KDF で分離する設計を詰める必要がある。
+
+**AES-128 finalizer。** 2 lane で output は 256 bit になるが、AES 側まで含めた方式全体を 256-bit security と呼ぶことはできない。
+
+**PCLMUL 非搭載環境。** 現在 fallback が無い。bitsliced な `GF(2^128)` は書けるが大幅に遅くなるので、その環境では別方式を使う方がよい。
+
+**benchmark。** combine は大量反復し、結果を optimizer から逃がし、latency chain と independent throughput の両方を測る。単発 wall-clock の値は使わない。
+
+**test と proof を混ぜない。** field law、monoid law、random split、avalanche test は実装の誤りを探すためのもの。暗号安全性の証明ではない。
