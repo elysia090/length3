@@ -62,5 +62,11 @@ describe('buildBlogCatalog', () => {
         .find(({ route }) => route.name === 'shared')
         ?.processedPosts.map((post) => post.slug),
     ).toEqual(['newest', 'middle', 'oldest']);
+    // 台帳番号は古い順。新しい記事が足されても既存の番号は動かない。
+    expect([...catalog.catalogNumbers]).toEqual([
+      ['newest', 3],
+      ['middle', 2],
+      ['oldest', 1],
+    ]);
   });
 });

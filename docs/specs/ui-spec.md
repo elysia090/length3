@@ -35,12 +35,22 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 ### Index Page Layout
 
 ```
-┌─────────────────────────────┬──────────────┐
+┌────────────────────────────────────────────┐
+│  Lead — newest article, dark, both columns ╱
+├─────────────────────────────┬──────────────┤
 │     Article list (1fr)      │  Sidebar     │
 │                             │  280px       │
-│                             │  Search only │
 └─────────────────────────────┴──────────────┘
 ```
+
+**The lead.** The newest article is not the first row of the list; it is the one dark surface on the paper, spanning both columns. The index is the screen readers see most, and a list of equal rows gives it no figure at all — the eye has nowhere to land, so it lands nowhere. One large mass gives every row under it a scale to be read against. It also stitches the header and the list, two unremarkable halves, into one picture.
+
+- Background: `--code-bg` family, lifted towards blue-grey around the light source rather than sunk to black — the dark should glow, not recede.
+- The only light is the article's volume cube (below). The ground falls off radially from it, and the title's luminance falls off with distance from it (brightest at the right). The darkest end of the title stays above 9:1 against the surface.
+- The bottom-right corner is cut on a diagonal (`clip-path`). The surface is still a rectangle; the outline reads as a wedge, and the diagonal pushes the eye in the reading direction.
+- On narrow screens the surface bleeds past the page gutter to both screen edges. Inside the gutter it reads as a box; edge to edge it reads as a mass.
+- It sits above the texture (`--z-surface`). Contour lines over a dark surface read as dirt, not light.
+- It carries the class `article-lead`, not `article-card`, so the reveal control counts and collapses only the rows beneath it.
 
 Two columns. No left gutter — the content area's own left padding provides the margin. The sidebar is separated from the main column by a single 1px rule (`var(--rule)`). The sidebar contains **search and nothing else**. Tags, statistics, and category listings each live on their own dedicated page. Placing them in the sidebar would create a secondary reading surface that competes with the article list.
 
@@ -235,7 +245,13 @@ The mark it replaced drew a full-size `3` beside the `L` **and** an amber `3` ab
 
 ### Article List Item
 
-**Grid:** `80px` date column + `1fr` content column, with a `24px` gap.
+**Grid:** `64px` catalogue number + `1fr` content + `80px` volume, `24px` gaps. Below 640px the number moves above the content and the volume column narrows to 56px.
+
+**Catalogue number:** `No. 008`. Fraunces italic, oldstyle figures, Ink-3. Counted from the oldest article, so adding an article never renumbers the others; a tag page shows the same number for the same article. It is decoration and is `aria-hidden`.
+
+**Volume:** the reading time drawn as a cube whose edge is its cube root, scaled so the longest article on the site gets half the box. The projection is dimetric, not isometric (16° at 0.94 to the right, 42° at 0.6 to the left): an isometric cube fits a regular hexagon and reads as an icon. At rest all twelve edges are drawn with one stroke — a Necker cube, whose front and back keep swapping. On hover or focus within the item the three faces fill with halftone (2/16, 4/16, 8/16 dots on paper), hiding the three back edges, and the shape settles. That fill is a state switch, not a transition, so it takes no time. Cubes are bottom-aligned: down the list their sizes are uneven but their ground line is the same. The caption under it is the reading time (`68 min`) and the edge (`4.08³`, `aria-hidden`).
+
+The old date column is gone; the date sits above the title in the content column.
 
 **Date column:**
 
@@ -286,7 +302,7 @@ This does not contradict the search overlay's ban on `backdrop-filter` (below). 
 
 ### Topic List (Index Sidebar)
 
-**Rows:** JetBrains Mono, 0.75rem, `letter-spacing: 0.06em`. Topic name left, article count right, `padding: 14px 0`, `border-bottom: 1px solid var(--rule)`. Sorted by count, descending.
+**Rows:** set like the index at the back of a book. Fraunces 1rem, topic name left, a dotted leader, the count right in oldstyle figures. No rules between rows — seven rules took up more area than the words. 44px tall where the pointer is a finger, 32px where it is fine. Sorted by count, descending.
 
 **Disclosure:** only the **top 6** topics render as open rows. The remainder collapse into a native `<details>` whose `<summary>` is styled as one more row — `+N more` when closed, `Show less` when open, with a `+` glyph that rotates 45° into a `×`. The summary is 44px tall, matching the tap-target minimum.
 
@@ -330,7 +346,7 @@ The button lives in a wrapper the script places around the `<pre>`, not inside i
 
 **Trigger:** `/` keyboard shortcut (when no input is focused), or a search icon in the nav bar (mobile).
 
-The sidebar trigger is a pill 44px tall where a finger is the pointer, and **36px where the pointer is fine** — with a lighter border to match. 44px is the touch-target floor, not a look; carried onto a desktop sidebar it made a thick capsule hanging beside the article list, heavier than any type on the page. WCAG 2.5.8's floor for a mouse is 24px, so 36px keeps room to spare. The pill shape and the amber lens say it is pressable; the border does not have to shout it as well.
+The sidebar trigger is not a box. It is one rule on the paper with a half-written line on it: an amber lens, the placeholder in Fraunces italic (the same reason the modal's field uses the heading face), and the `/` key. 44px tall where a finger is the pointer, 40px where it is fine. The pill it replaced was the only "component" floating next to the article list. (History: the pill was 44px tall where a finger is the pointer, and **36px where the pointer is fine** — with a lighter border to match.) 44px is the touch-target floor, not a look; carried onto a desktop sidebar it made a thick capsule hanging beside the article list, heavier than any type on the page. WCAG 2.5.8's floor for a mouse is 24px, so 36px keeps room to spare. The pill shape and the amber lens say it is pressable; the border does not have to shout it as well.
 
 **Overlay:** `rgba(28, 26, 24, 0.6)`. Solid dim, no `backdrop-filter: blur()`. Blur is a visual effect that serves the interface's aesthetics, not the reader's task. The overlay's purpose is to suppress the page beneath the modal, and a solid dim achieves that directly.
 
@@ -379,7 +395,7 @@ Animation exists only to communicate state change or to guide the eye. If an ani
 | Search modal close | opacity             | 100ms    | ease-in  |
 | Button hover       | color               | 80ms     | ease     |
 
-No other transitions exist. This list is exhaustive.
+No other transitions exist. This list is exhaustive. (The volume cube filling on hover is a state switch with no duration, not a transition.)
 
 ### Scroll Behavior
 

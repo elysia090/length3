@@ -1,13 +1,18 @@
 ---
 import type { ProcessedPost } from './types';
 import { formatDate } from './utils';
+import VolumeCube from './VolumeCube.astro';
 import { formatCompactReadingTime, getSiteCopy } from '../../i18n/site-copy';
 
 interface Props {
   post: ProcessedPost;
+  /** 台帳番号。古い順に 1 から。 */
+  number: number;
+  /** 一覧でいちばん長い記事の読了時間。立方体の物差し。 */
+  maxReadingTime: number;
 }
 
-const { post } = Astro.props;
+const { post, number, maxReadingTime } = Astro.props;
 const { entry, slug, readingTime, description, tags: tagLinks } = post;
 const { title, publishDate, lang } = entry.data;
 
@@ -15,43 +20,51 @@ const dateStr = formatDate(publishDate, lang);
 const visibleTagLinks = tagLinks.slice(0, 4);
 const hiddenTagCount = Math.max(0, tagLinks.length - visibleTagLinks.length);
 const copy = getSiteCopy(lang);
+const root = Math.cbrt(Math.max(readingTime, 1)).toFixed(2);
 ---
 
 <!-- SC 3.1.2: lang attr ensures AT uses correct phonetic rules for card language -->
 <article class="article-card" lang={lang}>
-  <div class="card-meta">
-    <time datetime={publishDate.toISOString()} class="card-date">{dateStr}</time>
+  <p class="card-no" aria-hidden="true">No.&thinsp;{String(number).padStart(3, '0')}</p>
+  <div class="card-body">
+    <div class="card-meta">
+      <time datetime={publishDate.toISOString()} class="card-date">{dateStr}</time>
+    </div>
+    <h2 class="card-title">
+      <a href={`/${slug}`}>{title}</a>
+    </h2>
+    {description && <p class="card-excerpt">{description}</p>}
     {
-      readingTime > 0 && (
-        <>
-          <span class="card-meta-sep" aria-hidden="true">
-            —
-          </span>
-          <span class="card-reading-time">{formatCompactReadingTime(readingTime, lang)}</span>
-        </>
+      visibleTagLinks.length > 0 && (
+        <ul class="card-tags tag-pill-list" aria-label={copy.tags}>
+          {visibleTagLinks.map((tag) => (
+            <li>
+              <a href={tag.href} class="tag-pill">
+                #{tag.name}
+              </a>
+            </li>
+          ))}
+          {hiddenTagCount > 0 && (
+            <li>
+              <span class="tag-pill tag-pill-overflow">+{hiddenTagCount}</span>
+            </li>
+          )}
+        </ul>
       )
     }
   </div>
-  <h2 class="card-title">
-    <a href={`/${slug}`}>{title}</a>
-  </h2>
-  {description && <p class="card-excerpt">{description}</p>}
   {
-    visibleTagLinks.length > 0 && (
-      <ul class="card-tags tag-pill-list" aria-label={copy.tags}>
-        {visibleTagLinks.map((tag) => (
-          <li>
-            <a href={tag.href} class="tag-pill">
-              #{tag.name}
-            </a>
-          </li>
-        ))}
-        {hiddenTagCount > 0 && (
-          <li>
-            <span class="tag-pill tag-pill-overflow">+{hiddenTagCount}</span>
-          </li>
-        )}
-      </ul>
+    readingTime > 0 && (
+      <figure class="card-volume">
+        <VolumeCube minutes={readingTime} max={maxReadingTime} size={72} />
+        <figcaption class="card-volume-caption">
+          <span class="card-reading-time">{formatCompactReadingTime(readingTime, lang)}</span>
+          <span class="card-volume-root" aria-hidden="true">
+            {root}
+            <sup>3</sup>
+          </span>
+        </figcaption>
+      </figure>
     )
   }
 </article>

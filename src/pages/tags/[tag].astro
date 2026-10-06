@@ -6,6 +6,7 @@ import { getBlogCatalog } from '../../features/blog/catalog';
 import type { ProcessedPost, TagRoute } from '../../features/blog/types';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ArticleCard from '../../features/blog/ArticleCard.astro';
+import VolumeDefs from '../../features/blog/VolumeDefs.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
@@ -22,6 +23,8 @@ const { route, processedPosts } = Astro.props as {
   route: TagRoute;
   processedPosts: ProcessedPost[];
 };
+// 番号と物差しはサイト全体のもの。タグで絞っても同じ記事は同じ番号、同じ大きさ。
+const { catalogNumbers, maxReadingTime } = await getBlogCatalog();
 ---
 
 <BaseLayout title={`${route.name} — Length³`}>
@@ -35,8 +38,17 @@ const { route, processedPosts } = Astro.props as {
       </p>
       <hr class="amber-rule" />
     </header>
+    <VolumeDefs />
     <section aria-label={`Articles tagged ${route.name}`}>
-      {processedPosts.map((post) => <ArticleCard post={post} />)}
+      {
+        processedPosts.map((post) => (
+          <ArticleCard
+            post={post}
+            number={catalogNumbers.get(post.slug) ?? 0}
+            maxReadingTime={maxReadingTime}
+          />
+        ))
+      }
     </section>
   </main>
   <Footer />

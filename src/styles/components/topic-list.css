@@ -4,32 +4,33 @@
 }
 
 .topic-list-heading {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--font-ui-xs);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
+/* 本の巻末の索引の組み方。語と数を点のリーダーで結び、行ごとの罫は
+   引かない。罫を 7 本引くと、語より罫のほうが面積を取る。数は本文の
+   ページ番号と同じオールドスタイル数字。 */
 .topic-list-items {
   list-style: none;
   padding: 0;
   margin: 0;
-  border-top: 0.0625rem solid var(--rule);
 }
 
 .topic-list-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  align-items: baseline;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.875rem 0;
-  border-bottom: 0.0625rem solid var(--rule);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
+  /* 44px — spec §8: タップターゲット下限。細いポインタでは下で詰める。 */
+  min-height: 2.75rem;
+  padding: 0.625rem 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
   color: var(--ink);
   touch-action: manipulation;
   transition: color var(--transition-fast);
@@ -46,11 +47,31 @@
   overflow-wrap: anywhere;
 }
 
+/* リーダー。語の後ろから数の手前までを、2px おきの点で埋める。 */
+.topic-list-item::after {
+  content: '';
+  order: 1;
+  flex: 1;
+  min-width: 1rem;
+  height: 0.125rem;
+  background: radial-gradient(circle, var(--ink-3) 0.5px, transparent 0.75px) 0 0 / 0.25rem
+    0.125rem repeat-x;
+}
+
 .topic-list-count {
+  order: 2;
   flex-shrink: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-variant-numeric: oldstyle-nums;
   color: var(--ink-2);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .topic-list-item {
+    min-height: 2rem;
+    padding: 0.25rem 0;
+  }
 }
 
 /* 上位 6 件のみ常時表示し、残りは <details> で展開する。
@@ -69,12 +90,11 @@
   align-items: center;
   gap: 0.5rem;
   min-height: 2.75rem; /* 44px — spec §8: タップターゲット下限 */
-  padding: 0.875rem 0;
-  border-bottom: 0.0625rem solid var(--rule);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  color: var(--ink-2);
+  padding: 0.625rem 0;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-style: italic;
+  color: var(--ink-3);
   cursor: pointer;
   list-style: none;
   touch-action: manipulation;

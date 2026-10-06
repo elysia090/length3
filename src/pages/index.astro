@@ -5,20 +5,34 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import ArticleCard from '../features/blog/ArticleCard.astro';
+import ArticleLead from '../features/blog/ArticleLead.astro';
+import VolumeDefs from '../features/blog/VolumeDefs.astro';
 import TopicList from '../features/blog/TopicList.astro';
 import SearchPanel from '../features/search/SearchPanel.astro';
 import { getBlogCatalog } from '../features/blog/catalog';
 import { getSiteCopy } from '../i18n/site-copy';
 
-const { processedPosts, topics } = await getBlogCatalog();
+const { processedPosts, topics, catalogNumbers, maxReadingTime } = await getBlogCatalog();
+const [lead, ...rest] = processedPosts;
+const numberOf = (slug: string) => catalogNumbers.get(slug) ?? 0;
 const copy = getSiteCopy('en');
 ---
 
 <BaseLayout title="Length³" description="A technical blog.">
   <Header />
   <main class="index-layout" id="main-content">
+    <VolumeDefs />
+    {
+      lead && (
+        <ArticleLead post={lead} number={numberOf(lead.slug)} maxReadingTime={maxReadingTime} />
+      )
+    }
     <section class="article-list" aria-label="Articles" id="article-list">
-      {processedPosts.map((post) => <ArticleCard post={post} />)}
+      {
+        rest.map((post) => (
+          <ArticleCard post={post} number={numberOf(post.slug)} maxReadingTime={maxReadingTime} />
+        ))
+      }
 
       <!--
         畳むのは JS が動いたときだけ。サーバは全件を出しているので、

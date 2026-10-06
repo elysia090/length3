@@ -4,6 +4,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
+    'lead'
     'list'
     'side';
   gap: 0;
@@ -161,7 +162,10 @@
 @media (min-width: 52.5rem) {
   .index-layout {
     grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
-    grid-template-areas: 'list side';
+    /* 頭の 1 本は両方の列にまたがる。検索はその下、一覧の 1 行目と並ぶ。 */
+    grid-template-areas:
+      'lead lead'
+      'list side';
     gap: 0 var(--layout-gap);
     padding-block: 2rem 4rem;
   }

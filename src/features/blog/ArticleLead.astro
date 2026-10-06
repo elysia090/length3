@@ -1,0 +1,75 @@
+---
+import type { ProcessedPost } from './types';
+import { formatDate } from './utils';
+import VolumeCube from './VolumeCube.astro';
+import { formatCompactReadingTime, getSiteCopy } from '../../i18n/site-copy';
+
+/**
+ * 一覧の頭に置く、いちばん新しい記事。
+ *
+ * 紙の上に暗い面を一枚、二段組の両方の列にまたがせて置く。上の見出しと
+ * 下の一覧という、どちらも平凡な二つを一つの塊で縫い合わせるための面。
+ * 右下を斜めに断ち落とし、四角を楔に見せる。
+ *
+ * 光源は面の中にある立方体で、それ以外に照明はない。地の明るさも題字の
+ * 明るさも立方体からの距離で落ちる。落ち方は可読性の下限（9:1）で止める。
+ */
+interface Props {
+  post: ProcessedPost;
+  number: number;
+  maxReadingTime: number;
+}
+
+const { post, number, maxReadingTime } = Astro.props;
+const { entry, slug, readingTime, description, tags: tagLinks } = post;
+const { title, publishDate, lang } = entry.data;
+const copy = getSiteCopy(lang);
+const visibleTagLinks = tagLinks.slice(0, 4);
+const root = Math.cbrt(Math.max(readingTime, 1)).toFixed(2);
+---
+
+<article class="article-lead" lang={lang}>
+  <div class="lead-body">
+    <p class="lead-no" aria-hidden="true">No.&thinsp;{String(number).padStart(3, '0')}</p>
+    <div class="lead-meta">
+      <time datetime={publishDate.toISOString()}>{formatDate(publishDate, lang)}</time>
+    </div>
+    <h2 class="lead-title">
+      <a href={`/${slug}`}>{title}</a>
+    </h2>
+    {description && <p class="lead-excerpt">{description}</p>}
+    {
+      visibleTagLinks.length > 0 && (
+        <ul class="lead-tags tag-pill-list" aria-label={copy.tags}>
+          {visibleTagLinks.map((tag) => (
+            <li>
+              <a href={tag.href} class="tag-pill">
+                #{tag.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </div>
+  {
+    readingTime > 0 && (
+      <figure class="lead-volume">
+        <VolumeCube
+          minutes={readingTime}
+          max={maxReadingTime}
+          size={208}
+          tone="lamp"
+          reach={0.62}
+        />
+        <figcaption class="lead-volume-caption">
+          <span>{formatCompactReadingTime(readingTime, lang)}</span>
+          <span aria-hidden="true">
+            {root}
+            <sup>3</sup>
+          </span>
+        </figcaption>
+      </figure>
+    )
+  }
+</article>

@@ -13,6 +13,13 @@ export interface TagPageData {
 }
 
 export interface BlogCatalog {
+  /**
+   * 台帳番号。古い順に 1 から振る。新しい記事が増えても既存の番号は動かない
+   * （新しい順に振ると、1 本足すたびに全部の番号が繰り下がる）。
+   */
+  catalogNumbers: ReadonlyMap<string, number>;
+  /** いちばん長い記事の読了時間。体積の立方体はこれを最大の一辺にとる。 */
+  maxReadingTime: number;
   posts: BlogPost[];
   processedPosts: ProcessedPost[];
   tagPages: TagPageData[];
@@ -50,7 +57,14 @@ export function buildBlogCatalog(posts: BlogPost[]): BlogCatalog {
       name: route.name,
     }));
 
+  const catalogNumbers = new Map(
+    processedPosts.map((post, i) => [post.slug, processedPosts.length - i] as const),
+  );
+  const maxReadingTime = Math.max(1, ...processedPosts.map((post) => post.readingTime));
+
   return {
+    catalogNumbers,
+    maxReadingTime,
     posts: sortedPosts,
     processedPosts,
     tagPages,

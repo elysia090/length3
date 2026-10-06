@@ -1,0 +1,74 @@
+---
+/**
+ * 記事の体積。読了時間の立方根を一辺にした立方体。
+ *
+ * ふだんは 12 本の辺だけを同じ線で引く。手前と奥の区別がないので、
+ * 見るたびに奥行きが裏返るネッカーの立方体になる。記事に触れると面が
+ * 満ちて奥の 3 本を隠し、形が一つに決まる。体積が曖昧さを解く。
+ *
+ * 一辺は一覧でいちばん長い記事を size の半分として測る。底は枠の下端に
+ * 揃えるので、並べると大きさは不揃いでも地面は一本になる。
+ *
+ * 投影は等角ではなく、左右で角度と縮みの違う二等角。等角の立方体は
+ * 正六角形に収まってしまい、記号として読まれる。右の辺は 16° で 0.94 倍、
+ * 左の辺は 42° で 0.6 倍。
+ */
+interface Props {
+  minutes: number;
+  max: number;
+  size: number;
+  tone?: 'ink' | 'lamp';
+  /** 最大の一辺が枠の何割か。 */
+  reach?: number;
+}
+
+const { minutes, max, size, tone = 'ink', reach = 0.5 } = Astro.props;
+const deg = Math.PI / 180;
+const right = [Math.cos(16 * deg) * 0.94, -Math.sin(16 * deg) * 0.94] as const;
+const left = [-Math.cos(42 * deg) * 0.6, -Math.sin(42 * deg) * 0.6] as const;
+const edge = Math.max(5, (size * reach * Math.cbrt(Math.max(minutes, 1))) / Math.cbrt(max));
+const r = (v: number) => Math.round(v * 2) / 2;
+// 手前の下の角。ここから右・左・上へ一辺ずつ。右へ張り出すぶん左に寄せる。
+const bx = size / 2 - (edge * (right[0] + left[0])) / 2;
+const by = size - 1;
+const pt = (x: number, y: number) => `${r(x)},${r(y)}`;
+const B = [bx, by] as const;
+const R = [bx + edge * right[0], by + edge * right[1]] as const;
+const L = [bx + edge * left[0], by + edge * left[1]] as const;
+const K = [R[0] + L[0] - bx, R[1] + L[1] - by] as const;
+const up = (p: readonly [number, number]) => [p[0], p[1] - edge] as const;
+const [Bt, Rt, Lt, Kt] = [up(B), up(R), up(L), up(K)];
+const line = (a: readonly [number, number], b: readonly [number, number]) =>
+  `M${pt(a[0], a[1])}L${pt(b[0], b[1])}`;
+const hidden = [line(K, L), line(K, R), line(K, Kt)].join('');
+const visible = [
+  line(B, R),
+  line(B, L),
+  line(B, Bt),
+  line(R, Rt),
+  line(L, Lt),
+  line(Bt, Rt),
+  line(Bt, Lt),
+  line(Rt, Kt),
+  line(Lt, Kt),
+].join('');
+const poly = (...ps: (readonly [number, number])[]) => ps.map((p) => pt(p[0], p[1])).join(' ');
+const id = tone === 'lamp' ? 'l3-lamp' : 'l3-ink';
+---
+
+<svg
+  class={`volume-cube volume-cube--${tone}`}
+  width={size}
+  height={size}
+  viewBox={`0 0 ${size} ${size}`}
+  aria-hidden="true"
+  focusable="false"
+>
+  <path class="volume-cube-hidden" d={hidden}></path>
+  <polygon class="volume-cube-face" points={poly(Lt, Bt, Rt, Kt)} fill={`url(#${id}-top)`}
+  ></polygon>
+  <polygon class="volume-cube-face" points={poly(L, B, Bt, Lt)} fill={`url(#${id}-left)`}></polygon>
+  <polygon class="volume-cube-face" points={poly(B, R, Rt, Bt)} fill={`url(#${id}-right)`}
+  ></polygon>
+  <path class="volume-cube-edge" d={visible}></path>
+</svg>

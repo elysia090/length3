@@ -1,11 +1,21 @@
-/* Article card (index / tag listings) */
+/* Article card (index / tag listings) — 台帳の 1 行 */
 /* 内側の刻みは 8 → 16 → 32 の倍々。日付・題・説明はひとつの塊なので 8px で
    繋ぎ、タグはその外側なので倍の 16px を空け、カードの境目はさらに倍にする。
-   （6px と 10px を使っていて、spec §1 の 8px グリッドから外れていた）
 
    下の padding だけ 4px 詰めてあるのは、タグの当たり判定 (padding: 0.25rem 0)
-   のぶん。合わせないと、文字で見たときにカードの下だけ 4px 広く見える。 */
+   のぶん。合わせないと、文字で見たときにカードの下だけ 4px 広く見える。
+
+   行は 3 つに割る: 台帳番号 / 本文 / 体積。体積の立方体は右の列で底を揃える。
+   大きさは記事ごとに違うので、一覧の右端には不揃いな輪郭が立つが、地面は
+   どの行でも同じ高さにある。狭い画面では番号を本文の上に回し、立方体は
+   右に残す。 */
 .article-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.5rem;
+  grid-template-areas:
+    'no vol'
+    'body vol';
+  column-gap: 1rem;
   padding: 1.75rem 0 1.5rem;
   border-bottom: 0.0625rem solid var(--rule);
 }
@@ -18,6 +28,24 @@
    罫を落とすのは最後の記事であって、最後の子要素ではない。 */
 .article-card:last-of-type {
   border-bottom: none;
+}
+
+/* 古い順の通し番号。読む順番ではなく、置かれた順番。目で拾うものでは
+   ないので、本文のどの字よりも一段淡く小さい。 */
+.card-no {
+  grid-area: no;
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-style: italic;
+  font-variant-numeric: oldstyle-nums;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.card-body {
+  grid-area: body;
+  min-width: 0;
 }
 
 .card-meta {
@@ -35,17 +63,7 @@
 
 .card-date {
   color: var(--amber-text);
-  min-width: 9.5ch;
   white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.card-meta-sep {
-  color: var(--ink-2);
-}
-
-.card-reading-time {
-  color: var(--ink-2);
 }
 
 .card-title {
@@ -84,6 +102,83 @@
 
 .card-tags {
   margin: 0;
+}
+
+/* ─── 体積 ───────────────────────────────────────────────────── */
+.card-volume {
+  grid-area: vol;
+  align-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  /* タグ行の当たり判定 4px ぶん持ち上げて、立方体の底を題の塊ではなく
+     タグの字の下端に合わせる。 */
+  padding-bottom: 0.25rem;
+}
+
+.card-volume .volume-cube {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.card-volume-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.card-volume-root sup {
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+/* 立方体。線は 1 本の太さで、手前の辺も奥の辺も同じに引く。 */
+.volume-cube {
+  display: block;
+  overflow: visible;
+}
+
+.volume-cube path {
+  fill: none;
+  stroke-width: 1;
+  stroke-linecap: square;
+  vector-effect: non-scaling-stroke;
+}
+
+.volume-cube--ink path {
+  stroke: var(--ink-2);
+}
+
+/* 面は空のまま置いておき、記事に触れたときだけ満たす。満ちた面は網点の
+   地を持っているので、奥の 3 本はその下に隠れる。色の遷移ではなく状態の
+   切り替えなので、時間はかけない。 */
+.volume-cube-face {
+  fill-opacity: 0;
+}
+
+.article-card:focus-within .volume-cube-face,
+.article-lead:focus-within .volume-cube-face {
+  fill-opacity: 1;
+}
+
+@media (hover: hover) {
+  .article-card:hover .volume-cube-face,
+  .article-lead:hover .volume-cube-face {
+    fill-opacity: 1;
+  }
+
+  .article-card:hover .volume-cube--ink path {
+    stroke: var(--ink);
+  }
 }
 
 /* ─── 続きを開く ─────────────────────────────────────────────── */
@@ -182,7 +277,23 @@
 
 @media (min-width: 40rem) {
   .article-card {
+    grid-template-columns: 4rem minmax(0, 1fr) 5rem;
+    grid-template-areas: 'no body vol';
+    column-gap: 1.5rem;
     padding: 2rem 0 1.75rem;
+  }
+
+  /* 番号は題の 1 行目に高さを合わせる。日付の行と題の行のあいだに来ると、
+     どちらの見出しなのか分からなくなる。 */
+  .card-no {
+    margin: 0;
+    padding-top: 1.375rem;
+    font-size: 1rem;
+  }
+
+  .card-volume .volume-cube {
+    width: 4.5rem;
+    height: 4.5rem;
   }
 
   .card-title {

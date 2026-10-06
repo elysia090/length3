@@ -1,0 +1,186 @@
+/* Article lead — 一覧の頭の、いちばん新しい記事 */
+/* 紙の上の暗い面はこの 1 枚だけ。二段組の両方の列にまたがり、上の見出しと
+   下の一覧を一つの塊で縫い合わせる。
+
+   照明は面の中の立方体ひとつ。地の明るさはそこから円く落ちていき、題字の
+   明るさも立方体の側（右）がいちばん高い。暗部は黒へ沈めず、光源の近くで
+   青灰に持ち上げて、面そのものが少し発光して見えるようにする。
+
+   四角の右下を斜めに断ち落とす。面は長方形のままなのに、輪郭は楔として
+   読まれ、斜辺が読む方向（右下）へ視線を押し出す。 */
+.article-lead {
+  grid-area: lead;
+  position: relative;
+  /* 紙のテクスチャより前。等高線が暗い面の上に乗ると、光ではなく汚れになる。 */
+  z-index: var(--z-surface);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'no vol'
+    'body body';
+  align-items: start;
+  column-gap: 1rem;
+  /* 狭い画面では本文の余白の外まで張り出す。紙の端から端までを一枚で
+     占めないと、塊ではなく箱に見える。 */
+  margin-inline: calc(-1 * max(var(--page-gutter), env(safe-area-inset-left)));
+  margin-bottom: 2.5rem;
+  padding: 2rem max(var(--page-gutter), env(safe-area-inset-left)) 4rem;
+  background:
+    radial-gradient(
+      ellipse 70% 90% at 84% 18%,
+      rgba(240, 166, 38, 0.1) 0%,
+      rgba(240, 166, 38, 0) 46%
+    ),
+    radial-gradient(ellipse 85% 110% at 84% 18%, #38414c 0%, #252c35 42%, #191e24 100%);
+  color: var(--code-fg);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 2.5rem), calc(100% - 5rem) 100%, 0 100%);
+}
+
+.lead-body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.lead-no {
+  grid-area: no;
+  margin: 0;
+  align-self: end;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-style: italic;
+  font-variant-numeric: oldstyle-nums;
+  letter-spacing: 0.02em;
+  color: var(--amber-lt);
+}
+
+.lead-meta {
+  margin: 1rem 0 0.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: var(--code-dim);
+}
+
+.lead-title {
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.625rem, 1.05rem + 2.2vw, 2.75rem);
+  font-weight: 380;
+  line-height: 1.16;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* 題字は光源から遠いほど暗い。インラインのままだと折り返しの各行に
+   グラデーションが掛かり直すので、塊にしてから一度だけ掛ける。いちばん
+   暗い端でも面に対して 9:1 を割らない。 */
+.lead-title a {
+  display: inline-block;
+  background: linear-gradient(270deg, #f7eddc 0%, #ddd6cb 45%, #b3ada4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--code-fg);
+  transition: color var(--transition-fast);
+}
+
+@media (hover: hover) {
+  .lead-title a:hover {
+    -webkit-text-fill-color: var(--amber-lt);
+  }
+}
+
+.lead-title a:focus-visible {
+  outline-color: var(--amber-lt);
+}
+
+.lead-excerpt {
+  max-width: 40em;
+  margin: 0 0 1.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+  color: #b4bac2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.lead-tags {
+  margin: 0;
+}
+
+/* 紙の上の琥珀は暗い面では沈む。面の上だけ明るいほうを使う。 */
+.lead-tags .tag-pill {
+  color: var(--amber-lt);
+}
+
+.lead-volume {
+  grid-area: vol;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.lead-volume .volume-cube {
+  width: 5.5rem;
+  height: 5.5rem;
+}
+
+.volume-cube--lamp path {
+  stroke: var(--amber-lt);
+}
+
+.lead-volume-caption {
+  display: flex;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--code-dim);
+  white-space: nowrap;
+}
+
+.lead-volume-caption sup {
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+@media (min-width: 45rem) {
+  .article-lead {
+    grid-template-columns: minmax(0, 1fr) 13rem;
+    grid-template-areas:
+      'no vol'
+      'body vol';
+    column-gap: 3rem;
+    margin-inline: 0;
+    margin-bottom: 3.5rem;
+    padding: 2.5rem 3.5rem 4.5rem;
+    background:
+      radial-gradient(
+        ellipse 46% 80% at 86% 46%,
+        rgba(240, 166, 38, 0.11) 0%,
+        rgba(240, 166, 38, 0) 60%
+      ),
+      radial-gradient(ellipse 70% 130% at 86% 46%, #38414c 0%, #252c35 45%, #191e24 100%);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 4rem), calc(100% - 10rem) 100%, 0 100%);
+  }
+
+  .lead-no {
+    align-self: start;
+  }
+
+  .lead-volume {
+    align-self: center;
+  }
+
+  .lead-volume .volume-cube {
+    width: 13rem;
+    height: 13rem;
+  }
+}

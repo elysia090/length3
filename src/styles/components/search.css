@@ -3,46 +3,55 @@
   margin-bottom: 1.25rem;
 }
 
+/* 入力欄の形をした箱ではなく、紙に引いた 1 本の罫と、その上に書きかけた
+   一行。pill の枠と面は、記事一覧の隣で唯一の「部品」として浮いていた。
+   押せることは琥珀の虫眼鏡と、罫の上の字が語る。
+
+   字は見出しと同じ Fraunces の斜体。打ち込む前から、検索が書くことの
+   続きに見えるようにする（モーダルの入力欄と同じ考え）。 */
 .search-trigger-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   width: 100%;
-  /* 44px — spec §8 のタップターゲット下限。36px で足りていなかった。 */
+  /* 44px — spec §8 のタップターゲット下限。 */
   min-height: 2.75rem;
-  padding: 0.5rem 0.875rem 0.5rem 0.75rem;
-  border: 0.0625rem solid var(--surface-border);
-  border-radius: var(--radius-pill);
-  background: var(--surface-fill);
+  padding: 0.5rem 0;
+  border: 0;
+  border-bottom: 0.0625rem solid var(--ink-3);
+  border-radius: 0;
+  background: none;
   cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  color: var(--ink-2);
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-style: italic;
+  letter-spacing: 0;
+  color: var(--ink-3);
   text-align: left;
   touch-action: manipulation;
   transition:
     border-color var(--transition-fast),
-    background-color var(--transition-fast),
     color var(--transition-fast);
 }
 
 .search-trigger-btn:hover {
-  border-color: var(--surface-separator);
-  background: var(--surface-fill-strong);
+  border-bottom-color: var(--ink);
   color: var(--ink-2);
 }
 
-/* 指のない環境では 44px は要らない。ポインタが細い機械では WCAG 2.5.8 の
-   下限は 24px なので、丈を 36px まで詰め、枠も一段淡くする。太い pill が
-   一つ、記事一覧の隣にぶら下がって見えていた。押せることは pill の形と
-   琥珀の虫眼鏡が言うので、枠を強くする必要がない。 */
+/* 細いポインタでは 40px（8px グリッドで 44 の一つ手前）。 */
 @media (hover: hover) and (pointer: fine) {
   .search-trigger-btn {
-    min-height: 2.25rem;
-    padding: 0.375rem 0.75rem 0.375rem 0.625rem;
-    border-color: var(--surface-line);
+    min-height: 2.5rem;
   }
+}
+
+.search-placeholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-icon-svg {
@@ -174,6 +183,7 @@
 .search-shortcut {
   display: none;
   font-family: var(--font-mono);
+  font-style: normal;
   font-size: var(--font-ui-xs);
   padding: 0.125rem 0.375rem;
   border: 0.0625rem solid var(--rule);
