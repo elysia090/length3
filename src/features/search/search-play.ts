@@ -43,7 +43,7 @@ export function attachSearchPlay(modal: HTMLElement, mount: HTMLElement): Search
     }, SETTLE_MS);
     if (isGunman(query) && !rangeOpen) {
       rangeOpen = true;
-      void import('../gunman/range').then(({ openRange }) =>
+      void import('../gunman').then(({ openRange }) =>
         openRange(modal.ownerDocument, () => {
           rangeOpen = false;
           field.focus();
