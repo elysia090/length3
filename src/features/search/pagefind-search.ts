@@ -1,5 +1,6 @@
 import type { SiteLanguage } from '../../i18n/language';
 import { startBenchProfile } from '../../shared/bench-profile';
+import { toConcordance } from './concordance';
 import {
   getPageLanguage,
   getSearchCopy,
@@ -209,7 +210,17 @@ export function createPagefindSearchController(options: PagefindSearchController
             element: mountSelector,
             mergeIndex,
             processTerm: normalizePagefindSearchTerm,
-            processResult: (result) => canonicalizePagefindResult(result, pagefindOrigin),
+            processResult: (result) => {
+              const canonical = canonicalizePagefindResult(result, pagefindOrigin);
+              return {
+                ...canonical,
+                excerpt: toConcordance(canonical.excerpt),
+                sub_results: canonical.sub_results?.map((sub) => ({
+                  ...sub,
+                  excerpt: toConcordance(sub.excerpt),
+                })),
+              };
+            },
             showImages: false,
             showSubResults: true,
             autofocus: false,

@@ -45,6 +45,55 @@ const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toStri
     {publishDate && <meta property="article:published_time" content={publishDate.toISOString()} />}
     {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
     {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
+    <!--
+      一覧のタイルから記事へ、記事から一覧へ戻るときだけ、押したタイルが
+      記事の見出しへ広がる（逆は縮んで帰る）。ほかのページ移動では何もしない。
+      記事ページの見た目は変えない。トップの絵は持ち込まず、紙に切り替わるだけ。
+      pagereveal は最初の描画の前に来るので、ここは head の中で同期で動く。
+    -->
+    <script is:inline>
+      (() => {
+        const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+        const path = (url) => (url ? new URL(url).pathname : '');
+        const isIndex = (p) => p === '/';
+        const isArticle = (p) => /^\/[^/]+$/.test(p) && !['/about', '/404'].includes(p);
+        const tileFor = (p) =>
+          document
+            .querySelector(`.article-card .card-title a[href="${p}"]`)
+            ?.closest('.article-card');
+        const name = (card) => {
+          if (!card) return false;
+          card.style.viewTransitionName = 'lt-plate';
+          const title = card.querySelector('.card-title');
+          if (title) title.style.viewTransitionName = 'lt-title';
+          return true;
+        };
+        const decide = (vt, from, to, card) => {
+          if (!vt) return;
+          const pair = (isIndex(from) && isArticle(to)) || (isArticle(from) && isIndex(to));
+          if (reduced.matches || !pair || (card !== null && !name(card))) vt.skipTransition();
+          else vt.types.add('tile');
+        };
+        addEventListener('pageswap', (e) => {
+          const to = path(e.activation?.entry?.url);
+          decide(
+            e.viewTransition,
+            location.pathname,
+            to,
+            isIndex(location.pathname) ? tileFor(to) : null,
+          );
+        });
+        addEventListener('pagereveal', (e) => {
+          const from = path(navigation?.activation?.from?.url);
+          decide(
+            e.viewTransition,
+            from,
+            location.pathname,
+            isIndex(location.pathname) ? tileFor(from) : null,
+          );
+        });
+      })();
+    </script>
   </head>
   <body>
     <!-- SC 2.4.1: skip link — first focusable element, targets #main-content on each page -->

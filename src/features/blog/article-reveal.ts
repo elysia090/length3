@@ -7,11 +7,12 @@ import { startBenchProfile } from '../../shared/bench-profile';
  * スクロールが伸びる。先頭で切っておけば、初回の画面から下端までの距離が
  * 記事数に依らず一定になる。
  *
- * 5 件目は読ませるためではなく、続きがあることを示すために出す。裾が薄れ、
- * その上にボタンが被る。読める形で並ぶのは 4 件、開くのも 4 件ずつ。
+ * 一覧はガラスのタイルを 1〜3 列に敷き詰めるので、件数はどの列数でも行が
+ * 埋まる 6 にする。最後の 1 枚は続きがあることを示すために裾が薄れ、その上に
+ * ボタンが被る。開くのも 6 件ずつ。
  */
-export const INITIAL_VISIBLE_ARTICLES = 5;
-export const ARTICLE_REVEAL_STEP = 4;
+export const INITIAL_VISIBLE_ARTICLES = 6;
+export const ARTICLE_REVEAL_STEP = 6;
 
 export interface RevealState {
   /** 表示する件数（total を超えない）。 */

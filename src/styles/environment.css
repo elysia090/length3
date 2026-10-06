@@ -25,6 +25,16 @@
     -webkit-backdrop-filter: none;
     background: var(--bg-2);
   }
+
+  /* 一覧のガラスのタイル。暈かしと屈折を外し、絵の上に置いた不透明な
+     濃紺の板にする。縁の照りと影は光源の因果なので残す。 */
+  .index-glass .article-card,
+  .glass-tile,
+  :root:has(.index-glass) .site-header .header-inner {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: #151b24;
+  }
 }
 
 /* ─── Print ────────────────────────────────────────────────── */
@@ -36,8 +46,9 @@
     background: none;
   }
 
-  body::before {
-    display: none; /* テクスチャ */
+  body::before,
+  .liquid-backdrop {
+    display: none; /* テクスチャと一覧の背景の絵 */
   }
 
   /* 押せないものは刷らない。 */

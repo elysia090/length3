@@ -1,0 +1,33 @@
+---
+import avif960 from '../../assets/night/night-960.avif';
+import avif1536 from '../../assets/night/night-1536.avif';
+import webp960 from '../../assets/night/night-960.webp';
+import webp1536 from '../../assets/night/night-1536.webp';
+import { FOCUS_X } from './lights';
+
+/**
+ * 一覧の背後に敷く絵。画面に貼り付けて動かさず、ガラスのタイルだけが
+ * その上を流れる。光源はこの絵の中にあり（lights.ts）、タイルの照り方は
+ * 絵のどこの上にいるかで決まる。
+ *
+ * 絵の大半はガラス越しに暈けて見えるので、画質は落とせる。AVIF と WebP を
+ * 幅 960 と 1536 で用意し、画面の幅に合うほうだけを読ませる
+ * （AVIF で 30 KB / 65 KB）。
+ */
+const sizes = '100vw';
+---
+
+<div class="liquid-backdrop" aria-hidden="true" style={`--focus-x: ${FOCUS_X * 100}%`}>
+  <picture>
+    <source type="image/avif" srcset={`${avif960.src} 960w, ${avif1536.src} 1536w`} sizes={sizes} />
+    <source type="image/webp" srcset={`${webp960.src} 960w, ${webp1536.src} 1536w`} sizes={sizes} />
+    <img
+      src={webp1536.src}
+      width={webp1536.width}
+      height={webp1536.height}
+      alt=""
+      decoding="async"
+      fetchpriority="high"
+    />
+  </picture>
+</div>

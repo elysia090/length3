@@ -51,7 +51,7 @@ test('the article list collapses and grows four at a time', async ({ page }) => 
 
   const visible = page.locator('.article-card:not([hidden])');
   const total = await page.locator('.article-card').count();
-  const initial = Math.min(total, 5);
+  const initial = Math.min(total, 6);
 
   await expect(visible).toHaveCount(initial);
 
@@ -65,7 +65,7 @@ test('the article list collapses and grows four at a time', async ({ page }) => 
     await expect(more).toHaveAttribute('aria-label', /Show \d+ more articles?/);
 
     await more.click();
-    await expect(visible).toHaveCount(Math.min(total, initial + 4));
+    await expect(visible).toHaveCount(Math.min(total, initial + 6));
     await expect(page.locator('[data-article-reveal-status]')).toContainText('more article');
   }
 

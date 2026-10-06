@@ -490,6 +490,40 @@ mark {
   font-style: italic;
 }
 
+/* ─── 用語索引（KWIC）────────────────────────────────────────── */
+/* 抜粋は concordance.ts が「前の文脈・語・後ろの文脈」に割ってある。語の
+   列を真ん中に置き、左右を同じ幅の 1fr にすると、どの結果でも語の中心が
+   同じ縦の線に来る。左は右寄せで、溢れた頭を省略記号で落とす（rtl に
+   して ellipsis を左へ回し、中身は bdi で左から右のまま）。 */
+.pagefind-ui__result-excerpt:has(.kwic-k) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: 0.375em;
+  align-items: baseline;
+  overflow-wrap: normal;
+}
+
+.kwic-l,
+.kwic-r {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.kwic-l {
+  direction: rtl;
+  text-align: right;
+}
+
+.kwic-l bdi {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.kwic-k {
+  white-space: nowrap;
+}
+
 @media (min-width: 48rem) {
   .search-overlay {
     padding: clamp(1rem, 6vh, 3.5rem) max(1rem, env(safe-area-inset-right)) 0

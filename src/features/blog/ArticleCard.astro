@@ -10,9 +10,11 @@ interface Props {
   number: number;
   /** 一覧でいちばん長い記事の読了時間。立方体の物差し。 */
   maxReadingTime: number;
+  /** 紙の上なら墨、ガラスの上なら灯。 */
+  tone?: 'ink' | 'lamp';
 }
 
-const { post, number, maxReadingTime } = Astro.props;
+const { post, number, maxReadingTime, tone = 'ink' } = Astro.props;
 const { entry, slug, readingTime, description, tags: tagLinks } = post;
 const { title, publishDate, lang } = entry.data;
 
@@ -24,7 +26,7 @@ const root = Math.cbrt(Math.max(readingTime, 1)).toFixed(2);
 ---
 
 <!-- SC 3.1.2: lang attr ensures AT uses correct phonetic rules for card language -->
-<article class="article-card" lang={lang}>
+<article class="article-card" lang={lang} data-glass={tone === 'lamp' ? '' : undefined}>
   <p class="card-no" aria-hidden="true">No.&thinsp;{String(number).padStart(3, '0')}</p>
   <div class="card-body">
     <div class="card-meta">
@@ -56,7 +58,7 @@ const root = Math.cbrt(Math.max(readingTime, 1)).toFixed(2);
   {
     readingTime > 0 && (
       <figure class="card-volume">
-        <VolumeCube minutes={readingTime} max={maxReadingTime} size={72} />
+        <VolumeCube minutes={readingTime} max={maxReadingTime} size={72} tone={tone} />
         <figcaption class="card-volume-caption">
           <span class="card-reading-time">{formatCompactReadingTime(readingTime, lang)}</span>
           <span class="card-volume-root" aria-hidden="true">

@@ -5,7 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import ArticleCard from '../features/blog/ArticleCard.astro';
-import ArticleLead from '../features/blog/ArticleLead.astro';
+import LiquidBackdrop from '../features/glass/LiquidBackdrop.astro';
 import VolumeDefs from '../features/blog/VolumeDefs.astro';
 import TopicList from '../features/blog/TopicList.astro';
 import SearchPanel from '../features/search/SearchPanel.astro';
@@ -13,24 +13,24 @@ import { getBlogCatalog } from '../features/blog/catalog';
 import { getSiteCopy } from '../i18n/site-copy';
 
 const { processedPosts, topics, catalogNumbers, maxReadingTime } = await getBlogCatalog();
-const [lead, ...rest] = processedPosts;
 const numberOf = (slug: string) => catalogNumbers.get(slug) ?? 0;
 const copy = getSiteCopy('en');
 ---
 
 <BaseLayout title="Length³" description="A technical blog.">
+  <LiquidBackdrop />
   <Header />
-  <main class="index-layout" id="main-content">
+  <main class="index-layout index-glass" id="main-content">
     <VolumeDefs />
-    {
-      lead && (
-        <ArticleLead post={lead} number={numberOf(lead.slug)} maxReadingTime={maxReadingTime} />
-      )
-    }
     <section class="article-list" aria-label="Articles" id="article-list">
       {
-        rest.map((post) => (
-          <ArticleCard post={post} number={numberOf(post.slug)} maxReadingTime={maxReadingTime} />
+        processedPosts.map((post) => (
+          <ArticleCard
+            post={post}
+            number={numberOf(post.slug)}
+            maxReadingTime={maxReadingTime}
+            tone="lamp"
+          />
         ))
       }
 
@@ -51,8 +51,12 @@ const copy = getSiteCopy('en');
       <p class="sr-only" aria-live="polite" data-article-reveal-status></p>
     </section>
     <aside class="index-sidebar" aria-label={copy.blogSidebar}>
-      <SearchPanel />
-      <TopicList topics={topics} />
+      <div class="glass-tile glass-search" data-glass>
+        <SearchPanel />
+      </div>
+      <div class="glass-tile glass-topics" data-glass>
+        <TopicList topics={topics} />
+      </div>
     </aside>
   </main>
   <Footer />
@@ -60,6 +64,8 @@ const copy = getSiteCopy('en');
 
 <script>
   import { initializeArticleReveal } from '../features/blog/article-reveal';
+  import { mountLiquidGlass } from '../features/glass/liquid-glass';
 
   initializeArticleReveal();
+  mountLiquidGlass(document);
 </script>

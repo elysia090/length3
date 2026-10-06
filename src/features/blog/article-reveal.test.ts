@@ -54,7 +54,7 @@ describe('nextVisibleCount', () => {
 
 describe('formatRevealLabel', () => {
   it('names a full step', () => {
-    expect(formatRevealLabel(9)).toBe('Show 4 more articles');
+    expect(formatRevealLabel(9)).toBe('Show 6 more articles');
   });
 
   it('names the short tail rather than the step', () => {

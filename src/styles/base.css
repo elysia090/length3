@@ -137,3 +137,36 @@ img {
   white-space: nowrap;
   border: 0;
 }
+
+/* ─── ページ間の遷移 ─────────────────────────────────────────── */
+/* 一覧のタイル ⇄ 記事の見出しだけ。どの移動で動かすかは BaseLayout の
+   スクリプトが決め、それ以外は即座に切り替わる。短く、行き過ぎない。 */
+@view-transition {
+  navigation: auto;
+}
+
+.article-header {
+  view-transition-name: lt-plate;
+}
+
+.article-header h1 {
+  view-transition-name: lt-title;
+}
+
+html:active-view-transition-type(tile)::view-transition-group(*) {
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html:active-view-transition-type(tile)::view-transition-old(root),
+html:active-view-transition-type(tile)::view-transition-new(root) {
+  animation-duration: 0.3s;
+}
+
+/* ガラスの板を引き伸ばさない。縦横比はそのまま、はみ出しは切る。 */
+html:active-view-transition-type(tile)::view-transition-old(lt-plate),
+html:active-view-transition-type(tile)::view-transition-new(lt-plate) {
+  height: 100%;
+  object-fit: cover;
+  overflow: clip;
+}

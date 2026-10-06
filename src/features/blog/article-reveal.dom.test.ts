@@ -34,14 +34,14 @@ afterEach(() => {
 });
 
 describe('initializeArticleReveal', () => {
-  it('collapses to the first five and offers the rest', () => {
+  it('collapses to the first six and offers the rest', () => {
     const { button, cards, footer } = createListDom(9);
 
     initializeArticleReveal(document);
 
-    expect(visibleCount(cards)).toBe(5);
+    expect(visibleCount(cards)).toBe(6);
     expect(footer.hidden).toBe(false);
-    expect(button.getAttribute('aria-label')).toBe('Show 4 more articles');
+    expect(button.getAttribute('aria-label')).toBe('Show 3 more articles');
   });
 
   it('marks only the last visible card as the teaser', () => {
@@ -49,11 +49,11 @@ describe('initializeArticleReveal', () => {
 
     initializeArticleReveal(document);
 
-    expect(cards.filter((card) => card.hasAttribute('data-teaser'))).toEqual([cards[4]]);
+    expect(cards.filter((card) => card.hasAttribute('data-teaser'))).toEqual([cards[5]]);
   });
 
   it('drops the teaser once nothing is left to reveal', () => {
-    const { button, cards } = createListDom(6);
+    const { button, cards } = createListDom(7);
 
     initializeArticleReveal(document);
     button.click();
@@ -61,7 +61,7 @@ describe('initializeArticleReveal', () => {
     expect(cards.some((card) => card.hasAttribute('data-teaser'))).toBe(false);
   });
 
-  it('opens four more per click and drops the button at the end', () => {
+  it('opens six more per click and drops the button at the end', () => {
     const { button, cards, footer } = createListDom(9);
 
     initializeArticleReveal(document);
@@ -72,15 +72,15 @@ describe('initializeArticleReveal', () => {
   });
 
   it('announces what was revealed and what is left', () => {
-    const { button, status } = createListDom(11);
+    const { button, status } = createListDom(15);
 
     initializeArticleReveal(document);
     button.click();
 
-    expect(status.textContent).toBe('4 more articles shown. 2 remaining.');
+    expect(status.textContent).toBe('6 more articles shown. 3 remaining.');
 
     button.click();
-    expect(status.textContent).toBe('2 more articles shown. End of the list.');
+    expect(status.textContent).toBe('3 more articles shown. End of the list.');
   });
 
   it('moves focus to the first newly revealed article', () => {
@@ -89,15 +89,15 @@ describe('initializeArticleReveal', () => {
     initializeArticleReveal(document);
     button.click();
 
-    expect(document.activeElement).toBe(cards[5]?.querySelector('a'));
+    expect(document.activeElement).toBe(cards[6]?.querySelector('a'));
   });
 
   it('leaves a short list untouched and keeps the button hidden', () => {
-    const { cards, footer } = createListDom(5);
+    const { cards, footer } = createListDom(6);
 
     initializeArticleReveal(document);
 
-    expect(visibleCount(cards)).toBe(5);
+    expect(visibleCount(cards)).toBe(6);
     expect(footer.hidden).toBe(true);
   });
 
@@ -114,6 +114,6 @@ describe('initializeArticleReveal', () => {
     button.click();
     initializeArticleReveal(document);
 
-    expect(visibleCount(cards)).toBe(5);
+    expect(visibleCount(cards)).toBe(6);
   });
 });
