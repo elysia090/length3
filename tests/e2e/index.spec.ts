@@ -67,6 +67,12 @@ test('the article list collapses and grows four at a time', async ({ page }) => 
     await more.click();
     await expect(visible).toHaveCount(Math.min(total, initial + 4));
     await expect(page.locator('[data-article-reveal-status]')).toContainText('more article');
+
+    // 残りがある限り押し続ける。1 回で開き切るとは限らない。
+    for (let shown = initial + 4; shown < total; shown += 4) {
+      await more.click();
+      await expect(visible).toHaveCount(Math.min(total, shown + 4));
+    }
   }
 
   // 全部出たら出口は消え、最後の 1 件は薄れも解ける。

@@ -1,4 +1,3 @@
-import { INTRO_ONSET_SEC, INTRO_SILENCES, LOOP_ONSET_SEC, LOOP_SILENCES } from './envelope';
 import {
   add,
   apply,
@@ -17,8 +16,12 @@ import {
   spring,
   type Vec3,
   vlerp,
-} from './math';
+} from '../../shared/pixel/math';
+import type { CameraState, CubeState, ShovelState } from '../../shared/pixel/solids';
+import { INTRO_ONSET_SEC, INTRO_SILENCES, LOOP_ONSET_SEC, LOOP_SILENCES } from './envelope';
 import { BEAT_SEC, BEATS_PER_LOOP, INTRO_BEATS } from './timeline';
+
+export type { CameraState, CubeState, ShovelState };
 
 /**
  * 振付。通算拍 B を受け取って、その瞬間の舞台を返す純関数。
@@ -70,39 +73,6 @@ export const LOOP_SLOTS: readonly Cell[] = cellsOfShell(3)
   .concat(cellsOfShell(2))
   .filter((c) => c[0] + c[1] + c[2] > 0)
   .sort((a, b) => a[1] - b[1] || a[2] - b[2] || (a[2] % 2 === 0 ? a[0] - b[0] : b[0] - a[0]));
-
-export interface CubeState {
-  /** 底面の中心。潰れはここを支点にかける。 */
-  base: Vec3;
-  size: number;
-  rot: Mat3;
-  /** 横・縦・奥の伸縮。 */
-  squash: Vec3;
-  /** 1 なら琥珀。宙にいるあいだだけ灯る。 */
-  hot: number;
-  /** 前の段を 27 個まとめた立方体。面に 3×3 の点線を引く。 */
-  composite: boolean;
-  /** 床からの高さ。影の濃さに使う。0 なら影を描かない。 */
-  airborne: number;
-  /** 山に収まった箱。着地の沈みはこれだけにかける。 */
-  landed: boolean;
-}
-
-export interface ShovelState {
-  /** 刃先。床に立っている点。 */
-  pivot: Vec3;
-  /** シャベル 1 単位あたりの世界の長さ。 */
-  scale: number;
-  rot: Mat3;
-}
-
-export interface CameraState {
-  azimuth: number;
-  elevation: number;
-  target: Vec3;
-  /** 画面の短辺に収める世界の長さ。 */
-  span: number;
-}
 
 export interface CellRow {
   count: number;

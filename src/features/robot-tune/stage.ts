@@ -1,7 +1,7 @@
+import { clamp } from '../../shared/pixel/math';
+import { Raster } from '../../shared/pixel/raster';
 import { Player } from './audio';
 import { sceneAt } from './choreo';
-import { clamp } from './math';
-import { Raster } from './raster';
 import { render } from './render';
 import {
   comparison,

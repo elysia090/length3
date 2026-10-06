@@ -24,7 +24,7 @@ const root = Math.cbrt(Math.max(readingTime, 1)).toFixed(2);
 ---
 
 <!-- SC 3.1.2: lang attr ensures AT uses correct phonetic rules for card language -->
-<article class="article-card" lang={lang}>
+<article class="article-card" lang={lang} data-slug={slug}>
   <p class="card-no" aria-hidden="true">No.&thinsp;{String(number).padStart(3, '0')}</p>
   <div class="card-body">
     <div class="card-meta">

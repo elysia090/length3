@@ -165,14 +165,21 @@
   fill-opacity: 0;
 }
 
-.article-card:focus-within .volume-cube-face,
-.article-lead:focus-within .volume-cube-face {
+.article-card:focus-within .volume-cube-face {
+  fill-opacity: 1;
+}
+
+/* 舞台の標本に触れているあいだ、その行が灯る。 */
+.article-card[data-lit] .card-title a {
+  color: var(--amber-text);
+}
+
+.article-card[data-lit] .volume-cube-face {
   fill-opacity: 1;
 }
 
 @media (hover: hover) {
-  .article-card:hover .volume-cube-face,
-  .article-lead:hover .volume-cube-face {
+  .article-card:hover .volume-cube-face {
     fill-opacity: 1;
   }
 

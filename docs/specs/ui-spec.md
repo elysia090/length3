@@ -43,16 +43,15 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 └─────────────────────────────┴──────────────┘
 ```
 
-**The lead.** The newest article is not the first row of the list; it is the one dark surface on the paper, spanning both columns. The index is the screen readers see most, and a list of equal rows gives it no figure at all — the eye has nowhere to land, so it lands nowhere. One large mass gives every row under it a scale to be read against. It also stitches the header and the list, two unremarkable halves, into one picture.
+**The stage.** Above both columns sits a small 1-bit picture drawn by the same rasterizer as the Robot Tune article (`src/shared/pixel/`): about 320 columns scaled by a whole number of device pixels, four colours (transparent so the paper shows through, paper, ink, amber), shading by 4 × 4 Bayer dots. Every article is a cube standing on a dotted plan, its edge the cube root of its reading time (the same measure as the list's volume cube). 2.39:1 on wide screens, 4:3 on narrow ones.
 
-- Background: `--code-bg` family, lifted towards blue-grey around the light source rather than sunk to black — the dark should glow, not recede.
-- The only light is the article's volume cube (below). The ground falls off radially from it, and the title's luminance falls off with distance from it (brightest at the right). The darkest end of the title stays above 9:1 against the surface.
-- The bottom-right corner is cut on a diagonal (`clip-path`). The surface is still a rectangle; the outline reads as a wedge, and the diagonal pushes the eye in the reading direction.
-- On narrow screens the surface bleeds past the page gutter to both screen edges. Inside the gutter it reads as a box; edge to edge it reads as a mass.
-- It sits above the texture (`--z-surface`). Contour lines over a dark surface read as dirt, not light.
-- It carries the class `article-lead`, not `article-card`, so the reveal control counts and collapses only the rows beneath it.
+- One cube at a time has volume (dithered faces); the rest are hidden-line drawings, length only. Attention gives volume, the same grammar as the article, where silence leaves only edges.
+- At rest the camera dollies slowly and cuts by 90° every 6 s, overshooting and settling; every fourth cut drops to a low angle. Each cut moves the light to the next article: it hops, squashes, flashes amber and cools, and a smaller hop ripples outward by distance.
+- Touching a row lights its cube; touching a cube lights its row. Pressing either has the shovel throw the cube, then navigates (560 ms). With the stage off screen, a modified click, or reduced motion, navigation is immediate.
+- The HUD (5 × 7 pixel font) shows total volume `V`, `L = ∛V`, the count `N`, the lit article's number, minutes and date, a row of cells, and a 24 fps timecode.
+- It stops when off screen or when the tab is hidden. Under reduced motion it draws one still frame and redraws only on touch. It is `aria-hidden`; the list carries everything.
 
-Two columns. No left gutter — the content area's own left padding provides the margin. The sidebar is separated from the main column by a single 1px rule (`var(--rule)`). The sidebar contains **search and nothing else**. Tags, statistics, and category listings each live on their own dedicated page. Placing them in the sidebar would create a secondary reading surface that competes with the article list.
+Below the stage, two columns. No left gutter — the content area's own left padding provides the margin. The sidebar is separated from the main column by a single 1px rule (`var(--rule)`). The sidebar contains **search and nothing else**. Tags, statistics, and category listings each live on their own dedicated page. Placing them in the sidebar would create a secondary reading surface that competes with the article list.
 
 Below **840px** viewport width, the sidebar disappears and the layout collapses to a single column. Search relocates to a nav-bar icon, accessible via the `/` keyboard shortcut.
 

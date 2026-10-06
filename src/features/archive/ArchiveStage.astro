@@ -1,0 +1,68 @@
+---
+import type { ProcessedPost } from '../blog/types';
+import type { ArchiveSource } from './layout';
+
+/**
+ * 一覧の舞台。記事を立方体の標本として床に並べ、Robot Tune と同じ
+ * 1 ビットの網点で描く。照らされた 1 個だけが体積を持ち、ほかは長さだけ。
+ *
+ * 絵は飾りなので支援技術からは隠す。記事へは下の一覧から辿れる。
+ */
+interface Props {
+  posts: readonly ProcessedPost[];
+  catalogNumbers: ReadonlyMap<string, number>;
+}
+
+const { posts, catalogNumbers } = Astro.props;
+const pad = (n: number) => String(n).padStart(2, '0');
+const sources: ArchiveSource[] = posts.map((p) => {
+  const d = p.entry.data.publishDate;
+  return {
+    slug: p.slug,
+    number: catalogNumbers.get(p.slug) ?? 0,
+    minutes: p.readingTime,
+    date: `${d.getUTCFullYear()}.${pad(d.getUTCMonth() + 1)}.${pad(d.getUTCDate())}`,
+  };
+});
+---
+
+<figure
+  class="archive-stage"
+  data-archive
+  data-sources={JSON.stringify(sources)}
+  aria-hidden="true"
+  data-pagefind-ignore
+>
+  <canvas class="archive-canvas"></canvas>
+</figure>
+
+<script>
+  import { mountArchive } from './stage';
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-archive]')) mountArchive(el);
+</script>
+
+<style>
+  .archive-stage {
+    grid-area: stage;
+    position: relative;
+    z-index: var(--z-surface);
+    display: flex;
+    justify-content: center;
+    margin: 0 0 2rem;
+    line-height: 0;
+  }
+
+  .archive-canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    touch-action: manipulation;
+  }
+
+  @media (min-width: 52.5rem) {
+    .archive-stage {
+      margin-bottom: 2.5rem;
+    }
+  }
+</style>
