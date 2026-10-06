@@ -1,0 +1,125 @@
+---
+/**
+ * Robot Tune の舞台。音が鳴っているあいだだけ、箱に体積がある。
+ * 描画は stage.ts、時間の数え方は timeline.ts、振付は choreo.ts。
+ */
+interface Props {
+  src?: string;
+}
+const { src = '/audio/robot-tune.mp3' } = Astro.props;
+---
+
+<figure class="robot-tune" data-robot-tune data-src={src} data-state="idle" data-pagefind-ignore>
+  <div class="robot-tune-screen">
+    <canvas class="robot-tune-canvas" aria-hidden="true"></canvas>
+    <button type="button" class="robot-tune-toggle" data-toggle aria-pressed="false">
+      <span class="robot-tune-sr">再生（音が出ます）</span>
+    </button>
+  </div>
+  <div class="robot-tune-bar">
+    <label class="robot-tune-volume">
+      <span>音量 = 体積</span>
+      <input type="range" min="0" max="1" step="0.01" value="0.8" data-volume />
+    </label>
+  </div>
+  <figcaption class="robot-tune-caption">
+    <span data-caption>音が鳴っているあいだだけ、箱に体積がある。</span>
+    <span class="robot-tune-count" data-count></span>
+  </figcaption>
+</figure>
+
+<script>
+  import { mountRobotTune } from './stage';
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-robot-tune]')) {
+    mountRobotTune(el);
+  }
+</script>
+
+<style>
+  .robot-tune {
+    margin-block: 2rem 2.5rem;
+    margin-inline: 0;
+  }
+
+  .robot-tune-screen {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    /* 画素が割り切れない端数ぶんの隙間。紙のまま見せる。 */
+    line-height: 0;
+  }
+
+  .robot-tune-canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  .robot-tune-toggle {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .robot-tune-toggle:focus-visible {
+    outline: 2px solid var(--amber-text);
+    outline-offset: 4px;
+  }
+
+  .robot-tune-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .robot-tune-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+  }
+
+  .robot-tune-volume {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: var(--font-sans);
+    font-size: var(--font-ui-xs);
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+  }
+
+  .robot-tune-volume input {
+    width: 8rem;
+    accent-color: var(--amber-text);
+  }
+
+  .robot-tune-caption {
+    display: grid;
+    gap: 0.25rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--ink-2);
+    min-height: 4.5em;
+  }
+
+  .robot-tune-count {
+    font-family: var(--font-mono);
+    font-size: var(--font-ui-xs);
+    color: var(--ink-3);
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
