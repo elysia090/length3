@@ -2,8 +2,10 @@ import { startBenchProfile } from '../../shared/bench-profile';
 import { createPagefindSearchController, type PagefindSearchController } from './pagefind-search';
 import { getPageLanguage, getSearchCopy } from './search-copy';
 import { createSearchNavigation, type SearchNavigation } from './search-navigation';
+import { attachSearchPlay, type SearchPlay } from './search-play';
 
 interface SearchModalRuntime {
+  play: SearchPlay | null;
   searchController: PagefindSearchController;
   searchNavigation: SearchNavigation;
 }
@@ -90,7 +92,8 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
       // 語が変われば結果も変わる。前の選択は指す先を失うので落とす。
       searchModal.addEventListener('input', () => searchNavigation.reset());
       searchModal.addEventListener('keydown', (event) => searchNavigation.handleKeydown(event));
-      modalRuntime = { searchController, searchNavigation };
+      const play = attachSearchPlay(searchModal, pagefindMount);
+      modalRuntime = { play, searchController, searchNavigation };
       return modalRuntime;
     }
 
@@ -105,6 +108,7 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
         searchModal.showModal();
       }
       void runtime.searchController.open();
+      runtime.play?.start();
     }
 
     function closeSearch() {
@@ -127,6 +131,7 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
       modalRuntime?.searchController.close();
     });
     searchModal.addEventListener('close', () => {
+      modalRuntime?.play?.stop();
       setExpandedState(searchTrigger, false);
       modalRuntime?.searchNavigation.reset();
       modalRuntime?.searchController.close();

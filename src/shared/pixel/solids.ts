@@ -61,7 +61,17 @@ const LIGHT = normalize([0.42, 1, 0.26]);
  * 平行投影のカメラ。方位と仰角で回し、注視点を画面の (cx, cy) に置く。
  * ppu は世界の 1 単位が何画素か。
  */
-export class View {
+/**
+ * 世界の点を画面へ写すもの。平行投影（View）でも透視投影でもよい。
+ * project は [x, y, 奥行き]（奥行きは大きいほど手前）。facing は面の法線と
+ * その面の上の 1 点から、面がこちらを向いているかを返す。
+ */
+export interface Projector {
+  project(p: Vec3): Vec3;
+  facing(n: Vec3, at?: Vec3): boolean;
+}
+
+export class View implements Projector {
   private readonly m: Mat3;
   private readonly t: Vec3;
   readonly ppu: number;
@@ -266,10 +276,10 @@ export function shovelSolids(shovel: ShovelState): Solid[] {
   return [blade, ...beams];
 }
 
-export function drawFaces(r: Raster, view: View, s: Solid, fill: number) {
+export function drawFaces(r: Raster, view: Projector, s: Solid, fill: number) {
   const pv = s.verts.map((p) => view.project(p));
   for (const f of s.faces) {
-    if (!s.twoSided && !view.facing(f.n)) continue;
+    if (!s.twoSided && !view.facing(f.n, vert(s.verts, f.v[0]))) continue;
     const tone = 1 - (1 - f.tone) * fill;
     const a = vert(pv, f.v[0]);
     for (let i = 1; i + 1 < f.v.length; i++) {
@@ -296,7 +306,7 @@ export function drawFaces(r: Raster, view: View, s: Solid, fill: number) {
   }
 }
 
-export function drawEdges(r: Raster, view: View, s: Solid, xray: boolean, bias: number) {
+export function drawEdges(r: Raster, view: Projector, s: Solid, xray: boolean, bias: number) {
   const pv = s.verts.map((p) => view.project(p));
   for (const [i, j] of s.edges) {
     const a = vert(pv, i);
@@ -306,7 +316,7 @@ export function drawEdges(r: Raster, view: View, s: Solid, xray: boolean, bias: 
 }
 
 /** まとめた立方体の面に、27 個ぶんの継ぎ目を点線で残す。 */
-export function drawSeams(r: Raster, view: View, c: CubeState, xray: boolean, bias: number) {
+export function drawSeams(r: Raster, view: Projector, c: CubeState, xray: boolean, bias: number) {
   const v = cubeVerts(c);
   const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => [
     a[0] + (b[0] - a[0]) * t,
@@ -330,7 +340,7 @@ export function drawSeams(r: Raster, view: View, c: CubeState, xray: boolean, bi
   }
 }
 
-export function drawShadow(r: Raster, view: View, c: CubeState) {
+export function drawShadow(r: Raster, view: Projector, c: CubeState) {
   if (c.airborne <= 0) return;
   const h = c.airborne;
   const s = c.size * 0.5 * (1 + 0.08 * h);

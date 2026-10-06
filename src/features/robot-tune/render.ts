@@ -1,19 +1,5 @@
 import { drawText, textWidth } from '../../shared/pixel/font';
-import {
-  add,
-  apply,
-  clamp,
-  dot,
-  hash,
-  type Mat3,
-  mul,
-  normalize,
-  rotX,
-  rotY,
-  scale,
-  sub,
-  type Vec3,
-} from '../../shared/pixel/math';
+import { clamp, hash, type Vec3 } from '../../shared/pixel/math';
 import { AMBER, INK, PAPER, type Raster, threshold } from '../../shared/pixel/raster';
 import {
   CORNERS,
@@ -27,7 +13,7 @@ import {
   View,
   vert,
 } from '../../shared/pixel/solids';
-import type { CubeState, Scene } from './choreo';
+import type { Scene } from './choreo';
 import { STACK } from './choreo';
 import { formatLength, formatVolume, groupDigits, sci, unitCount } from './scale';
 import { BPM } from './timeline';

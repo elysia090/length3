@@ -1,0 +1,76 @@
+/* GUNMAN — 検索で 'gunman' と打つと開く射撃場（features/gunman/range.ts） */
+/* 画面いっぱいの dialog に、画素を整数倍に拡大したキャンバスを一枚。
+   照準は絵の中に描くので、ポインタは隠す。 */
+.gunman {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.gunman::backdrop {
+  background: var(--bg);
+}
+
+.gunman-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: none;
+  touch-action: none;
+}
+
+.gunman-help,
+.gunman-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.gunman-btn {
+  position: absolute;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  border: 0.125rem solid var(--ink);
+  border-radius: 0;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.gunman-btn:hover {
+  color: var(--amber-text);
+  border-color: var(--amber-text);
+}
+
+.gunman-exit {
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+}
+
+/* 込め替えの釦は指の画面だけ。鍵盤のある機械では R を押す。 */
+.gunman-reload {
+  display: none;
+  bottom: max(2.5rem, env(safe-area-inset-bottom));
+  left: max(0.75rem, env(safe-area-inset-left));
+}
+
+@media (pointer: coarse) {
+  .gunman-reload {
+    display: block;
+  }
+}

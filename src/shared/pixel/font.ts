@@ -152,3 +152,8 @@ export function drawText(
 
 export const textWidth = (text: string, k = 1) => drawText(null, text, 0, 0, 0, k);
 export const LINE_HEIGHT = 7;
+
+/** 字の点の並び（行ごとの '0'/'1'）。無い字は '#'。立体の字を組むのに使う。 */
+export function glyphRows(ch: string): readonly string[] {
+  return rows(GLYPHS, ch) ?? rows(GLYPHS, ch.toUpperCase()) ?? FALLBACK;
+}

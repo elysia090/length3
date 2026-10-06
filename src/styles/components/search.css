@@ -490,6 +490,18 @@ mark {
   font-style: italic;
 }
 
+/* ─── 立体の字の帯 ───────────────────────────────────────────── */
+/* 打った字がボクセルになって落ちてくる帯（query-strip.ts）。画素は端末の
+   整数倍に拡大する。 */
+.search-strip {
+  display: block;
+  width: 100%;
+  height: 4.5rem;
+  border-bottom: 0.0625rem solid var(--rule);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 /* ─── 用語索引（KWIC）────────────────────────────────────────── */
 /* 抜粋は concordance.ts が「前の文脈・語・後ろの文脈」に割ってある。語の
    列を真ん中に置き、左右を同じ幅の 1fr にすると、どの結果でも語の中心が
