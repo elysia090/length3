@@ -54,6 +54,13 @@ top-level `packageManager` field.
 - `docs/specs/`: design and UI specifications
 - `docs/assets/screenshots/`: generated screenshots used in project docs
 
+## Robot Tune Audio
+
+The clean source WAVs in `data/` were recut on 2026-10-07. The served MP3,
+generated envelope, beat timing, choreography, tests, and article still use the
+previous cut. See [Robot Tune audio status](docs/reference/robot-tune-audio.md)
+for the exact boundaries and the remaining integration work.
+
 ## Deployment
 
 Production delivery is handled by Cloudflare Workers Builds rather than an
