@@ -121,13 +121,13 @@ export const STORY_LIST: readonly StoryDef[] = [
     id: 'tripod',
     title: '放置された三脚',
     strata: [1, 2],
-    text: '坑道の入口に、測量用の三脚が立っている。望遠鏡は、下を向いている。',
+    text: '縦坑の縁に、測量用の三脚が立っている。望遠鏡は、下を向いている。',
     options: [
       {
         label: '覗く',
         stat: 'INT',
         diff: 10,
-        ok: '十字線の真ん中に、さらに下へ続く坑道が見える。角度と距離が、頭に残る。',
+        ok: '十字線の真ん中に、さらに下へ続く階段が見える。角度と距離が、頭に残る。',
         fail: '何も見えない。目が、暗さに負けた。',
         effect: (tx) => {
           if (has(tx, 'habit-measure')) refill(tx, 2, 'gaze', 'you');
@@ -335,7 +335,7 @@ export const STORY_LIST: readonly StoryDef[] = [
     id: 'voices',
     title: '内なる声たち',
     strata: [1, 2, 3],
-    text: '暗い坑道で、頭の中の声が言い争いを始めた。「戻れ」「進め」「黙れ」。',
+    text: '暗い階段室で、頭の中の声が言い争いを始めた。「戻れ」「進め」「黙れ」。',
     options: [
       {
         label: '論理に従う',
@@ -505,7 +505,7 @@ export const STORY_LIST: readonly StoryDef[] = [
     title: '彼女の足取り',
     strata: [2, 3],
     locked: true,
-    text: '夜警の証言、記録係のファイル、最後の客の手紙。三つが一本の線になった。線は、まっすぐ最下層へ伸びている。',
+    text: '夜警の証言、記録係のファイル、最後の客の手紙。三つが一本の線になった。線は、まっすぐ底のほうへ伸びている。',
     options: [
       {
         label: '辿る',

@@ -172,7 +172,7 @@ export const SURGES: Readonly<Record<string, Surge>> = {
   cities: {
     name: '都市の目録',
     surge: { legend: 'cities', arch: ['architect'] },
-    text: '着くたび、全カード +1（1 層で 4 回まで）',
+    text: '着くたび、全カード +1（1 区画で 4 回まで）',
     peakText: '着くたび、全カード +1（上限なし）',
     triggers: (peak) => [
       {
@@ -271,7 +271,7 @@ export const SURGES: Readonly<Record<string, Surge>> = {
   heat: {
     name: '三十秒ルール',
     surge: { legend: 'heat', arch: ['double', 'hunter'] },
-    text: '立ち去るたび、全カード +2・金 10（1 層で 3 回まで）',
+    text: '立ち去るたび、全カード +2・金 10（1 区画で 3 回まで）',
     peakText: '立ち去るたび、全カード +2・金 10（上限なし）',
     triggers: (peak) => [
       {

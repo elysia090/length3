@@ -1,4 +1,5 @@
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
+import { useOf } from '../content/floors';
 import { fxText } from '../content/fx';
 import { legendState } from '../content/legends';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
@@ -30,6 +31,7 @@ import {
   curePrice,
   DAWN,
   epPrice,
+  isHall,
   nodeOf,
   OUTCOME_NAME,
   permValue,
@@ -206,6 +208,11 @@ export function openDig(doc: Document, onClose: () => void): void {
           anim.endAt = t;
           if (anim.end) sound.ok();
           else sound.fail();
+          // 決着の絵を見せてから、受け取りへ（二度押しをなくす）。
+          window.setTimeout(() => {
+            if (game?.world.enc?.phase === 'over' && game.world.enc.who === 'you')
+              send({ c: 'close' });
+          }, 900);
           break;
         case 'clue':
           if (ev.shown) sound.clue();
@@ -356,6 +363,7 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   canvas.addEventListener('pointermove', (ev) => {
     const id = tower.pick(ev.clientX, ev.clientY);
+    showTip(id, ev.clientX, ev.clientY);
     if (id !== focus) {
       focus = id;
       render();
@@ -377,6 +385,58 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   });
 
+  /** 下りるのにかかる時間（場所のエピテットで延びる）。 */
+  function descent(n: MapNode): number {
+    return Math.max(0, 1 + n.eps.reduce((a, e) => a + (epithetDef(e)?.place?.time ?? 0), 0));
+  }
+
+  /** 部屋に触れたときの小さな札（名前・人物・硬度・かかる時間）。 */
+  function showTip(id: number | null, x: number, y: number): void {
+    const w = game?.world;
+    const n = w && id !== null ? nodeOf(w, id) : undefined;
+    if (!w || !n || screen !== 'play') {
+      tip.hidden = true;
+      return;
+    }
+    const hard = n.npc ? nodeHardness(w, n) : null;
+    const over = hard !== null && outmatched(hard, youHardness(w));
+    const can = reachable(w).some((m) => m.id === n.id);
+    tip.replaceChildren();
+    fill(tip, [
+      h('b', {}, `B${floorNo(w, n.row)}・${useOf(w.stratum, n.use)?.name ?? ''}`),
+      h(
+        'span',
+        {},
+        n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind],
+        hard !== null ? `　硬度 ${hard}${over ? '・歯が立たない' : ''}` : '',
+      ),
+      can
+        ? h(
+            'span',
+            { class: 'dig-amber' },
+            isHall(w, n)
+              ? `押すと廊下を歩く（${descent(n)} 時間）`
+              : `押すと下りる（${descent(n)} 時間）`,
+          )
+        : null,
+    ]);
+    const r = view.getBoundingClientRect();
+    tip.style.left = `${Math.min(r.width - 200, x - r.left + 14)}px`;
+    tip.style.top = `${Math.max(0, y - r.top - 10)}px`;
+    tip.hidden = false;
+  }
+
+  /** キーボードで、行ける部屋を選ぶ（← →）。 */
+  function cycle(dir: 1 | -1): void {
+    if (!game) return;
+    const list = reachable(game.world).sort((a, b) => a.col - b.col);
+    if (!list.length) return;
+    const i = list.findIndex((n) => n.id === focus);
+    const next = list[(i + dir + list.length) % list.length];
+    focus = next ? next.id : null;
+    render();
+  }
+
   // ─── 上帯 ───────────────────────────────────────────────────
 
   function renderBar(): void {
@@ -393,7 +453,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           'span',
           { class: 'dig-where' },
           h('b', {}, row >= 0 ? `B${floorNo(w, row)}` : `B${floorNo(w, 0)} の上`),
-          ` ${STRATUM_NAME[w.stratum] ?? ''}`,
+          ` ${useOf(w.stratum, nodeOf(w, w.pos)?.use)?.name ?? STRATUM_NAME[w.stratum] ?? ''}`,
         ),
         h(
           'span',
@@ -433,7 +493,19 @@ export function openDig(doc: Document, onClose: () => void): void {
   function renderSide(): void {
     side.replaceChildren();
     if (!game) return;
-    const w = game.world;
+    renderPanel(game.world);
+    // 出来事の記録は、どの画面でも同じ場所に。
+    if (log.length)
+      fill(side, [
+        h(
+          'ol',
+          { class: 'dig-log', 'aria-label': '出来事' },
+          log.slice(-5).map((l) => h('li', {}, l)),
+        ),
+      ]);
+  }
+
+  function renderPanel(w: World): void {
     if (w.ending) {
       fill(side, [endPanel(w)]);
       return;
@@ -479,9 +551,10 @@ export function openDig(doc: Document, onClose: () => void): void {
       h(
         'p',
         { class: 'dig-room__name' },
-        `B${floorNo(w, n.row)}・${KIND_NAME[n.kind]}`,
-        def ? ` ── ${def.name}` : '',
+        `B${floorNo(w, n.row)}・${useOf(w.stratum, n.use)?.name ?? KIND_NAME[n.kind]}`,
+        ` ── ${def ? def.name : KIND_NAME[n.kind]}`,
       ),
+      h('p', { class: 'dig-quiet' }, `下りるのに ${descent(n)} 時間`),
       def ? h('p', { class: 'dig-quiet' }, def.desc) : null,
       hard !== null
         ? h(
@@ -530,18 +603,29 @@ export function openDig(doc: Document, onClose: () => void): void {
           '部屋',
           roomInfo(w, f),
           can
-            ? button('ここへ下りる', () => send({ c: 'move', node: f.id }), { class: 'dig-go' })
+            ? button(
+                isHall(w, f) ? '廊下を歩いて、ここへ' : 'ここへ下りる',
+                () => send({ c: 'move', node: f.id }),
+                {
+                  class: 'dig-go',
+                },
+              )
             : null,
         ),
       );
     } else
       kids.push(
         section(
-          '次のフロア',
-          h('p', { class: 'dig-quiet' }, '光っている部屋を押すと、そこへ下りる。'),
+          '行ける部屋',
+          h(
+            'p',
+            { class: 'dig-quiet' },
+            '光っている部屋を押す（← → で選んで Enter でも）。下りるか、廊下を歩くか。',
+          ),
           next.map((n) =>
-            button(`${KIND_NAME[n.kind]}${n.npc ? `・${foeDef(n.npc).name}` : ''}`, () =>
-              send({ c: 'move', node: n.id }),
+            button(
+              `${isHall(w, n) ? '廊下 → ' : '下へ → '}${KIND_NAME[n.kind]}${n.npc ? `・${foeDef(n.npc).name}` : ''}`,
+              () => send({ c: 'move', node: n.id }),
             ),
           ),
         ),
@@ -671,13 +755,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         h('p', { class: 'dig-quiet' }, '手元のカードを押すか、数字の 1〜5 で使う。'),
       );
     }
-    kids.push(
-      h(
-        'ol',
-        { class: 'dig-log' },
-        log.slice(-6).map((l) => h('li', {}, l)),
-      ),
-    );
     return h('div', { class: 'dig-enc' }, ...kids);
   }
 
@@ -1280,7 +1357,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     renderSide();
     renderTray();
-    tip.hidden = true;
   }
 
   function onKey(ev: KeyboardEvent): void {
@@ -1308,6 +1384,14 @@ export function openDig(doc: Document, onClose: () => void): void {
     } else if (w.enc?.phase === 'over' && ev.key === 'Enter') {
       ev.preventDefault();
       send({ c: 'close' });
+    } else if (!w.enc && !w.pending) {
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') {
+        ev.preventDefault();
+        cycle(ev.key === 'ArrowRight' ? 1 : -1);
+      } else if (ev.key === 'Enter' && focus !== null && reachable(w).some((n) => n.id === focus)) {
+        ev.preventDefault();
+        send({ c: 'move', node: focus });
+      }
     }
   }
   doc.addEventListener('keydown', onKey, true);

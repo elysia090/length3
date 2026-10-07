@@ -2,7 +2,7 @@ import { WORK_ARCH } from '../content/archetypes';
 import { DATA_VERSION, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { CardDef } from '../content/defs';
-import { epithetsFor } from '../content/epithets';
+import { BEATS, type FloorUse, SECTIONS, useOf } from '../content/floors';
 import { holds } from '../content/fx';
 import {
   defaultSheet,
@@ -47,7 +47,7 @@ import {
   zeroStats,
 } from '../core/model';
 import { ask } from '../core/rules';
-import { meets, TAGS, type Tag } from '../core/tags';
+import { meets, type Tag } from '../core/tags';
 import type { Tx } from '../core/tx';
 import { Tx as TxClass } from '../core/tx';
 import { autoPlay } from './ai';
@@ -62,21 +62,7 @@ import { charOf, coins, gainPerm, losePerm, maxHp, maxMind, refill, stats, xp } 
 
 export const ROWS = PACE.rows;
 export const DAWN = PACE.dawn;
-export const STRATUM_NAME = ['', '夜の街', '記録層', '琥珀層'];
-
-const STRATUM_FOES: Record<number, { person: string[]; danger: string[]; boss: string }> = {
-  1: {
-    person: ['watchman', 'counterman', 'regular'],
-    danger: ['stray-dog'],
-    boss: 'last-customer',
-  },
-  2: {
-    person: ['archivist', 'ghost', 'usher'],
-    danger: ['silverfish', 'censor'],
-    boss: 'projector',
-  },
-  3: { person: ['mother', 'geologist'], danger: ['drone', 'insect', 'hound'], boss: 'volume' },
-};
+export const STRATUM_NAME = ['', ...[1, 2, 3].map((n) => SECTIONS[n]?.name ?? '')];
 
 // ─── 人物を作る ───────────────────────────────────────────────
 
@@ -136,60 +122,62 @@ function statsOfChar(c: Char) {
 
 // ─── 地図 ─────────────────────────────────────────────────────
 
-/** 見せ場のタグを 2 つ。 */
-function drawStage(tx: Tx): Tag[] {
-  const pool = [...TAGS];
-  const out: Tag[] = [];
-  for (let i = 0; i < 2; i++) {
-    const t = pool.splice(Math.floor(tx.rand('map') * pool.length), 1)[0];
-    if (t) out.push(t);
-  }
-  return out;
-}
-
 function buildMap(tx: Tx, stratum: number): void {
-  const pool = STRATUM_FOES[stratum] ?? STRATUM_FOES[1];
-  if (!pool) return;
+  const sec = SECTIONS[stratum] ?? SECTIONS[1];
+  if (!sec) return;
   const rows: MapNode[][] = [];
   const nodes: MapNode[] = [];
   let id = 0;
-  const placeEps = epithetsFor('place').map((e) => e.id);
-  const foeEps = epithetsFor('foe').map((e) => e.id);
+  // フロアの用途を並べる（隣り合うフロアは同じ用途にしない）。
+  const deck = [...sec.uses];
+  const uses: FloorUse[] = [];
   for (let row = 0; row < ROWS; row++) {
-    const width = row === 0 ? 2 : tx.int('map', 2, 3);
+    if (!deck.length) deck.push(...sec.uses.filter((u) => u.id !== uses.at(-1)?.id));
+    const [u] = deck.splice(Math.floor(tx.rand('map') * deck.length), 1);
+    if (u) uses.push(u);
+  }
+  const everyone = [...new Set(sec.uses.flatMap((u) => u.people))];
+  for (let row = 0; row < ROWS; row++) {
+    const beat = BEATS[row] ?? BEATS[0];
+    const use = uses[row] ?? sec.uses[0];
+    if (!beat || !use) continue;
+    // 拍子の部屋を、左右の並びだけ混ぜる（安全と冒険の位置は毎回変わる）。
+    const kinds = [...beat.rooms].sort(() => tx.rand('map') - 0.5);
     const list: MapNode[] = [];
-    for (let col = 0; col < width; col++) {
-      let kind: MapNode['kind'];
-      if (row === 0) kind = 'person';
-      else if (row === Math.floor(ROWS / 2) && col === 0) kind = 'rest';
-      else if (row === ROWS - 1) kind = col === 0 ? 'rest' : col === 1 ? 'shop' : 'person';
-      else {
-        const r = tx.rand('map');
-        kind =
-          r < 0.38
-            ? 'person'
-            : r < 0.58
-              ? 'event'
-              : r < 0.76 && row >= 2
-                ? 'danger'
-                : r < 0.86
-                  ? 'shop'
-                  : 'event';
-      }
-      const node: MapNode = { id: id++, row, col, kind, next: [], visited: false, eps: [] };
-      if (kind === 'person') node.npc = tx.pick('map', pool.person);
-      if (kind === 'danger') node.npc = tx.pick('map', pool.danger);
-      if (node.npc && tx.rand('map') < PACE.stage) node.stage = drawStage(tx);
-      // 場所と人物には、エピテットが刻まれていることがある。
-      if (tx.rand('map') < 0.35) {
-        const list2 = node.npc ? foeEps : placeEps;
-        const e = tx.pick('map', list2);
+    kinds.forEach((k, col) => {
+      let kind: MapNode['kind'] =
+        k === '?'
+          ? tx.rand('map') < 0.35 + sec.danger * 2 && use.danger.length
+            ? 'danger'
+            : 'person'
+          : k;
+      if (kind === 'danger' && !use.danger.length) kind = 'person';
+      const node: MapNode = {
+        id: id++,
+        row,
+        col,
+        kind,
+        next: [],
+        visited: false,
+        eps: [],
+        use: use.id,
+      };
+      if (kind === 'person') node.npc = tx.pick('map', use.people.length ? use.people : everyone);
+      if (kind === 'danger') node.npc = tx.pick('map', use.danger);
+      // 見せ場は、そのフロアの用途で決まる（喫茶なら［夜・人物］）。
+      if (node.npc && tx.rand('map') < beat.stage) node.stage = [...use.stage];
+      // 場所のエピテットも用途から（人のいる部屋は人物の面、いない部屋は場所の面が働く）。
+      if (tx.rand('map') < 0.25 + 0.1 * stratum) {
+        const e = tx.pick(
+          'map',
+          use.eps.filter((x) => (node.npc ? !!epithetDef(x)?.foe : !!epithetDef(x)?.place)),
+        );
         if (e && !(epithetDef(e)?.place?.empty && (kind === 'rest' || kind === 'shop')))
           node.eps.push(e);
       }
       list.push(node);
       nodes.push(node);
-    }
+    });
     rows.push(list);
   }
   const boss: MapNode = {
@@ -197,11 +185,12 @@ function buildMap(tx: Tx, stratum: number): void {
     row: ROWS,
     col: 0,
     kind: 'boss',
-    npc: pool.boss,
+    npc: sec.boss.people[0],
     next: [],
     visited: false,
     eps: [],
-    stage: drawStage(tx),
+    stage: [...sec.boss.stage],
+    use: sec.boss.id,
   };
   nodes.push(boss);
   for (let row = 0; row < ROWS; row++) {
@@ -245,12 +234,28 @@ function buildMap(tx: Tx, stratum: number): void {
 export const nodeOf = (w: World, id: number | null) =>
   id === null ? undefined : w.map.find((n) => n.id === id);
 
+/**
+ * 行ける部屋。下のフロアへの階段と、同じフロアの廊下（隣の、まだ入っていない
+ * 部屋）。廊下を歩くと、下りずに時間だけが過ぎる（同じフロアの出来事と人物の
+ * 両方を取れるが、夜明けが近づく）。
+ */
 export function reachable(w: World): MapNode[] {
   if (w.pending || w.enc || w.ending) return [];
   const here = nodeOf(w, w.pos);
   if (!here) return w.map.filter((n) => n.row === 0);
-  return here.next.map((id) => nodeOf(w, id)).filter((n): n is MapNode => !!n);
+  const down = here.next.map((id) => nodeOf(w, id)).filter((n): n is MapNode => !!n);
+  return [...lateral(w), ...down];
 }
+
+/** 同じフロアの、隣のまだ入っていない部屋。 */
+export function lateral(w: World): MapNode[] {
+  const here = nodeOf(w, w.pos);
+  if (!here || here.kind === 'boss' || w.pending || w.enc || w.ending) return [];
+  return w.map.filter((n) => n.row === here.row && Math.abs(n.col - here.col) === 1 && !n.visited);
+}
+
+/** その部屋へは廊下か（同じフロア）。 */
+export const isHall = (w: World, n: MapNode) => nodeOf(w, w.pos)?.row === n.row;
 
 // ─── 始める ───────────────────────────────────────────────────
 
@@ -275,7 +280,7 @@ export function start(
     'welder',
   ].filter((j) => j !== job);
   const rj = others[Math.floor(((seed >>> 3) % 1000) / (1000 / others.length))] ?? 'watch';
-  const rival = makeChar(rj, `${jobDef(rj)?.name ?? ''}の掘る人`);
+  const rival = makeChar(rj, `${jobDef(rj)?.name ?? ''}の灯り持ち`);
   tx.emit({ type: 'run.started', seed, v: DATA_VERSION, depth, you, rival });
   tx.emit({
     type: 'rng',
@@ -307,7 +312,7 @@ export function start(
   buildMap(tx, 1);
   tx.emit({
     type: 'note',
-    text: `22:00。${STRATUM_NAME[1]}。もう一人の掘る人（${rival.name}）も、同じ縦坑を下りはじめた。`,
+    text: `22:00。${SECTIONS[1]?.open ?? ''} 下のほうに、もう一つ灯りが揺れている。${rival.name}だ。`,
   });
   sync(tx);
 }
@@ -355,7 +360,7 @@ function gossip(tx: Tx): void {
   });
 }
 
-/** もう一人の掘る人が 1 時間ぶん進む。同じ規則で、遭遇を複製した世界で解く。 */
+/** もう一人の灯り持ちが 1 時間ぶん進む。同じ規則で、遭遇を複製した世界で解く。 */
 function rivalStep(tx: Tx): void {
   const w = tx.w;
   const rv = w.rival;
@@ -451,7 +456,7 @@ function rivalStep(tx: Tx): void {
   if (target.kind === 'boss') {
     if (rv.stratum >= 3) {
       tx.emit({ type: 'rival', down: true, first: !w.ending });
-      if (!w.ending) tx.emit({ type: 'note', text: `${ch.name}が、先に最下層へ着いた。` });
+      if (!w.ending) tx.emit({ type: 'note', text: `${ch.name}の灯りが、先に底のほうへ消えた。` });
     } else tx.emit({ type: 'rival', stratum: rv.stratum + 1, row: -2, node: null });
   }
 }
@@ -570,13 +575,24 @@ export function move(tx: Tx, id: number): boolean {
   const node = reachable(w).find((n) => n.id === id);
   if (!node) return false;
   const from = w.pos;
+  const hall = isHall(w, node);
   tx.emit({ type: 'moved', node: node.id });
+  const use = useOf(w.stratum, node.use);
+  if (hall) tx.emit({ type: 'note', text: '廊下を歩いて、隣の部屋へ。' });
+  else if (use)
+    tx.emit({
+      type: 'note',
+      text: `B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}・${use.name}。${use.line}`,
+    });
   tx.emit({ type: 'node', id: node.id, visited: true });
   // 着くのにかかる時間（場所のエピテットと、規則）。
   let hours = 1;
   for (const e of node.eps) hours += epithetDef(e)?.place?.time ?? 0;
   if (node.eps.includes('closed') && w.you.perms.includes('shaft-key')) hours -= 2;
-  passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'move' }, hours))));
+  passTime(
+    tx,
+    Math.max(0, Math.round(tx.rule('timeCost', { kind: hall ? 'walk' : 'move' }, hours))),
+  );
   for (const e of node.eps) {
     const a = epithetDef(e)?.place?.arrive;
     if (a) {
@@ -603,7 +619,7 @@ export function move(tx: Tx, id: number): boolean {
     node.kind !== 'boss'
   ) {
     tx.emit({ type: 'flag', key: `met${w.stratum}`, v: 1 });
-    tx.emit({ type: 'note', text: `${rv.char.name}と鉢合わせた。` });
+    tx.emit({ type: 'note', text: `${rv.char.name}と鉢合わせた。同じ階段を下りてきたらしい。` });
     tx.emit({
       type: 'pending',
       p: { kind: 'encounter', npc: 'rival', tier: 'rival', resume: node.id },
@@ -725,7 +741,7 @@ export function breather(tx: Tx): void {
   careBonus(tx);
   shiftAll(tx, 'you');
   passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, 1))));
-  tx.emit({ type: 'note', text: '一服した。' });
+  tx.emit({ type: 'note', text: '壁にもたれて、一服した。' });
 }
 
 /** 古びた・未完のカードは、休ませたことを 2 倍に数える。 */
@@ -901,7 +917,7 @@ function descend(tx: Tx): void {
   });
   if (w.rival.stratum < next && !w.rival.down)
     tx.emit({ type: 'rival', stratum: next, row: -2, node: null });
-  tx.emit({ type: 'note', text: `${STRATUM_NAME[next]}へ下りた。また 22 時から、夜が始まる。` });
+  tx.emit({ type: 'note', text: `B${(next - 1) * (ROWS + 1) + 1}。${SECTIONS[next]?.open ?? ''}` });
 }
 
 // ─── 出来事 ───────────────────────────────────────────────────
@@ -1242,7 +1258,10 @@ function finish(tx: Tx, kind: 'dead' | 'dawn', title: string): void {
     ending: {
       kind,
       title,
-      text: `${STRATUM_NAME[w.stratum]}で、夜が終わった。`,
+      text:
+        kind === 'dawn'
+          ? '朝になった。建物じゅうの灯りが一斉に落ち、階段の扉が閉まる。あなたの灯りだけが、まだ点いている。'
+          : `${STRATUM_NAME[w.stratum]}の途中で、あなたの灯りが消えた。`,
       score: score(w, false),
       won: false,
     },
@@ -1254,7 +1273,7 @@ function finale(tx: Tx, outcome: Outcome): void {
   const w = tx.w;
   const her = !!w.flags['her-trail'] || w.you.perms.includes('truth');
   let title = '引き返した';
-  let text = 'あなたは最下層の手前で引き返した。立方体は、まだそこにある。次の夜も。';
+  let text = 'あなたは底の手前で引き返した。立方体は、まだそこにある。次の夜も。';
   switch (outcome) {
     case 'beaten':
       title = '砕いた';
@@ -1263,7 +1282,7 @@ function finale(tx: Tx, outcome: Outcome): void {
       break;
     case 'broken':
       title = '黙らせた';
-      text = '立方体は黙った。あなたの記憶は、もう何も言わない。夜明けの縦坑を、ひとりで上る。';
+      text = '立方体は黙った。あなたの記憶は、もう何も言わない。夜明けの階段を、ひとりで上る。';
       break;
     case 'trusted':
       title = '受け入れた';
@@ -1279,7 +1298,7 @@ function finale(tx: Tx, outcome: Outcome): void {
       break;
   }
   if (w.flags.soldPromise) text += ' 約束は、古物商の棚に置いてきた。';
-  if (w.rival.first) text += ` ${w.rival.char.name}は、あなたより先にここに来ていた。`;
+  if (w.rival.first) text += ` ${w.rival.char.name}の灯りが、あなたより先にここを照らしていた。`;
   const won = outcome !== 'left' && outcome !== 'fled';
   tx.emit({ type: 'ending', ending: { kind: outcome, title, text, score: score(w, won), won } });
   tx.emit({ type: 'pending', p: { kind: 'ending' } });

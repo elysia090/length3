@@ -16,8 +16,8 @@ import type { FoeDef, MoveDef } from './defs';
 import { permDef } from './registry';
 
 /**
- * 人物。夜の街（Nighthawks の食堂のまわり）、記録層（閉じた映画館と書庫）、
- * 琥珀層（製油所と化石と、家族の声）。
+ * 人物。夜の街（Nighthawks の食堂のまわり）、記録の階（閉じた映画館と書庫）、
+ * 琥珀の階（標本と地層と、家族の声）。
  *
  * それぞれ手の並び（moves）と下駄（prior）と性格（persona）を持ち、頭（ai.ts）
  * が試行で次の手を選ぶ。嘘の予告は、見かけの手を見せて本当の手を打つ。
@@ -173,7 +173,7 @@ function lie(
 const angry = (w: World) => foe(w).hostility / 3;
 
 export const FOE_LIST: readonly FoeDef[] = [
-  // ─── 第一層：夜の街 ─────────────────────────────────────────
+  // ─── 一の区画：夜の街 ─────────────────────────────────────────
   {
     id: 'watchman',
     name: '夜警',
@@ -212,7 +212,7 @@ export const FOE_LIST: readonly FoeDef[] = [
     model: 'watchman',
     desc: '角の食堂の前で、懐中電灯を持って立っている。',
     lines: {
-      greet: ['こんな時間に、何を掘ってる。'],
+      greet: ['こんな時間に、何を探してる。'],
       again: ['また、あんたか。'],
       hurt: ['……公務執行妨害だぞ。'],
       low: ['待て、待ってくれ。'],
@@ -404,7 +404,7 @@ export const FOE_LIST: readonly FoeDef[] = [
       uncovered: ['手紙は、きみ宛てだった。'],
     },
   },
-  // ─── 第二層：記録層 ─────────────────────────────────────────
+  // ─── 二の区画：記録の階 ─────────────────────────────────────────
   {
     id: 'archivist',
     name: '記録係',
@@ -672,7 +672,7 @@ export const FOE_LIST: readonly FoeDef[] = [
       if (mine.length) f.clues = mine.map((id) => ({ id, shown: false }));
     },
   },
-  // ─── 第三層：琥珀層 ─────────────────────────────────────────
+  // ─── 三の区画：琥珀の階 ─────────────────────────────────────────
   {
     id: 'mother',
     name: '母の声',
@@ -807,7 +807,7 @@ export const FOE_LIST: readonly FoeDef[] = [
     lines: {
       greet: ['その層は千年前だ。踏むな。'],
       hurt: ['野蛮だな。'],
-      trusted: ['もう一人の掘る人も、同じことを訊いた。'],
+      trusted: ['もう一人の灯り持ちも、同じことを訊いた。'],
       uncovered: ['この臭いを、どこで嗅いだ？'],
     },
   },
@@ -961,10 +961,10 @@ export const FOE_LIST: readonly FoeDef[] = [
       f.st.edge = edge;
     },
   },
-  // ─── もう一人の掘る人（数は遭遇のときにライバルの人物から入れる） ───
+  // ─── もう一人の灯り持ち（数は遭遇のときにライバルの人物から入れる） ───
   {
     id: 'rival',
-    name: 'もう一人の掘る人',
+    name: 'もう一人の灯り持ち',
     stratum: 0,
     tier: 'danger',
     hp: 30,
@@ -982,12 +982,12 @@ export const FOE_LIST: readonly FoeDef[] = [
     clues: [],
     take: [],
     moves: [
-      strike('shovel', 'シャベルで殴る', 6, { prior: (w) => 1 + angry(w) }),
+      strike('lamp', '灯りを叩きつける', 6, { prior: (w) => 1 + angry(w) }),
       threat('taunt', '先に着くのは自分だ', 5, { prior: () => 2 }),
       probe('read', 'あなたを読む', { prior: () => 1.5 }),
-      guard('dig-in', '掘った穴に身を沈める', 6),
+      guard('dark', '灯りを消して暗がりに沈む', 6),
       confide('notes', '手帳を見せる', 4),
-      flee('climb', '別の坑道へ逃げる', (w) => hpOf(w) < 0.3),
+      flee('climb', '非常階段へ逃げる', (w) => hpOf(w) < 0.3),
     ],
     persona: { aggression: 0.5, deceit: 0.4, pride: 0.8, fear: 0.3, warmth: 0.3, cunning: 0.8 },
     rewards: {
@@ -997,12 +997,12 @@ export const FOE_LIST: readonly FoeDef[] = [
       uncovered: { coins: 15 },
     },
     model: 'rival',
-    desc: 'あなたと同じシャベルを持っている。',
+    desc: 'あなたと同じ型の灯りを提げている。先を行っているぶん、少しだけ煤けている。',
     lines: {
-      greet: ['同じ穴を掘ってるとは思わなかった。'],
+      greet: ['同じ階段を下りてるとは思わなかった。'],
       again: ['また会ったな。今度は譲らない。'],
       hurt: ['……やるじゃないか。'],
-      trusted: ['半分ずつ掘ろう。底で会おう。'],
+      trusted: ['灯りは二つあったほうがいい。底で会おう。'],
       broken: ['先に行け。'],
       uncovered: ['俺も、彼女を探してる。'],
       fled: ['底で待ってる。'],

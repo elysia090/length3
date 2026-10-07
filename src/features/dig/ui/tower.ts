@@ -9,7 +9,7 @@ import { AMBER, INK, PAPER, Raster, threshold } from '../../../shared/pixel/rast
  * 二つの記号が向き合う）。
  *
  * 人間は記号で描く：丸（頭）と逆三角形（体）。あなたは琥珀で塗り、
- * もう一人の掘る人は輪郭だけ、ほかの人物は墨。
+ * もう一人の灯り持ちは輪郭だけ、ほかの人物は墨。
  */
 
 export const W = 320;
@@ -46,7 +46,7 @@ export interface TowerView {
   edges: readonly (readonly [number, number])[];
   /** あなたのいる部屋（入口なら null）。 */
   you: number | null;
-  /** もう一人の掘る人の居場所。 */
+  /** もう一人の灯り持ちの居場所。 */
   rival: number | null;
   /** 推奨の道（濃さの違う三本）。 */
   routes: readonly { kind: 'safe' | 'chain' | 'almost'; path: readonly number[]; mark?: number }[];
@@ -211,6 +211,14 @@ export class Tower {
   private stairs(view: TowerView, _t: number): void {
     const r = this.raster;
     const pos = new Map(view.rooms.map((room) => [room.id, room]));
+    // 廊下（同じフロアの隣どうし）。細い実線。
+    for (const a of view.rooms) {
+      const b = view.rooms.find((x) => x.floor === a.floor && x.col === a.col + 1);
+      if (!b) continue;
+      const pa = this.center(a);
+      const pb = this.center(b);
+      r.line(pa.x, pa.y, 0, pb.x, pb.y, 0, INK, false, 0, [3, 1]);
+    }
     for (const [from, to] of view.edges) {
       const a = pos.get(from);
       const b = pos.get(to);
@@ -367,19 +375,23 @@ export class Tower {
           -0.4,
         );
       } else this.figure(x, y, k, room.visited ? PAPER : INK, room.visited);
-      // 硬度（数字）。歯が立たない相手は琥珀。
+      // 硬度（数字）。歯が立たない相手は、数字を墨の枠で囲む
+      // （琥珀は「あなた」と「押せるもの」にだけ使う）。
       if (room.hard !== null && !room.visited && !inEnc) {
         const label = String(room.hard);
-        drawText(
-          this.raster,
-          label,
-          Math.round(x + 5 * k),
-          Math.round(y - 9 * k),
-          room.over ? AMBER : INK,
-        );
+        const lx = Math.round(x + 5 * k);
+        const ly = Math.round(y - 9 * k);
+        drawText(this.raster, label, lx, ly, INK);
+        if (room.over) {
+          const w = textWidth(label) + 3;
+          this.raster.line(lx - 2, ly - 2, 99, lx + w, ly - 2, 99, INK, false);
+          this.raster.line(lx - 2, ly + 8, 99, lx + w, ly + 8, 99, INK, false);
+          this.raster.line(lx - 2, ly - 2, 99, lx - 2, ly + 8, 99, INK, false);
+          this.raster.line(lx + w, ly - 2, 99, lx + w, ly + 8, 99, INK, false);
+        }
       }
     }
-    // もう一人の掘る人（輪郭だけ）。
+    // もう一人の灯り持ち（輪郭だけ）。
     if (view.rival !== null) {
       const room = pos.get(view.rival);
       if (room) {

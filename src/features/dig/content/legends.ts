@@ -469,7 +469,7 @@ export const LEGENDS: readonly Legend[] = [
       },
       {
         name: '部屋',
-        need: '最下層に着く',
+        need: '三の区画（琥珀の階）に着く',
         on: 'map.built',
         when: reached(3),
         count: 1,
@@ -597,7 +597,7 @@ export const LEGENDS: readonly Legend[] = [
       },
       {
         name: '内側の階段',
-        need: '最下層に着く',
+        need: '三の区画（琥珀の階）に着く',
         on: 'map.built',
         when: reached(3),
         count: 1,
@@ -657,7 +657,7 @@ export const LEGENDS: readonly Legend[] = [
       },
       {
         name: '抑止',
-        need: '層の最後の相手を越える',
+        need: '区画の最後の相手を越える',
         on: 'enc.end',
         when: (ev, w) =>
           ev.type === 'enc.end' &&
@@ -814,7 +814,7 @@ export const LEGENDS: readonly Legend[] = [
       },
       {
         name: '救世主',
-        need: '最下層に着く',
+        need: '三の区画（琥珀の階）に着く',
         on: 'map.built',
         when: reached(3),
         count: 1,
@@ -860,7 +860,7 @@ export const LEGENDS: readonly Legend[] = [
       },
       {
         name: 'スターチャイルド',
-        need: '最下層に着く',
+        need: '三の区画（琥珀の階）に着く',
         on: 'map.built',
         when: reached(3),
         count: 1,
@@ -1028,7 +1028,7 @@ export const LEGENDS: readonly Legend[] = [
       },
       {
         name: '地獄ではないもの',
-        need: '最下層に着く',
+        need: '三の区画（琥珀の階）に着く',
         on: 'map.built',
         when: reached(3),
         count: 1,

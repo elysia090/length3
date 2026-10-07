@@ -567,7 +567,7 @@ export const EPITHETS: readonly Epithet[] = [
     gloss: '閉じ込められたまま、いつまでも同じ形。',
     rarity: 'uncommon',
     card: {
-      text: 'タグ［時間］を足す。変質しない。層を下りるたび、回数が満ちる。',
+      text: 'タグ［時間］を足す。変質しない。区画を下りるたび、回数が満ちる。',
       add: ['time'],
       frozen: true,
     },
