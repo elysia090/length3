@@ -58,8 +58,10 @@ top-level `packageManager` field.
 
 The clean source WAVs in `data/` were recut on 2026-10-07. The served MP3,
 generated envelope, beat timing, choreography, tests, and article still use the
-previous cut. See [Robot Tune audio status](docs/reference/robot-tune-audio.md)
-for the exact boundaries and the remaining integration work.
+previous cut. The current 13-beat loop and 33-beat intro assumptions are not
+established by measuring the audio. See
+[Robot Tune audio status](docs/reference/robot-tune-audio.md) for the exact
+boundaries and the remaining integration work.
 
 ## Deployment
 
