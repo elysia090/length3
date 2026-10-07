@@ -9,13 +9,25 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.2.1';
+export const DATA_VERSION = '1.3.0';
+
+/**
+ * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
+ * 遭遇 1 回 5〜7 手、地図・出来事・食堂の判断を足しておよそ 250 手）。
+ *   rows     1 層の段数
+ *   dawn     夜明けまでの時間（22 時から）。過ぎると相手が荒れる
+ *   tough    人物の体力・意志の倍率（遭遇を 5〜7 手にする）
+ *   build    ビルドの条件の倍率（初めの 5 枚では、まず揃わない）
+ */
+export const PACE = { rows: 8, dawn: 10, tough: 1.7, build: 1.7 } as const;
 
 export interface Release {
   v: string;
   date: string;
   notes: readonly string[];
-  tune?: Readonly<Record<string, Partial<Pick<CardDef, 'uses' | 'rarity' | 'retired' | 'replacedBy'>>>>;
+  tune?: Readonly<
+    Record<string, Partial<Pick<CardDef, 'uses' | 'rarity' | 'retired' | 'replacedBy'>>>
+  >;
   rules?: readonly PassiveSpec[];
 }
 
@@ -53,11 +65,19 @@ export const RELEASES: readonly Release[] = [
     date: '2026-10-07',
     notes: ['AKIRA の回数 2 → 2（据え置き）、三体の回数 2 → 1。', '去る の基本の率 −5%。'],
     tune: { threebody: { uses: 1 } },
-    rules: [{ rule: 'leaveChance', fn: (_c, v) => (v >= 100 ? v : v - 5), text: '去る −5%（1.2.1）' }],
+    rules: [
+      { rule: 'leaveChance', fn: (_c, v) => (v >= 100 ? v : v - 5), text: '去る −5%（1.2.1）' },
+    ],
   },
 ];
 
-const legacy = (id: string, no: number, name: string, ready: CardDef['ready'], tags: CardDef['tags']): CardDef => ({
+const legacy = (
+  id: string,
+  no: number,
+  name: string,
+  ready: CardDef['ready'],
+  tags: CardDef['tags'],
+): CardDef => ({
   id,
   layer: 'legacy',
   no,
@@ -77,13 +97,49 @@ const legacy = (id: string, no: number, name: string, ready: CardDef['ready'], t
 /** 退いた札（1.0 の試作）。 */
 export const LEGACY: readonly CardDef[] = [
   legacy('observe', 901, '観察', [['see'], ['clue', 1]], ['gaze']),
-  legacy('intimidate', 902, '威圧', [['break', 5], ['host', 2]], ['body']),
+  legacy(
+    'intimidate',
+    902,
+    '威圧',
+    [
+      ['break', 5],
+      ['host', 2],
+    ],
+    ['body'],
+  ),
   legacy('lie', 903, '嘘', [['lie', 3]], ['private']),
-  legacy('strike', 904, '殴る', [['hit', 6], ['host', 2]], ['body']),
-  legacy('silence', 905, '沈黙', [['calm', 4], ['host', -2]], ['private']),
+  legacy(
+    'strike',
+    904,
+    '殴る',
+    [
+      ['hit', 6],
+      ['host', 2],
+    ],
+    ['body'],
+  ),
+  legacy(
+    'silence',
+    905,
+    '沈黙',
+    [
+      ['calm', 4],
+      ['host', -2],
+    ],
+    ['private'],
+  ),
   legacy('remember', 906, '思い出す', [['heal', 0, 4]], ['memory']),
   legacy('flee', 907, '逃走', [['leave']], ['place']),
-  legacy('dig', 908, '掘る', [['clue', 1], ['coins', 5]], ['place']),
+  legacy(
+    'dig',
+    908,
+    '掘る',
+    [
+      ['clue', 1],
+      ['coins', 5],
+    ],
+    ['place'],
+  ),
 ];
 
 /** いまの版までの tune を、定義に重ねる。 */

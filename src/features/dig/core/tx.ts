@@ -2,7 +2,7 @@ import type { Ev } from './events';
 import type { Stream, Who, World } from './model';
 import { apply } from './reduce';
 import { next } from './rng';
-import { bookOf, evaluate, type RuleCtx, type RuleName, type Rulebook } from './rules';
+import { bookOf, evaluate, type Rulebook, type RuleCtx, type RuleName } from './rules';
 
 /**
  * ひとつのコマンドを処理する取引。emit したイベントはその場で世界に
@@ -15,6 +15,8 @@ export class Tx {
   private dirty = new Set<Stream>();
   private depth = 0;
   private book: Rulebook | null = null;
+  /** 渡すと、効いた規則とトリガの出どころを数える（ルート読み用）。 */
+  trace: Map<string, number> | null = null;
 
   constructor(
     readonly w: World,
@@ -30,7 +32,11 @@ export class Tx {
     const triggers = this.rules().triggers[ev.type];
     if (!triggers) return;
     this.depth++;
-    for (const t of triggers) if (!t.when || t.when(ev, this.w)) t.run(this, ev);
+    for (const t of triggers) {
+      if (t.when && !t.when(ev, this.w)) continue;
+      this.mark(t.source);
+      t.run(this, ev);
+    }
     this.depth--;
   }
 
@@ -40,7 +46,12 @@ export class Tx {
   }
 
   rule(name: RuleName, ctx: Partial<RuleCtx> & { who?: Who }, base: number): number {
-    return evaluate(this.rules(), name, { w: this.w, who: 'you', enc: this.w.enc, ...ctx }, base);
+    const seen = this.trace ? (p: { source: string }) => this.mark(p.source) : undefined;
+    return evaluate(this.rules(), name, { w: this.w, who: 'you', enc: this.w.enc, ...ctx }, base, seen);
+  }
+
+  private mark(source: string): void {
+    if (this.trace) this.trace.set(source, (this.trace.get(source) ?? 0) + 1);
   }
 
   /** 0 以上 1 未満。用途ごとの流れから。 */

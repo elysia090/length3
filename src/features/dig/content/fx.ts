@@ -80,6 +80,37 @@ export type Fx =
   | ['check', Stat | readonly Stat[], number, readonly Fx[], (readonly Fx[])?]
   | ['if', Cond, readonly Fx[], (readonly Fx[])?];
 
+/**
+ * 基本操作。カードも記憶もエピテットも、最後はこの 24 の動詞の並びになる。
+ * 動詞を増やすより、並べ方と条件と規則パッチで広げる（15〜25 に保つ）。
+ */
+export const OPS: Readonly<Record<Fx[0], { name: string; gloss: string }>> = {
+  hit: { name: '削る', gloss: '相手の体力を削る（守りを貫くこともある）' },
+  break: { name: '折る', gloss: '相手の意志を削る' },
+  trust: { name: '寄せる', gloss: '相手の信頼を得る' },
+  host: { name: '煽る', gloss: '相手の敵意を上げ下げする' },
+  clue: { name: '暴く', gloss: '手がかりを見る（誤りのこともある）' },
+  see: { name: '見る', gloss: '本当の予告を見る' },
+  guard: { name: '構える', gloss: '体力への傷を受け止める' },
+  calm: { name: '鎮める', gloss: '精神への傷を受け止める' },
+  heal: { name: '癒やす', gloss: '体力と精神を戻す' },
+  cost: { name: '払う', gloss: '自分の体力と精神で支払う' },
+  coins: { name: '稼ぐ', gloss: '金を得る・払う' },
+  stun: { name: '止める', gloss: '相手の次の手番を潰す' },
+  leave: { name: '去る', gloss: 'その場を立ち去る' },
+  perm: { name: '刻む', gloss: '記憶（永続カード）を得る' },
+  refill: { name: '戻す', gloss: 'タグの合うカードの回数を戻す' },
+  cut: { name: '削ぐ', gloss: '相手の次の一撃を弱める' },
+  expose: { name: '晒す', gloss: '相手の守りを剥がす' },
+  lie: { name: '偽る', gloss: '嘘をつく（見抜かれることもある）' },
+  mimic: { name: '真似る', gloss: '直前のカードを、もう一度' },
+  note: { name: '記す', gloss: '次のカードを強める' },
+  vow: { name: '誓う', gloss: '本当の約束をする（破ると見抜かれる）' },
+  burnBad: { name: '焼く', gloss: '悪い記憶をひとつ消す' },
+  check: { name: '賭ける', gloss: '能力値で判定して、分岐する' },
+  if: { name: '読む', gloss: '盤面の条件で、分岐する' },
+};
+
 export interface FxCtx {
   mult: number;
   /** 逆さの: 信頼と意志を入れ替え、敵意の向きを反転する。 */
@@ -96,7 +127,14 @@ export interface FxCtx {
   first: boolean;
 }
 
-const STAT_JA: Record<Stat, string> = { VIT: 'VIT', ATK: 'ATK', DEF: 'DEF', WIL: 'WIL', INT: 'INT', AGI: 'AGI' };
+const STAT_JA: Record<Stat, string> = {
+  VIT: 'VIT',
+  ATK: 'ATK',
+  DEF: 'DEF',
+  WIL: 'WIL',
+  INT: 'INT',
+  AGI: 'AGI',
+};
 
 export function num(tx: Tx, v: Num): number {
   if (typeof v === 'number') return v;
@@ -141,7 +179,8 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
   for (const f of list) {
     const e = tx.w.enc;
     if (e && e.phase !== 'act' && f[0] !== 'perm' && f[0] !== 'coins' && f[0] !== 'refill') return;
-    const m = (v: Num) => Math.round((ctx.fixed && typeof v !== 'number' ? v.n : num(tx, v)) * ctx.mult);
+    const m = (v: Num) =>
+      Math.round((ctx.fixed && typeof v !== 'number' ? v.n : num(tx, v)) * ctx.mult);
     switch (f[0]) {
       case 'hit':
         hitFoe(tx, m(f[1]), f[2] ?? ctx.pierce ?? false);
@@ -200,7 +239,11 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
       case 'lie': {
         if (!e) break;
         const wary = 10 * (e.foe.st.wary ?? 0);
-        const pct = tx.rule('lieChance', { who: actor(tx), card: ctx.card }, chance(tx, 'INT', 50 - 8 * e.foe.int + (f[2] ?? 0) - wary, ctx.card));
+        const pct = tx.rule(
+          'lieChance',
+          { who: actor(tx), card: ctx.card },
+          chance(tx, 'INT', 50 - 8 * e.foe.int + (f[2] ?? 0) - wary, ctx.card),
+        );
         const ok = roll(tx, 'INT', Math.max(5, Math.min(95, Math.round(pct))));
         claim(tx, f[3] ?? 'harmless', false);
         if (ok) trust(tx, Math.max(1, Math.round(f[1] * ctx.mult)));
@@ -214,7 +257,8 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
       }
       case 'mimic': {
         const id = e?.lastCard;
-        if (id && id !== ctx.card) run(tx, cardDef(id).ready, { ...ctx, mult: ctx.mult * f[1], card: id });
+        if (id && id !== ctx.card)
+          run(tx, cardDef(id).ready, { ...ctx, mult: ctx.mult * f[1], card: id });
         else say(tx, 'voice', '真似るものがない。');
         break;
       }
@@ -312,11 +356,17 @@ export function fxText(list: readonly Fx[]): string {
       case 'heal': {
         const hp = numText(f[1]);
         const mind = f[2] === undefined ? '' : numText(f[2]);
-        out.push([hp !== '0' ? `体力 +${hp}` : '', mind && mind !== '0' ? `精神 +${mind}` : ''].filter(Boolean).join('、'));
+        out.push(
+          [hp !== '0' ? `体力 +${hp}` : '', mind && mind !== '0' ? `精神 +${mind}` : '']
+            .filter(Boolean)
+            .join('、'),
+        );
         break;
       }
       case 'cost':
-        out.push(`代償：${[f[1] ? `体力 −${f[1]}` : '', f[2] ? `精神 −${f[2]}` : ''].filter(Boolean).join('、')}`);
+        out.push(
+          `代償：${[f[1] ? `体力 −${f[1]}` : '', f[2] ? `精神 −${f[2]}` : ''].filter(Boolean).join('、')}`,
+        );
         break;
       case 'coins':
         out.push(f[1] >= 0 ? `金 +${f[1]}` : `金 ${f[1]}`);
@@ -340,7 +390,9 @@ export function fxText(list: readonly Fx[]): string {
         out.push(`相手の防御 −${f[1]}`);
         break;
       case 'lie':
-        out.push(`嘘をつく（INT を相手と比べる${f[2] ? `、+${f[2]}%` : ''}）。通れば信頼 +${f[1]}、ばれると敵意 +3`);
+        out.push(
+          `嘘をつく（INT を相手と比べる${f[2] ? `、+${f[2]}%` : ''}）。通れば信頼 +${f[1]}、ばれると敵意 +3`,
+        );
         break;
       case 'mimic':
         out.push(`直前のカードの効き目を ${Math.round(f[1] * 100)}% で起こす`);
@@ -360,7 +412,9 @@ export function fxText(list: readonly Fx[]): string {
         );
         break;
       case 'if':
-        out.push(`${condText(f[1])}${inner(f[2])}${f[3]?.length ? `、でなければ${inner(f[3])}` : ''}`);
+        out.push(
+          `${condText(f[1])}${inner(f[2])}${f[3]?.length ? `、でなければ${inner(f[3])}` : ''}`,
+        );
         break;
     }
   }

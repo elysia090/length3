@@ -1,9 +1,9 @@
+import type { MoveDef } from '../content/defs';
+import { cardDef, foeDef } from '../content/registry';
 import type { Basic } from '../core/events';
 import { believes, portrait } from '../core/mind';
 import type { Intent, World } from '../core/model';
 import { Tx } from '../core/tx';
-import type { MoveDef } from '../content/defs';
-import { cardDef, foeDef } from '../content/registry';
 import { basic, canAccept, useCard } from './encounter';
 import { charOf } from './ops';
 
@@ -30,7 +30,11 @@ export type Action = { kind: 'basic'; a: Basic } | { kind: 'card'; slot: number 
 /** 世界の複製（試行用）。乱数の流れも分けて、本物の流れを汚さない。 */
 export function fork(w: World, salt: number): World {
   const c = structuredClone(w);
-  c.rng = { ...c.rng, enc: (c.rng.enc ^ Math.imul(salt + 1, 0x9e3779b1)) >>> 0, ai: (c.rng.ai ^ Math.imul(salt + 7, 0x85ebca6b)) >>> 0 };
+  c.rng = {
+    ...c.rng,
+    enc: (c.rng.enc ^ Math.imul(salt + 1, 0x9e3779b1)) >>> 0,
+    ai: (c.rng.ai ^ Math.imul(salt + 7, 0x85ebca6b)) >>> 0,
+  };
   return c;
 }
 
@@ -41,7 +45,10 @@ export function act(tx: Tx, a: Action): boolean {
 export function actions(w: World): Action[] {
   const e = w.enc;
   if (!e) return [];
-  const out: Action[] = (['press', 'brace', 'talk', 'leave'] as const).map((a) => ({ kind: 'basic', a }));
+  const out: Action[] = (['press', 'brace', 'talk', 'leave'] as const).map((a) => ({
+    kind: 'basic',
+    a,
+  }));
   if (canAccept(w)) out.push({ kind: 'basic', a: 'accept' });
   charOf(w, e.who).cards.forEach((c, slot) => {
     if (c) out.push({ kind: 'card', slot });
@@ -71,6 +78,8 @@ export function judgeYou(base: World, s: World): number {
   const c1 = charOf(s, who);
   const f = e.foe;
   let v = e.outcome ? (VALUE[e.outcome] ?? 0) : 0;
+  // 長引いたら、引くのも手。
+  if (e.outcome === 'left') v += 5 * Math.max(0, e.turn - 3);
   const progress = [
     1 - Math.max(0, f.hp) / f.maxHp,
     1 - Math.max(0, f.resolve) / f.maxResolve,
@@ -208,7 +217,10 @@ function judgeFoe(base: World, s: World): number {
   const f1 = e.foe;
   v -= ((f0.hp - Math.max(0, f1.hp)) / f0.maxHp) * 50 * (0.4 + p.fear);
   v -= ((f0.resolve - Math.max(0, f1.resolve)) / f0.maxResolve) * 45 * (0.4 + p.pride);
-  v -= (f1.clues.filter((c) => c.shown).length - f0.clues.filter((c) => c.shown).length) * 12 * (0.3 + p.deceit + p.cunning);
+  v -=
+    (f1.clues.filter((c) => c.shown).length - f0.clues.filter((c) => c.shown).length) *
+    12 *
+    (0.3 + p.deceit + p.cunning);
   v += (f1.trust - f0.trust) * 5 * (p.warmth - p.deceit * 0.6 - p.pride * 0.4);
   v += (c0.hp - Math.max(0, c1.hp)) * 1.6 * (0.3 + p.aggression);
   v += (c0.mind - Math.max(0, c1.mind)) * 1.6 * (0.3 + p.cunning);
@@ -257,6 +269,7 @@ export function planFoe(tx: Tx): void {
   if (!pick) return;
   let intent: Intent = pick.intent(w);
   // いつも嘘をつく人物は、本当の手を見かけで隠す。
-  if (e.foe.st.liar && !intent.lie) intent = { ...intent, lie: true, seem: 'wait', seemLabel: '……' };
+  if (e.foe.st.liar && !intent.lie)
+    intent = { ...intent, lie: true, seem: 'wait', seemLabel: '……' };
   tx.emit({ type: 'intent', move: pick.id, intent });
 }

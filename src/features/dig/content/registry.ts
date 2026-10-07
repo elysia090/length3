@@ -3,7 +3,17 @@ import { FOE_ARCH, WORK_ARCH } from './archetypes';
 import { LEGACY, tuned } from './balance';
 import { BASICS } from './basics';
 import { BUILD_LIST, LINK_LIST } from './builds';
-import type { BuildDef, CardDef, ComboDef, FoeDef, ItemDef, JobDef, LinkDef, PermDef, StoryDef } from './defs';
+import type {
+  BuildDef,
+  CardDef,
+  ComboDef,
+  FoeDef,
+  ItemDef,
+  JobDef,
+  LinkDef,
+  PermDef,
+  StoryDef,
+} from './defs';
 import { EPITHETS, type Epithet } from './epithets';
 import { FOE_LIST } from './foes';
 import { ITEM_LIST } from './items';
@@ -30,10 +40,14 @@ function table<T extends { id: string }>(name: string, list: () => readonly T[])
 
 const cards = () =>
   table<CardDef>('cards', () =>
-    [...WORKS, ...BASICS, ...LEGACY].map((d) => tuned({ ...d, arch: d.arch ?? WORK_ARCH[d.id] ?? [] })),
+    [...WORKS, ...BASICS, ...LEGACY].map((d) =>
+      tuned({ ...d, arch: d.arch ?? WORK_ARCH[d.id] ?? [] }),
+    ),
   );
 const foes = () =>
-  table<FoeDef>('foes', () => FOE_LIST.map((d) => ({ ...d, arch: d.arch ?? (FOE_ARCH[d.id] as readonly Archetype[]) ?? [] })));
+  table<FoeDef>('foes', () =>
+    FOE_LIST.map((d) => ({ ...d, arch: d.arch ?? (FOE_ARCH[d.id] as readonly Archetype[]) ?? [] })),
+  );
 
 export function cardDef(id: string): CardDef {
   const d = cards().get(id);
@@ -49,7 +63,8 @@ export function foeDef(id: string): FoeDef {
 
 export const permDef = (id: string): PermDef | undefined => table('perms', () => PERM_LIST).get(id);
 export const itemDef = (id: string): ItemDef | undefined => table('items', () => ITEM_LIST).get(id);
-export const storyDef = (id: string): StoryDef | undefined => table('stories', () => STORY_LIST).get(id);
+export const storyDef = (id: string): StoryDef | undefined =>
+  table('stories', () => STORY_LIST).get(id);
 export const jobDef = (id: string): JobDef | undefined => table('jobs', () => JOB_LIST).get(id);
 export const epithetDef = (id: string): Epithet | undefined => table('eps', () => EPITHETS).get(id);
 

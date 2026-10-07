@@ -1,6 +1,6 @@
-import type { ComboDef, PassiveSpec, PermDef } from './defs';
-import { breakFoe, hitFoe, hostile, trust } from '../sim/ops';
 import type { Tx } from '../core/tx';
+import { breakFoe, hitFoe, hostile, trust } from '../sim/ops';
+import type { ComboDef, PassiveSpec, PermDef } from './defs';
 
 /**
  * PERMANENT。使わないカード。手に入れた瞬間から効き続け、並べればそのまま
@@ -27,7 +27,7 @@ export const PERM_LIST: readonly PermDef[] = [
     tags: ['trust', 'person', 'memory'],
     text: '彼女を探している。最後の相手との結末が変わる。',
     value: 80,
-    tags: ['her'],
+    thread: 'her',
     echo: { label: '約束を思い出させる', kind: 'threat', power: 5 },
     flavor: '「見つけたら、明かりをつけて」',
   },
@@ -38,7 +38,8 @@ export const PERM_LIST: readonly PermDef[] = [
     tags: ['body'],
     text: 'VIT −1。体力が半分を切ると ATK +3。',
     mods: { VIT: -1 },
-    dyn: (w, s) => (s === 'ATK' && w.you.hp * 2 < 16 + 4 * (w.you.innate.VIT + w.you.growth.VIT) ? 3 : 0),
+    dyn: (w, s) =>
+      s === 'ATK' && w.you.hp * 2 < 16 + 4 * (w.you.innate.VIT + w.you.growth.VIT) ? 3 : 0,
     value: 10,
     echo: { label: '古傷を抉る', kind: 'strike', power: 7 },
     flavor: '雨の前に、いつも疼く。',
@@ -51,7 +52,7 @@ export const PERM_LIST: readonly PermDef[] = [
     text: 'WIL +2。特定の場所で出来事が変わる。',
     mods: { WIL: 2 },
     value: 30,
-    tags: ['accident'],
+    thread: 'accident',
     echo: { label: 'あの事故を映す', kind: 'threat', power: 8 },
     flavor: 'ブレーキの音は、まだ止んでいない。',
   },
@@ -62,7 +63,14 @@ export const PERM_LIST: readonly PermDef[] = [
     tags: ['place', 'gaze'],
     text: 'INT +1。観察の判定 +5。',
     mods: { INT: 1 },
-    passive: [{ rule: 'checkChance', when: (c) => !!c.stat?.includes('INT'), fn: (_c, v) => v + 5, text: 'INT 判定 +5%' }],
+    passive: [
+      {
+        rule: 'checkChance',
+        when: (c) => !!c.stat?.includes('INT'),
+        fn: (_c, v) => v + 5,
+        text: 'INT 判定 +5%',
+      },
+    ],
     value: 20,
     echo: { label: '距離を測る', kind: 'strike', power: 5 },
     flavor: '部屋に入ると、まず四隅の角度を見る。',
@@ -136,7 +144,13 @@ export const PERM_LIST: readonly PermDef[] = [
     tags: ['private'],
     text: '遭遇の初めに心の構え 3。打ち解けるときの信頼の伸び −1。',
     passive: [DISTRUST],
-    triggers: [{ on: 'enc.start', run: (tx) => tx.emit({ type: 'enc.you', field: 'calm', n: 3 }), text: '遭遇の初めに心の構え 3' }],
+    triggers: [
+      {
+        on: 'enc.start',
+        run: (tx) => tx.emit({ type: 'enc.you', field: 'calm', n: 3 }),
+        text: '遭遇の初めに心の構え 3',
+      },
+    ],
     value: 5,
     bad: true,
     echo: { label: '扉を叩く', kind: 'threat', power: 6 },
@@ -244,7 +258,7 @@ export const PERM_LIST: readonly PermDef[] = [
     text: 'INT +1。彼女の足取りの一つ目。',
     mods: { INT: 1 },
     value: 40,
-    tags: ['her'],
+    thread: 'her',
     exploit: { text: '見えると信頼 +1（話したがっていた）', show: (tx: Tx) => trust(tx, 1) },
     echo: { label: 'あの夜を語る', kind: 'threat', power: 7 },
     flavor: '「十一時過ぎ。角の食堂の前を、北へ」',
@@ -298,7 +312,7 @@ export const PERM_LIST: readonly PermDef[] = [
     text: 'WIL +1。他人の喪失がわかる。',
     mods: { WIL: 1 },
     value: 20,
-    tags: ['grief'],
+    thread: 'grief',
     exploit: { text: '話すと信頼の伸びが 1.5 倍', talk: 1.5 },
     echo: { label: '喪失を重ねる', kind: 'threat', power: 7 },
     flavor: '同じ年頃の若者を見ると、黙る。',
@@ -350,7 +364,13 @@ export const PERM_LIST: readonly PermDef[] = [
     kind: 'bond',
     tags: ['trust', 'institution'],
     text: '遭遇の初めに守り 4（誰かが背中を見ている）。',
-    triggers: [{ on: 'enc.start', run: (tx) => tx.emit({ type: 'enc.you', field: 'guard', n: 4 }), text: '遭遇の初めに守り 4' }],
+    triggers: [
+      {
+        on: 'enc.start',
+        run: (tx) => tx.emit({ type: 'enc.you', field: 'guard', n: 4 }),
+        text: '遭遇の初めに守り 4',
+      },
+    ],
     value: 25,
     echo: { label: '借りを取り立てる', kind: 'strike', power: 6 },
     flavor: '「次に困ったら、灯りを二度点けろ」',
@@ -405,7 +425,7 @@ export const PERM_LIST: readonly PermDef[] = [
     text: 'WIL +1、INT +1。彼女の足取りの一つ。',
     mods: { WIL: 1, INT: 1 },
     value: 50,
-    tags: ['her'],
+    thread: 'her',
     echo: { label: '手紙を読み上げる', kind: 'threat', power: 8 },
     flavor: '「深く掘っても、わたしはいない」',
   },
@@ -437,7 +457,7 @@ export const PERM_LIST: readonly PermDef[] = [
     text: 'INT +2。彼女の足取りの一つ。',
     mods: { INT: 2 },
     value: 50,
-    tags: ['her'],
+    thread: 'her',
     echo: { label: '記録を突きつける', kind: 'threat', power: 8 },
     flavor: '最後の頁だけ、日付がない。',
   },
@@ -449,7 +469,7 @@ export const PERM_LIST: readonly PermDef[] = [
     text: 'WIL +1。',
     mods: { WIL: 1 },
     value: 30,
-    tags: ['fire'],
+    thread: 'fire',
     exploit: { text: '見えると相手の意志 −4', show: (tx: Tx) => breakFoe(tx, 4) },
     echo: { label: '炎を映す', kind: 'threat', power: 8 },
     flavor: 'ナイトレートのフィルムは、水の中でも燃える。',
@@ -609,7 +629,7 @@ export const PERM_LIST: readonly PermDef[] = [
     text: 'VIT +1。どこかで嗅いだ臭い。',
     mods: { VIT: 1 },
     value: 25,
-    tags: ['factory'],
+    thread: 'factory',
     echo: { label: '臭いを嗅がせる', kind: 'threat', power: 7 },
     flavor: '焦げた油と、甘い薬品。',
   },
@@ -721,7 +741,7 @@ export const PERM_LIST: readonly PermDef[] = [
     text: 'WIL +2、INT +1。事故の夜に何があったか。',
     mods: { WIL: 2, INT: 1 },
     value: 60,
-    tags: ['her'],
+    thread: 'her',
     echo: { label: '真相を告げる', kind: 'threat', power: 10 },
     flavor: '運転していたのは、あなたではなかった。',
   },

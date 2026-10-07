@@ -23,7 +23,14 @@ import type { Tag } from './tags';
  */
 
 export type Ev =
-  | { type: 'run.started'; seed: number; v: string; depth: number; you: import('./model').Char; rival: import('./model').Char }
+  | {
+      type: 'run.started';
+      seed: number;
+      v: string;
+      depth: number;
+      you: import('./model').Char;
+      rival: import('./model').Char;
+    }
   | { type: 'rng'; s: Partial<Record<Stream, number>> }
   | { type: 'map.built'; stratum: number; nodes: MapNode[] }
   | { type: 'time'; hours: number }
@@ -34,9 +41,18 @@ export type Ev =
   | { type: 'coins'; who: Who; n: number }
   | { type: 'item'; who: Who; id: string; n: 1 | -1 }
   | { type: 'xp'; who: Who; stat: Stat; n: number }
-  | { type: 'grew'; who: Who; stat: Stat }
+  | { type: 'grew'; who: Who; stat: Stat; n?: number; innate?: boolean }
   | { type: 'perm'; who: Who; id: string; gain: boolean; why: string }
-  | { type: 'card.use'; who: Who; slot: number; card: string; spent: boolean; free: boolean; quiet: boolean; tags: Tag[] }
+  | {
+      type: 'card.use';
+      who: Who;
+      slot: number;
+      card: string;
+      spent: boolean;
+      free: boolean;
+      quiet: boolean;
+      tags: Tag[];
+    }
   | { type: 'card.ep'; who: Who; slot: number; ep: string; on: boolean }
   | { type: 'perm.ep'; who: Who; perm: string; ep: string; on: boolean }
   | { type: 'ep.held'; who: Who; ep: string; n: 1 | -1 }
@@ -52,7 +68,12 @@ export type Ev =
   | { type: 'build'; id: string; on: boolean }
   | { type: 'enc.start'; who: Who; foe: Foe; tier: 'normal' | 'danger' | 'boss' | 'rival' }
   | { type: 'intent'; move: string; intent: Intent }
-  | { type: 'foe'; field: 'hp' | 'resolve' | 'trust' | 'hostility' | 'guard' | 'def' | 'atk'; n: number; by?: string }
+  | {
+      type: 'foe';
+      field: 'hp' | 'resolve' | 'trust' | 'hostility' | 'guard' | 'def' | 'atk';
+      n: number;
+      by?: string;
+    }
   | { type: 'foe.st'; key: string; n: number }
   | { type: 'enc.you'; field: 'guard' | 'calm'; n: number }
   | { type: 'enc.st'; key: string; n: number }
@@ -66,9 +87,37 @@ export type Ev =
   | { type: 'turn' }
   | { type: 'enc.end'; outcome: Outcome }
   | { type: 'enc.close' }
-  | { type: 'mind'; npc: string; d: Partial<Record<'met' | 'violent' | 'kind' | 'nosy' | 'honest' | 'suspicion' | 'trust' | 'grudge' | 'heard', number>>; cards?: string[]; known?: string[]; outcome?: Outcome }
+  | {
+      type: 'mind';
+      npc: string;
+      d: Partial<
+        Record<
+          | 'met'
+          | 'violent'
+          | 'kind'
+          | 'nosy'
+          | 'honest'
+          | 'suspicion'
+          | 'trust'
+          | 'grudge'
+          | 'heard',
+          number
+        >
+      >;
+      cards?: string[];
+      known?: string[];
+      outcome?: Outcome;
+    }
   | { type: 'gossip'; from: string; to: string; d: Partial<Mind> }
-  | { type: 'rival'; stratum?: number; row?: number; node?: number | null; down?: boolean; first?: boolean; log?: string }
+  | {
+      type: 'rival';
+      stratum?: number;
+      row?: number;
+      node?: number | null;
+      down?: boolean;
+      first?: boolean;
+      log?: string;
+    }
   | { type: 'rival.char'; char: import('./model').Char }
   | { type: 'rule'; source: string; text: string }
   | { type: 'ending'; ending: Ending }
@@ -81,7 +130,14 @@ export type Basic = 'press' | 'brace' | 'talk' | 'leave' | 'accept';
 export type RestAction = 'rest' | 'full' | 'tune-int' | 'tune-wil' | 'discard';
 
 export type Cmd =
-  | { c: 'start'; seed: number; job: string; depth: number; carry?: string; remembered?: Record<string, Partial<Mind>> }
+  | {
+      c: 'start';
+      seed: number;
+      job: string;
+      depth: number;
+      carry?: string;
+      remembered?: Record<string, Partial<Mind>>;
+    }
   | { c: 'move'; node: number }
   | { c: 'breather' }
   | { c: 'item'; index: number }

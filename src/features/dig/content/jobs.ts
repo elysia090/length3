@@ -14,7 +14,14 @@ export const JOB_LIST: readonly JobDef[] = [
     innate: { VIT: 2, ATK: 2, DEF: 2, WIL: 3, INT: 4, AGI: 3 },
     cards: ['seeing', 'image', 'saturn', 'molloy', 'rain'],
     perms: ['promise', 'habit-measure'],
-    passive: [{ rule: 'mult', when: (c) => tagged('place')(c) || tagged('gaze')(c), fn: (_c, v) => v * 1.2, text: '［場所］［視線］のカード ×1.2' }],
+    passive: [
+      {
+        rule: 'mult',
+        when: (c) => tagged('place')(c) || tagged('gaze')(c),
+        fn: (_c, v) => v * 1.2,
+        text: '［場所］［視線］のカード ×1.2',
+      },
+    ],
   },
   {
     id: 'watch',
@@ -23,8 +30,22 @@ export const JOB_LIST: readonly JobDef[] = [
     innate: { VIT: 4, ATK: 3, DEF: 4, WIL: 2, INT: 1, AGI: 2 },
     cards: ['darkknight', 'robocop', 'vernacular', 'nighthawks', 'hunters'],
     perms: ['promise', 'old-wound'],
-    passive: [{ rule: 'mult', when: (c) => tagged('night')(c) && c.w.hour >= 2, fn: (_c, v) => v * 1.3, text: '深夜、［夜］のカード ×1.3' }],
-    triggers: [{ on: 'enc.start', when: (ev) => ev.type === 'enc.start' && ev.who === 'you', run: (tx) => tx.emit({ type: 'enc.you', field: 'guard', n: 3 }), text: '遭遇の初めに守り 3' }],
+    passive: [
+      {
+        rule: 'mult',
+        when: (c) => tagged('night')(c) && c.w.hour >= 2,
+        fn: (_c, v) => v * 1.3,
+        text: '深夜、［夜］のカード ×1.3',
+      },
+    ],
+    triggers: [
+      {
+        on: 'enc.start',
+        when: (ev) => ev.type === 'enc.start' && ev.who === 'you',
+        run: (tx) => tx.emit({ type: 'enc.you', field: 'guard', n: 3 }),
+        text: '遭遇の初めに守り 3',
+      },
+    ],
   },
   {
     id: 'projectionist',
@@ -42,7 +63,14 @@ export const JOB_LIST: readonly JobDef[] = [
     innate: { VIT: 2, ATK: 2, DEF: 1, WIL: 3, INT: 4, AGI: 3 },
     cards: ['merulana', 'lot49', 'presentation', 'jacobs', 'rain'],
     perms: ['promise', 'suspicion'],
-    passive: [{ rule: 'mult', when: tagged('public'), fn: (_c, v) => v * 1.2, text: '［公開情報］のカード ×1.2' }],
+    passive: [
+      {
+        rule: 'mult',
+        when: tagged('public'),
+        fn: (_c, v) => v * 1.2,
+        text: '［公開情報］のカード ×1.2',
+      },
+    ],
     triggers: [
       {
         on: 'clue',
@@ -61,7 +89,12 @@ export const JOB_LIST: readonly JobDef[] = [
     perms: ['promise', 'runaway'],
     passive: [
       { rule: 'leaveChance', fn: (_c, v) => v + 20, text: '去る +20%' },
-      { rule: 'mult', when: tagged('private'), fn: (_c, v) => v * 1.2, text: '［私的情報］のカード ×1.2' },
+      {
+        rule: 'mult',
+        when: tagged('private'),
+        fn: (_c, v) => v * 1.2,
+        text: '［私的情報］のカード ×1.2',
+      },
     ],
   },
   {
@@ -69,11 +102,16 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '看護師',
     text: '回復が 1.5 倍。弱った相手は、あなたに心を開きやすい。',
     innate: { VIT: 3, ATK: 1, DEF: 2, WIL: 4, INT: 3, AGI: 2 },
-    cards: ['joseph', 'children', 'pattern', 'w', 'molloy'],
+    cards: ['joseph', 'children', 'agnus', 'w', 'molloy'],
     perms: ['promise', 'daughter-photo'],
     passive: [
       { rule: 'heal', fn: (_c, v) => (v > 0 ? Math.round(v * 1.5) : v), text: '回復 ×1.5' },
-      { rule: 'trust', when: (c) => !!c.enc && c.enc.foe.hp * 2 < c.enc.foe.maxHp, fn: (_c, v) => v + 1, text: '体力が半分を切った相手に、信頼 +1' },
+      {
+        rule: 'trust',
+        when: (c) => !!c.enc && c.enc.foe.hp * 2 < c.enc.foe.maxHp,
+        fn: (_c, v) => v + 1,
+        text: '体力が半分を切った相手に、信頼 +1',
+      },
     ],
   },
   {
@@ -84,7 +122,12 @@ export const JOB_LIST: readonly JobDef[] = [
     cards: ['rim', 'vernacular', 'hunters', 'leviathan', 'labyrinth'],
     perms: ['promise', 'scarred'],
     passive: [
-      { rule: 'mult', when: (c) => tagged('tech')(c) || tagged('body')(c), fn: (_c, v) => v * 1.2, text: '［技術］［身体］のカード ×1.2' },
+      {
+        rule: 'mult',
+        when: (c) => tagged('tech')(c) || tagged('body')(c),
+        fn: (_c, v) => v * 1.2,
+        text: '［技術］［身体］のカード ×1.2',
+      },
       { rule: 'turnGuard', fn: (_c, v) => v + 1, text: '毎手番 守り +1' },
     ],
   },

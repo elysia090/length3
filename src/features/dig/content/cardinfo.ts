@@ -1,5 +1,5 @@
 import type { Card, Char } from '../core/model';
-import { type ArchCount, type Archetype, type Tag, type TagCount, TAGS } from '../core/tags';
+import { type ArchCount, type Archetype, TAGS, type Tag, type TagCount } from '../core/tags';
 import { cardDef, epithetDef, permDef } from './registry';
 
 /** 刻まれたエピテットを重ねた、カードのタグ。 */

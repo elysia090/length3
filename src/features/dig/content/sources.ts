@@ -1,8 +1,8 @@
 import type { Char, World } from '../core/model';
-import { meets, type ArchCount } from '../core/tags';
 import { type Patch, setSources, type Trigger } from '../core/rules';
+import { type ArchCount, meets, type TagCount } from '../core/tags';
 import { ARCH_SETS } from './archetypes';
-import { releaseRules, DATA_VERSION } from './balance';
+import { DATA_VERSION, PACE, releaseRules } from './balance';
 import { BASE_RULES, BASE_TRIGGERS, DEPTH_RULES } from './base';
 import { archCount, tagCount } from './cardinfo';
 import type { BuildDef, LinkDef, PassiveSpec, TriggerSpec } from './defs';
@@ -16,11 +16,18 @@ import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './reg
 const archMeets = (have: ArchCount, need: ArchCount | undefined) =>
   !need || Object.entries(need).every(([a, n]) => (have[a as keyof ArchCount] ?? 0) >= (n ?? 0));
 
+/** ビルドの実際の条件（PACE.build 倍）。 */
+export const buildNeed = (need: TagCount): TagCount =>
+  Object.fromEntries(Object.entries(need).map(([t, n]) => [t, Math.ceil((n ?? 0) * PACE.build)]));
+
 export function buildsOf(c: Char): BuildDef[] {
   const tags = tagCount(c);
   const arch = archCount(c);
   const ids = new Set(c.cards.filter((x) => x).map((x) => x?.id));
-  return allBuilds().filter((b) => meets(tags, b.need) && archMeets(arch, b.arch) && (!b.any || b.any.some((id) => ids.has(id))));
+  return allBuilds().filter(
+    (b) =>
+      meets(tags, buildNeed(b.need)) && archMeets(arch, b.arch) && (!b.any || b.any.some((id) => ids.has(id))),
+  );
 }
 
 export function linksOf(c: Char): LinkDef[] {
@@ -38,7 +45,11 @@ function collect(w: World) {
   const c = who === 'you' ? w.you : w.rival.char;
   const patches: Patch[] = [];
   const triggers: Trigger[] = [];
-  const add = (source: string, ps: readonly PassiveSpec[] = [], ts: readonly TriggerSpec[] = []) => {
+  const add = (
+    source: string,
+    ps: readonly PassiveSpec[] = [],
+    ts: readonly TriggerSpec[] = [],
+  ) => {
     ps.forEach((p, i) => {
       patches.push({ ...p, id: `${source}#${i}`, source });
     });
@@ -77,15 +88,37 @@ function collect(w: World) {
     const p = epithetDef(e)?.place;
     if (!p) continue;
     const specs: PassiveSpec[] = [];
-    if (p.story) specs.push({ rule: 'storyChance', fn: (_c, v) => v + (p.story ?? 0), text: `場所《${epithetDef(e)?.name}》：出来事 ${p.story > 0 ? '+' : ''}${p.story}%` });
-    if (p.heal !== undefined) specs.push({ rule: 'restHeal', fn: (_c, v) => Math.round(v * (p.heal ?? 1)), text: `場所《${epithetDef(e)?.name}》：回復 ×${p.heal}` });
-    if (p.price !== undefined) specs.push({ rule: 'price', fn: (_c, v) => Math.round(v * (p.price ?? 1)), text: `場所《${epithetDef(e)?.name}》：値段 ×${p.price}` });
+    if (p.story)
+      specs.push({
+        rule: 'storyChance',
+        fn: (_c, v) => v + (p.story ?? 0),
+        text: `場所《${epithetDef(e)?.name}》：出来事 ${p.story > 0 ? '+' : ''}${p.story}%`,
+      });
+    if (p.heal !== undefined)
+      specs.push({
+        rule: 'restHeal',
+        fn: (_c, v) => Math.round(v * (p.heal ?? 1)),
+        text: `場所《${epithetDef(e)?.name}》：回復 ×${p.heal}`,
+      });
+    if (p.price !== undefined)
+      specs.push({
+        rule: 'price',
+        fn: (_c, v) => Math.round(v * (p.price ?? 1)),
+        text: `場所《${epithetDef(e)?.name}》：値段 ×${p.price}`,
+      });
     add(`place:${e}`, specs);
   }
   if (w.pending?.kind === 'story') {
     for (const e of w.pending.eps) {
       const st = epithetDef(e)?.story;
-      if (st?.chance) add(`story:${e}`, [{ rule: 'storyChance', fn: (_c, v) => v + (st.chance ?? 0), text: `出来事《${epithetDef(e)?.name}》：判定 ${st.chance}%` }]);
+      if (st?.chance)
+        add(`story:${e}`, [
+          {
+            rule: 'storyChance',
+            fn: (_c, v) => v + (st.chance ?? 0),
+            text: `出来事《${epithetDef(e)?.name}》：判定 ${st.chance}%`,
+          },
+        ]);
     }
   }
   return { patches, triggers };
@@ -107,6 +140,6 @@ function keyOf(w: World): string {
   ].join('|');
 }
 
-setSources((w) => ({ key: keyOf(w), ...collect(w) }));
+setSources({ key: keyOf, collect });
 
 export const installed = true;

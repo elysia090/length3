@@ -1,9 +1,9 @@
-import type { Claim, Char, Enc, Foe, Outcome, Stat, StatBlock, Who, World } from '../core/model';
+import { memoryMods, tagCount } from '../content/cardinfo';
+import { cardDef, foeDef, permDef } from '../content/registry';
+import type { Char, Claim, Enc, Foe, Outcome, Stat, StatBlock, Who, World } from '../core/model';
 import { STATS, zeroStats } from '../core/model';
 import type { Tag, TagCount } from '../core/tags';
-import { memoryMods, tagCount } from '../content/cardinfo';
 import type { Tx } from '../core/tx';
-import { cardDef, foeDef, permDef } from '../content/registry';
 
 /**
  * 小さな操作。カードの効き目も、相手の手も、ここを通ってイベントになる。
@@ -97,7 +97,10 @@ export function breakFoe(tx: Tx, base: number): number {
 export function trust(tx: Tx, n: number): void {
   const e = enc(tx);
   if (!e || n === 0) return;
-  const d = n > 0 ? Math.max(0, Math.round(tx.rule('trust', { who: e.who }, n))) : Math.max(-e.foe.trust, n);
+  const d =
+    n > 0
+      ? Math.max(0, Math.round(tx.rule('trust', { who: e.who }, n)))
+      : Math.max(-e.foe.trust, n);
   if (d) tx.emit({ type: 'foe', field: 'trust', n: d, by: e.who });
   settle(tx);
 }
@@ -107,7 +110,8 @@ export function hostile(tx: Tx, n: number): void {
   if (!e || n === 0) return;
   const d = Math.round(tx.rule('hostility', { who: e.who }, n));
   const next = Math.max(0, Math.min(10, e.foe.hostility + d));
-  if (next !== e.foe.hostility) tx.emit({ type: 'foe', field: 'hostility', n: next - e.foe.hostility, by: e.who });
+  if (next !== e.foe.hostility)
+    tx.emit({ type: 'foe', field: 'hostility', n: next - e.foe.hostility, by: e.who });
 }
 
 /** 手がかりを 1 つ見る。fake なら誤りが混じることがある。見られたら true。 */

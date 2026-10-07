@@ -36,7 +36,15 @@ export function emptyWorld(): World {
     map: [],
     pos: null,
     you: blankChar(),
-    rival: { char: blankChar(), stratum: 1, row: -1, node: null, down: false, first: false, log: [] },
+    rival: {
+      char: blankChar(),
+      stratum: 1,
+      row: -1,
+      node: null,
+      down: false,
+      first: false,
+      log: [],
+    },
     minds: {},
     enc: null,
     pending: null,
@@ -51,6 +59,12 @@ export function emptyWorld(): World {
 }
 
 const charOf = (w: World, who: Who) => (who === 'you' ? w.you : w.rival.char);
+
+function mindOf(w: World, npc: string) {
+  const m = w.minds[npc] ?? blankMind();
+  w.minds[npc] = m;
+  return m;
+}
 
 export function apply(w: World, ev: Ev): void {
   w.seq++;
@@ -114,7 +128,7 @@ export function apply(w: World, ev: Ev): void {
       break;
     case 'grew': {
       const c = charOf(w, ev.who);
-      c.growth[ev.stat]++;
+      (ev.innate ? c.innate : c.growth)[ev.stat] += ev.n ?? 1;
       break;
     }
     case 'perm': {
@@ -276,7 +290,7 @@ export function apply(w: World, ev: Ev): void {
       w.enc = null;
       break;
     case 'mind': {
-      const m = (w.minds[ev.npc] ??= blankMind());
+      const m = mindOf(w, ev.npc);
       for (const [k, v] of Object.entries(ev.d)) {
         const key = k as keyof typeof ev.d;
         m[key] = Math.max(0, (m[key] ?? 0) + (v ?? 0));
@@ -287,7 +301,7 @@ export function apply(w: World, ev: Ev): void {
       break;
     }
     case 'gossip': {
-      const m = (w.minds[ev.to] ??= blankMind());
+      const m = mindOf(w, ev.to);
       const d = ev.d;
       m.violent += d.violent ?? 0;
       m.kind += d.kind ?? 0;

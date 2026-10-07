@@ -83,4 +83,5 @@ export function portrait(m: Mind | undefined) {
 }
 
 /** この人が、いまあなたについて信じている主張。 */
-export const believes = (m: Mind | undefined, about: string) => !!m?.claims.some((c) => c.about === about);
+export const believes = (m: Mind | undefined, about: string) =>
+  !!m?.claims.some((c) => c.about === about);

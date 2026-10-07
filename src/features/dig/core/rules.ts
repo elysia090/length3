@@ -101,7 +101,11 @@ export interface Rulebook {
   all: { patches: Patch[]; triggers: Trigger[] };
 }
 
-export function compile(key: string, patches: Patch[], triggers: Trigger[]): Rulebook {
+export function compile(
+  key: string,
+  rawPatches: readonly Patch[],
+  rawTriggers: readonly Trigger[],
+): Rulebook {
   const seen = new Set<string>();
   const once = <T extends { key?: string }>(x: T) => {
     if (!x.key) return true;
@@ -109,19 +113,39 @@ export function compile(key: string, patches: Patch[], triggers: Trigger[]): Rul
     seen.add(x.key);
     return true;
   };
-  patches = patches.filter(once);
-  triggers = triggers.filter(once);
+  const patches = rawPatches.filter(once);
+  const triggers = rawTriggers.filter(once);
   const book: Rulebook = { key, patches: {}, triggers: {}, all: { patches, triggers } };
   const order = (a: { id: string; prio?: number }, b: { id: string; prio?: number }) =>
     (a.prio ?? 0) - (b.prio ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  for (const p of [...patches].sort(order)) (book.patches[p.rule] ??= []).push(p);
-  for (const t of [...triggers].sort(order)) (book.triggers[t.on] ??= []).push(t);
+  for (const p of [...patches].sort(order)) {
+    const list = book.patches[p.rule] ?? [];
+    list.push(p);
+    book.patches[p.rule] = list;
+  }
+  for (const t of [...triggers].sort(order)) {
+    const list = book.triggers[t.on] ?? [];
+    list.push(t);
+    book.triggers[t.on] = list;
+  }
   return book;
 }
 
-export function evaluate(book: Rulebook, name: RuleName, ctx: RuleCtx, base: number): number {
+/** seen を渡すと、値を実際に動かしたパッチを知らせる（相互作用の数え上げ）。 */
+export function evaluate(
+  book: Rulebook,
+  name: RuleName,
+  ctx: RuleCtx,
+  base: number,
+  seen?: (p: Patch) => void,
+): number {
   let v = base;
-  for (const p of book.patches[name] ?? []) if (!p.when || p.when(ctx)) v = p.fn(ctx, v);
+  for (const p of book.patches[name] ?? []) {
+    if (p.when && !p.when(ctx)) continue;
+    const before = v;
+    v = p.fn(ctx, v);
+    if (seen && v !== before) seen(p);
+  }
   return v;
 }
 
@@ -129,21 +153,26 @@ export function evaluate(book: Rulebook, name: RuleName, ctx: RuleCtx, base: num
  * 世界からパッチとトリガを集める関数。中身（content）が差し込む。
  * core は中身を知らない。
  */
-export type Sources = (w: World) => { key: string; patches: Patch[]; triggers: Trigger[] };
+export interface Sources {
+  /** 出どころが同じなら同じ鍵（集め直さずに済む）。 */
+  key: (w: World) => string;
+  collect: (w: World) => { patches: Patch[]; triggers: Trigger[] };
+}
 
-let sources: Sources = () => ({ key: '', patches: [], triggers: [] });
+let sources: Sources = { key: () => '', collect: () => ({ patches: [], triggers: [] }) };
 export function setSources(fn: Sources): void {
   sources = fn;
 }
 
 const cache = new Map<string, Rulebook>();
 export function bookOf(w: World): Rulebook {
-  const s = sources(w);
-  const hit = cache.get(s.key);
+  const key = sources.key(w);
+  const hit = cache.get(key);
   if (hit) return hit;
-  const book = compile(s.key, s.patches, s.triggers);
+  const s = sources.collect(w);
+  const book = compile(key, s.patches, s.triggers);
   if (cache.size > 64) cache.clear();
-  cache.set(s.key, book);
+  cache.set(key, book);
   return book;
 }
 

@@ -1,8 +1,5 @@
-import type { RestAction } from '../core/events';
-import { blankMind, type Card, type Char, type MapNode, type Mind, type Outcome, type Stat, STATS, type World, zeroStats } from '../core/model';
-import { ask } from '../core/rules';
-import type { Tx } from '../core/tx';
-import { DATA_VERSION } from '../content/balance';
+import { DATA_VERSION, PACE } from '../content/balance';
+import { memoryMods, tagCount } from '../content/cardinfo';
 import { epithetsFor } from '../content/epithets';
 import { holds } from '../content/fx';
 import {
@@ -20,25 +17,47 @@ import {
   storyDef,
 } from '../content/registry';
 import { buildsOf } from '../content/sources';
-import { tagCount, memoryMods } from '../content/cardinfo';
+import type { RestAction } from '../core/events';
+import {
+  blankMind,
+  type Card,
+  type Char,
+  type MapNode,
+  type Mind,
+  type Outcome,
+  STATS,
+  type Stat,
+  type World,
+  zeroStats,
+} from '../core/model';
+import { ask } from '../core/rules';
 import { meets } from '../core/tags';
+import type { Tx } from '../core/tx';
+import { Tx as TxClass } from '../core/tx';
 import { autoPlay } from './ai';
 import { cardsAfter, rewards, shiftAll, startEnc, transform } from './encounter';
 import { charOf, coins, gainPerm, losePerm, maxHp, maxMind, refill, stats, xp } from './ops';
-import { Tx as TxClass } from '../core/tx';
 
 /**
  * 挑戦。三つの層を一夜ずつ下りる（22 時に始まり、6 時に夜が明ける）。
  * 段を進むたびに 1 時間。遅いほど相手は荒れている。
  */
 
-export const ROWS = 6;
-export const DAWN = 8;
+export const ROWS = PACE.rows;
+export const DAWN = PACE.dawn;
 export const STRATUM_NAME = ['', '夜の街', '記録層', '琥珀層'];
 
 const STRATUM_FOES: Record<number, { person: string[]; danger: string[]; boss: string }> = {
-  1: { person: ['watchman', 'counterman', 'regular'], danger: ['stray-dog'], boss: 'last-customer' },
-  2: { person: ['archivist', 'ghost', 'usher'], danger: ['silverfish', 'censor'], boss: 'projector' },
+  1: {
+    person: ['watchman', 'counterman', 'regular'],
+    danger: ['stray-dog'],
+    boss: 'last-customer',
+  },
+  2: {
+    person: ['archivist', 'ghost', 'usher'],
+    danger: ['silverfish', 'censor'],
+    boss: 'projector',
+  },
   3: { person: ['mother', 'geologist'], danger: ['drone', 'insect', 'hound'], boss: 'volume' },
 };
 
@@ -103,11 +122,20 @@ function buildMap(tx: Tx, stratum: number): void {
     for (let col = 0; col < width; col++) {
       let kind: MapNode['kind'];
       if (row === 0) kind = 'person';
-      else if (row === 3 && col === 0) kind = 'rest';
+      else if (row === Math.floor(ROWS / 2) && col === 0) kind = 'rest';
       else if (row === ROWS - 1) kind = col === 0 ? 'rest' : col === 1 ? 'shop' : 'person';
       else {
         const r = tx.rand('map');
-        kind = r < 0.38 ? 'person' : r < 0.58 ? 'event' : r < 0.76 && row >= 2 ? 'danger' : r < 0.86 ? 'shop' : 'event';
+        kind =
+          r < 0.38
+            ? 'person'
+            : r < 0.58
+              ? 'event'
+              : r < 0.76 && row >= 2
+                ? 'danger'
+                : r < 0.86
+                  ? 'shop'
+                  : 'event';
       }
       const node: MapNode = { id: id++, row, col, kind, next: [], visited: false, eps: [] };
       if (kind === 'person') node.npc = tx.pick('map', pool.person);
@@ -116,14 +144,24 @@ function buildMap(tx: Tx, stratum: number): void {
       if (tx.rand('map') < 0.35) {
         const list2 = node.npc ? foeEps : placeEps;
         const e = tx.pick('map', list2);
-        if (e && !(epithetDef(e)?.place?.empty && (kind === 'rest' || kind === 'shop'))) node.eps.push(e);
+        if (e && !(epithetDef(e)?.place?.empty && (kind === 'rest' || kind === 'shop')))
+          node.eps.push(e);
       }
       list.push(node);
       nodes.push(node);
     }
     rows.push(list);
   }
-  const boss: MapNode = { id: id++, row: ROWS, col: 0, kind: 'boss', npc: pool.boss, next: [], visited: false, eps: [] };
+  const boss: MapNode = {
+    id: id++,
+    row: ROWS,
+    col: 0,
+    kind: 'boss',
+    npc: pool.boss,
+    next: [],
+    visited: false,
+    eps: [],
+  };
   nodes.push(boss);
   for (let row = 0; row < ROWS; row++) {
     const here = rows[row] ?? [];
@@ -133,14 +171,28 @@ function buildMap(tx: Tx, stratum: number): void {
         n.next = [boss.id];
         continue;
       }
-      const target = Math.round((n.col / Math.max(1, here.length - 1)) * Math.max(1, there.length - 1));
-      n.next = there.filter((m) => Math.abs(m.col - target) === 0 || (Math.abs(m.col - target) === 1 && tx.rand('map') < 0.6)).map((m) => m.id);
+      const target = Math.round(
+        (n.col / Math.max(1, here.length - 1)) * Math.max(1, there.length - 1),
+      );
+      n.next = there
+        .filter(
+          (m) =>
+            Math.abs(m.col - target) === 0 ||
+            (Math.abs(m.col - target) === 1 && tx.rand('map') < 0.6),
+        )
+        .map((m) => m.id);
       if (n.next.length === 0) n.next = [there[Math.min(there.length - 1, target)]?.id ?? 0];
     }
     if (there) {
       for (const m of there) {
         if (!here.some((n) => n.next.includes(m.id))) {
-          const from = here[Math.min(here.length - 1, Math.round((m.col / Math.max(1, there.length - 1)) * (here.length - 1)))];
+          const from =
+            here[
+              Math.min(
+                here.length - 1,
+                Math.round((m.col / Math.max(1, there.length - 1)) * (here.length - 1)),
+              )
+            ];
           from?.next.push(m.id);
         }
       }
@@ -149,7 +201,8 @@ function buildMap(tx: Tx, stratum: number): void {
   tx.emit({ type: 'map.built', stratum, nodes });
 }
 
-export const nodeOf = (w: World, id: number | null) => (id === null ? undefined : w.map.find((n) => n.id === id));
+export const nodeOf = (w: World, id: number | null) =>
+  id === null ? undefined : w.map.find((n) => n.id === id);
 
 export function reachable(w: World): MapNode[] {
   if (w.pending || w.enc || w.ending) return [];
@@ -160,20 +213,60 @@ export function reachable(w: World): MapNode[] {
 
 // ─── 始める ───────────────────────────────────────────────────
 
-export function start(tx: Tx, seed: number, job: string, depth: number, carry?: string, remembered?: Record<string, Partial<Mind>>): void {
+export function start(
+  tx: Tx,
+  seed: number,
+  job: string,
+  depth: number,
+  carry?: string,
+  remembered?: Record<string, Partial<Mind>>,
+): void {
   const you = makeChar(job, 'あなた', carry);
   if (depth >= 5 && !you.perms.includes('fear')) you.perms.push('fear');
-  const others = ['surveyor', 'watch', 'projectionist', 'reporter', 'locksmith', 'nurse', 'welder'].filter((j) => j !== job);
+  const others = [
+    'surveyor',
+    'watch',
+    'projectionist',
+    'reporter',
+    'locksmith',
+    'nurse',
+    'welder',
+  ].filter((j) => j !== job);
   const rj = others[Math.floor(((seed >>> 3) % 1000) / (1000 / others.length))] ?? 'watch';
   const rival = makeChar(rj, `${jobDef(rj)?.name ?? ''}の掘る人`);
   tx.emit({ type: 'run.started', seed, v: DATA_VERSION, depth, you, rival });
-  tx.emit({ type: 'rng', s: { map: seed ^ 0x1234, enc: seed ^ 0x5678, ai: seed ^ 0x9abc, story: seed ^ 0xdef0, rival: seed ^ 0x2468, gossip: seed ^ 0x1357, loot: seed ^ 0x8642 } });
+  tx.emit({
+    type: 'rng',
+    s: {
+      map: seed ^ 0x1234,
+      enc: seed ^ 0x5678,
+      ai: seed ^ 0x9abc,
+      story: seed ^ 0xdef0,
+      rival: seed ^ 0x2468,
+      gossip: seed ^ 0x1357,
+      loot: seed ^ 0x8642,
+    },
+  });
   // 街は前の挑戦を覚えている。
   for (const [npc, m] of Object.entries(remembered ?? {})) {
-    tx.emit({ type: 'mind', npc, d: { heard: 1, violent: (m.violent ?? 0) / 2, kind: (m.kind ?? 0) / 2, nosy: (m.nosy ?? 0) / 2, grudge: m.grudge ?? 0, trust: m.trust ?? 0 } });
+    tx.emit({
+      type: 'mind',
+      npc,
+      d: {
+        heard: 1,
+        violent: (m.violent ?? 0) / 2,
+        kind: (m.kind ?? 0) / 2,
+        nosy: (m.nosy ?? 0) / 2,
+        grudge: m.grudge ?? 0,
+        trust: m.trust ?? 0,
+      },
+    });
   }
   buildMap(tx, 1);
-  tx.emit({ type: 'note', text: `22:00。${STRATUM_NAME[1]}。もう一人の掘る人（${rival.name}）も、同じ縦坑を下りはじめた。` });
+  tx.emit({
+    type: 'note',
+    text: `22:00。${STRATUM_NAME[1]}。もう一人の掘る人（${rival.name}）も、同じ縦坑を下りはじめた。`,
+  });
   sync(tx);
 }
 
@@ -203,7 +296,15 @@ function gossip(tx: Tx): void {
     type: 'gossip',
     from,
     to,
-    d: { violent: m.violent / 2, kind: m.kind / 2, nosy: m.nosy / 2, honest: m.honest / 2, suspicion: m.suspicion / 2, cards: m.cards.slice(0, 2), known: m.known.slice(0, 2) },
+    d: {
+      violent: m.violent / 2,
+      kind: m.kind / 2,
+      nosy: m.nosy / 2,
+      honest: m.honest / 2,
+      suspicion: m.suspicion / 2,
+      cards: m.cards.slice(0, 2),
+      known: m.known.slice(0, 2),
+    },
   });
 }
 
@@ -220,39 +321,82 @@ function rivalStep(tx: Tx): void {
   const s = stats(w, 'rival');
   if (rv.stratum < w.stratum) {
     const row = rv.row + 1;
-    tx.emit(row >= ROWS ? { type: 'rival', stratum: rv.stratum + 1, row: -1, node: null } : { type: 'rival', row });
+    tx.emit(
+      row >= ROWS
+        ? { type: 'rival', stratum: rv.stratum + 1, row: -1, node: null }
+        : { type: 'rival', row },
+    );
     return;
   }
   if (ch.hp < maxHp(s) * 0.4 || ch.mind < maxMind(s) * 0.35) {
-    tx.emit({ type: 'vital', who: 'rival', hp: Math.round(maxHp(s) * 0.35), mind: Math.round(maxMind(s) * 0.35) });
+    tx.emit({
+      type: 'vital',
+      who: 'rival',
+      hp: Math.round(maxHp(s) * 0.35),
+      mind: Math.round(maxMind(s) * 0.35),
+    });
     refill(tx, 1, undefined, 'rival', true);
     return;
   }
   const here = rv.node === null ? undefined : nodeOf(w, rv.node);
-  const options = here ? here.next.map((id) => nodeOf(w, id)).filter((n): n is MapNode => !!n) : w.map.filter((n) => n.row === 0);
+  const options = here
+    ? here.next.map((id) => nodeOf(w, id)).filter((n): n is MapNode => !!n)
+    : w.map.filter((n) => n.row === 0);
   if (!options.length) return;
   const tired = ch.hp < maxHp(s) * 0.7;
   const want = (n: MapNode) =>
-    (n.kind === 'person' ? 3 : n.kind === 'danger' ? 2 : n.kind === 'rest' ? (tired ? 4 : 0.5) : n.kind === 'boss' ? 5 : 1) - (n.visited ? 2 : 0) + tx.rand('rival');
+    (n.kind === 'person'
+      ? 3
+      : n.kind === 'danger'
+        ? 2
+        : n.kind === 'rest'
+          ? tired
+            ? 4
+            : 0.5
+          : n.kind === 'boss'
+            ? 5
+            : 1) -
+    (n.visited ? 2 : 0) +
+    tx.rand('rival');
   const target = options.reduce((a, b) => (want(b) > want(a) ? b : a));
   tx.emit({ type: 'rival', node: target.id, row: target.row });
-  if (target.npc && (target.kind !== 'boss' || true) && !(target.visited && target.kind !== 'boss')) {
-    const outcome = rivalFight(tx, target.npc, target.kind === 'person' ? 'normal' : target.kind === 'boss' ? 'boss' : 'danger', target.eps);
+  if (
+    target.npc &&
+    (target.kind !== 'boss' || true) &&
+    !(target.visited && target.kind !== 'boss')
+  ) {
+    const outcome = rivalFight(
+      tx,
+      target.npc,
+      target.kind === 'person' ? 'normal' : target.kind === 'boss' ? 'boss' : 'danger',
+      target.eps,
+    );
     if (target.kind !== 'boss') tx.emit({ type: 'node', id: target.id, rival: outcome });
     tx.emit({ type: 'rival', log: `${foeDef(target.npc).name}：${OUTCOME_NAME[outcome]}` });
     if (outcome === 'fallen' || outcome === 'shattered') {
       const back = charOf(tx.w, 'rival');
       const s2 = stats(tx.w, 'rival');
-      tx.emit({ type: 'vital', who: 'rival', hp: Math.round(maxHp(s2) * 0.5) - back.hp, mind: Math.round(maxMind(s2) * 0.5) - back.mind });
+      tx.emit({
+        type: 'vital',
+        who: 'rival',
+        hp: Math.round(maxHp(s2) * 0.5) - back.hp,
+        mind: Math.round(maxMind(s2) * 0.5) - back.mind,
+      });
       tx.emit({ type: 'rival', row: rv.row - 1, node: null });
     }
   } else if (target.kind === 'rest') {
-    tx.emit({ type: 'vital', who: 'rival', hp: Math.min(maxHp(s) - ch.hp, Math.round(maxHp(s) * 0.4)), mind: Math.min(maxMind(s) - ch.mind, Math.round(maxMind(s) * 0.4)) });
+    tx.emit({
+      type: 'vital',
+      who: 'rival',
+      hp: Math.min(maxHp(s) - ch.hp, Math.round(maxHp(s) * 0.4)),
+      mind: Math.min(maxMind(s) - ch.mind, Math.round(maxMind(s) * 0.4)),
+    });
     refill(tx, 1, undefined, 'rival', true);
     ch.cards.forEach((card, slot) => {
       if (!card) return;
       const care = cardDef(card.id).alter?.care;
-      if (care && (card.marks.rested ?? 0) >= care.need) transform(tx, 'rival', slot, care.to, 'care');
+      if (care && (card.marks.rested ?? 0) >= care.need)
+        transform(tx, 'rival', slot, care.to, 'care');
     });
     tx.emit({ type: 'node', id: target.id, rival: 'passed' });
   } else tx.emit({ type: 'node', id: target.id, rival: 'passed' });
@@ -264,18 +408,33 @@ function rivalStep(tx: Tx): void {
   }
 }
 
-function rivalFight(tx: Tx, npc: string, tier: 'normal' | 'danger' | 'boss', eps: readonly string[]): Outcome {
+function rivalFight(
+  tx: Tx,
+  npc: string,
+  tier: 'normal' | 'danger' | 'boss',
+  eps: readonly string[],
+): Outcome {
   const sub = structuredClone(tx.w);
   sub.enc = null;
   sub.pending = null;
-  sub.rng = { ...sub.rng, enc: (tx.rand('rival') * 4294967296) >>> 0, ai: (tx.rand('rival') * 4294967296) >>> 0, story: (tx.rand('rival') * 4294967296) >>> 0 };
+  sub.rng = {
+    ...sub.rng,
+    enc: (tx.rand('rival') * 4294967296) >>> 0,
+    ai: (tx.rand('rival') * 4294967296) >>> 0,
+    story: (tx.rand('rival') * 4294967296) >>> 0,
+  };
   const stx = new TxClass(sub, true);
   startEnc(stx, 'rival', npc, tier, { eps });
   autoPlay(stx, 30);
-  const e = sub.enc;
+  const e = sub.enc as World['enc'];
   const outcome: Outcome = e?.outcome ?? 'left';
   if (e) {
-    cardsAfter(stx, 'rival', outcome, { cards: e.cards, lies: e.lies, caught: e.caught, hostility: e.foe.hostility });
+    cardsAfter(stx, 'rival', outcome, {
+      cards: e.cards,
+      lies: e.lies,
+      caught: e.caught,
+      hostility: e.foe.hostility,
+    });
     rewards(stx, 'rival', npc, outcome);
     if (outcome === 'uncovered') {
       const take = foeDef(npc).take.find((id) => !sub.rival.char.perms.includes(id));
@@ -314,18 +473,33 @@ export function move(tx: Tx, id: number): boolean {
     const a = epithetDef(e)?.place?.arrive;
     if (a) {
       const y = w.you;
-      tx.emit({ type: 'vital', who: 'you', hp: -Math.min(y.hp - 1, a.hp ?? 0), mind: -Math.min(y.mind - 1, a.mind ?? 0) });
+      tx.emit({
+        type: 'vital',
+        who: 'you',
+        hp: -Math.min(y.hp - 1, a.hp ?? 0),
+        mind: -Math.min(y.mind - 1, a.mind ?? 0),
+      });
     }
   }
   // 新しい場所で戻るカード。
   w.you.cards.forEach((card, slot) => {
-    if (card && cardDef(card.id).recover.on.includes('newPlace') && card.uses < card.max) tx.emit({ type: 'card.uses', who: 'you', slot, n: 1 });
+    if (card && cardDef(card.id).recover.on.includes('newPlace') && card.uses < card.max)
+      tx.emit({ type: 'card.uses', who: 'you', slot, n: 1 });
   });
   const rv = w.rival;
-  if (!rv.down && rv.stratum === w.stratum && rv.row === node.row && (w.flags[`met${w.stratum}`] ?? 0) === 0 && node.kind !== 'boss') {
+  if (
+    !rv.down &&
+    rv.stratum === w.stratum &&
+    rv.row === node.row &&
+    (w.flags[`met${w.stratum}`] ?? 0) === 0 &&
+    node.kind !== 'boss'
+  ) {
     tx.emit({ type: 'flag', key: `met${w.stratum}`, v: 1 });
     tx.emit({ type: 'note', text: `${rv.char.name}と鉢合わせた。` });
-    tx.emit({ type: 'pending', p: { kind: 'encounter', npc: 'rival', tier: 'rival', resume: node.id } });
+    tx.emit({
+      type: 'pending',
+      p: { kind: 'encounter', npc: 'rival', tier: 'rival', resume: node.id },
+    });
     startEnc(tx, 'you', 'rival', 'rival', { rival: rv.char });
     return true;
   }
@@ -342,7 +516,10 @@ function enter(tx: Tx, node: MapNode): void {
     }
     const tier = node.kind === 'person' ? 'normal' : node.kind === 'boss' ? 'boss' : 'danger';
     tx.emit({ type: 'pending', p: { kind: 'encounter', npc: node.npc, tier } });
-    startEnc(tx, 'you', node.npc, tier, { eps: node.eps, after: node.rival && node.rival !== 'passed' ? node.rival : undefined });
+    startEnc(tx, 'you', node.npc, tier, {
+      eps: node.eps,
+      after: node.rival && node.rival !== 'passed' ? node.rival : undefined,
+    });
     return;
   }
   switch (node.kind) {
@@ -353,7 +530,11 @@ function enter(tx: Tx, node: MapNode): void {
         return;
       }
       const id = pickStory(tx);
-      if (id) tx.emit({ type: 'pending', p: { kind: 'story', id, eps: node.eps.filter((e) => !!epithetDef(e)?.story) } });
+      if (id)
+        tx.emit({
+          type: 'pending',
+          p: { kind: 'story', id, eps: node.eps.filter((e) => !!epithetDef(e)?.story) },
+        });
       return;
     }
     case 'rest':
@@ -361,15 +542,28 @@ function enter(tx: Tx, node: MapNode): void {
       return;
     case 'shop': {
       const have = new Set(w.you.cards.map((c) => c?.id));
-      const pool = allCards().filter((d) => d.layer !== 'legacy' && !d.retired && !have.has(d.id) && !d.alter?.care?.to?.startsWith('__'));
+      const pool = allCards().filter(
+        (d) =>
+          d.layer !== 'legacy' &&
+          !d.retired &&
+          !have.has(d.id) &&
+          !d.alter?.care?.to?.startsWith('__'),
+      );
       const cards: string[] = [];
       for (let i = 0; i < 3 && pool.length; i++) {
         const d = pool.splice(Math.floor(tx.rand('loot') * pool.length), 1)[0];
         if (d) cards.push(d.id);
       }
       if (node.rival) cards.pop();
-      const items = [...allItems()].sort(() => tx.rand('loot') - 0.5).slice(0, 3).map((i) => i.id);
-      const eps = allEpithets().filter((e) => !!e.card).sort(() => tx.rand('loot') - 0.5).slice(0, 2).map((e) => `ep:${e.id}`);
+      const items = [...allItems()]
+        .sort(() => tx.rand('loot') - 0.5)
+        .slice(0, 3)
+        .map((i) => i.id);
+      const eps = allEpithets()
+        .filter((e) => !!e.card)
+        .sort(() => tx.rand('loot') - 0.5)
+        .slice(0, 2)
+        .map((e) => `ep:${e.id}`);
       tx.emit({ type: 'pending', p: { kind: 'shop', cards, items: [...items, ...eps], sold: [] } });
       return;
     }
@@ -381,10 +575,18 @@ function enter(tx: Tx, node: MapNode): void {
 function pickStory(tx: Tx): string | null {
   const w = tx.w;
   if (Object.values(w.you.debts).some((n) => n > 0) && tx.rand('story') < 0.35) return 'favor-due';
-  const open = w.unlocked.find((id) => !w.seen.includes(id) && storyDef(id)?.strata.includes(w.stratum));
+  const open = w.unlocked.find(
+    (id) => !w.seen.includes(id) && storyDef(id)?.strata.includes(w.stratum),
+  );
   if (open) return open;
   const tags = tagCount(w.you);
-  const pool = allStories().filter((s) => !s.locked && s.strata.includes(w.stratum) && !w.seen.includes(s.id) && (!s.needTags || meets(tags, s.needTags)));
+  const pool = allStories().filter(
+    (s) =>
+      !s.locked &&
+      s.strata.includes(w.stratum) &&
+      !w.seen.includes(s.id) &&
+      (!s.needTags || meets(tags, s.needTags)),
+  );
   const pick = pool[Math.floor(tx.rand('story') * pool.length)];
   return pick?.id ?? null;
 }
@@ -402,7 +604,8 @@ export function breather(tx: Tx): void {
 /** 古びた・未完のカードは、休ませたことを 2 倍に数える。 */
 function careBonus(tx: Tx): void {
   tx.w.you.cards.forEach((card, slot) => {
-    if (card?.eps.some((e) => epithetDef(e)?.card?.care)) tx.emit({ type: 'card.mark', who: 'you', slot, mark: 'rested', n: 1 });
+    if (card?.eps.some((e) => epithetDef(e)?.card?.care))
+      tx.emit({ type: 'card.mark', who: 'you', slot, mark: 'rested', n: 1 });
   });
 }
 
@@ -415,7 +618,8 @@ export function useItem(tx: Tx, index: number): boolean {
   const s = stats(w, 'you');
   const hp = Math.min(def.heal?.hp ?? 0, maxHp(s) - w.you.hp);
   const mind = Math.min(def.heal?.mind ?? 0, maxMind(s) - w.you.mind);
-  if (hp > 0 || mind > 0) tx.emit({ type: 'vital', who: 'you', hp: Math.max(0, hp), mind: Math.max(0, mind) });
+  if (hp > 0 || mind > 0)
+    tx.emit({ type: 'vital', who: 'you', hp: Math.max(0, hp), mind: Math.max(0, mind) });
   if (def.refill) {
     if (def.refill.tags.length === 0) refill(tx, def.refill.n, undefined, 'you');
     else for (const t of def.refill.tags) refill(tx, def.refill.n, t, 'you');
@@ -433,7 +637,12 @@ export function close(tx: Tx): boolean {
   if (!e || e.phase !== 'over' || !e.outcome || p?.kind !== 'encounter') return false;
   const o = e.outcome;
   const node = nodeOf(w, w.pos);
-  cardsAfter(tx, 'you', o, { cards: e.cards, lies: e.lies, caught: e.caught, hostility: e.foe.hostility });
+  cardsAfter(tx, 'you', o, {
+    cards: e.cards,
+    lies: e.lies,
+    caught: e.caught,
+    hostility: e.foe.hostility,
+  });
   const notes = rewards(tx, 'you', e.foe.id, o, node?.rival);
   if (o === 'beaten') tx.emit({ type: 'flag', key: 'beaten', v: (w.flags.beaten ?? 0) + 1 });
   if (p.npc === 'rival') tx.emit({ type: 'flag', key: 'rivalMet', v: 1 });
@@ -449,7 +658,13 @@ export function close(tx: Tx): boolean {
   const def = foeDef(e.foe.id);
   const takeFrom = p.npc === 'rival' ? e.foe.clues.map((c) => c.id) : def.take;
   const take =
-    o === 'uncovered' ? takeFrom.filter((id) => e.foe.clues.some((c) => c.id === id && c.shown && !c.false) && !w.you.perms.includes(id)) : [];
+    o === 'uncovered'
+      ? takeFrom.filter(
+          (id) =>
+            e.foe.clues.some((c) => c.id === id && c.shown && !c.false) &&
+            !w.you.perms.includes(id),
+        )
+      : [];
   const help = o === 'trusted' && (p.npc === 'rival' || !!def.rewards.trusted?.help);
   const boss = p.tier === 'boss';
   const npc = e.foe.id;
@@ -459,7 +674,10 @@ export function close(tx: Tx): boolean {
     return true;
   }
   if (notes.length) tx.emit({ type: 'note', text: `手に入れた：${notes.join('、')}` });
-  tx.emit({ type: 'pending', p: { kind: 'reward', npc, outcome: o, take, help, boss, resume: p.resume } });
+  tx.emit({
+    type: 'pending',
+    p: { kind: 'reward', npc, outcome: o, take, help, boss, resume: p.resume },
+  });
   sync(tx);
   return true;
 }
@@ -475,7 +693,10 @@ export function claim(tx: Tx, take?: string, help?: number): boolean {
       tx.emit({ type: 'card.uses', who: 'you', slot: help, n: card.max - card.uses });
       const mercy = buildsOf(w.you).some((b) => b.id === 'miserables');
       if (!mercy) tx.emit({ type: 'debt', who: 'you', npc: p.npc, n: 1 });
-      tx.emit({ type: 'note', text: `${foeDef(p.npc).name}に頼って《${cardDef(card.id).name}》を回復させた。${mercy ? '借りは、なかったことにされた。' : '借りができた。'}` });
+      tx.emit({
+        type: 'note',
+        text: `${foeDef(p.npc).name}に頼って《${cardDef(card.id).name}》を回復させた。${mercy ? '借りは、なかったことにされた。' : '借りができた。'}`,
+      });
     }
   }
   tx.emit({ type: 'pending', p: null });
@@ -502,14 +723,18 @@ function descend(tx: Tx): void {
     const n = full ? card.max - card.uses : 1 + (look ? 1 : 0);
     if (n > 0 && card.uses < card.max) tx.emit({ type: 'card.uses', who: 'you', slot, n });
   });
-  if (w.rival.stratum < next && !w.rival.down) tx.emit({ type: 'rival', stratum: next, row: -2, node: null });
+  if (w.rival.stratum < next && !w.rival.down)
+    tx.emit({ type: 'rival', stratum: next, row: -2, node: null });
   tx.emit({ type: 'note', text: `${STRATUM_NAME[next]}へ下りた。また 22 時から、夜が始まる。` });
 }
 
 // ─── 出来事 ───────────────────────────────────────────────────
 
 export function storyChance(w: World, stat: Stat, diff: number): number {
-  return Math.max(5, Math.min(95, Math.round(ask(w, 'storyChance', {}, 25 + 8 * stats(w, 'you')[stat] - diff))));
+  return Math.max(
+    5,
+    Math.min(95, Math.round(ask(w, 'storyChance', {}, 25 + 8 * stats(w, 'you')[stat] - diff))),
+  );
 }
 
 export function canChoose(w: World, i: number): boolean {
@@ -574,7 +799,12 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
     const inverted = node?.eps.includes('inverted');
     const h = Math.round(tx.rule('restHeal', {}, maxHp(s) * frac));
     const m = Math.round(tx.rule('restHeal', {}, maxMind(s) * frac));
-    tx.emit({ type: 'vital', who: 'you', hp: Math.max(0, Math.min(h, maxHp(s) - y.hp)), mind: Math.max(0, Math.min(m, maxMind(s) - y.mind)) });
+    tx.emit({
+      type: 'vital',
+      who: 'you',
+      hp: Math.max(0, Math.min(h, maxHp(s) - y.hp)),
+      mind: Math.max(0, Math.min(m, maxMind(s) - y.mind)),
+    });
     if (inverted) for (const st of STATS) xp(tx, st, 1, 'you');
   };
   const timeFor = (h: number) => Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, h)));
@@ -589,7 +819,8 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
       const card = slot !== undefined ? y.cards[slot] : null;
       if (!card || slot === undefined) return false;
       heal(0.6);
-      if (card.uses < card.max) tx.emit({ type: 'card.uses', who: 'you', slot, n: card.max - card.uses });
+      if (card.uses < card.max)
+        tx.emit({ type: 'card.uses', who: 'you', slot, n: card.max - card.uses });
       tx.emit({ type: 'card.mark', who: 'you', slot, mark: 'rested', n: 2 });
       passTime(tx, timeFor(2));
       tx.emit({ type: 'flag', key: 'skipStory', v: 1 });
@@ -599,7 +830,10 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
     case 'tune-wil': {
       const ok = tx.rand('story') * 100 < restChance(w, a);
       if (ok) {
-        const tags = a === 'tune-int' ? (['gaze', 'public', 'private'] as const) : (['memory', 'trust', 'body'] as const);
+        const tags =
+          a === 'tune-int'
+            ? (['gaze', 'public', 'private'] as const)
+            : (['memory', 'trust', 'body'] as const);
         for (const t of tags) refill(tx, 1, t, 'you', true);
         xp(tx, a === 'tune-int' ? 'INT' : 'WIL', 2, 'you');
       } else tx.emit({ type: 'vital', who: 'you', mind: -Math.min(3, y.mind - 1) });
@@ -610,7 +844,8 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
       if (slot === undefined || !y.cards[slot]) return false;
       tx.emit({ type: 'card.set', who: 'you', slot, card: null, why: 'discard' });
       y.cards.forEach((card, i) => {
-        if (card && card.uses < card.max) tx.emit({ type: 'card.uses', who: 'you', slot: i, n: card.max - card.uses });
+        if (card && card.uses < card.max)
+          tx.emit({ type: 'card.uses', who: 'you', slot: i, n: card.max - card.uses });
       });
       break;
     }
@@ -638,15 +873,30 @@ export function alterOptions(c: Char, slot: number): AlterOption[] {
   const out: AlterOption[] = [];
   if (a.care) {
     const n = card.marks.rested ?? 0;
-    out.push({ to: a.care.to, kind: 'care', ready: n >= need(a.care.need), need: `休ませて回復 ${n}/${need(a.care.need)}` });
+    out.push({
+      to: a.care.to,
+      kind: 'care',
+      ready: n >= need(a.care.need),
+      need: `休ませて回復 ${n}/${need(a.care.need)}`,
+    });
   }
   if (a.overuse) {
     const n = card.marks.spent ?? 0;
-    out.push({ to: a.overuse.to, kind: 'overuse', ready: n >= need(a.overuse.need), need: `0 回のまま使う ${n}/${need(a.overuse.need)}` });
+    out.push({
+      to: a.overuse.to,
+      kind: 'overuse',
+      ready: n >= need(a.overuse.need),
+      need: `0 回のまま使う ${n}/${need(a.overuse.need)}`,
+    });
   }
   if (a.secret) {
     const have = a.secret.perms.filter((p) => c.perms.includes(p)).length;
-    out.push({ to: a.secret.to, kind: 'secret', ready: have === a.secret.perms.length, need: a.secret.perms.map((p) => `《${permDef(p)?.name ?? p}》`).join(' + ') });
+    out.push({
+      to: a.secret.to,
+      kind: 'secret',
+      ready: have === a.secret.perms.length,
+      need: a.secret.perms.map((p) => `《${permDef(p)?.name ?? p}》`).join(' + '),
+    });
   }
   return out;
 }
@@ -675,7 +925,8 @@ export function inscribe(tx: Tx, ep: string, slot?: number, perm?: string): bool
     tx.emit({ type: 'card.ep', who: 'you', slot, ep, on: true });
   } else if (perm) {
     const list = w.you.permEps[perm] ?? [];
-    if (!w.you.perms.includes(perm) || !def.memory || list.length >= 2 || list.includes(ep)) return false;
+    if (!w.you.perms.includes(perm) || !def.memory || list.length >= 2 || list.includes(ep))
+      return false;
     tx.emit({ type: 'perm.ep', who: 'you', perm, ep, on: true });
   } else return false;
   tx.emit({ type: 'ep.held', who: 'you', ep, n: -1 });
@@ -685,9 +936,15 @@ export function inscribe(tx: Tx, ep: string, slot?: number, perm?: string): bool
 
 // ─── 古物商 ───────────────────────────────────────────────────
 
-export const priceOf = (w: World, base: number) => Math.round(ask(w, 'price', {}, base * (1 + 0.1 * w.depth)));
-export const cardPrice = (w: World, id: string) => priceOf(w, 45 + cardDef(id).uses * 3 + (cardDef(id).rarity === 'rare' ? 25 : 0));
-export const epPrice = (w: World, id: string) => priceOf(w, epithetDef(id)?.rarity === 'rare' ? 60 : epithetDef(id)?.rarity === 'uncommon' ? 42 : 30);
+export const priceOf = (w: World, base: number) =>
+  Math.round(ask(w, 'price', {}, base * (1 + 0.1 * w.depth)));
+export const cardPrice = (w: World, id: string) =>
+  priceOf(w, 45 + cardDef(id).uses * 3 + (cardDef(id).rarity === 'rare' ? 25 : 0));
+export const epPrice = (w: World, id: string) =>
+  priceOf(
+    w,
+    epithetDef(id)?.rarity === 'rare' ? 60 : epithetDef(id)?.rarity === 'uncommon' ? 42 : 30,
+  );
 export const curePrice = (w: World) => priceOf(w, 70);
 
 export function permValue(c: Char, id: string): number {
@@ -737,7 +994,8 @@ export function sell(tx: Tx, perm: string): boolean {
 
 export function cure(tx: Tx, perm: string): boolean {
   const w = tx.w;
-  if (w.pending?.kind !== 'shop' || !permDef(perm)?.bad || !w.you.perms.includes(perm)) return false;
+  if (w.pending?.kind !== 'shop' || !permDef(perm)?.bad || !w.you.perms.includes(perm))
+    return false;
   const price = curePrice(w);
   if (w.you.coins < price) return false;
   coins(tx, -price, 'you');
@@ -750,12 +1008,8 @@ export function sacrifice(tx: Tx, s: Stat, slot: number): boolean {
   const w = tx.w;
   const card = w.you.cards[slot];
   if (w.pending?.kind !== 'shop' || !card || w.you.innate[s] + w.you.growth[s] <= 1) return false;
-  if (w.you.growth[s] > 0) tx.emit({ type: 'xp', who: 'you', stat: s, n: 0 });
-  // 成長値から先に差し出す（無ければ先天値）。成長値は grew の取り消しで表す。
-  const c = structuredClone(w.you);
-  if (c.growth[s] > 0) c.growth[s]--;
-  else c.innate[s]--;
-  tx.emit({ type: 'run.started', seed: w.seed, v: w.v, depth: w.depth, you: c, rival: w.rival.char });
+  // 成長値から先に差し出す（無ければ先天値）。
+  tx.emit({ type: 'grew', who: 'you', stat: s, n: -1, innate: w.you.growth[s] <= 0 });
   tx.emit({ type: 'card.max', who: 'you', slot, n: 1 });
   tx.emit({ type: 'card.uses', who: 'you', slot, n: 99 });
   sync(tx);
@@ -787,7 +1041,8 @@ export function sync(tx: Tx): void {
   }
   const s = stats(w, 'you');
   if (w.you.hp > maxHp(s)) tx.emit({ type: 'vital', who: 'you', hp: maxHp(s) - w.you.hp });
-  if (w.you.mind > maxMind(s)) tx.emit({ type: 'vital', who: 'you', mind: maxMind(s) - w.you.mind });
+  if (w.you.mind > maxMind(s))
+    tx.emit({ type: 'vital', who: 'you', mind: maxMind(s) - w.you.mind });
 }
 
 // ─── 終わり ───────────────────────────────────────────────────
@@ -805,7 +1060,16 @@ function score(w: World, won: boolean): number {
 
 function finish(tx: Tx, kind: 'dead', title: string): void {
   const w = tx.w;
-  tx.emit({ type: 'ending', ending: { kind, title, text: `${STRATUM_NAME[w.stratum]}で、夜が終わった。`, score: score(w, false), won: false } });
+  tx.emit({
+    type: 'ending',
+    ending: {
+      kind,
+      title,
+      text: `${STRATUM_NAME[w.stratum]}で、夜が終わった。`,
+      score: score(w, false),
+      won: false,
+    },
+  });
   tx.emit({ type: 'pending', p: { kind: 'ending' } });
 }
 
@@ -817,7 +1081,8 @@ function finale(tx: Tx, outcome: Outcome): void {
   switch (outcome) {
     case 'beaten':
       title = '砕いた';
-      text = 'あなたは自分の履歴を砕いた。土に戻った立方体の中に、何も残っていなかった。身軽になった。それが良いことかは、まだわからない。';
+      text =
+        'あなたは自分の履歴を砕いた。土に戻った立方体の中に、何も残っていなかった。身軽になった。それが良いことかは、まだわからない。';
       break;
     case 'broken':
       title = '黙らせた';

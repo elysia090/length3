@@ -16,7 +16,6 @@ const item = (tx: Tx, id: string) => tx.emit({ type: 'item', who: 'you', id, n: 
 const has = (tx: Tx, p: string) => tx.w.you.perms.includes(p);
 const time = (tx: Tx, h: number) => tx.emit({ type: 'time', hours: h });
 
-
 /**
  * 出来事。文章と選択肢。選択肢の多くは能力値の判定で、成功率が見える。
  * 記憶（永続カード）を持っているときにだけ現れる選択肢と、組み合わせで

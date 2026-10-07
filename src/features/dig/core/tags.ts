@@ -65,6 +65,14 @@ export const ARCHETYPES = [
   'scribe',
   'child',
   'crowd',
+  'prophet',
+  'hunter',
+  'prisoner',
+  'architect',
+  'traitor',
+  'lover',
+  'survivor',
+  'judge',
 ] as const;
 
 export type Archetype = (typeof ARCHETYPES)[number];
@@ -86,6 +94,14 @@ export const ARCH_NAME: Record<Archetype, string> = {
   scribe: '記録者',
   child: '子ども',
   crowd: '群衆',
+  prophet: '預言者',
+  hunter: '狩人',
+  prisoner: '囚人',
+  architect: '建築家',
+  traitor: '裏切り者',
+  lover: '恋人',
+  survivor: '生き残り',
+  judge: '裁く者',
 };
 
 export type ArchCount = Partial<Record<Archetype, number>>;

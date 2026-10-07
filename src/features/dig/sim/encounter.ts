@@ -1,18 +1,18 @@
+import { PACE } from '../content/balance';
+import { cardArch, cardTags } from '../content/cardinfo';
+import type { EpithetCtx } from '../content/defs';
+import type { CardFacet } from '../content/epithets';
+import { holds, run } from '../content/fx';
+import { cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import type { Basic } from '../core/events';
 import { portrait } from '../core/mind';
 import type { Card, Char, Foe, Outcome, Who, World } from '../core/model';
 import { ask } from '../core/rules';
 import type { Tx } from '../core/tx';
-import { cardArch, cardTags } from '../content/cardinfo';
-import type { EpithetCtx } from '../content/defs';
-import type { CardFacet } from '../content/epithets';
-import { holds, run } from '../content/fx';
-import { activeBuild } from '../content/query';
-import { cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import { planFoe } from './ai';
 import {
-  charOf,
   chance,
+  charOf,
   coins,
   end,
   gainPerm,
@@ -46,12 +46,18 @@ export interface Meet {
   after?: string;
 }
 
-export function startEnc(tx: Tx, who: Who, npc: string, tier: Foe['tier' & never] | 'normal' | 'danger' | 'boss' | 'rival', m: Meet = {}): void {
+export function startEnc(
+  tx: Tx,
+  who: Who,
+  npc: string,
+  tier: Foe['tier' & never] | 'normal' | 'danger' | 'boss' | 'rival',
+  m: Meet = {},
+): void {
   const w = tx.w;
   const def = foeDef(npc);
-  const late = w.hour >= 8 ? w.hour - 7 : 0;
+  const late = w.hour >= PACE.dawn ? w.hour - PACE.dawn + 1 : 0;
   const depth = w.depth + late;
-  const grow = 1 + 0.12 * depth + 0.18 * (w.stratum - 1);
+  const grow = PACE.tough * (1 + 0.1 * depth + 0.2 * (w.stratum - 1));
   const f: Foe = {
     id: def.id,
     name: def.name,
@@ -60,7 +66,7 @@ export function startEnc(tx: Tx, who: Who, npc: string, tier: Foe['tier' & never
     resolve: Math.round(def.resolve * grow),
     maxResolve: Math.round(def.resolve * grow),
     trust: 0,
-    need: def.need,
+    need: Math.round(def.need * PACE.tough) + w.stratum - 1 + Math.floor(w.depth / 3),
     hostility: def.hostility,
     guard: 0,
     atk: Math.round(def.atk * (1 + 0.1 * depth) + (w.stratum - 1)),
@@ -116,18 +122,34 @@ export function startEnc(tx: Tx, who: Who, npc: string, tier: Foe['tier' & never
   const host = Math.round(tx.rule('startHostility', { who }, 0));
   if (host) hostile(tx, host);
   const tr = Math.round(tx.rule('startTrust', { who }, 0));
-  if (tr > 0) tx.emit({ type: 'foe', field: 'trust', n: Math.min(tr, e.foe.need - 1 - e.foe.trust) });
+  if (tr > 0)
+    tx.emit({ type: 'foe', field: 'trust', n: Math.min(tr, e.foe.need - 1 - e.foe.trust) });
   // 認識世界。前の決着と、人づてに聞いた噂が、初めの構えを決める。
   if (who === 'you') {
     const mind = w.minds[npc];
     const p = portrait(mind);
     if (mind?.outcomes.beaten || mind?.outcomes.broken) hostile(tx, 3);
-    if (mind?.outcomes.trusted) tx.emit({ type: 'foe', field: 'trust', n: Math.max(0, Math.min(2, e.foe.need - 1 - e.foe.trust)) });
+    if (mind?.outcomes.trusted)
+      tx.emit({
+        type: 'foe',
+        field: 'trust',
+        n: Math.max(0, Math.min(2, e.foe.need - 1 - e.foe.trust)),
+      });
     if (p.violent > 0.4) {
-      if (def.persona.fear >= 0.5) tx.emit({ type: 'foe', field: 'resolve', n: -Math.min(e.foe.resolve - 1, Math.round(6 * p.violent)) });
+      if (def.persona.fear >= 0.5)
+        tx.emit({
+          type: 'foe',
+          field: 'resolve',
+          n: -Math.min(e.foe.resolve - 1, Math.round(6 * p.violent)),
+        });
       else hostile(tx, Math.round(3 * p.violent));
     }
-    if (p.kind > 0.4 && def.persona.warmth > 0.3) tx.emit({ type: 'foe', field: 'trust', n: Math.max(0, Math.min(1, e.foe.need - 1 - e.foe.trust)) });
+    if (p.kind > 0.4 && def.persona.warmth > 0.3)
+      tx.emit({
+        type: 'foe',
+        field: 'trust',
+        n: Math.max(0, Math.min(1, e.foe.need - 1 - e.foe.trust)),
+      });
     if (p.nosy > 0.4 || p.suspicion > 0.3) tx.emit({ type: 'foe.st', key: 'wary', n: 1 });
     if (mind?.met) line(tx, 'again');
     else if (mind?.heard) line(tx, 'heard');
@@ -140,7 +162,11 @@ export function startEnc(tx: Tx, who: Who, npc: string, tier: Foe['tier' & never
       say(tx, 'voice', 'もう一人に、やられたあとだ。');
       break;
     case 'trusted':
-      tx.emit({ type: 'foe', field: 'trust', n: Math.max(0, Math.min(2, e.foe.need - 1 - e.foe.trust)) });
+      tx.emit({
+        type: 'foe',
+        field: 'trust',
+        n: Math.max(0, Math.min(2, e.foe.need - 1 - e.foe.trust)),
+      });
       say(tx, 'voice', 'もう一人と、もう打ち解けている。贈り物は向こうへ渡ったあとだ。');
       break;
     case 'uncovered':
@@ -177,14 +203,21 @@ export function leaveChance(w: World): number {
   if (!e) return 0;
   const f = e.foe;
   if (f.hostility <= 2 || f.st.stun) return 100;
-  const base = 50 + 10 * (statOf(w, e.who, 'AGI') - f.agi) - 4 * (f.hostility - 3);
+  // 長引くほど、相手も飽きて道が開く（膠着しない）。
+  const stale = 6 * Math.max(0, e.turn - 4);
+  const base = 50 + 10 * (statOf(w, e.who, 'AGI') - f.agi) - 4 * (f.hostility - 3) + stale;
   return Math.max(5, Math.min(100, Math.round(ask(w, 'leaveChance', {}, base))));
 }
 
 export function canAccept(w: World): boolean {
   const i = w.enc?.foe.intent;
   const who = w.enc?.who ?? 'you';
-  return !!i && i.kind === 'bargain' && !i.lie && charOf(w, who).coins >= Math.round(ask(w, 'price', {}, i.price ?? 0));
+  return (
+    !!i &&
+    i.kind === 'bargain' &&
+    !i.lie &&
+    charOf(w, who).coins >= Math.round(ask(w, 'price', {}, i.price ?? 0))
+  );
 }
 
 export function basic(tx: Tx, a: Basic): boolean {
@@ -248,12 +281,14 @@ export function basic(tx: Tx, a: Basic): boolean {
 }
 
 /** カードのエピテット（カードの面）と、その場の文脈。 */
-function facets(w: World, c: Char, card: Card): { list: { id: string; f: CardFacet }[]; ctx: EpithetCtx } {
+function facets(c: Char, card: Card): { list: { id: string; f: CardFacet }[]; ctx: EpithetCtx } {
   const list = (card.eps ?? []).flatMap((id) => {
     const f = epithetDef(id)?.card;
     return f ? [{ id, f }] : [];
   });
-  const others = c.cards.filter((x): x is Card => !!x && x.uid !== card.uid).map((x) => cardTags(x));
+  const others = c.cards
+    .filter((x): x is Card => !!x && x.uid !== card.uid)
+    .map((x) => cardTags(x));
   return { list, ctx: { card, char: c, tags: cardTags(card), others } };
 }
 
@@ -266,7 +301,7 @@ export function useCard(tx: Tx, slot: number): boolean {
   const card = c.cards[slot];
   if (!card) return false;
   const def = cardDef(card.id);
-  const { list, ctx } = facets(w, c, card);
+  const { list, ctx } = facets(c, card);
   const tags = ctx.tags;
   const arch = cardArch(card);
   const spent = card.uses <= 0;
@@ -294,15 +329,22 @@ export function useCard(tx: Tx, slot: number): boolean {
     } else mult *= 2;
   }
   const free =
-    tx.rule('useSpend', { who, card: def.id, spent }, 1) === 0 || list.some((x) => x.f.free?.(w, card.id) ?? false);
+    tx.rule('useSpend', { who, card: def.id, spent }, 1) === 0 ||
+    list.some((x) => x.f.free?.(w, card.id) ?? false);
   const quiet = has('quiet');
-  tx.emit({ type: 'card.use', who, slot, card: card.id, spent, free, quiet, tags });
+  tx.emit({ type: 'card.use', who, slot, card: card.id, spent, free, quiet, tags: [...tags] });
   for (const s of def.stats) xp(tx, s, has('fixed') ? 0 : 1);
   if (list.some((x) => x.id === 'recorded')) for (const s of def.stats) xp(tx, s, 1);
   const twice = has('twice');
   if (spent) tx.emit({ type: 'card.mark', who, slot, mark: 'spent', n: 1 });
   else {
-    if (!free) tx.emit({ type: 'card.uses', who, slot, n: twice && !list.some((x) => x.id === 'torn') ? -2 : -1 });
+    if (!free)
+      tx.emit({
+        type: 'card.uses',
+        who,
+        slot,
+        n: twice && !list.some((x) => x.id === 'torn') ? -2 : -1,
+      });
     tx.emit({ type: 'card.mark', who, slot, mark: 'used', n: 1 });
   }
   const fx = spent ? def.spent : def.ready;
@@ -322,10 +364,12 @@ export function useCard(tx: Tx, slot: number): boolean {
     for (let i = 0; i < (twice ? 2 : 1); i++) run(tx, fx, fctx);
     for (const x of list) if (x.f.after) run(tx, x.f.after, { ...fctx, mult: 1 });
     if (list.some((x) => x.id === 'echoing')) run(tx, fx, { ...fctx, mult: mult * 0.4 });
-    if (list.some((x) => x.id === 'false')) tx.emit({ type: 'claim', about: 'harmless', truth: false });
+    if (list.some((x) => x.id === 'false'))
+      tx.emit({ type: 'claim', about: 'harmless', truth: false });
   } else say(tx, 'voice', 'まだ、目覚めていない。');
   for (const x of list) if (x.f.host) hostile(tx, x.f.host);
-  if (list.some((x) => x.id === 'borrowed') && w.enc) tx.emit({ type: 'debt', who, npc: w.enc.foe.id, n: 1 });
+  if (list.some((x) => x.id === 'borrowed') && w.enc)
+    tx.emit({ type: 'debt', who, npc: w.enc.foe.id, n: 1 });
   if (has('burn') && card.max > 1) tx.emit({ type: 'card.max', who, slot, n: -1 });
   // 隠し効果。条件がそろうと現れ、初めて現れたときに明らかになる。
   const h = def.hidden;
@@ -368,7 +412,8 @@ function foeTurn(tx: Tx): void {
     tx.emit({ type: 'act', move: move.id });
     move.act(tx);
   }
-  for (const k of ['dealt', 'punish', 'cut'] as const) if (w.enc?.foe.st[k]) tx.emit({ type: 'foe.st', key: k, n: -(w.enc.foe.st[k] ?? 0) });
+  for (const k of ['dealt', 'punish', 'cut'] as const)
+    if (w.enc?.foe.st[k]) tx.emit({ type: 'foe.st', key: k, n: -(w.enc.foe.st[k] ?? 0) });
   settle(tx);
   if (!w.enc || w.enc.phase !== 'act') return;
   tx.emit({ type: 'turn' });
@@ -395,7 +440,12 @@ export function shownIntent(w: World) {
 // ─── 決着を写す ───────────────────────────────────────────────
 
 /** カードの回復条件・最大回数・酷使の変質。あなたにもライバルにも同じ規則で。 */
-export function cardsAfter(tx: Tx, who: Who, outcome: Outcome, log: { cards: number; lies: number; caught: number; hostility: number }): void {
+export function cardsAfter(
+  tx: Tx,
+  who: Who,
+  outcome: Outcome,
+  log: { cards: number; lies: number; caught: number; hostility: number },
+): void {
   const on: string[] = [];
   if (outcome === 'beaten') on.push('win');
   if (outcome === 'broken') on.push('broken', 'win');
@@ -408,7 +458,8 @@ export function cardsAfter(tx: Tx, who: Who, outcome: Outcome, log: { cards: num
   c.cards.forEach((card, slot) => {
     if (!card) return;
     const def = cardDef(card.id);
-    if (def.recover.on.some((t) => on.includes(t)) && card.uses < card.max) tx.emit({ type: 'card.uses', who, slot, n: 1 });
+    if (def.recover.on.some((t) => on.includes(t)) && card.uses < card.max)
+      tx.emit({ type: 'card.uses', who, slot, n: 1 });
   });
   shiftAll(tx, who);
   overuse(tx, who);
@@ -436,13 +487,27 @@ export function transform(tx: Tx, who: Who, slot: number, to: string, why: strin
   const old = c.cards[slot];
   if (!old) return;
   const def = cardDef(to);
-  tx.emit({ type: 'card.set', who, slot, card: { uid: c.uid, id: to, uses: def.uses, max: def.uses, marks: {}, eps: [...(old.eps ?? [])] }, why });
+  tx.emit({
+    type: 'card.set',
+    who,
+    slot,
+    card: {
+      uid: c.uid,
+      id: to,
+      uses: def.uses,
+      max: def.uses,
+      marks: {},
+      eps: [...(old.eps ?? [])],
+    },
+    why,
+  });
 }
 
 function overuse(tx: Tx, who: Who): void {
   const c = charOf(tx.w, who);
   c.cards.forEach((card, slot) => {
-    if (!card || (card.eps ?? []).includes('amber') || (card.eps ?? []).includes('forgotten')) return;
+    if (!card || (card.eps ?? []).includes('amber') || (card.eps ?? []).includes('forgotten'))
+      return;
     const o = cardDef(card.id).alter?.overuse;
     if (o && (card.marks.spent ?? 0) >= o.need) transform(tx, who, slot, o.to, 'overuse');
   });
@@ -466,6 +531,6 @@ export function rewards(tx: Tx, who: Who, npc: string, outcome: Outcome, after?:
   return notes;
 }
 
-export const hasBuild = activeBuild;
+export const hasBuild = (w: World, id: string) => w.builds.includes(id);
 export const permName = (id: string) => permDef(id)?.name ?? id;
 export const chanceFor = chance;

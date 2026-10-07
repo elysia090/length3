@@ -1,5 +1,5 @@
+import { PACE } from './balance';
 import type { Intent, IntentKind, World } from '../core/model';
-import type { Tx } from '../core/tx';
 import {
   end,
   hostile,
@@ -94,7 +94,13 @@ function call(id: string, label: string, o: Partial<MoveDef> = {}): MoveDef {
   };
 }
 
-function mend(id: string, label: string, hp: number, resolve: number, o: Partial<MoveDef> = {}): MoveDef {
+function mend(
+  id: string,
+  label: string,
+  hp: number,
+  resolve: number,
+  o: Partial<MoveDef> = {},
+): MoveDef {
   return {
     id,
     intent: () => ({ kind: 'mend', label }),
@@ -110,7 +116,12 @@ function mend(id: string, label: string, hp: number, resolve: number, o: Partial
   };
 }
 
-function flee(id: string, label: string, when: (w: World) => boolean, o: Partial<MoveDef> = {}): MoveDef {
+function flee(
+  id: string,
+  label: string,
+  when: (w: World) => boolean,
+  o: Partial<MoveDef> = {},
+): MoveDef {
   return {
     id,
     intent: () => ({ kind: 'flee', label }),
@@ -143,7 +154,12 @@ function probe(id: string, label: string, o: Partial<MoveDef> = {}): MoveDef {
 }
 
 /** 嘘の手。見かけ（seem）を見せて、本当の手（real）を打つ。 */
-function lie(real: MoveDef, seem: IntentKind, seemLabel: string, o: Partial<MoveDef> = {}): MoveDef {
+function lie(
+  real: MoveDef,
+  seem: IntentKind,
+  seemLabel: string,
+  o: Partial<MoveDef> = {},
+): MoveDef {
   return {
     ...real,
     id: `${real.id}-lie`,
@@ -933,11 +949,12 @@ export const FOE_LIST: readonly FoeDef[] = [
       // 体積はあなたの履歴でできている。辺は経験の数、手がかりはあなたの永続カード。
       const mine = w.you.perms.filter((id) => id !== 'false-lead');
       const edge = 3 + Math.min(3, Math.floor(mine.length / 4));
-      f.hp = f.maxHp = Math.round((edge ** 3 / 2 + 20) * (1 + 0.1 * w.depth));
+      const k = PACE.tough * (1 + 0.1 * w.depth);
+      f.hp = f.maxHp = Math.round((edge ** 3 / 2 + 20) * k);
       const memories = mine.filter((id) => permDef(id)?.kind === 'memory').length;
-      f.resolve = f.maxResolve = 14 + 4 * memories;
+      f.resolve = f.maxResolve = Math.round((14 + 4 * memories) * k);
       const bonds = mine.filter((id) => permDef(id)?.kind === 'bond').length;
-      f.need = Math.max(5, 10 - bonds);
+      f.need = Math.round(Math.max(6, 14 - 2 * bonds) * k);
       const her = (id: string) => (HER.includes(id) ? 1 : 0);
       const ordered = [...mine].sort((a, b) => her(b) - her(a));
       f.clues = ordered.slice(0, 6).map((id) => ({ id, shown: false }));

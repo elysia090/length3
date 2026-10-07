@@ -7,7 +7,8 @@ import { permDef } from './registry';
  * ビルド。ACTIVE の 5 枚と PERMANENT のタグの合計が条件を満たすと発火し、
  * 外れると消える。名前は、その戦い方に似た作品から。
  */
-const isClue = (ev: Ev): ev is Extract<Ev, { type: 'clue' }> => ev.type === 'clue' && ev.shown && !ev.false;
+const isClue = (ev: Ev): ev is Extract<Ev, { type: 'clue' }> =>
+  ev.type === 'clue' && ev.shown && !ev.false;
 const mine = (w: { enc?: { who: string } | null }) => w.enc?.who === 'you';
 
 export const BUILD_LIST: readonly BuildDef[] = [
@@ -26,7 +27,11 @@ export const BUILD_LIST: readonly BuildDef[] = [
         },
         text: '［記憶］のカードで、手がかりをもう 1 つ',
       },
-      { on: 'moved', run: (tx) => refill(tx, 1, 'memory', 'you'), text: '着くたび、［記憶］の回数 +1' },
+      {
+        on: 'moved',
+        run: (tx) => refill(tx, 1, 'memory', 'you'),
+        text: '着くたび、［記憶］の回数 +1',
+      },
     ],
   },
   {
@@ -61,8 +66,18 @@ export const BUILD_LIST: readonly BuildDef[] = [
     arch: { saint: 1, gatekeeper: 1 },
     text: '［聖人］と［門番］（バルジャンとジャベール）。体力が 3 割を切った相手への信頼 +3（赦し）。頼っても借りができない。［人物］の相手は初めから信頼 +1。',
     passive: [
-      { rule: 'trust', when: (c) => !!c.enc && c.enc.foe.hp * 10 < c.enc.foe.maxHp * 3, fn: (_c, v) => v + 3, text: '弱った相手に信頼 +3' },
-      { rule: 'startTrust', when: (c) => !!c.enc?.foe.tags.includes('person'), fn: (_c, v) => v + 1, text: '［人物］は初めから信頼 +1' },
+      {
+        rule: 'trust',
+        when: (c) => !!c.enc && c.enc.foe.hp * 10 < c.enc.foe.maxHp * 3,
+        fn: (_c, v) => v + 3,
+        text: '弱った相手に信頼 +3',
+      },
+      {
+        rule: 'startTrust',
+        when: (c) => !!c.enc?.foe.tags.includes('person'),
+        fn: (_c, v) => v + 1,
+        text: '［人物］は初めから信頼 +1',
+      },
     ],
   },
   {
@@ -71,7 +86,14 @@ export const BUILD_LIST: readonly BuildDef[] = [
     no: 51,
     need: { private: 2, tech: 2, institution: 1 },
     text: '遭遇で最初に使うカードは回数を減らさない。［私的情報］の手がかりを見るたび金 8。遭遇の初めに相手の防御 −2。',
-    passive: [{ rule: 'useSpend', when: (c) => (c.enc?.cards ?? 1) === 0, fn: () => 0, text: '最初のカードは回数を減らさない' }],
+    passive: [
+      {
+        rule: 'useSpend',
+        when: (c) => (c.enc?.cards ?? 1) === 0,
+        fn: () => 0,
+        text: '最初のカードは回数を減らさない',
+      },
+    ],
     triggers: [
       {
         on: 'clue',
@@ -82,7 +104,8 @@ export const BUILD_LIST: readonly BuildDef[] = [
       {
         on: 'enc.start',
         when: (ev) => ev.type === 'enc.start' && ev.who === 'you',
-        run: (tx) => tx.emit({ type: 'foe', field: 'def', n: -Math.min(2, tx.w.enc?.foe.def ?? 0) }),
+        run: (tx) =>
+          tx.emit({ type: 'foe', field: 'def', n: -Math.min(2, tx.w.enc?.foe.def ?? 0) }),
         text: '相手の防御 −2',
       },
     ],
@@ -95,7 +118,12 @@ export const BUILD_LIST: readonly BuildDef[] = [
     text: '予告はいつも本当の姿で見える。［制度］の相手の意志を 1.5 倍削る。ただし信頼の伸び −1。',
     passive: [
       { rule: 'intentVisible', fn: () => 1, text: '予告が見える' },
-      { rule: 'break', when: (c) => !!c.enc?.foe.tags.includes('institution'), fn: (_c, v) => Math.round(v * 1.5), text: '［制度］の意志 ×1.5' },
+      {
+        rule: 'break',
+        when: (c) => !!c.enc?.foe.tags.includes('institution'),
+        fn: (_c, v) => Math.round(v * 1.5),
+        text: '［制度］の意志 ×1.5',
+      },
       { rule: 'trust', fn: (_c, v) => (v > 0 ? Math.max(0, v - 1) : v), text: '信頼の伸び −1' },
     ],
   },
@@ -118,7 +146,14 @@ export const BUILD_LIST: readonly BuildDef[] = [
     arch: { drifter: 1, gatekeeper: 1 },
     text: '［漂流者］と［門番］（案内人）。かならず立ち去れる。手がかりを見るたび金 4（ゾーンの品）。',
     passive: [{ rule: 'leaveChance', fn: () => 100, text: 'かならず去れる' }],
-    triggers: [{ on: 'clue', when: (ev, w) => isClue(ev) && mine(w), run: (tx) => coins(tx, 4, 'you'), text: '手がかりで金 4' }],
+    triggers: [
+      {
+        on: 'clue',
+        when: (ev, w) => isClue(ev) && mine(w),
+        run: (tx) => coins(tx, 4, 'you'),
+        text: '手がかりで金 4',
+      },
+    ],
   },
   {
     id: 'leaves',
@@ -127,7 +162,14 @@ export const BUILD_LIST: readonly BuildDef[] = [
     need: { place: 2, private: 2, memory: 1 },
     text: '誤った手がかりが混じらない。本当の手がかりを見るたび、相手の意志を 2 削る。',
     passive: [{ rule: 'falseChance', fn: () => 0, text: '誤りが混じらない' }],
-    triggers: [{ on: 'clue', when: (ev, w) => isClue(ev) && mine(w), run: (tx) => void breakFoe(tx, 2), text: '手がかりで意志 −2' }],
+    triggers: [
+      {
+        on: 'clue',
+        when: (ev, w) => isClue(ev) && mine(w),
+        run: (tx) => void breakFoe(tx, 2),
+        text: '手がかりで意志 −2',
+      },
+    ],
   },
   {
     id: 'matrix',
@@ -152,8 +194,18 @@ export const BUILD_LIST: readonly BuildDef[] = [
     need: { body: 2, time: 2 },
     text: '4 手番目から体力を削る量 ×1.5。5 手番目からはかならず去れる。',
     passive: [
-      { rule: 'hit', when: (c) => (c.enc?.turn ?? 0) >= 4, fn: (_c, v) => Math.round(v * 1.5), text: '4 手番目から ×1.5' },
-      { rule: 'leaveChance', when: (c) => (c.enc?.turn ?? 0) >= 5, fn: () => 100, text: '5 手番目から去れる' },
+      {
+        rule: 'hit',
+        when: (c) => (c.enc?.turn ?? 0) >= 4,
+        fn: (_c, v) => Math.round(v * 1.5),
+        text: '4 手番目から ×1.5',
+      },
+      {
+        rule: 'leaveChance',
+        when: (c) => (c.enc?.turn ?? 0) >= 5,
+        fn: () => 100,
+        text: '5 手番目から去れる',
+      },
     ],
   },
   {
@@ -175,29 +227,208 @@ export const BUILD_LIST: readonly BuildDef[] = [
     text: '精神への傷 −2。精神の回復 +2。',
     passive: [
       { rule: 'threatTaken', fn: (_c, v) => Math.max(0, v - 2), text: '精神への傷 −2' },
-      { rule: 'heal', when: (c) => c.kind === 'mind', fn: (_c, v) => (v > 0 ? v + 2 : v), text: '精神の回復 +2' },
+      {
+        rule: 'heal',
+        when: (c) => c.kind === 'mind',
+        fn: (_c, v) => (v > 0 ? v + 2 : v),
+        text: '精神の回復 +2',
+      },
     ],
   },
 ];
 
 /** 共鳴。対になる作品が同時に枠にあると効く。 */
 export const LINK_LIST: readonly LinkDef[] = [
-  { id: 'zone', name: 'ゾーン', cards: ['picnic', 'stalker'], text: '手がかりを見るたび金 5。', triggers: [{ on: 'clue', when: (ev, w) => isClue(ev) && mine(w), run: (tx) => coins(tx, 5, 'you'), text: '手がかりで金 5' }] },
-  { id: 'voight', name: '共感の検査', cards: ['android', 'bladerunner'], text: '嘘 +20%。予告が見える。', passive: [{ rule: 'lieChance', fn: (_c, v) => v + 20, text: '嘘 +20%' }, { rule: 'intentVisible', fn: () => 1, text: '予告が見える' }] },
-  { id: 'panopticon', name: '一望監視', cards: ['orwell', 'discipline'], text: '予告が見える。意志を削る量 +1。', passive: [{ rule: 'intentVisible', fn: () => 1, text: '予告が見える' }, { rule: 'break', fn: (_c, v) => v + 1, text: '意志 +1' }] },
-  { id: 'paperwork', name: '書類仕事', cards: ['bureau', 'brazil'], text: '相手を動けなくするたび、敵意 −2。', triggers: [{ on: 'foe.st', when: (ev) => ev.type === 'foe.st' && ev.key === 'stun' && ev.n > 0, run: (tx) => tx.emit({ type: 'foe', field: 'hostility', n: -Math.min(2, tx.w.enc?.foe.hostility ?? 0) }), text: '動けなくすると敵意 −2' }] },
-  { id: 'friedrich', name: 'フリードリヒ', cards: ['monk', 'icesea'], text: '毎手番 心の構え +2。', passive: [{ rule: 'turnCalm', fn: (_c, v) => v + 2, text: '毎手番 心の構え +2' }] },
-  { id: 'abe', name: '安部公房', cards: ['map', 'dunes'], text: '休むのに時間がかからない。', passive: [{ rule: 'timeCost', when: (c) => c.kind === 'rest', fn: () => 0, text: '休んでも時間が進まない' }] },
-  { id: 'illusion', name: '幻影', cards: ['morel', 'mulholland'], text: '誤った手がかり −30%。', passive: [{ rule: 'falseChance', fn: (_c, v) => v - 30, text: '誤り −30%' }] },
-  { id: 'dick', name: 'ディック', cards: ['ubik', 'android'], text: '代償が半分になる。', passive: [{ rule: 'selfCost', fn: (_c, v) => Math.floor(v / 2), text: '代償 ×0.5' }] },
-  { id: 'lem', name: 'レム', cards: ['solaris', 'voice'], text: 'INT 判定 +10%。', passive: [{ rule: 'checkChance', when: (c) => !!c.stat?.includes('INT'), fn: (_c, v) => v + 10, text: 'INT +10%' }] },
-  { id: 'night-shop', name: '夜の店', cards: ['nighthawks', 'cafe'], text: '休むと +10 回復。', passive: [{ rule: 'restHeal', fn: (_c, v) => v + 10, text: '休むと +10' }] },
-  { id: 'ghost-machine', name: '機械の中の幽霊', cards: ['bladerunner', 'ghost'], text: '打ち解けるか暴くと、［記憶］のカードの回数 +1。', triggers: [{ on: 'enc.end', when: (ev, w) => mine(w) && ev.type === 'enc.end' && (ev.outcome === 'trusted' || ev.outcome === 'uncovered'), run: (tx) => refill(tx, 1, 'memory', 'you'), text: '［記憶］の回数 +1' }] },
-  { id: 'cyberspace', name: 'サイバースペース', cards: ['matrix', 'chrome'], text: '［技術］のカード ×1.2。', passive: [{ rule: 'mult', when: (c) => !!c.tags?.includes('tech'), fn: (_c, v) => v * 1.2, text: '［技術］×1.2' }] },
-  { id: 'detectives', name: '刑事たち', cards: ['darkknight', 'seven'], text: '遭遇の初めに手がかりを 1 つ。', triggers: [{ on: 'enc.start', when: (ev) => ev.type === 'enc.start' && ev.who === 'you', run: (tx) => void revealClue(tx), text: '初めに手がかり 1' }] },
-  { id: 'armor', name: '装甲', cards: ['t2', 'ironman'], text: '毎手番 守り +3。', passive: [{ rule: 'turnGuard', fn: (_c, v) => v + 3, text: '毎手番 守り +3' }] },
-  { id: 'legibility', name: '地図と領土', cards: ['seeing', 'image'], text: '出来事 +10%、誤った手がかり −10%。', passive: [{ rule: 'storyChance', fn: (_c, v) => v + 10, text: '出来事 +10%' }, { rule: 'falseChance', fn: (_c, v) => v - 10, text: '誤り −10%' }] },
-  { id: 'streets', name: '街路', cards: ['jacobs', 'pattern'], text: '信頼の伸び +1。', passive: [{ rule: 'trust', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '信頼 +1' }] },
-  { id: 'weber', name: 'ヴェーバー', cards: ['objectivity', 'ethic'], text: '金の入り ×1.2。', passive: [{ rule: 'coins', fn: (_c, v) => Math.round(v * 1.2), text: '金 ×1.2' }] },
-  { id: 'witness', name: '目撃者', cards: ['may3', 'pope'], text: '意志を削る量 +2。', passive: [{ rule: 'break', fn: (_c, v) => v + 2, text: '意志 +2' }] },
+  {
+    id: 'zone',
+    name: 'ゾーン',
+    cards: ['picnic', 'stalker'],
+    text: '手がかりを見るたび金 5。',
+    triggers: [
+      {
+        on: 'clue',
+        when: (ev, w) => isClue(ev) && mine(w),
+        run: (tx) => coins(tx, 5, 'you'),
+        text: '手がかりで金 5',
+      },
+    ],
+  },
+  {
+    id: 'voight',
+    name: '共感の検査',
+    cards: ['android', 'bladerunner'],
+    text: '嘘 +20%。予告が見える。',
+    passive: [
+      { rule: 'lieChance', fn: (_c, v) => v + 20, text: '嘘 +20%' },
+      { rule: 'intentVisible', fn: () => 1, text: '予告が見える' },
+    ],
+  },
+  {
+    id: 'panopticon',
+    name: '一望監視',
+    cards: ['orwell', 'discipline'],
+    text: '予告が見える。意志を削る量 +1。',
+    passive: [
+      { rule: 'intentVisible', fn: () => 1, text: '予告が見える' },
+      { rule: 'break', fn: (_c, v) => v + 1, text: '意志 +1' },
+    ],
+  },
+  {
+    id: 'paperwork',
+    name: '書類仕事',
+    cards: ['bureau', 'brazil'],
+    text: '相手を動けなくするたび、敵意 −2。',
+    triggers: [
+      {
+        on: 'foe.st',
+        when: (ev) => ev.type === 'foe.st' && ev.key === 'stun' && ev.n > 0,
+        run: (tx) =>
+          tx.emit({
+            type: 'foe',
+            field: 'hostility',
+            n: -Math.min(2, tx.w.enc?.foe.hostility ?? 0),
+          }),
+        text: '動けなくすると敵意 −2',
+      },
+    ],
+  },
+  {
+    id: 'friedrich',
+    name: 'フリードリヒ',
+    cards: ['monk', 'icesea'],
+    text: '毎手番 心の構え +2。',
+    passive: [{ rule: 'turnCalm', fn: (_c, v) => v + 2, text: '毎手番 心の構え +2' }],
+  },
+  {
+    id: 'abe',
+    name: '安部公房',
+    cards: ['map', 'dunes'],
+    text: '休むのに時間がかからない。',
+    passive: [
+      {
+        rule: 'timeCost',
+        when: (c) => c.kind === 'rest',
+        fn: () => 0,
+        text: '休んでも時間が進まない',
+      },
+    ],
+  },
+  {
+    id: 'illusion',
+    name: '幻影',
+    cards: ['morel', 'mulholland'],
+    text: '誤った手がかり −30%。',
+    passive: [{ rule: 'falseChance', fn: (_c, v) => v - 30, text: '誤り −30%' }],
+  },
+  {
+    id: 'dick',
+    name: 'ディック',
+    cards: ['ubik', 'android'],
+    text: '代償が半分になる。',
+    passive: [{ rule: 'selfCost', fn: (_c, v) => Math.floor(v / 2), text: '代償 ×0.5' }],
+  },
+  {
+    id: 'lem',
+    name: 'レム',
+    cards: ['solaris', 'voice'],
+    text: 'INT 判定 +10%。',
+    passive: [
+      {
+        rule: 'checkChance',
+        when: (c) => !!c.stat?.includes('INT'),
+        fn: (_c, v) => v + 10,
+        text: 'INT +10%',
+      },
+    ],
+  },
+  {
+    id: 'night-shop',
+    name: '夜の店',
+    cards: ['nighthawks', 'cafe'],
+    text: '休むと +10 回復。',
+    passive: [{ rule: 'restHeal', fn: (_c, v) => v + 10, text: '休むと +10' }],
+  },
+  {
+    id: 'ghost-machine',
+    name: '機械の中の幽霊',
+    cards: ['bladerunner', 'ghost'],
+    text: '打ち解けるか暴くと、［記憶］のカードの回数 +1。',
+    triggers: [
+      {
+        on: 'enc.end',
+        when: (ev, w) =>
+          mine(w) &&
+          ev.type === 'enc.end' &&
+          (ev.outcome === 'trusted' || ev.outcome === 'uncovered'),
+        run: (tx) => refill(tx, 1, 'memory', 'you'),
+        text: '［記憶］の回数 +1',
+      },
+    ],
+  },
+  {
+    id: 'cyberspace',
+    name: 'サイバースペース',
+    cards: ['matrix', 'chrome'],
+    text: '［技術］のカード ×1.2。',
+    passive: [
+      {
+        rule: 'mult',
+        when: (c) => !!c.tags?.includes('tech'),
+        fn: (_c, v) => v * 1.2,
+        text: '［技術］×1.2',
+      },
+    ],
+  },
+  {
+    id: 'detectives',
+    name: '刑事たち',
+    cards: ['darkknight', 'seven'],
+    text: '遭遇の初めに手がかりを 1 つ。',
+    triggers: [
+      {
+        on: 'enc.start',
+        when: (ev) => ev.type === 'enc.start' && ev.who === 'you',
+        run: (tx) => void revealClue(tx),
+        text: '初めに手がかり 1',
+      },
+    ],
+  },
+  {
+    id: 'armor',
+    name: '装甲',
+    cards: ['t2', 'ironman'],
+    text: '毎手番 守り +3。',
+    passive: [{ rule: 'turnGuard', fn: (_c, v) => v + 3, text: '毎手番 守り +3' }],
+  },
+  {
+    id: 'legibility',
+    name: '地図と領土',
+    cards: ['seeing', 'image'],
+    text: '出来事 +10%、誤った手がかり −10%。',
+    passive: [
+      { rule: 'storyChance', fn: (_c, v) => v + 10, text: '出来事 +10%' },
+      { rule: 'falseChance', fn: (_c, v) => v - 10, text: '誤り −10%' },
+    ],
+  },
+  {
+    id: 'streets',
+    name: '街路',
+    cards: ['jacobs', 'pattern'],
+    text: '信頼の伸び +1。',
+    passive: [{ rule: 'trust', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '信頼 +1' }],
+  },
+  {
+    id: 'weber',
+    name: 'ヴェーバー',
+    cards: ['objectivity', 'ethic'],
+    text: '金の入り ×1.2。',
+    passive: [{ rule: 'coins', fn: (_c, v) => Math.round(v * 1.2), text: '金 ×1.2' }],
+  },
+  {
+    id: 'witness',
+    name: '目撃者',
+    cards: ['may3', 'pope'],
+    text: '意志を削る量 +2。',
+    passive: [{ rule: 'break', fn: (_c, v) => v + 2, text: '意志 +2' }],
+  },
 ];

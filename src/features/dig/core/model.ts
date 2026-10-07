@@ -210,7 +210,15 @@ export const blankMind = (): Mind => ({
 
 export type Pending =
   | { kind: 'encounter'; npc: string; tier: Enc['tier']; resume?: number }
-  | { kind: 'reward'; npc: string; outcome: Outcome; take: string[]; help: boolean; boss: boolean; resume?: number }
+  | {
+      kind: 'reward';
+      npc: string;
+      outcome: Outcome;
+      take: string[];
+      help: boolean;
+      boss: boolean;
+      resume?: number;
+    }
   | { kind: 'story'; id: string; eps: string[] }
   | { kind: 'told'; id: string; ok: boolean; text: string; chance?: number; roll?: number }
   | { kind: 'rest'; used: boolean; altered: boolean }

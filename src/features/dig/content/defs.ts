@@ -2,7 +2,7 @@ import type { Intent, Outcome, Stat, StatBlock, World } from '../core/model';
 import type { Patch, Trigger } from '../core/rules';
 import type { ArchCount, Archetype, Tag, TagCount } from '../core/tags';
 import type { Tx } from '../core/tx';
-import type { Fx, Cond } from './fx';
+import type { Cond, Fx } from './fx';
 
 /**
  * 中身の形。カード（100 の作品）、記憶、人物、ビルド、共鳴、職、出来事、品。
@@ -13,7 +13,15 @@ import type { Fx, Cond } from './fx';
 export type PassiveSpec = Omit<Patch, 'id' | 'source'>;
 export type TriggerSpec = Omit<Trigger, 'id' | 'source'>;
 
-export type Recover = 'win' | 'newPlace' | 'lieKept' | 'quiet' | 'uncover' | 'trusted' | 'broken' | 'left';
+export type Recover =
+  | 'win'
+  | 'newPlace'
+  | 'lieKept'
+  | 'quiet'
+  | 'uncover'
+  | 'trusted'
+  | 'broken'
+  | 'left';
 
 export interface Work {
   title: string;
@@ -39,7 +47,11 @@ export interface CardDef {
   spentName: string;
   spent: readonly Fx[];
   recover: { on: readonly Recover[]; restOnly?: boolean };
-  alter?: { care?: { to: string; need: number }; overuse?: { to: string; need: number }; secret?: { to: string; perms: readonly string[] } };
+  alter?: {
+    care?: { to: string; need: number };
+    overuse?: { to: string; need: number };
+    secret?: { to: string; perms: readonly string[] };
+  };
   shift?: { on: 'spent' | 'rested'; every: number; cap: number; perm?: string };
   hidden?: { id: string; when: Cond; fx: readonly Fx[]; text: string };
   passive?: readonly PassiveSpec[];
@@ -63,7 +75,16 @@ export interface PermDef {
   dyn?: (w: World, s: Stat) => number;
   value: number;
   bad?: boolean;
-  exploit?: { text: string; press?: number; talk?: number; force?: number; lie?: number; show?: (tx: Tx) => void };
+  exploit?: {
+    text: string;
+    press?: number;
+    talk?: number;
+    force?: number;
+    lie?: number;
+    show?: (tx: Tx) => void;
+  };
+  /** 物語の糸（彼女・事故・火事…）。最後の相手が読む。 */
+  thread?: string;
   echo?: { label: string; kind: 'strike' | 'threat'; power: number };
   passive?: readonly PassiveSpec[];
   triggers?: readonly TriggerSpec[];
@@ -95,7 +116,18 @@ export interface Reward {
   help?: boolean;
 }
 
-export type LineKind = 'greet' | 'again' | 'heard' | 'hurt' | 'low' | 'trusted' | 'broken' | 'beaten' | 'uncovered' | 'fled' | 'caught';
+export type LineKind =
+  | 'greet'
+  | 'again'
+  | 'heard'
+  | 'hurt'
+  | 'low'
+  | 'trusted'
+  | 'broken'
+  | 'beaten'
+  | 'uncovered'
+  | 'fled'
+  | 'caught';
 
 export interface FoeDef {
   id: string;
@@ -176,8 +208,8 @@ export interface StoryOption {
   needCoins?: number;
   ok: string;
   fail?: string;
-  effect: (tx: Tx) => string | undefined | void;
-  failEffect?: (tx: Tx) => string | undefined | void;
+  effect: (tx: Tx) => string | undefined;
+  failEffect?: (tx: Tx) => string | undefined;
 }
 
 export interface StoryDef {
