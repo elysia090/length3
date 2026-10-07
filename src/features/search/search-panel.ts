@@ -103,6 +103,11 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
             openRange(browserDocument, () => input.focus()),
           );
         },
+        onDig: () => {
+          void import('../dig').then(({ openDig }) =>
+            openDig(browserDocument, () => input.focus()),
+          );
+        },
       });
       return ui;
     }

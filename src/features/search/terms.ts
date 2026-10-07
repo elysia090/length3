@@ -75,3 +75,8 @@ export function nearestTerms(query: string, terms: readonly Term[], limit = 4): 
 export function isGunman(query: string): boolean {
   return query.trim().toLowerCase() === 'gunman';
 }
+
+/** 'dig' と打つと DIG（掘るローグライク）が開く。 */
+export function isDig(query: string): boolean {
+  return query.trim().toLowerCase() === 'dig';
+}
