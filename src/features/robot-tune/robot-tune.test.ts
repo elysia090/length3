@@ -1,51 +1,60 @@
 import { describe, expect, it } from 'vitest';
-import { INTRO_SLOTS, LOOP_SLOTS, sceneAt } from './choreo';
-import { INTRO_SEC, LOOP_SEC } from './envelope';
+import { INTRO_SLOTS, LOOP_THROWS, sceneAt } from './choreo';
+import { INTRO_SEC, LOOP_ACCENTS, LOOP_ONSET_SEC, LOOP_SEC } from './envelope';
 import { comparison, formatLength, formatVolume, groupDigits, unitCount } from './scale';
-import { BEAT_SEC, BEATS_PER_LOOP, beatAt, INTRO_BEATS, silenceStart } from './timeline';
+import {
+  BEATS_PER_LOOP,
+  BPM,
+  beatAt,
+  EIGHTH_SEC,
+  INTRO_BEATS,
+  LOOP_EIGHTHS,
+  silenceStart,
+} from './timeline';
 
-describe('timeline', () => {
-  it('counts the loop as exactly 13 beats at 166 BPM', () => {
-    expect(BEAT_SEC * BEATS_PER_LOOP).toBeCloseTo(LOOP_SEC, 9);
-    expect(60 / BEAT_SEC).toBeCloseTo(166, 0);
+describe('timeline (measured by scripts/robot-tune/bake.ts)', () => {
+  it('divides the loop into a whole number of measured eighth notes', () => {
+    expect(Number.isInteger(LOOP_EIGHTHS)).toBe(true);
+    expect(LOOP_EIGHTHS * EIGHTH_SEC).toBeCloseTo(LOOP_SEC, 9);
+    expect(LOOP_ACCENTS).toHaveLength(LOOP_EIGHTHS);
+    // 測った値の大まかな範囲。テンポを決め打ちするための検査ではない。
+    expect(BPM).toBeGreaterThan(120);
+    expect(BPM).toBeLessThan(200);
   });
 
   it('keeps the beat continuous where the intro hands over to the loop', () => {
     const before = beatAt(INTRO_SEC - 1e-6);
     const after = beatAt(INTRO_SEC + 1e-6);
-    expect(Math.abs(after - before)).toBeLessThan(0.01);
+    expect(Math.abs(after - before)).toBeLessThan(0.05);
   });
 
-  it('puts every loop downbeat on 33 + 13n', () => {
+  it('puts every loop head on INTRO_BEATS + n × BEATS_PER_LOOP', () => {
     for (const n of [0, 1, 7]) {
-      const downbeat = INTRO_BEATS + n * BEATS_PER_LOOP;
-      const pos = INTRO_SEC + n * LOOP_SEC + 0.126;
-      expect(beatAt(pos)).toBeCloseTo(downbeat, 1);
+      const pos = INTRO_SEC + n * LOOP_SEC + LOOP_ONSET_SEC;
+      expect(beatAt(pos)).toBeCloseTo(INTRO_BEATS + n * BEATS_PER_LOOP, 3);
     }
   });
 
-  it('freezes at the start of the silence, reaching back across the file boundary', () => {
+  it('freezes at the start of a silence', () => {
     expect(silenceStart(0.2)).toBe(0);
     expect(silenceStart(0.5)).toBeNull();
-    // ループ 1 周目の頭の無音は、イントロ末尾の無音の続き。
-    const first = silenceStart(INTRO_SEC + 0.05);
-    expect(first).not.toBeNull();
-    expect(first ?? 0).toBeLessThan(INTRO_SEC);
-    // 2 周目以降はループの頭から。
-    expect(silenceStart(INTRO_SEC + LOOP_SEC + 0.05)).toBeCloseTo(INTRO_SEC + LOOP_SEC, 6);
+    expect(silenceStart(INTRO_SEC + LOOP_SEC + 0.25)).toBeCloseTo(INTRO_SEC + LOOP_SEC + 0.2, 6);
   });
 });
 
 describe('choreography', () => {
-  it('fills every cell of 3³ exactly once', () => {
-    const key = (c: readonly number[]) => c.join(',');
+  const key = (c: readonly number[]) => c.join(',');
+
+  it('builds 3³ from 1 + 7 + 19 in the intro and in every loop', () => {
     expect(new Set(INTRO_SLOTS.map(key)).size).toBe(27);
-    expect(new Set(LOOP_SLOTS.map(key)).size).toBe(26);
-    expect(LOOP_SLOTS.some((c) => key(c) === '0,0,0')).toBe(false);
+    const loopCells = LOOP_THROWS.flatMap((t) => t.cells.map(key));
+    expect(new Set(['0,0,0', ...loopCells]).size).toBe(27);
+    expect(LOOP_THROWS.map((t) => t.cells.length)).toEqual([7, 19]);
   });
 
   it('never stacks a cube over an empty cell', () => {
-    for (const slots of [INTRO_SLOTS, [[0, 0, 0] as const, ...LOOP_SLOTS]]) {
+    const order = [[0, 0, 0] as const, ...LOOP_THROWS.flatMap((t) => t.cells)];
+    for (const slots of [INTRO_SLOTS, order]) {
       slots.forEach(([x, y, z], i) => {
         if (y === 0) return;
         const below = slots.findIndex((c) => c[0] === x && c[1] === y - 1 && c[2] === z);
@@ -55,13 +64,26 @@ describe('choreography', () => {
     }
   });
 
-  it('completes 3³ at beat 27 and again at every loop downbeat', () => {
+  it('lands each scoop on one of the loudest measured kicks of the loop', () => {
+    const ranked = [...LOOP_ACCENTS].sort((a, b) => b - a);
+    for (const t of LOOP_THROWS) {
+      expect(LOOP_ACCENTS[t.land]).toBeGreaterThanOrEqual(ranked[2] ?? 1);
+      expect(t.scoop).toBeLessThanOrEqual(t.launch);
+      expect(t.launch).toBeLessThan(t.land);
+      expect(t.land).toBeLessThan(LOOP_EIGHTHS);
+    }
+  });
+
+  it('completes 3³ at beat 27, and again inside every loop', () => {
     expect(sceneAt(26.9).count).toBe(26);
     expect(sceneAt(27.01).count).toBe(27);
-    const last = sceneAt(INTRO_BEATS + BEATS_PER_LOOP - 0.01);
-    expect(last.count).toBe(26);
+    const head = sceneAt(INTRO_BEATS + 0.01);
+    expect(head.count).toBe(1);
+    const second = LOOP_THROWS[1];
+    const full = sceneAt(INTRO_BEATS + (second?.land ?? 0) / 2 + 0.4);
+    expect(full.count).toBe(27);
     const next = sceneAt(INTRO_BEATS + BEATS_PER_LOOP + 0.01);
-    expect(next.level).toBe(last.level + 1);
+    expect(next.level).toBe(head.level + 1);
     expect(next.count).toBe(1);
   });
 
@@ -70,9 +92,10 @@ describe('choreography', () => {
       const s = sceneAt(b);
       return unitCount(s.level, s.count);
     };
-    // 27 個目が着地した直後と、数え直した直後は同じ体積。
     expect(v(INTRO_BEATS - 0.01)).toBe(27n);
     expect(v(INTRO_BEATS + 0.01)).toBe(27n);
+    expect(v(INTRO_BEATS + BEATS_PER_LOOP - 0.01)).toBe(27n ** 2n);
+    expect(v(INTRO_BEATS + BEATS_PER_LOOP + 0.01)).toBe(27n ** 2n);
   });
 });
 

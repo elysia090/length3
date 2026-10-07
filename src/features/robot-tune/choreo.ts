@@ -2,9 +2,9 @@ import {
   add,
   apply,
   clamp,
+  easeInCubic,
   easeOutBack,
   easeOutCubic,
-  fract,
   hash,
   IDENTITY,
   type Mat3,
@@ -19,21 +19,25 @@ import {
 } from '../../shared/pixel/math';
 import type { CameraState, CubeState, ShovelState } from '../../shared/pixel/solids';
 import { INTRO_ONSET_SEC, INTRO_SILENCES, LOOP_ONSET_SEC, LOOP_SILENCES } from './envelope';
-import { BEAT_SEC, BEATS_PER_LOOP, INTRO_BEATS } from './timeline';
+import { BEAT_SEC, BEATS_PER_LOOP, EIGHTH_SEC, INTRO_BEATS, LOOP_EIGHTHS } from './timeline';
 
 export type { CameraState, CubeState, ShovelState };
 
 /**
- * 振付。通算拍 B を受け取って、その瞬間の舞台を返す純関数。
+ * 振付。通算拍 B を受け取って、その瞬間の舞台を返す純関数。拍の長さと数は
+ * 音から測った値（timeline.ts）で、振付はそれに合わせて組む。
  *
- * イントロ（B = 0..27）は 1 拍に 1 個ずつ、1 → 2³ → 3³ と殻を足して 27 個積む。
- * 残りの 6 拍は溜め。33 拍目でループに入ると、積み上がった 3³ を 1 個の
- * 立方体として数え直し、カメラを 3 倍引く。
+ * イントロ（35 拍）は 1 拍に 1 個ずつ、1 → 2³ の殻 7 個 → 3³ の殻 19 個と
+ * 足して 27 拍目で 3³ を積み上げる。残りの 8 拍は溜めで、シャベルは
+ * 地面を突く間隔を詰めていき、積んだ 27 個は 8 分音符で波打つ。
  *
- * ループは 13 拍。半拍に 1 個ずつ投げると 26 個で、さっきの 1 個と足して
- * 27 = 3³ になる。最後の 1 個が着地するのは次の周の頭、つまりループが
- * 巻き戻る瞬間で、そこでまた数え直す。13 拍という半端な長さは、
- * 3³ − 1 を 2 で割った数だった。
+ * ループ（8 分音符 23 個 = 11 拍半）は、頭で前の 3³ を 1 個の立方体として
+ * 数え直し、カメラを 3 倍引く。そこからイントロと同じ殻を、今度は一掬い
+ * ずつ投げる: 2³ の殻 7 個を 12 番目の 8 分音符（ループでいちばん強い
+ * キック）に、3³ の殻 19 個を 18 番目（二番目に強い）に落とす。投げる前は
+ * 2・4 番目で地面を突き、5 番目で掬って 9 番目で放る。13 番目で掬って
+ * 14 番目で放る。16 番目でカメラが切り返す。どの山場も、測った低域の
+ * 立ち上がりが強い 8 分音符に置いてある（envelope.ts の LOOP_ACCENTS）。
  *
  * 世界の長さの単位は「いま積んでいる立方体 1 個の一辺」。段が上がるたびに
  * 単位ごと 3 倍になるので、座標は毎周 [0, 3]³ に収まる。
@@ -41,7 +45,6 @@ export type { CameraState, CubeState, ShovelState };
 
 export const STACK = 3;
 const INTRO_CUBES = 27;
-const LOOP_CUBES = 26;
 const BUILD_START = INTRO_CUBES;
 
 type Cell = readonly [number, number, number];
@@ -68,17 +71,36 @@ export const INTRO_SLOTS: readonly Cell[] = [
   ...cellsOfShell(2),
   ...cellsOfShell(3),
 ];
-/** 角の 1 個（前の段の完成品）を除いた 26 マス。 */
-export const LOOP_SLOTS: readonly Cell[] = cellsOfShell(3)
-  .concat(cellsOfShell(2))
-  .filter((c) => c[0] + c[1] + c[2] > 0)
-  .sort((a, b) => a[1] - b[1] || a[2] - b[2] || (a[2] % 2 === 0 ? a[0] - b[0] : b[0] - a[0]));
+
+/**
+ * ループで一掬いずつ投げる殻。scoop で刃に載り、launch で放たれ、land で
+ * 落ちる（いずれも 8 分音符の番号）。殻の中は下の段から順に、ほんの少し
+ * ずつ遅れて着地する。
+ */
+export interface Throw {
+  cells: readonly Cell[];
+  scoop: number;
+  launch: number;
+  land: number;
+}
+export const LOOP_THROWS: readonly Throw[] = [
+  { cells: cellsOfShell(2), scoop: 5, launch: 9, land: 12 },
+  { cells: cellsOfShell(3), scoop: 13, launch: 14, land: 18 },
+];
+/** 地面を突く 8 分音符（掘っている手つき）。 */
+const LOOP_STABS = [2, 4];
+/** カメラが 90° 切り返す 8 分音符。 */
+const LOOP_CUTS = [0, 16];
+/** 積み終わった山が沈み直す 8 分音符。 */
+const LOOP_SETTLE = 21;
+/** 殻の中の着地のずれ（8 分音符）。 */
+const STAGGER = 0.06;
 
 export interface CellRow {
   count: number;
   filled: number;
   current: number;
-  /** 投げた箱が宙で止まる（直後に無音が来る）マス。 */
+  /** 直後に無音が来て、動きが止まるマス。 */
   cut: readonly boolean[];
   /** イントロの溜め。箱ではなく拍だけを数えるマス。 */
   charge: number;
@@ -105,73 +127,51 @@ export interface Scene {
   shake: number;
 }
 
-/** 1 拍目を打つ前、シャベルが立って最初の 1 個を載せている。 */
 const AZ0 = Math.PI / 4 - 0.22;
 const ELEVATION = 0.56;
 
+/** 無音が始まる 8 分音符（イントロは拍）のマス。 */
 function cutCells(
   silences: readonly (readonly [number, number])[],
   onset: number,
-  perBeat: number,
+  step: number,
   count: number,
 ): boolean[] {
   const cut = new Array<boolean>(count).fill(false);
   for (const [s] of silences) {
     if (s <= onset) continue;
-    const step = Math.ceil(((s - onset) / BEAT_SEC) * perBeat - 1e-3);
-    const i = (step - 1 + count) % count;
-    cut[i] = true;
+    const i = Math.floor((s - onset) / step);
+    if (i >= 0 && i < count) cut[i] = true;
   }
   return cut;
 }
-const INTRO_CUT = cutCells(INTRO_SILENCES, INTRO_ONSET_SEC, 1, INTRO_BEATS);
-const LOOP_CUT = cutCells(
-  LOOP_SILENCES.filter(([s]) => s > LOOP_ONSET_SEC),
-  LOOP_ONSET_SEC,
-  2,
-  LOOP_CUBES,
-);
-// ループ頭の無音は前の周の尻尾。最後に投げる 1 個がそこで止まる。
-LOOP_CUT[LOOP_CUBES - 1] = true;
+const INTRO_CUT = cutCells(INTRO_SILENCES, INTRO_ONSET_SEC, BEAT_SEC, INTRO_BEATS);
+const LOOP_CUT = cutCells(LOOP_SILENCES, LOOP_ONSET_SEC, EIGHTH_SEC, LOOP_EIGHTHS);
 
-const bladeLocal: Vec3 = [0, 0.66, 0.04];
-const bladeNormal: Vec3 = [0, 0, 1];
-
-interface Timing {
-  appear: number;
-  launch: number;
-  land: number;
-}
-const introTiming = (i: number): Timing => ({
-  appear: i === 0 ? -Infinity : i - 0.5,
-  launch: i,
-  land: i + 1,
-});
-const loopTiming = (i: number): Timing => ({
-  appear: i === 0 ? 0 : 0.5 * i - 0.25,
-  launch: 0.5 * i,
-  land: 0.5 * i + 0.5,
-});
-
-/** 局面ごとの「拍の中での位置」。ループは周ごとに 0 から数え直す。 */
+/** 局面と、その局面の中の位置（イントロは拍、ループは 8 分音符）。 */
 function split(beat: number) {
-  if (beat < 0) return { phase: 'pre' as const, cycle: -1, k: beat };
-  if (beat < BUILD_START) return { phase: 'intro' as const, cycle: -1, k: beat };
-  if (beat < INTRO_BEATS) return { phase: 'build' as const, cycle: -1, k: beat };
+  if (beat < 0) return { phase: 'pre' as const, cycle: -1, k: beat, e: 2 * beat };
+  if (beat < BUILD_START) return { phase: 'intro' as const, cycle: -1, k: beat, e: 2 * beat };
+  if (beat < INTRO_BEATS) return { phase: 'build' as const, cycle: -1, k: beat, e: 2 * beat };
   const after = beat - INTRO_BEATS;
   const cycle = Math.floor(after / BEATS_PER_LOOP);
-  return { phase: 'loop' as const, cycle, k: after - cycle * BEATS_PER_LOOP };
+  const k = after - cycle * BEATS_PER_LOOP;
+  return { phase: 'loop' as const, cycle, k, e: 2 * k };
 }
 
-/** カメラの方位。溜めで 2 回、ループで 0 拍目と 8 拍目に 90° ずつ切り返す。 */
+const snap = (t: number) => easeOutBack(clamp(t / 0.42));
+
+/** カメラの方位。溜めで 2 回、ループで 2 回、90° ずつ切り返す。 */
 function azimuthAt(beat: number): number {
   const s = split(beat);
-  const snap = (t: number) => easeOutBack(clamp(t / 0.42));
   const drift = 0.006 * Math.max(0, Math.min(beat, INTRO_BEATS));
   if (s.phase === 'pre' || s.phase === 'intro') return AZ0 + drift;
-  if (s.phase === 'build') return AZ0 + drift + (Math.PI / 2) * (snap(beat - 29) + snap(beat - 31));
+  if (s.phase === 'build') {
+    return AZ0 + drift + (Math.PI / 2) * (snap(beat - 29) + snap(beat - 31));
+  }
   const base = AZ0 + 0.006 * INTRO_BEATS + Math.PI + s.cycle * Math.PI;
-  return base + (Math.PI / 2) * (snap(s.k) + snap(s.k - 8)) - 0.004 * s.k;
+  const turns = LOOP_CUTS.reduce((sum, at) => sum + snap((s.e - at) / 2), 0);
+  return base + (Math.PI / 2) * turns - 0.004 * s.k;
 }
 
 /** 世界の何単位を枠に収めるか。数え直しの直後だけ 1 → 3 へ引く。 */
@@ -181,45 +181,105 @@ function zoomAt(beat: number): number {
   return 1 + 2 * easeOutCubic(clamp(s.k / 0.42));
 }
 
-function shovelAt(beat: number, zoom: number, az: number): ShovelState {
+/**
+ * シャベルの手つき。時刻（8 分音符）t に対して、
+ *   突く   stab の前後で刃を地面へ差し込み、跳ね返る
+ *   掬う   scoop で刃を寝かせて持ち上げ、launch へ向けて後ろへ引く
+ *   放る   launch で山の方へ振り抜き、刃をはね上げ、ばねで戻る
+ * の重ね合わせ。返すのは、寝かせ角・振り向き・高さ・差し込み。
+ */
+interface Gesture {
+  tilt: number;
+  yaw: number;
+  lift: number;
+  plunge: number;
+}
+
+function stab(t: number, at: number, depth: number): Gesture {
+  const u = t - at;
+  if (u < -0.5 || u > 2) return { tilt: 0, yaw: 0, lift: 0, plunge: 0 };
+  const into = u < 0 ? easeInCubic(clamp((u + 0.5) / 0.5)) : Math.max(0, spring(u * 0.18, 3.2, 9));
+  return { tilt: 0.38 * into * depth, yaw: 0, lift: 0, plunge: 0.22 * into * depth };
+}
+
+function fling(t: number, scoop: number, launch: number): Gesture {
+  if (t < scoop - 0.5 || t > launch + 3) return { tilt: 0, yaw: 0, lift: 0, plunge: 0 };
+  if (t < scoop) {
+    // 掬う直前、刃を差し込む。
+    const a = easeInCubic(clamp((t - scoop + 0.5) / 0.5));
+    return { tilt: 0.34 * a, yaw: 0, lift: 0, plunge: 0.18 * a };
+  }
+  if (t < launch) {
+    // 刃を寝かせて持ち上げ、後ろへ引いて溜める。
+    const a = easeOutCubic(clamp((t - scoop) / Math.max(0.5, launch - scoop)));
+    return { tilt: 0.34 - 0.5 * a, yaw: -0.55 * a, lift: 0.35 * a, plunge: 0.18 * (1 - a) };
+  }
+  // 振り抜いて、刃をはね上げ、ばねで戻る。
+  const u = t - launch;
+  const swing = easeOutBack(clamp(u / 0.45), 1.6);
+  const back = clamp((u - 0.6) / 2.2);
+  const settle = 1 - easeOutCubic(back);
+  return {
+    tilt: (-0.16 - 0.5 * swing) * settle,
+    yaw: (-0.55 + 0.95 * swing) * settle,
+    lift: (0.35 + 0.25 * swing) * settle,
+    plunge: 0,
+  };
+}
+
+function sum(gs: Gesture[]): Gesture {
+  return gs.reduce(
+    (a, g) => ({
+      tilt: a.tilt + g.tilt,
+      yaw: a.yaw + g.yaw,
+      lift: a.lift + g.lift,
+      plunge: a.plunge + g.plunge,
+    }),
+    { tilt: 0, yaw: 0, lift: 0, plunge: 0 },
+  );
+}
+
+function gestureAt(beat: number): Gesture {
   const s = split(beat);
+  if (s.phase === 'pre') return { tilt: 0, yaw: 0, lift: 0, plunge: 0 };
+  if (s.phase === 'intro') {
+    // 1 拍に 1 個。裏の 8 分音符で掬い、拍で放る。
+    const i = Math.floor(s.e / 2);
+    return sum([fling(s.e, 2 * i + 1, 2 * i + 2), fling(s.e, 2 * i - 1, 2 * i)]);
+  }
+  if (s.phase === 'build') {
+    // 溜め。突く間隔が拍から 8 分音符へ詰まり、深くなっていく。
+    const u = beat - BUILD_START;
+    const dense = u > 4;
+    const at = dense ? Math.round(s.e) : 2 * Math.round(s.e / 2);
+    return stab(s.e, at, 0.6 + 0.5 * clamp(u / 8));
+  }
+  return sum([
+    ...LOOP_STABS.map((at) => stab(s.e, at, 1)),
+    ...LOOP_THROWS.map((th) => fling(s.e, th.scoop, th.launch)),
+    stab(s.e, LOOP_SETTLE, 0.4),
+  ]);
+}
+
+function shovelAt(beat: number, zoom: number, az: number): ShovelState {
   const unit = zoom / STACK;
   const right: Vec3 = [Math.cos(az), 0, -Math.sin(az)];
   const toward: Vec3 = [Math.sin(az), 0, Math.cos(az)];
   const center: Vec3 = [zoom / 2, 0, zoom / 2];
   const pivot = add(center, add(scale(right, 3.25 * unit), scale(toward, 0.9 * unit)));
-
-  // 回り方。イントロは拍ごとに半回転をがくっと決め、ループは半拍ごと。
-  // 溜めでは止まらずに加速していく。
-  let spin: number;
-  let launchAge: number;
-  let tilt = 0.62;
-  if (s.phase === 'pre') {
-    spin = 0;
-    launchAge = 99;
-  } else if (s.phase === 'intro') {
-    spin = Math.PI * (Math.floor(beat) + easeOutBack(clamp(fract(beat) / 0.38)));
-    launchAge = fract(beat);
-  } else if (s.phase === 'build') {
-    const u = beat - BUILD_START;
-    spin = Math.PI * (BUILD_START + u + 0.3 * u * u);
-    launchAge = 99;
-    tilt += 0.22 * clamp(u / 5.5);
-  } else {
-    const h = 2 * s.k;
-    spin = Math.PI * (Math.floor(h) + easeOutBack(clamp(fract(h) / 0.4)));
-    launchAge = fract(h) / 2;
-  }
-  const recoil = launchAge < 2 ? spring(launchAge * BEAT_SEC, 2.6, 9) : 0;
-  tilt += 0.07 * Math.sin(Math.PI * beat) + 0.14 * Math.max(0, recoil);
-  const hop = 0.22 * Math.max(0, Math.sin(Math.PI * clamp(launchAge / 0.32)));
-  const wobble = 0.05 * Math.sin(2 * Math.PI * beat * 0.5 + 1.3);
+  const g = gestureAt(beat);
+  // 刃は山の方を向く。手つきの振り向きはその向きからの差。
+  const aim = Math.atan2(center[0] - pivot[0], center[2] - pivot[2]);
+  const breathe = 0.03 * Math.sin(Math.PI * beat);
   return {
-    pivot: add(pivot, [0, hop * unit, 0]),
+    pivot: add(pivot, [0, (g.lift - g.plunge) * unit, 0]),
     scale: unit,
-    rot: mul(rotY(spin + az + Math.PI), mul(rotZ(wobble), rotX(-tilt))),
+    rot: mul(rotY(aim + g.yaw), mul(rotZ(0.04 * g.yaw), rotX(-(0.62 + g.tilt + breathe)))),
   };
 }
+
+const bladeLocal: Vec3 = [0, 0.66, 0.04];
+const bladeNormal: Vec3 = [0, 0, 1];
 
 /** 刃に載っている箱の中心と向き。 */
 function onBlade(shovel: ShovelState, size: number): { center: Vec3; rot: Mat3 } {
@@ -234,27 +294,42 @@ function tumble(seed: number, p: number): Mat3 {
   return hash(seed + 7) < 0.5 ? rotX(a) : rotZ(a);
 }
 
+/**
+ * 1 個の箱の今。時刻は局面の中の 8 分音符（e）。appear で刃の上に現れ、
+ * launch で放たれ、land で着地する。size は刃の上での大きさ（一掬いの土の
+ * 塊は小さく、飛びながら一辺 1 に育つ）。offset は通算拍への換算。
+ */
+interface Flight {
+  appear: number;
+  launch: number;
+  land: number;
+  size: number;
+  /** 刃の上での位置のずれ（一掬いの中の塊どうし）。 */
+  jitter: Vec3;
+}
+
 function flying(
   seed: number,
-  beat: number,
-  offset: number,
-  t: Timing,
+  e: number,
+  toBeat: (e: number) => number,
+  f: Flight,
   slot: Cell,
   composite: boolean,
 ): CubeState | null {
-  if (beat < t.appear) return null;
+  if (e < f.appear) return null;
   const target: Vec3 = [slot[0] + 0.5, slot[1], slot[2] + 0.5];
-  if (beat < t.launch) {
-    const g = beat + offset;
-    const sh = shovelAt(g, zoomAt(g), azimuthAt(g));
-    const pop = Number.isFinite(t.appear)
-      ? easeOutBack(clamp((beat - t.appear) / Math.min(0.2, t.launch - t.appear)), 2.4)
+  if (e < f.launch) {
+    const b = toBeat(e);
+    const sh = shovelAt(b, zoomAt(b), azimuthAt(b));
+    const pop = Number.isFinite(f.appear)
+      ? easeOutBack(clamp((e - f.appear) / Math.min(0.4, f.launch - f.appear)), 2.4)
       : 1;
-    const b = onBlade(sh, 1);
+    const blade = onBlade(sh, f.size);
+    const center = add(blade.center, apply(blade.rot, f.jitter));
     return {
-      base: add(b.center, apply(b.rot, [0, -0.5, 0])),
-      size: Math.max(0.001, pop),
-      rot: b.rot,
+      base: add(center, apply(blade.rot, [0, -0.5 * f.size, 0])),
+      size: Math.max(0.001, pop * f.size),
+      rot: blade.rot,
       squash: [1, 1, 1],
       hot: 1,
       composite,
@@ -262,19 +337,23 @@ function flying(
       landed: false,
     };
   }
-  if (beat < t.land) {
-    const p = (beat - t.launch) / (t.land - t.launch);
-    const g = t.launch + offset;
-    const from = onBlade(shovelAt(g, zoomAt(g), azimuthAt(g)), 1).center;
+  if (e < f.land) {
+    const p = (e - f.launch) / (f.land - f.launch);
+    const b = toBeat(f.launch);
+    const blade = onBlade(shovelAt(b, zoomAt(b), azimuthAt(b)), f.size);
+    const from = add(blade.center, apply(blade.rot, f.jitter));
     const to: Vec3 = [target[0], target[1] + 0.5, target[2]];
     const dist = Math.hypot(to[0] - from[0], to[2] - from[2]);
-    const apex = 1.1 + 0.3 * dist;
+    // 塊ごとに弧の高さを変えて、空中でばらける。大きさは着地の直前に
+    // 一辺 1 へ膨らむ（飛んでいるあいだは土くれ、落ちて体積になる）。
+    const apex = 1.1 + 0.3 * dist + 0.25 * slot[1] + (f.size < 1 ? 0.9 * hash(seed + 11) : 0);
     const c = vlerp(from, to, p);
     c[1] += 4 * apex * p * (1 - p);
+    const size = f.size + (1 - f.size) * easeInCubic(clamp((p - 0.5) / 0.5));
     const stretch = 1 + 0.18 * Math.sin(Math.PI * p);
     return {
-      base: [c[0], c[1] - 0.5, c[2]],
-      size: 1,
+      base: [c[0], c[1] - 0.5 * size, c[2]],
+      size,
       rot: tumble(seed, p),
       squash: [1 / Math.sqrt(stretch), stretch, 1 / Math.sqrt(stretch)],
       hot: 1,
@@ -283,7 +362,7 @@ function flying(
       landed: false,
     };
   }
-  const age = (beat - t.land) * BEAT_SEC;
+  const age = (e - f.land) * EIGHTH_SEC;
   const sq = 1 - 0.34 * Math.max(-0.4, spring(age, 4.2, 11));
   return {
     base: target,
@@ -306,6 +385,8 @@ function buildWave(beat: number, cell: Cell): number {
   const w = Math.max(0, Math.sin(2 * Math.PI * (2 * beat) - d * 0.85));
   return amp * w * w;
 }
+
+const NO_JITTER: Vec3 = [0, 0, 0];
 
 export function sceneAt(beat: number): Scene {
   const s = split(beat);
@@ -334,34 +415,55 @@ export function sceneAt(beat: number): Scene {
       landed: true,
     });
     count = 1;
-    for (const [i, slot] of LOOP_SLOTS.entries()) {
-      const t = loopTiming(i);
-      const c = flying(i * 31 + s.cycle * 977, s.k, beat - s.k, t, slot, true);
-      if (c) cubes.push(c);
-      if (s.k >= t.land) {
-        count++;
-        lastLand = t.land;
-      }
+    const loopStart = beat - s.k;
+    const toBeat = (e: number) => loopStart + e / 2;
+    for (const [n, th] of LOOP_THROWS.entries()) {
+      th.cells.forEach((slot, j) => {
+        const f: Flight = {
+          appear: th.scoop,
+          // 刃から順にこぼれるように、ほんの少しずつ遅れて離れる。
+          launch: th.launch + 0.08 * (j % 4),
+          land: th.land + STAGGER * slot[1] + (STAGGER / 2) * (j % 3),
+          size: 0.32,
+          jitter: [
+            (hash(j * 13 + n) - 0.5) * 0.5,
+            (hash(j * 7 + n + 3) - 0.5) * 0.3 + 0.12 * (j % 3),
+            (hash(j * 5 + n + 9) - 0.5) * 0.5,
+          ],
+        };
+        const c = flying(j * 31 + n * 7 + s.cycle * 977, s.e, toBeat, f, slot, true);
+        if (c) cubes.push(c);
+        if (s.e >= f.land) {
+          count++;
+          lastLand = Math.max(lastLand, f.land);
+        }
+      });
     }
-    flash = 1 - clamp(s.k / 0.55);
+    flash = 1 - clamp(s.e / 1.1);
     cells = {
-      count: LOOP_CUBES,
-      filled: count - 1,
-      current: Math.min(LOOP_CUBES - 1, Math.floor(2 * s.k)),
+      count: LOOP_EIGHTHS,
+      filled: Math.floor(s.e),
+      current: Math.min(LOOP_EIGHTHS - 1, Math.floor(s.e)),
       cut: LOOP_CUT,
       charge: 0,
     };
   } else {
     for (const [i, slot] of INTRO_SLOTS.entries()) {
-      const t = introTiming(i);
-      const c = flying(i * 17 + 3, beat, 0, t, slot, false);
+      const f: Flight = {
+        appear: i === 0 ? -Infinity : 2 * i - 1,
+        launch: 2 * i,
+        land: 2 * i + 2,
+        size: 1,
+        jitter: NO_JITTER,
+      };
+      const c = flying(i * 17 + 3, s.e, (e) => e / 2, f, slot, false);
       if (c) {
         if (s.phase === 'build') c.base = add(c.base, [0, buildWave(beat, slot), 0]);
         cubes.push(c);
       }
-      if (beat >= t.land) {
+      if (s.e >= f.land) {
         count++;
-        lastLand = t.land;
+        lastLand = f.land;
       }
     }
     completed = count >= INTRO_CUBES ? 1 : 0;
@@ -376,8 +478,8 @@ export function sceneAt(beat: number): Scene {
   }
 
   // 山全体も、最後の着地に合わせて少し沈む。
-  const sinceLand = (s.phase === 'loop' ? s.k : beat) - lastLand;
-  const thump = Number.isFinite(lastLand) ? spring(sinceLand * BEAT_SEC, 3.4, 10) : 0;
+  const sinceLand = s.e - lastLand;
+  const thump = Number.isFinite(lastLand) ? spring(sinceLand * EIGHTH_SEC, 3.4, 10) : 0;
   for (const c of cubes) {
     if (!c.landed) continue;
     c.base = [c.base[0], c.base[1] * (1 - 0.035 * thump), c.base[2]];
@@ -408,6 +510,6 @@ export function sceneAt(beat: number): Scene {
     grids,
     cells,
     flash,
-    shake: Math.max(0, thump) * 1.5,
+    shake: Math.max(0, thump) * (s.phase === 'loop' ? 2.2 : 1.5),
   };
 }

@@ -8,7 +8,9 @@ import type { Term } from './terms';
 
 /**
  * 検索の入口（一覧の横の欄と、どこからでも効く「/」）と、全画面の検索
- * 画面の開け閉め。画面の中身は最初に開いたときに template から組む。
+ * 画面の開け閉め。閉じる道は三つ: 左上の「← 戻る」、Esc（語があれば先に
+ * 語を消す）、ブラウザの「戻る」。画面の中身は最初に開いたときに template
+ * から組む。
  */
 
 let searchPanelSequence = 0;
@@ -44,6 +46,10 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
     searchTrigger.setAttribute('aria-controls', ensureElementId(searchModal, 'search-modal'));
 
     let ui: SearchUi | null = null;
+    // 開くたびに履歴を一段積む。ブラウザの「戻る」（携帯のスワイプも）で
+    // 検索が閉じ、ページはそのまま残る。
+    let pushed = false;
+    const browserWindow = browserDocument.defaultView ?? window;
 
     function ensureUi(): SearchUi | null {
       if (ui) return ui;
@@ -107,6 +113,10 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
       searchTrigger.setAttribute('aria-expanded', 'true');
       if (!searchModal.open) searchModal.showModal();
       browserDocument.documentElement.dataset.searchOpen = '';
+      if (!pushed) {
+        browserWindow.history.pushState({ ...browserWindow.history.state, l3Search: true }, '');
+        pushed = true;
+      }
       runtime.open();
     }
 
@@ -120,10 +130,19 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
       if (ui?.escape()) event.preventDefault();
     });
     searchModal.addEventListener('close', () => {
+      if (pushed) {
+        pushed = false;
+        if (browserWindow.history.state?.l3Search) browserWindow.history.back();
+      }
       ui?.close();
       delete browserDocument.documentElement.dataset.searchOpen;
       searchTrigger.setAttribute('aria-expanded', 'false');
       searchTrigger.focus();
+    });
+    browserWindow.addEventListener('popstate', () => {
+      if (!pushed || !searchModal.open) return;
+      pushed = false;
+      searchModal.close();
     });
     browserDocument.addEventListener('keydown', (event) => {
       if (!ownsGlobalShortcut(searchRoot)) return;

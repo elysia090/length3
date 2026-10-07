@@ -140,6 +140,7 @@ export function mountRobotTune(root: HTMLElement): void {
       fill: clamp(gain * 1.15) * pump,
       scope: playing ? player.scope() : null,
       status: status(),
+      title: root.dataset.title ?? null,
       still: reduced.matches,
     });
     raster.present(out, palette);

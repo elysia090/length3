@@ -17,6 +17,15 @@ test('index route smoke', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Index of topics' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(query).toBeHidden();
+  // 目に見える出口と、ブラウザの「戻る」でも閉じる。
+  await page.locator('[data-search-trigger]').click();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(query).toBeHidden();
+  await page.locator('[data-search-trigger]').click();
+  await expect(query).toBeVisible();
+  await page.goBack();
+  await expect(query).toBeHidden();
+  await expect(page).toHaveURL(/\/$/);
   expect(errors).toEqual([]);
 });
 
@@ -82,16 +91,20 @@ test('the article list collapses and grows four at a time', async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
-test('the first visit opens on the robot tune and ENTER lands on the index', async ({ page }) => {
+test('the first visit opens on the robot tune under the header, later visits start at the index', async ({
+  page,
+}) => {
   const errors = trackBrowserErrors(page);
 
   await page.goto('/');
-  const stage = page.locator('[data-opening]');
-  await expect(stage).toBeInViewport();
-  await page.locator('[data-opening-enter]').click();
+  await expect(page.locator('.site-header')).toBeInViewport();
+  await expect(page.locator('[data-opening]')).toBeInViewport();
+  // スクロールして一覧へ降りる。入口を抜けたことは覚えておく。
+  await page.locator('.article-card').first().scrollIntoViewIfNeeded();
   await expect(page.locator('.article-card').first()).toBeInViewport();
+  await expect(page.locator('[data-opening]')).not.toBeInViewport();
 
-  // 二回目からは前置きを飛ばして目次から始まる。
+  // 二回目からは入口を飛ばして一覧から始まる。
   await page.goto('/');
   await expect(page.locator('.article-card').first()).toBeInViewport();
   expect(errors).toEqual([]);

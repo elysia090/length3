@@ -113,7 +113,7 @@
 .sx {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   width: 100%;
   max-width: var(--layout-max-width);
   height: 100%;
@@ -123,13 +123,42 @@
     max(var(--page-gutter), env(safe-area-inset-right));
 }
 
+/* 戻る。Esc もブラウザの「戻る」も同じことをするが、目に見える出口は
+   左上の一つ。 */
+.sx-back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  margin-top: max(0.75rem, env(safe-area-inset-top));
+  padding: 0 0.75rem 0 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sx-back:hover {
+  color: var(--amber-text);
+}
+
+.sx-back:focus-visible {
+  outline: 0.125rem solid var(--amber-text);
+  outline-offset: 0.125rem;
+}
+
 /* 問い。入力欄の枠は無く、見出しの大きさの字と下の罫だけ。罫は焦点が
    あるあいだ琥珀に太る（焦点の印）。 */
 .sx-head {
   display: flex;
   align-items: flex-end;
   gap: 1rem;
-  padding-top: max(clamp(1.25rem, 5vh, 3.5rem), env(safe-area-inset-top));
+  padding-top: clamp(0.5rem, 3vh, 2rem);
   border-bottom: 0.0625rem solid var(--ink);
   transition: border-color var(--transition-fast);
 }
@@ -172,40 +201,6 @@
 .sx-query::-webkit-search-cancel-button,
 .sx-query::-webkit-search-decoration {
   appearance: none;
-}
-
-.sx-close {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-  margin-bottom: 0.5rem;
-  padding: 0 0.5rem;
-  border: 0;
-  background: none;
-  color: var(--ink-3);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.sx-close kbd {
-  padding: 0.125rem 0.375rem;
-  border: 0.0625rem solid var(--rule);
-  border-radius: var(--radius-xs);
-  font-family: var(--font-mono);
-  font-size: var(--font-ui-xs);
-  letter-spacing: 0.08em;
-}
-
-.sx-close:hover {
-  color: var(--ink);
-}
-
-.sx-close:focus-visible {
-  outline: 0.125rem solid var(--amber-text);
-  outline-offset: 0.125rem;
 }
 
 /* 標本の舞台。一致した記事だけが体積を持つ。 */

@@ -15,9 +15,9 @@ const copy = getSiteCopy('en');
 ---
 
 <BaseLayout title="Length³" description="A technical blog.">
-  <RobotTuneStage variant="opening" enter="#index" />
-  <div id="index" class="index-anchor"></div>
   <Header />
+  <RobotTuneStage variant="opening" skipTo="#index" />
+  <div id="index" class="index-anchor"></div>
   <main class="index-layout" id="main-content">
     <ArchiveStage posts={processedPosts} catalogNumbers={catalogNumbers} />
     <ArticleList

@@ -1,10 +1,13 @@
 import {
+  EIGHTH_SEC,
   ENVELOPE_ALPHABET,
   ENVELOPE_HOP_SEC,
+  INTRO_EIGHTHS,
   INTRO_ENVELOPE,
   INTRO_ONSET_SEC,
   INTRO_SEC,
   INTRO_SILENCES,
+  LOOP_EIGHTHS,
   LOOP_ENVELOPE,
   LOOP_ONSET_SEC,
   LOOP_SEC,
@@ -12,18 +15,19 @@ import {
 } from './envelope';
 
 /**
- * 時間の数え方。
+ * 時間の数え方。拍の長さも数も、音から測った値（scripts/robot-tune/bake.ts）。
  *
- * ループはちょうど 13 拍ある（4.697875 s / 13 = 0.361375 s、166.03 BPM）。
- * 拍の長さはここから取る。テンポ表記の 166 から割ると 1 周で 1 ms ずれる。
+ * 8 分音符が一つの刻み。ループは 8 分音符 23 個、つまり 11 拍半で、周回する
+ * たびに拍の頭が半拍ずれる。イントロは最初の立ち上がり（0 拍目）からループ頭
+ * までが 8 分音符 70 個（35 拍）。拍 = 8 分音符 2 個。
  *
- * イントロの 0 拍目は最初に音が立つ所（0.45 s）。33 拍目がループの 0 拍目に
- * 重なる。ループ 1 周目の 0 拍目は、イントロ末尾から LOOP_ONSET_SEC だけ先。
+ * 通算拍は小数のまま数える（ループ 1 周 = 11.5 拍）。
  */
-export const BEATS_PER_LOOP = 13;
-export const INTRO_BEATS = 33;
-export const BEAT_SEC = LOOP_SEC / BEATS_PER_LOOP;
+export const BEAT_SEC = EIGHTH_SEC * 2;
 export const BPM = 60 / BEAT_SEC;
+export const INTRO_BEATS = INTRO_EIGHTHS / 2;
+export const BEATS_PER_LOOP = LOOP_EIGHTHS / 2;
+export { EIGHTH_SEC, LOOP_EIGHTHS };
 
 /** 再生位置（イントロ頭からの通算秒）を、どちらのファイルの何秒目かへ。 */
 export interface Located {

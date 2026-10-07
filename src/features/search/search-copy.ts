@@ -3,6 +3,7 @@ import type { SiteLanguage } from '../../i18n/language';
 export type { SiteLanguage };
 
 export interface SearchCopy {
+  back: string;
   closeSearch: string;
   error: string;
   indexLabel: string;
@@ -22,6 +23,7 @@ export interface SearchCopy {
 
 const SEARCH_COPY_BY_LANGUAGE: Record<SiteLanguage, SearchCopy> = {
   en: {
+    back: 'Back',
     closeSearch: 'Close search',
     error: 'Search failed to load.',
     indexLabel: 'Index of topics',
@@ -39,6 +41,7 @@ const SEARCH_COPY_BY_LANGUAGE: Record<SiteLanguage, SearchCopy> = {
     voidTitle: (query) => `Nothing in the index for “${query}”.`,
   },
   ja: {
+    back: '戻る',
     closeSearch: '検索を閉じる',
     error: '検索の読み込みに失敗しました。',
     indexLabel: 'トピックの索引',

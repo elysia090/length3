@@ -56,13 +56,10 @@ top-level `packageManager` field.
 
 ## Robot Tune Audio
 
-The source WAVs in `data/` were recut on 2026-10-07 using the opening phrase as a
-reference. The final half-beat rest and loop junction remain unverified. The
-served MP3, generated envelope, beat timing, choreography, tests, and article
-body still use the previous cut. The current 13-beat loop and 33-beat intro
-assumptions are not established by measuring the audio. See
-[Robot Tune audio status](docs/reference/robot-tune-audio.md) for the exact
-boundaries and the remaining integration work.
+The served MP3, envelope, beat grid and choreography are generated from the
+WAVs in `data/` by `node ./scripts/robot-tune/bake.ts`, which also measures the
+beat (eighth-note period by autocorrelation; the loop is 23 eighths). See
+[Robot Tune audio status](docs/reference/robot-tune-audio.md).
 
 ## Deployment
 
