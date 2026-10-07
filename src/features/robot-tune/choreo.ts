@@ -355,20 +355,44 @@ function shovelGesture(beat: number): Gesture {
   return { tilt, yaw, lift, plunge };
 }
 
+/**
+ * 回る軸の位置（シャベルの単位、刃先から柄の方へ）。柄の真ん中より少し
+ * 上、重心のあたり。柄は刃の上端（1.1）から握り（3.66）まで。刃先を軸に
+ * 回すと、土に刺さった刃が動かず柄だけが振り回されて見える。
+ */
+const FULCRUM: Vec3 = [0, 2.45, 0];
+/** 休んでいる姿勢で柄が後ろへ寝ている角度。 */
+const REST_LEAN = 0.62;
+
 function shovelAt(beat: number, zoom: number, az: number): ShovelState {
   const unit = zoom / STACK;
   const right: Vec3 = [Math.cos(az), 0, -Math.sin(az)];
   const toward: Vec3 = [Math.sin(az), 0, Math.cos(az)];
   const center: Vec3 = [zoom / 2, 0, zoom / 2];
-  const pivot = add(center, add(scale(right, 3.25 * unit), scale(toward, 0.9 * unit)));
+  const home = add(center, add(scale(right, 3.25 * unit), scale(toward, 0.9 * unit)));
   const g = shovelGesture(beat);
   // 刃は山の方を向く。手つきの振り向きはその向きからの差。
-  const aim = Math.atan2(center[0] - pivot[0], center[2] - pivot[2]);
+  const aim = Math.atan2(center[0] - home[0], center[2] - home[2]);
   const breathe = 0.03 * Math.sin(Math.PI * beat);
+  const rest = mul(rotY(aim), rotX(-REST_LEAN));
+  const rot = mul(
+    rotY(aim + g.yaw),
+    mul(rotZ(0.04 * g.yaw), rotX(-(REST_LEAN + g.tilt + breathe))),
+  );
+  // 休んでいる姿勢での軸の位置を、持ち上げ・差し込みの分だけ上下させ、
+  // そこを中心に回す。刃先の位置はそこから逆算する。
+  const fulcrum = add(add(home, scale(apply(rest, FULCRUM), unit)), [
+    0,
+    (g.lift - g.plunge) * unit,
+    0,
+  ]);
+  const tip = add(fulcrum, scale(apply(rot, FULCRUM), -unit));
+  // 刃先は土に少しだけ入る。それより深くは沈めない。
+  const floor = -0.15 * unit;
   return {
-    pivot: add(pivot, [0, (g.lift - g.plunge) * unit, 0]),
+    pivot: tip[1] < floor ? [tip[0], floor, tip[2]] : tip,
     scale: unit,
-    rot: mul(rotY(aim + g.yaw), mul(rotZ(0.04 * g.yaw), rotX(-(0.62 + g.tilt + breathe)))),
+    rot,
   };
 }
 
