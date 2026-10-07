@@ -112,6 +112,8 @@ export function archiveSceneAt(
   archive: Archive,
   i: Interaction,
   still: boolean,
+  /** カメラだけの時計。シャベルで遊んでいるあいだは止めて、切り返さない。 */
+  cameraT: number = t,
 ): ArchiveScene {
   const lit = litAt(t, archive.specimens.length, i);
   const age = t - litStart(t, i);
@@ -171,7 +173,7 @@ export function archiveSceneAt(
       landed: k !== lit,
     };
   });
-  const cam = camera(t, archive, still);
+  const cam = camera(cameraT, archive, still);
   return {
     camera: cam,
     cubes,

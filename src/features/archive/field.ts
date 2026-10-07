@@ -83,7 +83,7 @@ export function mountArchiveField(
   function draw() {
     if (!image || !out) return;
     const scene = archiveSceneAt(now(), archive, interaction, reduced.matches);
-    renderArchive(raster, archive, scene, filled);
+    renderArchive(raster, archive, scene, { filled });
     raster.present(out, palette);
     ctx2d.putImageData(image, 0, 0);
   }
