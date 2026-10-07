@@ -79,6 +79,10 @@ const groups = groupTerms(terms);
 
   <template data-search-modal-template>
     <div class="sx">
+      <button type="button" class="sx-back" data-search-close>
+        <span aria-hidden="true">←</span>
+        {copy.back}
+      </button>
       <header class="sx-head">
         <input
           class="sx-query"
@@ -95,9 +99,6 @@ const groups = groupTerms(terms);
           placeholder={copy.searchPlaceholder}
           data-search-input
         />
-        <button type="button" class="sx-close" data-search-close aria-label={copy.closeSearch}>
-          <kbd aria-hidden="true">Esc</kbd>
-        </button>
       </header>
       <canvas class="sx-field" data-search-field aria-hidden="true"></canvas>
       <p class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-search-status></p>

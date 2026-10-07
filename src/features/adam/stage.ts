@@ -1,6 +1,7 @@
 import { clamp } from '../../shared/pixel/math';
 import { AMBER, INK, NONE, Raster, threshold } from '../../shared/pixel/raster';
 import { handheld } from './handheld';
+import { Sand } from './sand';
 
 /**
  * About の絵。《アダムの創造》を、ほかの舞台と同じ網点で二色刷りにする。
@@ -11,7 +12,13 @@ import { handheld } from './handheld';
  * 網点の格子は画面に固定し、絵のほうを手持ちのカメラで揺らすので、揺れる
  * たびに点がわずかに組み変わって、粒子の荒いフィルムのように息をする。
  * 24 コマで描く。画面の外では止まり、動きを減らす設定では一枚で止まる。
+ *
+ * 触れると、その一帯の網点が砂になってこぼれ落ち、絵は少したわんでから
+ * ゆっくり元に戻る（sand.ts）。
  */
+
+/** 欠けの一帯が下がる量（額の高さに対する割合）。 */
+const SAG = 0.045;
 
 /**
  * 網点 1 個の大きさ。広い画面で 560 列前後。狭い画面でも全景を刷るので、
@@ -93,6 +100,8 @@ export function mountAdam(root: HTMLElement): void {
   let raf = 0;
   let frame = -1;
   let visible = true;
+  const sand = new Sand();
+  let last = -1;
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -109,6 +118,7 @@ export function mountAdam(root: HTMLElement): void {
       image = ctx2d.createImageData(w, h);
       out = new Uint32Array(image.data.buffer);
     }
+    sand.resize(w, h);
     frame = -1;
     draw((performance.now() - t0) / 1000);
   }
@@ -132,12 +142,19 @@ export function mountAdam(root: HTMLElement): void {
     const pw = plate.w;
     const ph = plate.h;
     const color = raster.color;
+    const damage = sand.damage;
+    const sag = h * SAG;
     const pick = (v: Float32Array, i: number, fx: number, fy: number) =>
       ((v[i] ?? 0) * (1 - fx) + (v[i + 1] ?? 0) * fx) * (1 - fy) +
       ((v[i + pw] ?? 0) * (1 - fx) + (v[i + pw + 1] ?? 0) * fx) * fy;
     for (let y = 0; y < h; y++) {
-      const dy = y + 0.5 - h / 2 - shot.y * w;
+      const dy0 = y + 0.5 - h / 2 - shot.y * w;
       for (let x = 0; x < w; x++) {
+        const k = y * w + x;
+        const hurt = damage[k] ?? 0;
+        // 欠けた一帯は下へたわむ（上の画素を拾う）。
+        const soft = hurt * hurt * (3 - 2 * hurt);
+        const dy = dy0 - sag * soft;
         const dx = x + 0.5 - w / 2 - shot.x * w;
         const sx = cx + (dx * cos - dy * sin) / fit;
         const sy = cy + (dx * sin + dy * cos) / fit;
@@ -152,8 +169,10 @@ export function mountAdam(root: HTMLElement): void {
           Math.min(y + 0.5, h - y - 0.5) / fadeY,
         );
         e = e >= 1 ? 1 : e * e * (3 - 2 * e);
-        const k = y * w + x;
-        if (pick(ink, i, fx, fy) * e > threshold(x, y)) {
+        if (soft > threshold(x + 3, y + 1)) {
+          // 粒が抜けた所は紙が覗く。
+          color[k] = NONE;
+        } else if (pick(ink, i, fx, fy) * e > threshold(x, y)) {
           color[k] = pick(swap, i, fx, fy) * e > threshold(x + 1, y + 2) ? AMBER : INK;
         } else {
           // 影の版は 1 画素右へずれて刷られる。
@@ -162,6 +181,7 @@ export function mountAdam(root: HTMLElement): void {
         }
       }
     }
+    sand.draw(raster);
     raster.present(out, palette);
     ctx2d.putImageData(image, 0, 0);
   }
@@ -172,6 +192,8 @@ export function mountAdam(root: HTMLElement): void {
     const f = Math.floor(t * 24);
     if (f !== frame) {
       frame = f;
+      if (last >= 0) sand.step(Math.min(0.1, t - last), t);
+      last = t;
       draw(t);
     }
     if (visible && !document.hidden && !reduced.matches) raf = requestAnimationFrame(loop);
@@ -192,6 +214,14 @@ export function mountAdam(root: HTMLElement): void {
         if (!document.hidden) kick();
       });
       reduced.addEventListener('change', kick);
+      root.addEventListener('pointerdown', (event) => {
+        if (reduced.matches || !raster.w) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * raster.w;
+        const y = ((event.clientY - rect.top) / rect.height) * raster.h;
+        sand.tap(x, y, raster.color, (performance.now() - t0) / 1000);
+        kick();
+      });
       resize();
       kick();
     })

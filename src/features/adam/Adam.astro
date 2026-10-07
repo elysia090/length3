@@ -1,7 +1,8 @@
 ---
 /**
  * About の絵。ミケランジェロ《アダムの創造》（1512 年頃）を墨と琥珀の
- * 網点で二色刷りにし、手持ちのカメラで撮る。文字も仕掛けも置かない。
+ * 網点で二色刷りにし、手持ちのカメラで撮る。文字は置かない。触れると
+ * その一帯が砂になってこぼれ、絵は少したわんでから戻る。
  * 版は scripts/adam/bake.ts が data/ から焼く（琥珀をどこに効かせるかも
  * そこで決める）。刷りは stage.ts、揺れは handheld.ts。
  */
@@ -40,6 +41,9 @@ const { class: className } = Astro.props;
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
+    /* 触れると砂がこぼれる。 */
+    cursor: pointer;
+    touch-action: manipulation;
   }
 
   .adam-canvas {

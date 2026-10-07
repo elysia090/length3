@@ -6,7 +6,6 @@ import {
   cubeSolid,
   drawEdges,
   drawFaces,
-  drawSeams,
   drawShadow,
   EDGES,
   shovelSolids,
@@ -18,7 +17,7 @@ import { STACK } from './choreo';
 
 export interface Frame {
   scene: Scene;
-  /** 音が無い。面を捨てて辺だけを、奥の辺まで透かして描く。 */
+  /** 音が無い。面の濃さを捨てて、隠れ線を消した線画にする。 */
   xray: boolean;
   /** 面の暗さに掛ける量。音量そのもの。 */
   fill: number;
@@ -26,6 +25,8 @@ export interface Frame {
   scope: Float32Array | null;
   /** 中央に出す一言（PLAY / LOADING / PAUSE）。 */
   status: string | null;
+  /** 左上に画素の字で小さく入れる題（入口のときだけ）。 */
+  title?: string | null;
   still: boolean;
 }
 
@@ -131,6 +132,7 @@ function drawScope(
 // キャプションが持つ）。
 function drawScore(r: Raster, f: Frame) {
   const m = r.w < 240 ? 4 : 6;
+  if (f.title) drawText(r, f.title, m, m, INK);
   drawCells(r, f.scene, m, r.h - m - 7);
   const sw = Math.min(72, Math.floor(r.w * 0.22));
   drawScope(r, f.scope, r.w - m - sw, r.h - m - 16, sw, 14);
@@ -169,10 +171,12 @@ export function render(r: Raster, f: Frame): void {
     ...shovelSolids(scene.shovel),
   ];
 
-  if (!f.xray) for (const s of solids) drawFaces(r, view, s, f.fill);
-  drawTarget(r, view, scene, f.xray, bias);
-  for (const s of solids) drawEdges(r, view, s, f.xray, bias);
-  for (const c of scene.cubes) if (c.composite) drawSeams(r, view, c, f.xray, bias);
+  // 音が無いあいだは面の濃さを抜くだけで、面そのものは紙として残す。奥の
+  // 辺はその面に隠れる（線画になる）。全部の辺を透かすと、27 個の箱の
+  // 裏の辺が重なって砂嵐になる。
+  for (const s of solids) drawFaces(r, view, s, f.xray ? 0 : f.fill);
+  drawTarget(r, view, scene, false, bias);
+  for (const s of solids) drawEdges(r, view, s, false, bias);
   if (!f.xray) for (const c of scene.cubes) drawShadow(r, view, c);
   drawFloor(r, view, scene);
   drawScore(r, f);

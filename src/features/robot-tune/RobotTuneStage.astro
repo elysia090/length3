@@ -3,17 +3,18 @@
  * Robot Tune の舞台。音が鳴っているあいだだけ、箱に体積がある。
  * 描画は stage.ts、時間の数え方は timeline.ts、振付は choreo.ts。
  *
- * variant="opening" はサイトの入口。最初の一画面を占め、下の ENTER で
- * 一覧（enter に渡したアンカー）へ降りる。鳴らした音楽は一覧を見ている
- * あいだも続き、舞台が画面の外に出ると左下に小さな札が出る。同じ
- * セッションで二度目に来たときは、入口を飛ばして一覧から始まる。
+ * variant="opening" はサイトの入口。ヘッダの下の最初の一画面を占め、題は
+ * 絵の左上に画素の字で小さく入る。スクロールすればそのまま一覧に続く。
+ * 鳴らした音楽は一覧を見ているあいだも続き、舞台が画面の外に出ると左下に
+ * 小さな札が出る。同じセッションで二度目に来たときは、入口を飛ばして
+ * 一覧（skipTo に渡したアンカー）から始まる。
  */
 interface Props {
   src?: string;
   variant?: 'figure' | 'opening';
-  enter?: string;
+  skipTo?: string;
 }
-const { src = '/audio/robot-tune.mp3', variant = 'figure', enter = '#index' } = Astro.props;
+const { src = '/audio/robot-tune.mp3', variant = 'figure', skipTo = '#index' } = Astro.props;
 const opening = variant === 'opening';
 ---
 
@@ -31,20 +32,14 @@ const opening = variant === 'opening';
     />
   )
 }
-{
-  opening && (
-    <p class="opening-credit" aria-hidden="true">
-      <span>Length³ presents</span>
-      <span class="opening-title">ROBOT TUNE</span>
-    </p>
-  )
-}
 <figure
   class:list={['robot-tune', { 'robot-tune--opening': opening }]}
   data-robot-tune
   data-src={src}
   data-state="idle"
   data-opening={opening ? '' : undefined}
+  data-skip-to={opening ? skipTo : undefined}
+  data-title={opening ? 'ROBOT TUNE' : undefined}
   data-pagefind-ignore
 >
   <div class="robot-tune-screen">
@@ -71,14 +66,6 @@ const opening = variant === 'opening';
     )
   }
 </figure>
-{
-  opening && (
-    <a class="opening-enter" href={enter} data-opening-enter>
-      Enter <span aria-hidden="true">↓</span>
-    </a>
-  )
-}
-
 <script>
   import { mountOpening } from './opening';
   import { mountRobotTune } from './stage';
@@ -169,34 +156,12 @@ const opening = variant === 'opening';
   }
 
   /* ─── 入口 ─────────────────────────────────────────────── */
-  /* 最初の一画面。上に映画の頭のような字幕、真ん中に舞台、下に ENTER。
-     舞台の幅は画面の高さから逆算して、一画面に収める。 */
-  .opening-credit {
-    display: grid;
-    justify-items: center;
-    gap: 0.25rem;
-    margin: 0;
-    padding-top: max(1.5rem, 4svh);
-    font-family: var(--font-mono);
-    font-size: var(--font-ui-xs);
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-  }
-
-  .opening-title {
-    font-family: var(--font-display);
-    font-size: clamp(1.5rem, 1rem + 2vw, 2.25rem);
-    font-style: italic;
-    letter-spacing: 0.08em;
-    text-transform: none;
-    color: var(--ink);
-  }
-
-  /* 入口では図に添え書きを付けない。題と絵と Enter だけ。 */
+  /* ヘッダの下の一画面に舞台だけを置く。題は絵の中（左上の画素の字）。
+     舞台の幅は画面の高さから逆算して、ヘッダと音量のつまみごと一画面に
+     収める。添え書きは出さない。 */
   .robot-tune--opening {
-    width: min(100% - 2 * var(--page-gutter), calc((100svh - 13rem) * 1.6), 70rem);
-    margin: 1.5rem auto 0;
+    width: min(100% - 2 * var(--page-gutter), calc((100svh - 10rem) * 1.6), 70rem);
+    margin: 0.5rem auto 0;
   }
 
   .robot-tune--opening .robot-tune-caption {
@@ -205,28 +170,8 @@ const opening = variant === 'opening';
 
   @media (max-width: 32.5rem) {
     .robot-tune--opening {
-      width: min(100% - 2 * var(--page-gutter), calc(100svh - 15rem));
+      width: min(100% - 2 * var(--page-gutter), calc(100svh - 12rem));
     }
-  }
-
-  .opening-enter {
-    display: flex;
-    align-items: baseline;
-    justify-content: center;
-    gap: 0.5rem;
-    width: max-content;
-    min-height: 2.75rem;
-    margin: 0.5rem auto 0;
-    padding: 0.75rem 1rem;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: var(--ink);
-  }
-
-  .opening-enter:hover {
-    color: var(--amber-text);
   }
 
   /* 画面の外で鳴っているあいだの札。左下に貼り付く。 */
