@@ -59,7 +59,17 @@ import { type RoomView, Tower, type TowerView } from './tower';
 type Screen = 'create' | 'play';
 
 /** まだ地図のない建物（人物を決めているあいだ、下で待っている）。 */
-const EMPTY: TowerView = { top: 1, floors: 9, rooms: [], edges: [], you: null, rival: null, routes: [], focus: null, enc: null };
+const EMPTY: TowerView = {
+  top: 1,
+  floors: 9,
+  rooms: [],
+  edges: [],
+  you: null,
+  rival: null,
+  routes: [],
+  focus: null,
+  enc: null,
+};
 
 const KIND_NAME: Record<MapNode['kind'], string> = {
   person: '人',
@@ -315,7 +325,10 @@ export function openDig(doc: Document, onClose: () => void): void {
       rooms,
       edges,
       you: w.pos,
-      rival: !rv.down && rv.stratum === w.stratum && rv.node !== null && w.enc?.foe.id !== 'rival' ? rv.node : null,
+      rival:
+        !rv.down && rv.stratum === w.stratum && rv.node !== null && w.enc?.foe.id !== 'rival'
+          ? rv.node
+          : null,
       routes: w.enc || w.pending ? [] : routes,
       focus,
       enc: w.enc && w.enc.who === 'you' && w.pos !== null ? { room: w.pos, ...anim } : null,
