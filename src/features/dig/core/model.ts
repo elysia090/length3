@@ -213,7 +213,7 @@ export const blankMind = (): Mind => ({
 // ─── 挑戦 ─────────────────────────────────────────────────────
 
 export type Pending =
-  | { kind: 'encounter'; npc: string; tier: Enc['tier']; resume?: number }
+  | { kind: 'encounter'; npc: string; tier: Enc['tier']; resume?: number; back?: number | null }
   | {
       kind: 'reward';
       npc: string;
@@ -230,7 +230,7 @@ export type Pending =
   | { kind: 'ending' };
 
 export interface Ending {
-  kind: 'dead' | Outcome;
+  kind: 'dead' | 'dawn' | Outcome;
   title: string;
   text: string;
   score: number;

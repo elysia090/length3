@@ -75,7 +75,9 @@ export type RuleName =
   | 'lieEcho'
   | 'openSpill'
   | 'absorb'
-  | 'seenTrust';
+  | 'seenTrust'
+  /** 手がかりが漏れる率（%）。相手が揺らいでいるほど漏れる。 */
+  | 'slip';
 
 export interface RuleCtx {
   w: World;

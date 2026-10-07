@@ -26,7 +26,7 @@ export const JOB_LIST: readonly JobDef[] = [
   {
     id: 'watch',
     name: '夜警',
-    text: '殴られ慣れた体。遭遇の初めに守り 3。深夜は［夜］のカードが強い。',
+    text: '殴られ慣れた体。遭遇の初めに守り 3。深夜は［夜］のカードが強く、残った守りの 1/4 が信頼にこぼれる（夜勤）。',
     innate: { VIT: 4, ATK: 3, DEF: 4, WIL: 2, INT: 1, AGI: 2 },
     cards: ['darkknight', 'robocop', 'vernacular', 'nighthawks', 'hunters'],
     perms: ['promise', 'old-wound'],
@@ -36,6 +36,12 @@ export const JOB_LIST: readonly JobDef[] = [
         when: (c) => tagged('night')(c) && c.w.hour >= 2,
         fn: (_c, v) => v * 1.3,
         text: '深夜、［夜］のカード ×1.3',
+      },
+      {
+        rule: 'guardSpill',
+        when: (c) => c.w.hour >= 2,
+        fn: (_c, v) => v + 0.25,
+        text: '夜勤：深夜、残った守りの 1/4 が信頼になる',
       },
     ],
     triggers: [
@@ -52,7 +58,7 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '映写技師',
     text: '暗闇で見る目と、消えない記憶。連鎖が 1.5 倍になる。',
     innate: { VIT: 2, ATK: 1, DEF: 2, WIL: 4, INT: 3, AGI: 3 },
-    cards: ['bladerunner', 'morel', 'solaris', 'chirico', 'labyrinth'],
+    cards: ['bladerunner', 'morel', 'solaris', 'chirico', 'fightclub'],
     perms: ['promise', 'accident'],
     passive: [{ rule: 'chain', fn: (_c, v) => (v > 1 ? 1.5 : v), text: '連鎖 ×1.5' }],
   },
@@ -85,7 +91,7 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '錠前師',
     text: '指先と逃げ足。去る +20%。［私的情報］のカードがよく効く。',
     innate: { VIT: 2, ATK: 2, DEF: 2, WIL: 2, INT: 3, AGI: 4 },
-    cards: ['conversation', 'ghost', 'pulp', 'night', 'rain'],
+    cards: ['conversation', 'ghost', 'pulp', 'night', 'picklock'],
     perms: ['promise', 'runaway'],
     passive: [
       { rule: 'leaveChance', fn: (_c, v) => v + 20, text: '去る +20%' },
@@ -117,7 +123,7 @@ export const JOB_LIST: readonly JobDef[] = [
   {
     id: 'welder',
     name: '溶接工',
-    text: '鉄と火。［技術］［身体］のカードがよく効き、毎手番 守り +1。',
+    text: '鉄と火。［技術］［身体］のカードがよく効き、毎手番 守り +1・心の構え +1。',
     innate: { VIT: 4, ATK: 4, DEF: 3, WIL: 2, INT: 1, AGI: 1 },
     cards: ['rim', 'vernacular', 'hunters', 'leviathan', 'labyrinth'],
     perms: ['promise', 'scarred'],
@@ -129,6 +135,7 @@ export const JOB_LIST: readonly JobDef[] = [
         text: '［技術］［身体］のカード ×1.2',
       },
       { rule: 'turnGuard', fn: (_c, v) => v + 1, text: '毎手番 守り +1' },
+      { rule: 'turnCalm', fn: (_c, v) => v + 1, text: '毎手番 心の構え +1（火花を見つめる）' },
     ],
   },
 ];

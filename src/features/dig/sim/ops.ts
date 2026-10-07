@@ -1,3 +1,4 @@
+import { PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import { cardDef, foeDef, permDef } from '../content/registry';
 import type { Char, Claim, Enc, Foe, Outcome, Stat, StatBlock, Who, World } from '../core/model';
@@ -151,6 +152,16 @@ export function revealClue(tx: Tx, fake = false): boolean {
     }
   }
   const hidden = e.foe.clues.filter((c) => !c.shown && !c.false);
+  if (!hidden.length) return false;
+  // 秘密は、相手が揺らいでいるほど漏れる（意志が削れているほど、打ち解けているほど）。
+  const f = e.foe;
+  const shaken = 1 - Math.max(0, f.resolve) / Math.max(1, f.maxResolve);
+  const base =
+    100 * (PACE.slip + (1 - PACE.slip) * shaken + 0.1 * Math.min(1, f.trust / Math.max(1, f.need)));
+  if (tx.rand('enc') * 100 >= tx.rule('slip', { who: e.who }, base)) {
+    say(tx, 'foe', '……さあね。');
+    return false;
+  }
   const c = tx.pick('enc', hidden);
   if (!c) return false;
   tx.emit({ type: 'clue', id: c.id, shown: true });

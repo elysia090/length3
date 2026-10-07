@@ -35,37 +35,11 @@ import {
 } from './ops';
 
 /**
- * 遭遇の流れ。始める → あなたの手番（基本の行動か、カード）→ 相手が予告
- * どおりに動く → 相手が次の手を決める（ai.ts）→ あなたの手番。
- * 決着したら close で人物へ写す。
+ * 相手の姿を作る（純粋な計算。地図の上の見積もりにも使う）。
+ * late は夜明けを過ぎた分（規則 lateness を通したあと）。
  */
-
-// ─── 始める ───────────────────────────────────────────────────
-
-export interface Meet {
-  /** ライバルと会うとき、その人物。 */
-  rival?: Char;
-  /** その場所に刻まれたエピテット。 */
-  eps?: readonly string[];
-  /** もう一人が先に寄ったときの決着。 */
-  after?: string;
-  /** 見せ場のタグ。 */
-  stage?: readonly Tag[];
-}
-
-export function startEnc(
-  tx: Tx,
-  who: Who,
-  npc: string,
-  tier: Foe['tier' & never] | 'normal' | 'danger' | 'boss' | 'rival',
-  m: Meet = {},
-): void {
-  const w = tx.w;
+export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
   const def = foeDef(npc);
-  const late = Math.max(
-    0,
-    Math.round(tx.rule('lateness', { who }, w.hour >= PACE.dawn ? w.hour - PACE.dawn + 1 : 0)),
-  );
   const depth = w.depth + late;
   // 夜明けを過ぎた 1 時間ごとに、深さ 2.5 段ぶん荒れる（退屈な道の代償）。
   const grow = PACE.tough * (1 + 0.1 * w.depth + 0.25 * late + PACE.stratum * (w.stratum - 1));
@@ -126,13 +100,55 @@ export function startEnc(
     if (ff.lies === 'never') f.st.honest = 1;
   }
   def.shape?.(w, f);
+  // 退いた相手は、傷を半分だけ持ち越す（再戦）。
+  const wound = w.flags[`wound:${npc}`] ?? 0;
+  if (wound > 0) {
+    f.hp = Math.max(1, Math.round(f.maxHp * (1 - wound / 200)));
+    f.resolve = Math.max(1, Math.round(f.maxResolve * (1 - wound / 200)));
+  }
   // 見せ場の相手は手強い（構成が噛み合えば、そのぶん稼げる）。
-  const stage = [...(m.stage ?? [])];
-  if (stage.length) {
+  if (m.stage?.length) {
     f.maxHp = f.hp = Math.round(f.hp * PACE.stageTough);
     f.maxResolve = f.resolve = Math.round(f.resolve * PACE.stageTough);
     f.need += 1;
   }
+  return f;
+}
+
+/**
+ * 遭遇の流れ。始める → あなたの手番（基本の行動か、カード）→ 相手が予告
+ * どおりに動く → 相手が次の手を決める（ai.ts）→ あなたの手番。
+ * 決着したら close で人物へ写す。
+ */
+
+// ─── 始める ───────────────────────────────────────────────────
+
+export interface Meet {
+  /** ライバルと会うとき、その人物。 */
+  rival?: Char;
+  /** その場所に刻まれたエピテット。 */
+  eps?: readonly string[];
+  /** もう一人が先に寄ったときの決着。 */
+  after?: string;
+  /** 見せ場のタグ。 */
+  stage?: readonly Tag[];
+}
+
+export function startEnc(
+  tx: Tx,
+  who: Who,
+  npc: string,
+  tier: Foe['tier' & never] | 'normal' | 'danger' | 'boss' | 'rival',
+  m: Meet = {},
+): void {
+  const w = tx.w;
+  const late = Math.max(
+    0,
+    Math.round(tx.rule('lateness', { who }, w.hour >= PACE.dawn ? w.hour - PACE.dawn + 1 : 0)),
+  );
+  const def = foeDef(npc);
+  const f = scaleFoe(w, npc, m, late);
+  const stage = [...(m.stage ?? [])];
   tx.emit({ type: 'enc.start', who, foe: f, tier: tier as 'normal', stage });
   const e = w.enc;
   if (!e) return;
@@ -219,10 +235,11 @@ export const pressDamage = (w: World, who: Who) =>
 /** 去る率の、上限で切る前の値（長引くほど相手も飽きて道が開く。開けすぎる鍵の流用にも使う）。 */
 function rawLeave(w: World): number {
   const e = w.enc;
-  if (!e || e.tier === 'boss') return 0;
+  if (!e) return 0;
   const f = e.foe;
+  // 最後の相手からも退ける（再戦できる）。ただし退きにくい。
   return (
-    50 +
+    (e.tier === 'boss' ? 30 : 50) +
     10 * (statOf(w, e.who, 'AGI') - f.agi) -
     4 * (f.hostility - 3) +
     6 * Math.max(0, e.turn - 4)
@@ -233,8 +250,6 @@ export function leaveChance(w: World): number {
   const e = w.enc;
   if (!e) return 0;
   const f = e.foe;
-  // 層の最後の相手からは、逃げられない。
-  if (e.tier === 'boss') return 0;
   if (f.hostility <= 2 || f.st.stun) return 100;
   const base = rawLeave(w);
   return Math.max(5, Math.min(100, Math.round(ask(w, 'leaveChance', {}, base))));

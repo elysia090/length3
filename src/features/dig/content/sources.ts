@@ -20,13 +20,15 @@ const archMeets = (have: ArchCount, need: ArchCount | undefined) =>
 
 /** ビルドの実際の条件（PACE.build 倍）。一度だけ作る。 */
 const needs = new WeakMap<TagCount, TagCount>();
-export function buildNeed(need: TagCount): TagCount {
-  let n = needs.get(need);
+const keyed = new WeakMap<TagCount, TagCount>();
+/** keystone：ビルドと同じ名の札を持っていると、条件が軽い。 */
+export function buildNeed(need: TagCount, keystone = false): TagCount {
+  const memo = keystone ? keyed : needs;
+  let n = memo.get(need);
   if (!n) {
-    n = Object.fromEntries(
-      Object.entries(need).map(([t, x]) => [t, Math.ceil((x ?? 0) * PACE.build)]),
-    );
-    needs.set(need, n);
+    const k = PACE.build * (keystone ? PACE.keystone : 1);
+    n = Object.fromEntries(Object.entries(need).map(([t, x]) => [t, Math.ceil((x ?? 0) * k)]));
+    memo.set(need, n);
   }
   return n;
 }
@@ -52,7 +54,7 @@ function judgeBuilds(c: Char): BuildDef[] {
   const ids = new Set(c.cards.filter((x) => x).map((x) => x?.id));
   return allBuilds().filter(
     (b) =>
-      meets(tags, buildNeed(b.need)) &&
+      meets(tags, buildNeed(b.need, ids.has(b.id))) &&
       archMeets(arch, b.arch) &&
       (!b.any || b.any.some((id) => ids.has(id))),
   );

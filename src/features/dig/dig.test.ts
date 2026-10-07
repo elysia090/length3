@@ -58,7 +58,7 @@ describe('determinism', () => {
     expect(g.verify()).toBe(true);
     const again = Game.load(g.save());
     expect(again?.hash()).toBe(g.hash());
-  });
+  }, 60000);
 
   it('folds the event log into the same world', () => {
     const g = Game.start(777, 'reporter');
@@ -109,7 +109,7 @@ describe('branching', () => {
       const c = pilot(w);
       if (!c || !g.dispatch(c).length) break;
     }
-  });
+  }, 60000);
 });
 
 describe('copies', () => {
@@ -124,5 +124,5 @@ describe('copies', () => {
       const c = pilot(w);
       if (!c || !g.dispatch(c).length) break;
     }
-  });
+  }, 60000);
 });

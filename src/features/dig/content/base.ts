@@ -80,6 +80,13 @@ export const BASE_RULES: readonly PassiveSpec[] = [
     text: '手がかりの攻め筋（嘘）',
   },
   {
+    rule: 'trust',
+    prio: -5,
+    fn: (c, v) =>
+      v > 0 ? v * Math.max(0.4, 1 - 0.07 * Math.max(0, (c.enc?.foe.hostility ?? 0) - 3)) : v,
+    text: '荒れている相手ほど、信頼は伸びにくい',
+  },
+  {
     rule: 'startHostility',
     prio: -10,
     fn: (c, v) => v + Math.max(0, c.w.hour - 3) / 2 + c.w.depth / 3,

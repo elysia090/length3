@@ -30,7 +30,7 @@ export function misses(w: World): Miss[] {
   for (const b of allBuilds()) {
     if (on.has(b.id)) continue;
     const lacks: Miss['lack'][] = [];
-    for (const [t, n] of Object.entries(buildNeed(b.need))) {
+    for (const [t, n] of Object.entries(buildNeed(b.need, ids.has(b.id)))) {
       const d = (n ?? 0) - (tags[t as Tag] ?? 0);
       for (let i = 0; i < d; i++) lacks.push({ tag: t as Tag });
     }

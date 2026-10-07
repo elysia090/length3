@@ -21,6 +21,9 @@ export const DATA_VERSION = '1.3.0';
  *   stratum  層ごとの人物の強さの伸び（下の層ほど、構成の力が要る）
  *   stage    人物の場所に見せ場が付く割合（最後の相手には必ず）。合うタグのカード
  *            ×stageMult。相手は ×stageTough
+ *   slip     手がかりが漏れる率の下限（相手が揺らぐほど 100% へ近づく）
+ *   keystone ビルドと同じ名の札を持っていると、条件がこの倍率まで軽くなる
+ *   noon     夜明けからこの時間が過ぎると、その層の夜は終わる（挑戦の終わり）
  *   stall    この手番を過ぎると、相手の攻撃が毎手番上がる（膠着しない）
  *   rest     食堂の回復（最大値の割合）。同じ層の 2 度目からは restAgain 倍
  */
@@ -36,6 +39,9 @@ export const PACE = {
   stageMult: 1.35,
   stageTough: 1.25,
   stall: 8,
+  slip: 0.45,
+  keystone: 0.7,
+  noon: 4,
 } as const;
 
 export interface Release {

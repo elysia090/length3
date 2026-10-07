@@ -42,12 +42,25 @@ export function tagCount(c: Char): TagCount {
   return out;
 }
 
+/** 職そのものの原型（夜警は門番、看護師は聖人…）。原型の重なりに数える。 */
+export const JOB_ARCH: Readonly<Record<string, Archetype>> = {
+  surveyor: 'observer',
+  watch: 'gatekeeper',
+  projectionist: 'observer',
+  reporter: 'witness',
+  locksmith: 'trickster',
+  nurse: 'saint',
+  welder: 'machine',
+};
+
 export function archCount(c: Char): ArchCount {
   const out: ArchCount = {};
   for (const card of c.cards) {
     if (!card) continue;
     for (const a of cardArch(card)) out[a] = (out[a] ?? 0) + 1;
   }
+  const j = JOB_ARCH[c.job];
+  if (j) out[j] = (out[j] ?? 0) + 1;
   return out;
 }
 

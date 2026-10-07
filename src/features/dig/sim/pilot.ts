@@ -1,10 +1,12 @@
+import { PACE } from '../content/balance';
 import { epithetDef } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import type { Cmd } from '../core/events';
 import type { Char, World } from '../core/model';
 import { advise, type RouteKind } from './advise';
 import { bestAction } from './ai';
-import { canChoose, cardPrice, epPrice, newCard, reachable } from './run';
+import { maxHp, stats } from './ops';
+import { canChoose, cardPrice, epPrice, newCard, nodeOf, ROWS, reachable } from './run';
 
 /**
  * 自動操縦。あなたの席に座る頭（ライバルと同じ 1 手読み）に、地図の上の
@@ -52,6 +54,11 @@ export function pilot(w: World): Cmd | null {
   if (ins) return ins;
   const next = reachable(w);
   if (!next.length) return null;
+  // 傷んでいて、食堂に行けず、夜にまだ余裕があるなら、その場で一服。
+  const row = nodeOf(w, w.pos)?.row ?? -1;
+  const slack = PACE.dawn - w.hour - (ROWS - row);
+  if (w.you.hp * 2 < maxHp(stats(w, 'you')) && !next.some((n) => n.kind === 'rest') && slack >= 1)
+    return { c: 'breather' };
   const tired = w.you.hp < 12 || w.you.cards.filter((c) => c && c.uses === 0).length >= 2;
   const want = (k: string) =>
     k === 'rest'

@@ -221,10 +221,6 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
         stun(tx);
         break;
       case 'leave':
-        if (e?.tier === 'boss') {
-          say(tx, 'voice', '逃げ場はない。');
-          break;
-        }
         if (f[1]) loseItem(tx);
         end(tx, 'left');
         break;

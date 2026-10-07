@@ -13,9 +13,9 @@ import { cardDef } from './registry';
  * ビルドの段。レア度ではなく、構成の噛み合いで上がる。
  *
  *   第一段  ビルド（タグと原型がそろう）
- *   第二段  暴走。主役の札の第二章か、原型の三枚重ねが加わると、ほとんど
+ *   第二段  暴走。主役の札の第二章か、原型の四枚重ねが加わると、ほとんど
  *          バグのような効き目になる。ただし必ず上限がある（一段惜しい）
- *   第三段  極み。主役の結末（第三章）か、原型の四枚重ね。上限が外れる
+ *   第三段  極み。主役の結末（第三章）か、原型の五枚重ね。上限が外れる
  *
  * 画面には、暴走のあいだずっと「あと一段」の条件が出ている。
  */
@@ -346,8 +346,8 @@ export function tierOf(c: Char, build: string): 0 | 1 | 2 {
   const arch = archCount(c);
   const legend = s.surge.legend ? chapterOf(c, s.surge.legend) : 0;
   const archMax = Math.max(0, ...(s.surge.arch ?? []).map((a) => arch[a] ?? 0));
-  if (legend >= 3 || archMax >= 4) return 2;
-  if (legend >= 2 || archMax >= 3) return 1;
+  if (legend >= 3 || archMax >= 5) return 2;
+  if (legend >= 2 || archMax >= 4) return 1;
   return 0;
 }
 
@@ -359,6 +359,6 @@ export function nextTier(c: Char, build: string): string | null {
   if (t >= 2) return null;
   const parts: string[] = [];
   if (s.surge.legend) parts.push(`主役の札の第${t === 0 ? '二' : '三'}章`);
-  if (s.surge.arch?.length) parts.push(`原型の${t === 0 ? '三' : '四'}枚重ね`);
+  if (s.surge.arch?.length) parts.push(`原型の${t === 0 ? '四' : '五'}枚重ね`);
   return `あと一段（${t === 0 ? '暴走' : '極み'}）：${parts.join('、または')}`;
 }

@@ -297,6 +297,11 @@ function passTime(tx: Tx, hours: number): void {
     rivalStep(tx);
     gossip(tx);
   }
+  // 昼になれば、縦坑は閉じる（何度でも退けるが、時間は戻らない）。
+  if (tx.w.hour >= PACE.dawn + PACE.noon && !tx.w.ending) {
+    if (tx.w.enc) tx.emit({ type: 'enc.close' });
+    finish(tx, 'dawn', '夜が明けた');
+  }
 }
 
 /** 噂。あなたに会った人の像が、同じ層の別の人へ伝わる。 */
@@ -484,6 +489,7 @@ export function move(tx: Tx, id: number): boolean {
   const w = tx.w;
   const node = reachable(w).find((n) => n.id === id);
   if (!node) return false;
+  const from = w.pos;
   tx.emit({ type: 'moved', node: node.id });
   tx.emit({ type: 'node', id: node.id, visited: true });
   // 着くのにかかる時間（場所のエピテットと、規則）。
@@ -525,11 +531,11 @@ export function move(tx: Tx, id: number): boolean {
     startEnc(tx, 'you', 'rival', 'rival', { rival: rv.char });
     return true;
   }
-  enter(tx, node);
+  enter(tx, node, from);
   return true;
 }
 
-function enter(tx: Tx, node: MapNode): void {
+function enter(tx: Tx, node: MapNode, from: number | null = null): void {
   const w = tx.w;
   if (node.npc) {
     if (node.eps.some((e) => epithetDef(e)?.place?.empty) && node.kind !== 'boss') {
@@ -537,7 +543,7 @@ function enter(tx: Tx, node: MapNode): void {
       return;
     }
     const tier = node.kind === 'person' ? 'normal' : node.kind === 'boss' ? 'boss' : 'danger';
-    tx.emit({ type: 'pending', p: { kind: 'encounter', npc: node.npc, tier } });
+    tx.emit({ type: 'pending', p: { kind: 'encounter', npc: node.npc, tier, back: from } });
     startEnc(tx, 'you', node.npc, tier, {
       stage: node.stage,
       eps: node.eps,
@@ -684,6 +690,18 @@ export function close(tx: Tx): boolean {
     caught: e.caught,
     hostility: e.foe.hostility,
   });
+  // 最後の相手から退いたら、来た場所へ戻る。相手は傷を覚えている（再戦できる）。
+  if (p.tier === 'boss' && (o === 'left' || o === 'fled')) {
+    const lost = Math.round(100 * (1 - Math.max(0, e.foe.hp) / Math.max(1, e.foe.maxHp)));
+    const key = `wound:${e.foe.id}`;
+    if (lost > (w.flags[key] ?? 0)) tx.emit({ type: 'flag', key, v: lost });
+    tx.emit({ type: 'enc.close' });
+    tx.emit({ type: 'pending', p: null });
+    tx.emit({ type: 'moved', node: p.back ?? null });
+    passTime(tx, 1);
+    tx.emit({ type: 'note', text: `退いた。${e.foe.name}は、あなたを覚えている。` });
+    return true;
+  }
   const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];
   if (o === 'beaten') tx.emit({ type: 'flag', key: 'beaten', v: (w.flags.beaten ?? 0) + 1 });
   if (p.npc === 'rival') tx.emit({ type: 'flag', key: 'rivalMet', v: 1 });
@@ -1100,7 +1118,7 @@ function score(w: World, won: boolean): number {
   );
 }
 
-function finish(tx: Tx, kind: 'dead', title: string): void {
+function finish(tx: Tx, kind: 'dead' | 'dawn', title: string): void {
   const w = tx.w;
   tx.emit({
     type: 'ending',

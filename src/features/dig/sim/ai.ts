@@ -6,7 +6,8 @@ import { believes, portrait } from '../core/mind';
 import type { Intent, World } from '../core/model';
 import { Tx } from '../core/tx';
 import { basic, canAccept, useCard } from './encounter';
-import { charOf } from './ops';
+import { foeHardness } from './hardness';
+import { charOf, maxHp, stats } from './ops';
 
 /**
  * 頭。サーバーを使わず、手元で読む。
@@ -79,8 +80,9 @@ export function judgeYou(base: World, s: World): number {
   const c1 = charOf(s, who);
   const f = e.foe;
   let v = e.outcome ? (VALUE[e.outcome] ?? 0) : 0;
-  // 長引いたら、引くのも手。
-  if (e.outcome === 'left') v += 5 * Math.max(0, e.turn - 3);
+  // 長引いたら、引くのも手。ただし最後の相手からは、負けているときだけ退く（再戦）。
+  if (e.outcome === 'left' && b.tier === 'boss') v = c1.hp * 3 < maxHp(stats(s, who)) ? 10 : -60;
+  else if (e.outcome === 'left') v += 5 * Math.max(0, e.turn - 3);
   const progress = [
     1 - Math.max(0, f.hp) / f.maxHp,
     1 - Math.max(0, f.resolve) / f.maxResolve,
@@ -229,9 +231,10 @@ function judgeFoe(base: World, s: World): number {
   return v;
 }
 
+/** 硬い相手ほど、多く読む。 */
 function rollouts(w: World): number {
-  const t = w.enc?.tier;
-  return (t === 'boss' || t === 'rival' ? 10 : t === 'danger' ? 7 : 5) + w.depth;
+  const f = w.enc?.foe;
+  return 3 + (f ? foeHardness(f) : 4) + Math.floor(w.depth / 2);
 }
 
 /** 相手の次の手を決め、予告する。 */
@@ -256,7 +259,8 @@ export function planFoe(tx: Tx): void {
         if (!se) continue;
         stx.emit({ type: 'intent', move: m.id, intent: m.intent(s) });
         act(stx, imagine(stx));
-        if (e.tier !== 'normal' && s.enc?.phase === 'act') act(stx, imagine(stx));
+        // 硬度 6 以上は、あなたの二手先まで想像する。
+        if (foeHardness(e.foe) >= 6 && s.enc?.phase === 'act') act(stx, imagine(stx));
         total += judgeFoe(w, s);
       }
       const noise = (tx.rand('ai') - 0.5) * 10 * (1 - def.persona.cunning);
