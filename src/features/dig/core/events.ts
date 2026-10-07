@@ -61,6 +61,7 @@ export type Ev =
   | { type: 'card.mark'; who: Who; slot: number; mark: string; n: number }
   | { type: 'card.set'; who: Who; slot: number; card: Card | null; why: string }
   | { type: 'debt'; who: Who; npc: string; n: number }
+  | { type: 'title'; who: Who; id: string }
   | { type: 'flag'; key: string; v: number }
   | { type: 'unlock'; story: string }
   | { type: 'story.seen'; id: string }
@@ -142,6 +143,7 @@ export type Cmd =
       depth: number;
       carry?: string;
       remembered?: Record<string, Partial<Mind>>;
+      sheet?: import('../content/origins').Sheet;
     }
   | { c: 'move'; node: number }
   | { c: 'breather' }
@@ -149,7 +151,7 @@ export type Cmd =
   | { c: 'act'; a: Basic }
   | { c: 'card'; slot: number }
   | { c: 'close' }
-  | { c: 'claim'; take?: string; help?: number }
+  | { c: 'claim'; take?: string; help?: number; card?: string; slot?: number }
   | { c: 'choose'; option: number }
   | { c: 'ack' }
   | { c: 'rest'; action: RestAction; slot?: number }

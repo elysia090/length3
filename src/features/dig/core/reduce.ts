@@ -22,6 +22,8 @@ const blankChar = (): Char => ({
   permEps: {},
   epithets: [],
   debts: {},
+  deeds: {},
+  titles: [],
   uid: 1,
 });
 
@@ -63,6 +65,11 @@ function mindOf(w: World, npc: string) {
   const m = w.minds[npc] ?? blankMind();
   w.minds[npc] = m;
   return m;
+}
+
+/** 振る舞いを数える（冠の元）。空の名前は数えない。 */
+function deed(c: Char, ...names: string[]): void {
+  for (const n of names) if (n) c.deeds[n] = (c.deeds[n] ?? 0) + 1;
 }
 
 export function apply(w: World, ev: Ev): void {
@@ -142,6 +149,12 @@ export function apply(w: World, ev: Ev): void {
       break;
     }
     case 'card.use':
+      deed(
+        charOf(w, ev.who),
+        ev.quiet ? 'quiet' : '',
+        ev.spent ? 'spent' : '',
+        ev.tags.includes('tech') ? 'tech' : '',
+      );
       if (w.enc) {
         if (!ev.quiet) w.enc.cards++;
         w.enc.last = [...ev.tags];
@@ -192,6 +205,7 @@ export function apply(w: World, ev: Ev): void {
     case 'debt': {
       const c = charOf(w, ev.who);
       c.debts[ev.npc] = Math.max(0, (c.debts[ev.npc] ?? 0) + ev.n);
+      if (ev.n > 0) deed(c, 'debts');
       break;
     }
     case 'flag':
@@ -268,10 +282,16 @@ export function apply(w: World, ev: Ev): void {
       if (w.enc) w.enc.foe.seen = true;
       break;
     case 'claim':
-      if (w.enc) w.enc.lies += ev.truth ? 0 : 1;
+      if (w.enc) {
+        w.enc.lies += ev.truth ? 0 : 1;
+        deed(charOf(w, w.enc.who), ev.truth ? 'vows' : 'lies');
+      }
       break;
     case 'caught':
-      if (w.enc) w.enc.caught++;
+      if (w.enc) {
+        w.enc.caught++;
+        deed(charOf(w, w.enc.who), 'caught');
+      }
       break;
     case 'act':
       if (w.enc) w.enc.foe.history.push(ev.move);
@@ -286,6 +306,7 @@ export function apply(w: World, ev: Ev): void {
       if (w.enc) {
         w.enc.outcome = ev.outcome;
         w.enc.phase = 'over';
+        deed(charOf(w, w.enc.who), ev.outcome);
       }
       break;
     case 'enc.close':
@@ -323,6 +344,11 @@ export function apply(w: World, ev: Ev): void {
       if (ev.down !== undefined) r.down = ev.down;
       if (ev.first !== undefined) r.first = ev.first;
       if (ev.log) r.log.push(ev.log);
+      break;
+    }
+    case 'title': {
+      const c = charOf(w, ev.who);
+      if (!c.titles.includes(ev.id)) c.titles.push(ev.id);
       break;
     }
     case 'rival.char':

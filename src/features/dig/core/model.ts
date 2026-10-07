@@ -49,6 +49,10 @@ export interface Char {
   /** まだどこにも刻んでいないエピテット。 */
   epithets: string[];
   debts: Record<string, number>;
+  /** 振る舞いの記録（冠の元）。 */
+  deeds: Record<string, number>;
+  /** 人物に付いた冠（エピテットの id。三つまで）。 */
+  titles: string[];
   uid: number;
 }
 
@@ -222,6 +226,8 @@ export type Pending =
       help: boolean;
       boss: boolean;
       resume?: number;
+      /** 拾える札（一枚だけ選べる。選ばなくてもいい）。 */
+      cards: string[];
     }
   | { kind: 'story'; id: string; eps: string[] }
   | { kind: 'told'; id: string; ok: boolean; text: string; chance?: number; roll?: number }

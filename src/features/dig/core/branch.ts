@@ -34,6 +34,8 @@ export function copyChar(c: Char): Char {
     permEps,
     epithets: [...c.epithets],
     debts: { ...c.debts },
+    deeds: { ...c.deeds },
+    titles: [...c.titles],
   };
 }
 

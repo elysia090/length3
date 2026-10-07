@@ -40,7 +40,7 @@ export function decide(
   let ok = true;
   switch (cmd.c) {
     case 'start':
-      start(tx, cmd.seed, cmd.job, cmd.depth, cmd.carry, cmd.remembered);
+      start(tx, cmd.seed, cmd.job, cmd.depth, cmd.carry, cmd.remembered, cmd.sheet);
       break;
     case 'move':
       ok = move(tx, cmd.node);
@@ -63,7 +63,7 @@ export function decide(
       ok = close(tx);
       break;
     case 'claim':
-      ok = claim(tx, cmd.take, cmd.help);
+      ok = claim(tx, cmd.take, cmd.help, cmd.card, cmd.slot);
       break;
     case 'choose':
       ok = choose(tx, cmd.option);

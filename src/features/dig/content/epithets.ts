@@ -665,6 +665,24 @@ export const EPITHETS: readonly Epithet[] = [
     memory: { text: '補正 ×0.75、最後に返ってくる強さ ×0.5。', mods: 0.75, echo: 0.5 },
   },
   {
+    id: 'relentless',
+    name: '執拗な',
+    gloss: '尽きても、まだ。',
+    rarity: 'uncommon',
+    card: {
+      text: '0 回で使うと ×1.4（尽きてからが本番）。',
+      mult: (w) => {
+        const e = w.enc;
+        const c = e?.who === 'rival' ? w.rival.char : w.you;
+        const id = e?.lastCard;
+        const card = c.cards.find((x) => x?.id === id);
+        return card && card.uses === 0 ? 1.4 : 1;
+      },
+    },
+    foe: { text: '諦めない（意志 ×1.3、立ち去りにくい）。', resolve: 1.3, agi: 1 },
+    memory: { text: '補正 ×1.2。最後に返ってくる強さ ×1.3。', mods: 1.2, echo: 1.3 },
+  },
+  {
     id: 'taciturn',
     name: '寡黙な',
     gloss: '必要なことしか、しない。',

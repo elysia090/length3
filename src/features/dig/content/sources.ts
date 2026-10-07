@@ -9,6 +9,7 @@ import type { BuildDef, LinkDef, PassiveSpec, TriggerSpec } from './defs';
 import { SPILL_AURA } from './epithets';
 import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './registry';
 import { SURGES, tierOf } from './surges';
+import { titleDef } from './titles';
 
 /**
  * 規則の出どころを集める。遭遇している者（あなたか、ライバル）の
@@ -108,6 +109,10 @@ function collect(w: World) {
     const p = permDef(id);
     if (p) add(`perm:${id}`, p.passive, p.triggers);
   }
+  for (const id of c.titles ?? []) {
+    const t = titleDef(id);
+    if (t) add(`title:${id}`, t.passive);
+  }
   for (const b of buildsOf(c)) {
     add(`build:${b.id}`, b.passive, b.triggers);
     // 段：暴走（上限つき）と極み（上限なし）。
@@ -184,6 +189,7 @@ function keyOf(w: World): string {
     c.cards
       .map((x) => (x ? `${x.id}+${(x.eps ?? []).join('+')}+${x.marks.ch ?? 0}` : '-'))
       .join(','),
+    (c.titles ?? []).join('+'),
     c.perms.map((p) => `${p}${(c.permEps?.[p] ?? []).join('+')}`).join(','),
     (w.enc?.foe.eps ?? []).join('+'),
     (w.enc?.stage ?? []).join('+'),

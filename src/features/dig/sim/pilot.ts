@@ -34,7 +34,8 @@ export function pilot(w: World): Cmd | null {
             }
           });
         }
-        return { c: 'claim', take: p.take[0], help };
+        const pick = pickCard(w, p.cards);
+        return { c: 'claim', take: p.take[0], help, card: pick?.card, slot: pick?.slot };
       }
       case 'story': {
         for (let i = 0; i < 6; i++) if (canChoose(w, i)) return { c: 'choose', option: i };
@@ -147,4 +148,25 @@ function inscription(w: World): Cmd | null {
     if (b) return { c: 'inscribe', ep, slot: b.slot };
   }
   return null;
+}
+
+/** 拾う札を選ぶ。空き枠があれば、構成がいちばん良くなる札を入れる。なければ入れ替えが得なときだけ。 */
+function pickCard(w: World, offer: readonly string[]): { card: string; slot: number } | null {
+  const base = deckScore(w.you);
+  const empty = w.you.cards.findIndex((c) => !c);
+  let best: { card: string; slot: number } | null = null;
+  let gain = empty >= 0 ? Number.NEGATIVE_INFINITY : 9;
+  for (const id of offer) {
+    const slots = empty >= 0 ? [empty] : [0, 1, 2, 3, 4];
+    for (const slot of slots) {
+      const cards = [...w.you.cards];
+      cards[slot] = newCard(0, id);
+      const g = deckScore({ ...w.you, cards }) - base + (empty >= 0 ? 1 : 0);
+      if (g > gain) {
+        gain = g;
+        best = { card: id, slot };
+      }
+    }
+  }
+  return best;
 }

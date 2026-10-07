@@ -1,13 +1,23 @@
 import { WORK_ARCH } from '../content/archetypes';
 import { DATA_VERSION, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
+import type { CardDef } from '../content/defs';
 import { epithetsFor } from '../content/epithets';
 import { holds } from '../content/fx';
+import {
+  defaultSheet,
+  JOB_EPITHETS,
+  JOB_ITEMS,
+  ORIGINS,
+  type Sheet,
+  START_CARDS,
+} from '../content/origins';
 import {
   allBuilds,
   allCards,
   allCombos,
   allEpithets,
+  allFoes,
   allItems,
   allStories,
   cardDef,
@@ -20,6 +30,7 @@ import {
 } from '../content/registry';
 import { buildsOf } from '../content/sources';
 import { SURGES, tierOf } from '../content/surges';
+import { earnTitle, titleDef } from '../content/titles';
 import { branch } from '../core/branch';
 import type { RestAction } from '../core/events';
 import {
@@ -31,6 +42,7 @@ import {
   type Outcome,
   STATS,
   type Stat,
+  type Who,
   type World,
   zeroStats,
 } from '../core/model';
@@ -73,9 +85,14 @@ export function newCard(uid: number, id: string, eps: string[] = []): Card {
   return { uid, id, uses: def.uses, max: def.uses, marks: {}, eps };
 }
 
-export function makeChar(job: string, name: string, carry?: string): Char {
+export function makeChar(job: string, name: string, carry?: string, sheet: Sheet = {}): Char {
   const j = jobDef(job) ?? jobDef('surveyor');
   if (!j) throw new Error('no job');
+  const pick = { ...defaultSheet(j.id), ...sheet };
+  const origins = ORIGINS[j.id] ?? [];
+  const origin = origins.includes(pick.origin) ? pick.origin : (origins[0] ?? '');
+  const ep = (JOB_EPITHETS[j.id] ?? []).includes(pick.ep) ? pick.ep : null;
+  const item = (JOB_ITEMS[j.id] ?? []).includes(pick.item) ? pick.item : 'bandage';
   const c: Char = {
     name,
     job: j.id,
@@ -85,13 +102,19 @@ export function makeChar(job: string, name: string, carry?: string): Char {
     hp: 0,
     mind: 0,
     coins: 30,
-    items: ['bandage'],
-    cards: j.cards.map((id, i) => newCard(i + 1, id)),
-    perms: [...j.perms],
+    items: [item],
+    // 初めは 3 枚。残りの枠は空いている（拾って埋める）。
+    cards: [0, 1, 2, 3, 4].map((i) => {
+      const id = j.cards[i];
+      return i < START_CARDS && id ? newCard(i + 1, id) : null;
+    }),
+    perms: [...new Set(['promise', origin].filter(Boolean))],
     permEps: {},
-    epithets: [],
+    epithets: ep ? [ep] : [],
     debts: {},
-    uid: j.cards.length + 1,
+    deeds: {},
+    titles: [],
+    uid: START_CARDS + 1,
   };
   if (carry && permDef(carry) && !c.perms.includes(carry)) c.perms.push(carry);
   const s = statsOfChar(c);
@@ -238,8 +261,9 @@ export function start(
   depth: number,
   carry?: string,
   remembered?: Record<string, Partial<Mind>>,
+  sheet: Sheet = {},
 ): void {
-  const you = makeChar(job, 'あなた', carry);
+  const you = makeChar(job, sheet.name ?? 'あなた', carry, sheet);
   if (depth >= 5 && !you.perms.includes('fear')) you.perms.push('fear');
   const others = [
     'surveyor',
@@ -432,6 +456,51 @@ function rivalStep(tx: Tx): void {
   }
 }
 
+/**
+ * 遭遇のあとに拾える札（3 枚から 1 枚）。職の手癖（職の残りの札）、
+ * あと一つで成立するものの要素、下の層ほど珍しい札、で重みをつける。
+ */
+export function offerCards(tx: Tx, who: Who): string[] {
+  const w = tx.w;
+  const c = charOf(w, who);
+  const have = new Set(c.cards.map((x) => x?.id));
+  const tail = new Set(jobDef(c.job)?.cards.slice(START_CARDS) ?? []);
+  const want = who === 'you' ? misses(w)[0]?.lack : undefined;
+  const fits = (d: CardDef) =>
+    !!want &&
+    (want.tag
+      ? d.tags.includes(want.tag)
+      : want.arch
+        ? (WORK_ARCH[d.id] ?? []).includes(want.arch)
+        : d.id === want.card);
+  const weight = (d: CardDef) =>
+    (tail.has(d.id) ? 6 : 1) *
+    (fits(d) ? 3 : 1) *
+    (d.layer === 'basic'
+      ? 0.8
+      : d.rarity === 'rare'
+        ? 0.2 + 0.2 * w.stratum
+        : d.rarity === 'uncommon'
+          ? 0.8
+          : 1.2);
+  const pool = allCards().filter(
+    (d) => (d.layer === 'archetype' || d.layer === 'basic') && !d.retired && !have.has(d.id),
+  );
+  const out: string[] = [];
+  for (let k = 0; k < 3 && pool.length; k++) {
+    const total = pool.reduce((a, d) => a + weight(d), 0);
+    let r = tx.rand('loot') * total;
+    let i = 0;
+    for (; i < pool.length - 1; i++) {
+      r -= weight(pool[i] as CardDef);
+      if (r < 0) break;
+    }
+    const [d] = pool.splice(i, 1);
+    if (d) out.push(d.id);
+  }
+  return out;
+}
+
 function rivalFight(
   tx: Tx,
   npc: string,
@@ -463,6 +532,17 @@ function rivalFight(
     });
     rewards(stx, 'rival', npc, outcome);
     resonate(stx, 'rival');
+    // もう一人も札を拾う（空いた枠があれば）。
+    const empty = sub.rival.char.cards.findIndex((x) => !x);
+    const pick = outcome === 'left' || outcome === 'fled' ? undefined : offerCards(stx, 'rival')[0];
+    if (pick && empty >= 0)
+      stx.emit({
+        type: 'card.set',
+        who: 'rival',
+        slot: empty,
+        card: newCard(sub.rival.char.uid, pick),
+        why: 'picked',
+      });
     if (outcome === 'uncovered') {
       const take = foeDef(npc).take.find((id) => !sub.rival.char.perms.includes(id));
       if (take) gainPerm(stx, take, npc, 'rival');
@@ -735,16 +815,36 @@ export function close(tx: Tx): boolean {
   if (notes.length) tx.emit({ type: 'note', text: `手に入れた：${notes.join('、')}` });
   tx.emit({
     type: 'pending',
-    p: { kind: 'reward', npc, outcome: o, take, help, boss, resume: p.resume },
+    p: {
+      kind: 'reward',
+      npc,
+      outcome: o,
+      take,
+      help,
+      boss,
+      resume: p.resume,
+      cards: o === 'left' || o === 'fled' ? [] : offerCards(tx, 'you'),
+    },
   });
   sync(tx);
   return true;
 }
 
-export function claim(tx: Tx, take?: string, help?: number): boolean {
+export function claim(tx: Tx, take?: string, help?: number, card?: string, slot?: number): boolean {
   const w = tx.w;
   const p = w.pending;
   if (p?.kind !== 'reward') return false;
+  if (card && p.cards.includes(card)) {
+    const at = slot ?? w.you.cards.findIndex((c) => !c);
+    if (at < 0 || at > 4) return false;
+    tx.emit({
+      type: 'card.set',
+      who: 'you',
+      slot: at,
+      card: newCard(w.you.uid, card),
+      why: 'picked',
+    });
+  }
   if (take && p.take.includes(take)) gainPerm(tx, take, p.npc, 'you');
   if (help !== undefined && p.help) {
     const card = w.you.cards[help];
@@ -760,8 +860,10 @@ export function claim(tx: Tx, take?: string, help?: number): boolean {
   }
   tx.emit({ type: 'pending', p: null });
   if (p.boss) {
-    if (w.stratum >= 3) finale(tx, p.outcome);
-    else descend(tx);
+    if (w.stratum >= 3) {
+      crown(tx);
+      finale(tx, p.outcome);
+    } else descend(tx);
   } else if (p.resume !== undefined) {
     const node = nodeOf(w, p.resume);
     if (node) enter(tx, node);
@@ -770,8 +872,23 @@ export function claim(tx: Tx, take?: string, help?: number): boolean {
   return true;
 }
 
+/** 層の終わりに、振る舞いから冠が一つ付く（三つまで）。冠は噂になって全員に届く。 */
+function crown(tx: Tx): void {
+  const y = tx.w.you;
+  if (y.titles.length >= 3) return;
+  const id = earnTitle(y.deeds, y.titles);
+  const t = id ? titleDef(id) : undefined;
+  const ep = id ? epithetDef(id) : undefined;
+  if (!id || !t || !ep) return;
+  tx.emit({ type: 'title', who: 'you', id });
+  tx.emit({ type: 'note', text: `あなたは《${ep.name}》人だと噂されはじめた。${t.text}` });
+  for (const f of allFoes())
+    if (f.id !== 'rival') tx.emit({ type: 'mind', npc: f.id, d: { heard: 1, ...t.mind } });
+}
+
 function descend(tx: Tx): void {
   const w = tx.w;
+  crown(tx);
   const next = w.stratum + 1;
   buildMap(tx, next);
   tx.emit({ type: 'time', hours: -w.hour + (w.you.perms.includes('shaft-key') ? -1 : 0) });
