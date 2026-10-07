@@ -5,8 +5,9 @@ import { describe, expect, it } from 'vitest';
 /**
  * 構成の約束を、読めば分かる形ではなく落ちるテストで持つ。
  *
- * - features/<名前>/ は一つの機能。外へ見せるのは index.ts だけ。
- *   ほかの機能もページも、index.ts を通してしか中へ入らない。
+ * - features/<名前>/ は一つの機能。外へ見せるのは index.ts と、ブラウザで
+ *   動くコード向けの client.ts（.astro を含まない入口）だけ。ほかの機能も
+ *   ページも、そこを通してしか中へ入らない。
  * - shared/・i18n/・config/ は土台。機能・ページ・レイアウトを知らない。
  * - 機能はページとレイアウトを知らない（上から下へだけ依存する）。
  */
@@ -50,11 +51,13 @@ const show = (e: { file: string; target: string }) =>
   `${relative(SRC, e.file)} → ${relative(SRC, e.target)}`;
 
 describe('architecture', () => {
-  it('enters another feature only through its index.ts', () => {
+  it('enters another feature only through its index.ts or client.ts', () => {
     const bad = edges.filter(({ file, target }) => {
       const to = featureOf(target);
       if (!to || featureOf(file) === to) return false;
-      return target !== join(FEATURES, to, 'index.ts');
+      return (
+        target !== join(FEATURES, to, 'index.ts') && target !== join(FEATURES, to, 'client.ts')
+      );
     });
     expect(bad.map(show)).toEqual([]);
   });
@@ -71,6 +74,13 @@ describe('architecture', () => {
   it('never lets a feature reach up into pages or layouts', () => {
     const bad = edges.filter(
       ({ file, target }) => within(file, FEATURES) && UPPER.some((d) => within(target, d)),
+    );
+    expect(bad.map(show)).toEqual([]);
+  });
+
+  it('keeps client.ts free of .astro components', () => {
+    const bad = edges.filter(
+      ({ file, target }) => file.endsWith(`${sep}client.ts`) && target.endsWith('.astro'),
     );
     expect(bad.map(show)).toEqual([]);
   });

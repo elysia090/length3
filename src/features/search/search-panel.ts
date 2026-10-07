@@ -1,20 +1,29 @@
+import { formatCompactReadingTime } from '../../i18n/site-copy';
 import { startBenchProfile } from '../../shared/bench-profile';
-import { createPagefindSearchController, type PagefindSearchController } from './pagefind-search';
+import { mountArchiveField } from '../archive/client';
 import { getPageLanguage, getSearchCopy } from './search-copy';
-import { createSearchNavigation, type SearchNavigation } from './search-navigation';
-import { attachSearchPlay, type SearchPlay } from './search-play';
+import { loadSearchEngine, PAGEFIND_PATH } from './search-engine';
+import { createSearchUi, type Entry, type SearchUi } from './search-ui';
+import type { Term } from './terms';
 
-interface SearchModalRuntime {
-  play: SearchPlay | null;
-  searchController: PagefindSearchController;
-  searchNavigation: SearchNavigation;
-}
+/**
+ * 検索の入口（一覧の横の欄と、どこからでも効く「/」）と、全画面の検索
+ * 画面の開け閉め。画面の中身は最初に開いたときに template から組む。
+ */
 
 let searchPanelSequence = 0;
 
 export function initializeSearchPanel(root: ParentNode = document) {
   for (const searchRoot of resolveSearchRoots(root)) {
     initializeSearchPanelRoot(searchRoot);
+  }
+}
+
+function readJson<T>(value: string | undefined, fallback: T): T {
+  try {
+    return value ? (JSON.parse(value) as T) : fallback;
+  } catch {
+    return fallback;
   }
 }
 
@@ -25,129 +34,101 @@ function initializeSearchPanelRoot(searchRoot: HTMLElement) {
   });
 
   try {
-    const browserWindow = browserDocument.defaultView ?? window;
     const trigger = searchRoot.querySelector('[data-search-trigger]');
     const modal = searchRoot.querySelector('[data-search-modal]');
-
-    if (!(trigger instanceof HTMLButtonElement) || !(modal instanceof HTMLDialogElement)) {
-      return;
-    }
-
+    if (!(trigger instanceof HTMLButtonElement) || !(modal instanceof HTMLDialogElement)) return;
     const searchTrigger = trigger;
     const searchModal = modal;
-
-    if (searchRoot.dataset.searchInitialized === 'true') {
-      return;
-    }
+    if (searchRoot.dataset.searchInitialized === 'true') return;
     searchRoot.dataset.searchInitialized = 'true';
     searchTrigger.setAttribute('aria-controls', ensureElementId(searchModal, 'search-modal'));
 
-    let modalRuntime: SearchModalRuntime | null = null;
+    let ui: SearchUi | null = null;
 
-    function ensureModalRuntime() {
-      if (modalRuntime) {
-        return modalRuntime;
-      }
-
+    function ensureUi(): SearchUi | null {
+      if (ui) return ui;
       const template = searchRoot.querySelector('[data-search-modal-template]');
-      if (!(template instanceof HTMLTemplateElement)) {
-        return null;
-      }
-
+      if (!(template instanceof HTMLTemplateElement)) return null;
       searchModal.replaceChildren(template.content.cloneNode(true));
-
-      const closeButton = searchModal.querySelector('[data-search-close]');
-      const pagefindMount = searchModal.querySelector('[data-pagefind-ui]');
-      const emptyState = searchModal.querySelector('[data-search-empty-state]');
-      const status = searchModal.querySelector('[data-search-status]');
-
+      const q = <T extends Element>(selector: string) => searchModal.querySelector<T>(selector);
+      const input = q<HTMLInputElement>('[data-search-input]');
+      const body = q<HTMLElement>('[data-search-body]');
+      const terms = q<HTMLElement>('[data-search-terms]');
+      const results = q<HTMLElement>('[data-search-results]');
+      const list = q<HTMLElement>('[data-search-list]');
+      const preview = q<HTMLElement>('[data-search-preview]');
+      const voidEl = q<HTMLElement>('[data-search-void]');
+      const message = q<HTMLElement>('[data-search-message]');
+      const status = q<HTMLElement>('[data-search-status]');
+      const close = q<HTMLButtonElement>('[data-search-close]');
+      const canvas = q<HTMLCanvasElement>('[data-search-field]');
       if (
-        !(closeButton instanceof HTMLButtonElement) ||
-        !(pagefindMount instanceof HTMLElement) ||
-        !(status instanceof HTMLElement)
+        !input ||
+        !body ||
+        !terms ||
+        !results ||
+        !list ||
+        !preview ||
+        !voidEl ||
+        !message ||
+        !status ||
+        !close
       ) {
         return null;
       }
-
-      const modalLanguage = searchModal.dataset.searchLang === 'ja' ? 'ja' : null;
-      const copy = getSearchCopy(
-        modalLanguage ?? getPageLanguage(browserDocument.documentElement.lang),
-      );
-      const searchNavigation = createSearchNavigation({
-        listLabel: copy.resultsLabel,
-        mount: pagefindMount,
+      const language =
+        searchModal.dataset.searchLang === 'ja'
+          ? 'ja'
+          : getPageLanguage(browserDocument.documentElement.lang);
+      const entries = readJson<Entry[]>(searchModal.dataset.entries, []);
+      const field = canvas ? mountArchiveField(canvas, entries) : null;
+      close.addEventListener('click', closeSearch);
+      ui = createSearchUi({
+        elements: { input, body, terms, results, list, preview, void: voidEl, message, status },
+        copy: getSearchCopy(language),
+        entries,
+        terms: readJson<Term[]>(searchModal.dataset.terms, []),
+        formatMinutes: (m) => formatCompactReadingTime(m, language),
+        loadEngine: () =>
+          loadSearchEngine(new URL(PAGEFIND_PATH, browserDocument.location.origin).toString()),
+        field,
+        onGunman: () => {
+          void import('../gunman').then(({ openRange }) =>
+            openRange(browserDocument, () => input.focus()),
+          );
+        },
       });
-      const searchController = createPagefindSearchController({
-        browserWindow,
-        emptyState: emptyState instanceof HTMLElement ? emptyState : null,
-        focusMode: 'desktop-only',
-        language: modalLanguage,
-        mount: pagefindMount,
-        mountSelector: `#${ensureElementId(pagefindMount, 'pagefind-ui')}`,
-        onSync: () => searchNavigation.sync(),
-        status,
-      });
-
-      closeButton.addEventListener('click', closeSearch);
-      // 語が変われば結果も変わる。前の選択は指す先を失うので落とす。
-      searchModal.addEventListener('input', () => searchNavigation.reset());
-      searchModal.addEventListener('keydown', (event) => searchNavigation.handleKeydown(event));
-      const play = attachSearchPlay(searchModal, pagefindMount);
-      modalRuntime = { play, searchController, searchNavigation };
-      return modalRuntime;
+      return ui;
     }
 
     function openSearch() {
-      const runtime = ensureModalRuntime();
-      if (!runtime) {
-        return;
-      }
-
-      setExpandedState(searchTrigger, true);
-      if (!searchModal.open) {
-        searchModal.showModal();
-      }
-      void runtime.searchController.open();
-      runtime.play?.start();
+      const runtime = ensureUi();
+      if (!runtime) return;
+      searchTrigger.setAttribute('aria-expanded', 'true');
+      if (!searchModal.open) searchModal.showModal();
+      browserDocument.documentElement.dataset.searchOpen = '';
+      runtime.open();
     }
 
     function closeSearch() {
-      setExpandedState(searchTrigger, false);
-      modalRuntime?.searchNavigation.reset();
-      modalRuntime?.searchController.close();
-      if (searchModal.open) {
-        searchModal.close();
-      }
+      if (searchModal.open) searchModal.close();
     }
 
     searchTrigger.addEventListener('click', openSearch);
-    searchModal.addEventListener('click', (event) => {
-      if (event.target === searchModal) {
-        searchModal.close();
-      }
-    });
-    searchModal.addEventListener('cancel', () => {
-      setExpandedState(searchTrigger, false);
-      modalRuntime?.searchController.close();
+    // Esc は、語があれば語を消すだけ。空のときに閉じる。
+    searchModal.addEventListener('cancel', (event) => {
+      if (ui?.escape()) event.preventDefault();
     });
     searchModal.addEventListener('close', () => {
-      modalRuntime?.play?.stop();
-      setExpandedState(searchTrigger, false);
-      modalRuntime?.searchNavigation.reset();
-      modalRuntime?.searchController.close();
+      ui?.close();
+      delete browserDocument.documentElement.dataset.searchOpen;
+      searchTrigger.setAttribute('aria-expanded', 'false');
       searchTrigger.focus();
     });
     browserDocument.addEventListener('keydown', (event) => {
-      if (!ownsGlobalShortcut(searchRoot)) {
-        return;
-      }
-
-      if (
-        !shouldOpenSearchFromKeydown(event.key, searchModal.open, browserDocument.activeElement)
-      ) {
-        return;
-      }
-
+      if (!ownsGlobalShortcut(searchRoot)) return;
+      if (event.key !== '/' || searchModal.open) return;
+      if (isTextEntryElement(browserDocument.activeElement)) return;
       event.preventDefault();
       openSearch();
     });
@@ -160,7 +141,6 @@ function resolveSearchRoots(root: ParentNode): HTMLElement[] {
   if (root instanceof HTMLElement && root.matches('[data-search-panel]')) {
     return [root];
   }
-
   return [...root.querySelectorAll<HTMLElement>('[data-search-panel]')];
 }
 
@@ -169,21 +149,10 @@ function ownsGlobalShortcut(searchRoot: HTMLElement) {
 }
 
 function ensureElementId(element: HTMLElement, prefix: string) {
-  if (element.id) {
-    return element.id;
-  }
-
+  if (element.id) return element.id;
   searchPanelSequence += 1;
   element.id = `${prefix}-${searchPanelSequence}`;
   return element.id;
-}
-
-function shouldOpenSearchFromKeydown(
-  key: string,
-  modalOpen: boolean,
-  activeElement: Element | null,
-) {
-  return key === '/' && !modalOpen && !isTextEntryElement(activeElement);
 }
 
 function isTextEntryElement(element: Element | null) {
@@ -193,8 +162,4 @@ function isTextEntryElement(element: Element | null) {
     element instanceof HTMLSelectElement ||
     Boolean(element instanceof HTMLElement && element.isContentEditable)
   );
-}
-
-function setExpandedState(button: HTMLButtonElement, isExpanded: boolean) {
-  button.setAttribute('aria-expanded', String(isExpanded));
 }

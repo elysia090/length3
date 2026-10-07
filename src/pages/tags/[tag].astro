@@ -5,7 +5,7 @@ import type { GetStaticPaths } from 'astro';
 import { getBlogCatalog } from '../../features/catalog';
 import type { ProcessedPost, TagRoute } from '../../features/catalog';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { ArchiveStage, ArticleCard, VolumeDefs } from '../../features/archive';
+import { ArchiveStage, ArticleCard } from '../../features/archive';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import Header from '../../components/Header.astro';
 import Footer from '../../components/Footer.astro';
@@ -37,7 +37,6 @@ const { catalogNumbers, maxReadingTime } = await getBlogCatalog();
       </p>
       <hr class="amber-rule" />
     </header>
-    <VolumeDefs />
     <ArchiveStage posts={processedPosts} catalogNumbers={catalogNumbers} />
     <section aria-label={`Articles tagged ${route.name}`}>
       {

@@ -4,7 +4,7 @@ export const prerender = true;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
-import { ArchiveStage, ArticleList, TopicList, VolumeDefs } from '../features/archive';
+import { ArchiveStage, ArticleList, TopicList } from '../features/archive';
 import { SearchPanel } from '../features/search';
 import { getBlogCatalog } from '../features/catalog';
 import { RobotTuneStage } from '../features/robot-tune';
@@ -19,7 +19,6 @@ const copy = getSiteCopy('en');
   <div id="index" class="index-anchor"></div>
   <Header />
   <main class="index-layout" id="main-content">
-    <VolumeDefs />
     <ArchiveStage posts={processedPosts} catalogNumbers={catalogNumbers} />
     <ArticleList
       posts={processedPosts}

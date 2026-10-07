@@ -18,22 +18,20 @@ const { posts, catalogNumbers, maxReadingTime } = Astro.props;
 
 <section class="article-list" aria-label="Articles" id="article-list">
   {
-    posts.map((post) => (
+    posts.map((post, i) => (
       <ArticleCard
         post={post}
         number={catalogNumbers.get(post.slug) ?? 0}
         maxReadingTime={maxReadingTime}
+        lead={i === 0}
       />
     ))
   }
 
   <div class="list-more" data-article-reveal hidden>
     <button type="button" class="list-more-btn" aria-controls="article-list">
-      <svg class="list-more-dots" viewBox="0 0 20 4" width="20" height="4" aria-hidden="true">
-        <circle cx="2" cy="2" r="1.6"></circle>
-        <circle cx="10" cy="2" r="1.6"></circle>
-        <circle cx="18" cy="2" r="1.6"></circle>
-      </svg>
+      <span class="list-more-label" data-article-reveal-label></span>
+      <span class="list-more-icon" aria-hidden="true"></span>
     </button>
   </div>
   <!-- 焦点移動だけでは「何件増えて、あと何件あるか」が伝わらない。 -->

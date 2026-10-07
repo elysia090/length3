@@ -11,11 +11,12 @@ test('index route smoke', async ({ page }) => {
   await expect(page.locator('.index-sidebar')).toBeVisible();
   await expect(page.locator('.header-nav')).toHaveAttribute('aria-label', 'primary');
   await page.locator('[data-search-trigger]').click();
-  await expect(
-    page.locator(
-      '[data-pagefind-ui] .pagefind-ui__search-input, [data-pagefind-ui] .search-unavailable',
-    ),
-  ).toBeVisible();
+  // 検索は全画面の索引。問いの欄に焦点があり、何も打たなければトピックの索引が出る。
+  const query = page.getByRole('combobox', { name: 'Search articles' });
+  await expect(query).toBeFocused();
+  await expect(page.getByRole('navigation', { name: 'Index of topics' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(query).toBeHidden();
   expect(errors).toEqual([]);
 });
 

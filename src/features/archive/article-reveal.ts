@@ -40,8 +40,7 @@ export function nextVisibleCount(
 }
 
 /**
- * ボタンの読み上げ名。数を出すのは、押すと何件増えるかが見た目（… だけ）
- * からは判らないため。
+ * ボタンの文言（見える字と読み上げ名の両方）。押すと何件増えるかを書く。
  */
 export function formatRevealLabel(remaining: number, step: number = ARTICLE_REVEAL_STEP): string {
   const count = Math.min(remaining, Math.max(step, 1));
@@ -101,7 +100,10 @@ export function initializeArticleReveal(doc: Document = document) {
       });
 
       footer.hidden = !state.hasMore;
-      button.setAttribute('aria-label', formatRevealLabel(state.remaining));
+      const label = formatRevealLabel(state.remaining);
+      button.setAttribute('aria-label', label);
+      const text = button.querySelector('[data-article-reveal-label]');
+      if (text) text.textContent = label;
     };
 
     const onClick = () => {

@@ -59,7 +59,16 @@ function drawPlan(r: Raster, view: View, archive: Archive) {
   }
 }
 
-export function renderArchive(r: Raster, archive: Archive, scene: ArchiveScene): Hit[] {
+/**
+ * filled を渡すと、体積を持つ標本をその集合で決める（検索で一致した記事）。
+ * 渡さなければ照らされた 1 個だけ。
+ */
+export function renderArchive(
+  r: Raster,
+  archive: Archive,
+  scene: ArchiveScene,
+  filled: ReadonlySet<number> | null = null,
+): Hit[] {
   r.clear();
   const span = scene.span;
   const ppu = Math.min(r.w / (span * 1.12), r.h / (span * 0.62));
@@ -69,7 +78,8 @@ export function renderArchive(r: Raster, archive: Archive, scene: ArchiveScene):
   const solids = scene.cubes.map((c) => cubeSolid(c, 0));
   scene.cubes.forEach((c, k) => {
     const lit = k === scene.lit || c.hot > 0;
-    drawFaces(r, view, solids[k] ?? cubeSolid(c, 0), lit ? 0.95 : 0);
+    const solid = filled ? filled.has(k) || c.hot > 0 : lit;
+    drawFaces(r, view, solids[k] ?? cubeSolid(c, 0), solid ? 0.95 : 0);
   });
   const shovel = shovelSolids(scene.shovel);
   for (const s of shovel) drawFaces(r, view, s, 0.9);

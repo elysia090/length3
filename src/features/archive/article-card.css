@@ -1,79 +1,66 @@
-/* Article card (index / tag listings) — 台帳の 1 行 */
-/* 内側の刻みは 8 → 16 → 32 の倍々。日付・題・説明はひとつの塊なので 8px で
-   繋ぎ、タグはその外側なので倍の 16px を空け、カードの境目はさらに倍にする。
+/* 台帳の一行（トップと各トピックの頁）。
+   図録や目次の組み方: 左に番号、右に題、その下に一行だけ「長さ・日付・
+   トピック」。説明文は最新の 1 件（lead）にだけ添える。行は 8 → 16 → 24 の
+   刻みで、題と一行のあいだが 8、行の上下が 24。
 
-   下の padding だけ 4px 詰めてあるのは、タグの当たり判定 (padding: 0.25rem 0)
-   のぶん。合わせないと、文字で見たときにカードの下だけ 4px 広く見える。
-
-   行は 3 つに割る: 台帳番号 / 本文 / 体積。体積の立方体は右の列で底を揃える。
-   大きさは記事ごとに違うので、一覧の右端には不揃いな輪郭が立つが、地面は
-   どの行でも同じ高さにある。狭い画面では番号を本文の上に回し、立方体は
-   右に残す。 */
+   選ばれている行（舞台の標本に触れている・行に触れている・焦点がある）は、
+   検索の結果と同じく左に琥珀の罫が立ち、題と長さの線が琥珀になる。 */
 .article-card {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 3.5rem;
-  grid-template-areas:
-    'no vol'
-    'body vol';
-  column-gap: 1rem;
-  padding: 1.75rem 0 1.5rem;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 1.5rem 0;
   border-bottom: 0.0625rem solid var(--rule);
 }
 
 .article-card:first-child {
-  padding-top: 0;
+  padding-top: 0.5rem;
 }
 
-/* 一覧の末尾には「続きを開く」ボタンが続くので :last-child では当たらない。
-   罫を落とすのは最後の記事であって、最後の子要素ではない。 */
+/* 一覧の末尾には「続きを開く」が続くので :last-child では当たらない。 */
 .article-card:last-of-type {
   border-bottom: none;
 }
 
-/* 古い順の通し番号。読む順番ではなく、置かれた順番。目で拾うものでは
-   ないので、本文のどの字よりも一段淡く小さい。 */
+.article-card::before {
+  content: '';
+  position: absolute;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  left: 0;
+  width: 0.125rem;
+  background: transparent;
+}
+
+.article-card:first-child::before {
+  top: 0.5rem;
+}
+
+.article-card[data-lit]::before,
+.article-card:focus-within::before {
+  background: var(--amber-text);
+}
+
+/* 古い順の通し番号。置かれた順番で、読む順番ではない。 */
 .card-no {
-  grid-area: no;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.25rem;
   font-family: var(--font-display);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-style: italic;
   font-variant-numeric: oldstyle-nums;
   letter-spacing: 0.02em;
   color: var(--ink-3);
-}
-
-.card-body {
-  grid-area: body;
-  min-width: 0;
-}
-
-.card-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-2);
-  letter-spacing: 0.08em;
-  margin-bottom: 0.5rem;
-}
-
-.card-date {
-  color: var(--amber-text);
   white-space: nowrap;
 }
 
 .card-title {
+  margin: 0;
   font-family: var(--font-display);
-  font-size: 1.125rem;
+  font-size: 1.1875rem;
   font-weight: 400;
-  line-height: 1.32;
-  letter-spacing: -0.015em;
-  margin-bottom: 0.5rem;
-  text-wrap: balance;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
 }
 
 .card-title a {
@@ -81,7 +68,11 @@
   transition: color var(--transition-fast);
 }
 
-/* タッチ端末では tap 後も :hover が残り、1 件だけ選択済みのように見える。 */
+.article-card[data-lit] .card-title a {
+  color: var(--amber-text);
+}
+
+/* タッチ端末では tap 後も :hover が残り、1 件だけ選ばれたように見える。 */
 @media (hover: hover) {
   .card-title a:hover {
     color: var(--amber-text);
@@ -89,220 +80,211 @@
 }
 
 .card-excerpt {
-  font-size: 0.875rem;
-  line-height: 1.7;
+  max-width: 40em;
+  margin: 0.75rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.8;
   color: var(--ink-2);
-  margin-bottom: 1rem;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
+}
+
+/* 長さ・日付・トピックの一行。 */
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.25rem;
+  margin-top: 0.625rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+.card-measure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  white-space: nowrap;
+}
+
+.card-reading-time {
+  min-width: 3.75em;
+  color: var(--ink-2);
+}
+
+.card-date {
+  white-space: nowrap;
 }
 
 .card-tags {
   margin: 0;
 }
 
-/* ─── 体積 ───────────────────────────────────────────────────── */
-.card-volume {
-  grid-area: vol;
-  align-self: end;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 0;
-  /* タグ行の当たり判定 4px ぶん持ち上げて、立方体の底を題の塊ではなく
-     タグの字の下端に合わせる。 */
-  padding-bottom: 0.25rem;
+/* ─── 長さ（L = ∛V）────────────────────────────────────────────── */
+/* 地の点線が物差し（一覧でいちばん長い記事）。その上に、この記事の長さ
+   だけ実線を引き、長さ 1 ごとに目盛りを立て、端に小さな角を置く。 */
+.card-length {
+  --track: 6rem;
+  --c: var(--ink);
+
+  position: relative;
+  flex: none;
+  width: var(--track);
+  height: 0.5rem;
+  background: radial-gradient(circle, var(--ink-3) 0.5px, transparent 0.75px) 0 50% / 0.25rem
+    0.125rem repeat-x;
 }
 
-.card-volume .volume-cube {
-  width: 3.5rem;
-  height: 3.5rem;
+.card-length-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--l) * 100%);
+  background:
+    linear-gradient(var(--c), var(--c)) 0 50% / 100% 0.0625rem no-repeat,
+    repeating-linear-gradient(
+        to right,
+        var(--c) 0 0.0625rem,
+        transparent 0.0625rem calc(var(--track) / var(--units))
+      )
+      0 50% / 100% 0.3125rem no-repeat;
 }
 
-.card-volume-caption {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  font-family: var(--font-mono);
-  font-size: var(--font-ui-xs);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  line-height: 1.5;
-  color: var(--ink-3);
-  white-space: nowrap;
+.card-length-bar::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -0.0625rem;
+  width: 0.1875rem;
+  height: 0.5rem;
+  background: var(--c);
+  transform: translateY(-50%);
 }
 
-/* 立方体。線は 1 本の太さで、手前の辺も奥の辺も同じに引く。 */
-.volume-cube {
-  display: block;
-  overflow: visible;
-}
-
-.volume-cube path {
-  fill: none;
-  stroke-width: 1;
-  stroke-linecap: square;
-  vector-effect: non-scaling-stroke;
-}
-
-.volume-cube--ink path {
-  stroke: var(--ink-2);
-}
-
-/* 面は空のまま置いておき、記事に触れたときだけ満たす。満ちた面は網点の
-   地を持っているので、奥の 3 本はその下に隠れる。色の遷移ではなく状態の
-   切り替えなので、時間はかけない。 */
-.volume-cube-face {
-  fill-opacity: 0;
-}
-
-.article-card:focus-within .volume-cube-face {
-  fill-opacity: 1;
-}
-
-/* 舞台の標本に触れているあいだ、その行が灯る。 */
-.article-card[data-lit] .card-title a {
-  color: var(--amber-text);
-}
-
-.article-card[data-lit] .volume-cube-face {
-  fill-opacity: 1;
+.article-card[data-lit] .card-length,
+.article-card:focus-within .card-length {
+  --c: var(--amber-text);
 }
 
 @media (hover: hover) {
-  .article-card:hover .volume-cube-face {
-    fill-opacity: 1;
+  .article-card:hover .card-length {
+    --c: var(--amber-text);
   }
 
-  .article-card:hover .volume-cube--ink path {
-    stroke: var(--ink);
+  .article-card:hover::before {
+    background: var(--amber-text);
   }
+}
+
+/* ─── 最新の 1 件 ─────────────────────────────────────────────── */
+.article-card--lead .card-title {
+  font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.125rem);
+  font-weight: 300;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.article-card--lead .card-length {
+  --track: 8rem;
 }
 
 /* ─── 続きを開く ─────────────────────────────────────────────── */
 /* 記事が増えても、一覧の下にある検索とトピックまでの距離を一定に保つための
-   出口。ページ送りではないので数字は出さない。押すたびに 4 件ずつ伸びる。 */
+   出口。トピックの「+31 more」と同じ組み方の一行で、押すたびに 4 件ずつ
+   伸びる。 */
 
-/* 折り畳んでいるあいだ、末尾の 1 件は裾が薄れる。読ませるための行ではなく、
-   下にまだ続くことを示す面。罫も落として、切れ目ではなく続きに見せる。 */
+/* 折り畳んでいるあいだ、末尾の 1 件は裾が薄れる。下にまだ続くことを示す。 */
 .article-card[data-teaser] {
-  mask-image: linear-gradient(180deg, #000 34%, rgba(0, 0, 0, 0.07) 100%);
+  mask-image: linear-gradient(180deg, #000 30%, rgba(0, 0, 0, 0.12) 100%);
   border-bottom-color: transparent;
 }
 
-/* ボタンは薄れた裾に被せる。何もない空きに置くと、一覧から切り離された
-   別の部品に見えてしまう。 */
 .list-more {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  /* カードの下端に半分掛ける。タグ行まで登らせるとリンクの上に蓋をする。 */
-  margin-top: -2rem;
+  border-top: 0.0625rem solid var(--rule);
 }
 
-/* ガラス。地を塗り潰さず、後ろの等高線と薄れた行を通して見せる。積むのは
-   3 枚だけ:
-
-   1. backdrop-filter — 後ろを曇らせ、彩度を上げる（ガラスの厚み）
-   2. 寒色の tint — 地と反対の色相に置いて、透けたまま輪郭を立てる
-   3. 細い縁 — レンズの周り
-
-   SVG の feDisplacementMap による屈折は入れていない。直径 44px では歪みが
-   1px 未満で見えないうえ、backdrop-filter: url() が効くのは Chromium だけで、
-   他のブラウザでは宣言ごと落ちて曇りまで消える。
-
-   外の影は無い。強い白のリムも無い。ガラスは白だけで積むと紙と同じ明るさに
-   なって見えなくなり（最初の版）、影と斜めの照りを足すと今度は紙から浮いた
-   ボタンになる（次の版）。どちらも「厚みのある物を描く」向きの手であって、
-   ここで要るのは厚みではなく、紙に伏せて置いた 1 枚のレンズ。上下の照りを
-   落として tint を平らにすると、玉ではなく面になり、地に接する。 */
 .list-more-btn {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 2.75rem;   /* 44px — spec §8: タップターゲット下限 */
-  height: 2.75rem;
-  padding: 0;
-  border: 0.0625rem solid var(--surface-line);
-  border-radius: var(--radius-pill);
-  /* 照りは左上に一段だけ、ごく薄く。放射で強く入れると球面になる。 */
-  background:
-    radial-gradient(
-      130% 130% at 32% 24%,
-      rgba(255, 255, 255, 0.34) 0%,
-      rgba(255, 255, 255, 0.1) 60%,
-      rgba(255, 255, 255, 0) 100%
-    ),
-    rgba(88, 94, 102, 0.14);
-  backdrop-filter: blur(0.25rem) saturate(1.6);
-  -webkit-backdrop-filter: blur(0.25rem) saturate(1.6);
-  color: var(--ink);
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 2.75rem; /* 44px — spec §8: タップターゲット下限 */
+  padding: 0.75rem 0 0.75rem 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-style: italic;
+  color: var(--ink-2);
+  text-align: left;
   cursor: pointer;
   touch-action: manipulation;
-  transition:
-    border-color var(--transition-fast),
-    background-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+  transition: color var(--transition-fast);
 }
 
-/* 三点は文字ではなく図形で置く。… の字形は書体まかせで、玉の中心に来ない
-   うえ点の太さも揃わない。 */
-.list-more-dots {
-  display: block;
-  fill: currentcolor;
+.list-more-icon {
+  position: relative;
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
-/* 触れると濃くなる。持ち上がりも沈みもしない — 動くのは色だけ。 */
+.list-more-icon::before,
+.list-more-icon::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 0.0625rem;
+  background: currentcolor;
+}
+
+.list-more-icon::after {
+  transform: rotate(90deg);
+}
+
 @media (hover: hover) {
   .list-more-btn:hover {
-    border-color: var(--surface-border);
-    background:
-      radial-gradient(
-        130% 130% at 32% 24%,
-        rgba(255, 255, 255, 0.38) 0%,
-        rgba(255, 255, 255, 0.12) 60%,
-        rgba(255, 255, 255, 0) 100%
-      ),
-      rgba(88, 94, 102, 0.19);
+    color: var(--amber-text);
   }
 }
 
-/* 押しているあいだだけ、内側に薄い翳りを入れる。 */
-.list-more-btn:active {
-  box-shadow: inset 0 0.0625rem 0.1875rem rgba(52, 56, 62, 0.18);
+.list-more-btn:focus-visible {
+  outline: 0.125rem solid var(--amber-text);
+  outline-offset: 0.125rem;
 }
 
+/* 番号を左の列に出す幅。番号は題の 1 行目の高さに揃える。 */
 @media (min-width: 40rem) {
   .article-card {
-    grid-template-columns: 4rem minmax(0, 1fr) 5rem;
-    grid-template-areas: 'no body vol';
+    grid-template-columns: 5.5rem minmax(0, 1fr);
     column-gap: 1.5rem;
-    padding: 2rem 0 1.75rem;
   }
 
-  /* 番号は題の 1 行目に高さを合わせる。日付の行と題の行のあいだに来ると、
-     どちらの見出しなのか分からなくなる。 */
   .card-no {
+    grid-row: 1 / span 3;
     margin: 0;
-    padding-top: 1.375rem;
-    font-size: 1rem;
+    padding: 0.3125rem 0 0 0.875rem;
+    font-size: 0.9375rem;
   }
 
-  .card-volume .volume-cube {
-    width: 4.5rem;
-    height: 4.5rem;
+  .article-card--lead .card-no {
+    padding-top: 0.875rem;
   }
 
-  .card-title {
-    font-size: 1.25rem;
+  .card-title,
+  .card-excerpt,
+  .card-meta {
+    grid-column: 2;
   }
 
-  .list-more {
-    margin-top: -2.25rem;
+  .list-more-btn {
+    padding-left: 7rem;
   }
 }

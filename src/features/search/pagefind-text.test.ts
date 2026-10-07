@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildMergedPagefindIndexes,
   canonicalizePagefindResult,
   canonicalizePagefindResultUrl,
-  getPageLanguage,
-  getSearchCopy,
   normalizePagefindSearchTerm,
   restoreSegmentedJapaneseText,
-} from './pagefind-search';
+} from './pagefind-text';
+import { getPageLanguage, getSearchCopy } from './search-copy';
 
 describe('normalizePagefindSearchTerm', () => {
   it('segments Japanese queries into Pagefind-friendly words', () => {
@@ -54,26 +52,12 @@ describe('getPageLanguage', () => {
   });
 });
 
-describe('buildMergedPagefindIndexes', () => {
-  it('uses a single shared index for every page language', () => {
-    expect(
-      buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'en'),
-    ).toEqual([]);
-    expect(
-      buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', 'ja'),
-    ).toEqual([]);
-    expect(
-      buildMergedPagefindIndexes('https://example.test/pagefind/pagefind-ui.js', null),
-    ).toEqual([]);
-  });
-});
-
 describe('getSearchCopy', () => {
   it('returns Japanese search copy for Japanese pages', () => {
     const copy = getSearchCopy('ja');
 
     expect(copy.searchLabel).toBe('記事を検索');
-    expect(copy.searchPlaceholder).toBe('記事を検索…');
+    expect(copy.searchPlaceholder).toBe('索引を引く');
     expect(copy.resultCount(1)).toBe('1件の検索結果があります。');
   });
 });

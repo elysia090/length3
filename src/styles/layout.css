@@ -1,12 +1,16 @@
 /* ─── Index Layout ───────────────────────────────────────────── */
-/* Mobile-first: article list first, discovery tools follow underneath. */
+/* 狭い画面は一列: 舞台 → 検索 → 一覧 → トピック。検索は一覧の上に置く
+   （一覧を読み切った先にしか検索が無いと、探しに来た人が迷う）。サイド
+   バーは display: contents で中身だけを並びに出し、順番は格子の領域で
+   決める。 */
 .index-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     'stage'
+    'search'
     'list'
-    'side';
+    'topics';
   gap: 0;
   max-width: var(--layout-max-width);
   margin: 0 auto;
@@ -24,13 +28,19 @@
 }
 
 .index-sidebar {
-  grid-area: side;
-  padding-left: 0;
-  padding-top: 1.25rem;
+  display: contents;
+}
+
+.index-sidebar > [data-search-panel] {
+  grid-area: search;
+  margin-bottom: 0.5rem;
+}
+
+.index-sidebar > .topic-list {
+  grid-area: topics;
   margin-top: 1.5rem;
+  padding-top: 1.25rem;
   border-top: 0.0625rem solid var(--rule);
-  align-self: start;
-  min-width: 0;
 }
 
 /* ─── Article Shell ──────────────────────────────────────────── */
@@ -179,10 +189,25 @@
     gap: 0 var(--layout-gap);
     padding-block: 2rem 4rem;
   }
+  /* 広い画面では右の列にまとめ、一覧を読み進めても付いてくる。検索は
+     いつでも手の届くところにある。 */
   .index-sidebar {
+    grid-area: side;
+    display: block;
+    position: sticky;
+    top: 2rem;
+    align-self: start;
+    min-width: 0;
     padding-left: var(--layout-gap);
-    /* 記事一覧 1 件目の日付行と検索フィールドの視覚的な高さを揃える。 */
-    margin-top: -0.25rem;
+  }
+
+  .index-sidebar > [data-search-panel] {
+    margin-bottom: 2rem;
+  }
+
+  .index-sidebar > .topic-list {
+    margin-top: 0;
+    padding-top: 0;
     border-top: none;
   }
 }
