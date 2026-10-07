@@ -1,10 +1,10 @@
-import type { Run } from '../engine/run';
-import type { Outcome } from '../engine/types';
+import type { Mind } from '../core/model';
+import type { Save } from '../sim/game';
 
 /**
- * 端末に残すもの。挑戦の途中（地図の上にいるときの状態）と、挑戦をまたいで
- * 残るもの（解放した深さ・持ち越す記憶・街が覚えている決着）。読み書きが
- * できない環境では、何も残さずに遊べる。
+ * 端末に残すもの。挑戦の途中はコマンドの列（版と一緒に）。指し直せば同じ夜に
+ * なる。挑戦をまたいで残るもの（解いた深さ・持ち越す記憶・街が覚えている人物像・
+ * 見つけた隠し効果）も。読み書きできない環境では、何も残さずに遊べる。
  */
 
 export interface Profile {
@@ -12,17 +12,17 @@ export interface Profile {
   runs: number;
   wins: number;
   best: number;
-  /** 次の挑戦へ持ち越す記憶（残響）。 */
   carry: string | null;
-  /** 前の挑戦で経験したこと（持ち越す候補）。 */
-  last: string[];
-  /** 街が覚えている、人物ごとの決着。 */
-  remembered: Record<string, Outcome>;
+  /** 街が覚えている、人物ごとのあなた像。 */
+  remembered: Record<string, Partial<Mind>>;
+  /** 見つけた隠し効果と、読み終えた主役の物語。 */
+  found: string[];
+  legends: string[];
   muted: boolean;
 }
 
-const RUN = 'dig:run';
-const PROFILE = 'dig:profile';
+const RUN = 'dig:run:v2';
+const PROFILE = 'dig:profile:v2';
 
 const blank = (): Profile => ({
   depth: 0,
@@ -30,43 +30,34 @@ const blank = (): Profile => ({
   wins: 0,
   best: 0,
   carry: null,
-  last: [],
   remembered: {},
+  found: [],
+  legends: [],
   muted: false,
 });
 
-export function loadProfile(): Profile {
+function read<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(PROFILE);
-    return raw ? { ...blank(), ...(JSON.parse(raw) as Partial<Profile>) } : blank();
-  } catch {
-    return blank();
-  }
-}
-
-export function saveProfile(p: Profile): void {
-  try {
-    localStorage.setItem(PROFILE, JSON.stringify(p));
-  } catch {
-    // 残せなくても遊べる。
-  }
-}
-
-export function loadRun(): Run | null {
-  try {
-    const raw = localStorage.getItem(RUN);
-    const r = raw ? (JSON.parse(raw) as Run) : null;
-    return r?.version === 1 && !r.ending ? r : null;
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
   }
 }
 
-export function saveRun(r: Run | null): void {
+function write(key: string, v: unknown): void {
   try {
-    if (!r || r.ending) localStorage.removeItem(RUN);
-    else localStorage.setItem(RUN, JSON.stringify(r));
+    if (v === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(v));
   } catch {
     // 残せなくても遊べる。
   }
 }
+
+export const loadProfile = (): Profile => ({
+  ...blank(),
+  ...(read<Partial<Profile>>(PROFILE) ?? {}),
+});
+export const saveProfile = (p: Profile): void => write(PROFILE, p);
+export const loadRun = (): Save | null => read<Save>(RUN);
+export const saveRun = (s: Save | null): void => write(RUN, s);
