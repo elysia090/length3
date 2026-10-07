@@ -45,16 +45,16 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 └─────────────────────────────┴──────────────┘
 ```
 
-**The opening.** `/` begins with the Robot Tune (`features/robot-tune`, `variant="opening"`), sized to fit one screen with its credit line above and an `ENTER the index` link below. Nothing plays until the reader presses play; sound is never automatic. ENTER scrolls to `#index` (instantly under reduced motion). Once a reader has scrolled past the opening or pressed ENTER, the rest of the session starts at the index: a tiny inline script in the head marks the document before first paint, and the page jumps to `#index`. A URL with a hash and back/forward navigation are left to the browser.
+**The opening.** `/` begins with the Robot Tune (`features/robot-tune`, `variant="opening"`), sized to fit one screen with a two-line title card above (`Length³ presents` / `ROBOT TUNE`) and an `Enter ↓` link below. The figure's caption is hidden here and the volume slider keeps only a screen-reader label: a title, a picture and a way in, nothing else. Nothing plays until the reader presses play; sound is never automatic. ENTER scrolls to `#index` (instantly under reduced motion). Once a reader has scrolled past the opening or pressed ENTER, the rest of the session starts at the index: a tiny inline script in the head marks the document before first paint, and the page jumps to `#index`. A URL with a hash and back/forward navigation are left to the browser.
 
-**Now playing.** When the tune is playing and its figure is off screen, a 86 × 15 pixel chip appears fixed at the bottom-left: a cube hopping on the beat (wireframe in the silent beats) and `ROBOT TUNE ‖`. It is a real button that pauses and resumes; it disappears when the figure is back in view or the tune stops.
+**Now playing.** When the tune is playing and its figure is off screen, a 26 × 15 pixel chip appears fixed at the bottom-left: a cube hopping on the beat (wireframe in the silent beats) and a pause or play glyph. No title is written on it. It is a real button that pauses and resumes; it disappears when the figure is back in view or the tune stops.
 
 **The stage.** Above both columns sits a small 1-bit picture drawn by the same rasterizer as the Robot Tune article (`src/shared/pixel/`): about 320 columns scaled by a whole number of device pixels, four colours (transparent so the paper shows through, paper, ink, amber), shading by 4 × 4 Bayer dots. Every article is a cube standing on a dotted plan, its edge the cube root of its reading time (the same measure as the list's volume cube). 2.39:1 on wide screens, 4:3 on narrow ones.
 
 - One cube at a time has volume (dithered faces); the rest are hidden-line drawings, length only. Attention gives volume, the same grammar as the article, where silence leaves only edges.
 - At rest the camera dollies slowly and cuts by 90° every 6 s, overshooting and settling; every fourth cut drops to a low angle. Each cut moves the light to the next article: it hops, squashes, flashes amber and cools, and a smaller hop ripples outward by distance.
 - Touching a row lights its cube; touching a cube lights its row. Pressing either has the shovel throw the cube, then navigates (560 ms). With the stage off screen, a modified click, or reduced motion, navigation is immediate.
-- The HUD (5 × 7 pixel font) shows total volume `V`, `L = ∛V`, the count `N`, the lit article's number, minutes and date, a row of cells, and a 24 fps timecode.
+- No text is drawn into the stage: no counters, no timecode, no labels in the corners. The list beside it already carries every number; the picture only has to show which article is lit.
 - It stops when off screen or when the tab is hidden. Under reduced motion it draws one still frame and redraws only on touch. It is `aria-hidden`; the list carries everything.
 
 Below the stage, two columns. No left gutter — the content area's own left padding provides the margin. The sidebar is separated from the main column by a single 1px rule (`var(--rule)`). The sidebar contains **search and nothing else**. Tags, statistics, and category listings each live on their own dedicated page. Placing them in the sidebar would create a secondary reading surface that competes with the article list.
@@ -63,9 +63,7 @@ Below **840px** viewport width, the sidebar disappears and the layout collapses 
 
 **Tag pages** reuse the stage with only that tag's articles.
 
-**404.** The void: a hollow (edges-only, zero-volume) `404` built from voxels stands on a dotted floor; a shovel scoops one voxel every 1.4 s and throws it, and when the glyphs are dug out they fall back from above. Pressing digs one more. The HUD reads `V 0` and `NOT FOUND`. The heading is "Nothing to dig here" with a link back to `/#index`.
-
-**Footer colophon.** One italic line under the footer: the typefaces, the rasterizer, synthesized sound, `Volume = L³`.
+**404.** The void: a hollow (edges-only, zero-volume) `404` built from voxels stands on a dotted floor; a shovel scoops one voxel every 1.4 s and throws it, and when the glyphs are dug out they fall back from above. Pressing digs one more. Nothing is written into the picture. The heading is "Nothing to dig here" with a link back to `/#index`.
 
 ### Article Page Layout
 
@@ -83,9 +81,9 @@ All utility functions — Edit, Share, Copy Link, reading progress — are reloc
 
 **TOC behavior.** `position: sticky; top: 32px`. The TOC tracks the reader's scroll position, highlighting the current section.
 
-**Reading reel.** Under the TOC, sticky at the bottom of its column, a 3³ dashed frame fills with one cube per 1/27 of the article read; each drops, squashes and cools. The 27th fills the frame, flashes amber and reads `FIN`. Below it, a 24 fps timecode of reading time so far. It draws only on scroll and is `aria-hidden` — the progress bar already reports progress.
+**Reading reel.** Under the TOC, sticky at the bottom of its column, a 3³ dashed frame fills with one cube per 1/27 of the article read; each drops, squashes and cools. The 27th fills the frame and the whole cube flashes amber and cools. No numbers or labels are drawn. Progress is measured exactly as the reading-progress bar measures it (page scroll), so the frame is full when the bar reads 100%. It draws only on scroll and is `aria-hidden` — the progress bar already reports progress.
 
-**End of reel.** After the prose, `— FIN —`, `End of reel No. NNN · X min = r³`, and the previous and next reels (`rel="prev"`/`rel="next"`). It is excluded from the search index.
+**Previous / next.** After the prose, the previous and next articles (`rel="prev"`/`rel="next"`): a direction in small mono and the title, under a hairline. No sign-off, no heading. It is excluded from the search index.
 
 **Responsive collapse.** At 720–960px, the TOC remains but the right empty column disappears. At 640–720px, the TOC moves to the top of the article, collapsed inside a `<details>` element. Below 640px, the same `<details>` treatment, fully single-column.
 
@@ -254,7 +252,7 @@ Amber-text on BG-2 measures **4.6:1** and clears AA — the pairing that appears
 
 **Vertical padding:** 20px top, 20px bottom. A 1px Rule border on the bottom edge.
 
-**Site icon.** The logotype is text on the page, but the tab needs a picture, and the picture is the About page's stone standing on the contour paper with `L³` set in the corner. It ships as `favicon.ico` (16/32/48 PNGs in one container), a 192px PNG for Android home screens, and a 180px `apple-touch-icon` — that last one flooded with BG behind the artwork, since iOS masks its own corners and composites anything transparent onto black.
+**Site icon.** The logotype is text on the page, but the tab needs a picture, and the picture is the old About page's stone standing on the contour paper with `L³` set in the corner. It ships as `favicon.ico` (16/32/48 PNGs in one container), a 192px PNG for Android home screens, and a 180px `apple-touch-icon` — that last one flooded with BG behind the artwork, since iOS masks its own corners and composites anything transparent onto black.
 
 The mark it replaced drew a full-size `3` beside the `L` **and** an amber `3` above it, which at tab size read as `L33`. An exponent is one digit in one position; a second copy of it at body size is not emphasis, it is a different number.
 
@@ -309,7 +307,11 @@ Getting there took the two opposite mistakes. Built from white alone the disc wa
 
 This does not contradict the search overlay's ban on `backdrop-filter` (below). That ban is about a **surface the reader reads through**; the disc is a **control the reader looks at**. Blur that dims a page of text serves the interface; blur that gives a 44px control physical depth serves the reader's understanding of what it is.
 
-**The stone.** The About page's monolith is drawn, not photographed: `features/monolith` stands a 1 : 4 : 9 slab (1² : 2² : 3²) on a dotted floor with the same 1-bit rasterizer, about 100 columns wide, its base dissolving into the paper. The camera tours it slowly and cuts every 9 s (ground level, high, head-on — where it is only a black rectangle). Touching it is _alignment_: the camera drops to the ground head-on, an amber sun rises over the top edge, a quarter-tone cluster of nine voices sounds, and after 4 s the tour resumes. The figure takes `user-select: none` and `-webkit-touch-callout: none`; the canvas is `aria-hidden` and a full-size button carries the description. Reduced motion: one still frame, and the alignment is shown without motion.
+**The plate.** About shows Michelangelo's _The Creation of Adam_ (c. 1512, public domain) printed like a two-colour risograph in the site's dots (`features/adam`). `scripts/adam/bake.ts` turns `data/creation-of-adam.jpg` into three plates in one lossless WebP — ink density, the share of ink dots that print amber instead, and an amber shadow on the plaster — and the browser only screens them with offset 4 × 4 Bayer matrices and films them.
+
+- **Amber is placed, not derived.** It never fills an area and never follows a global tone rule. It replaces a fraction of the ink dots in a handful of authored places — the dark pocket of God's mantle the arm reaches out of, the dome of the mantle, the shadow mass under God, the earth under Adam's torso and knee — and lies as a thin shadow under the fingertips. About 1–2 % of the picture's dots. Nothing reaches Adam's head. No area prints solid: even the deepest ink leaves a tenth of the paper showing.
+- **Handheld camera.** No animation in the picture itself. The frame drifts a few pixels and rolls by under half a degree, as if held on a shoulder; the dot grid stays fixed to the screen, so the dots regroup as it sways, like grain. 24 frames a second, stopped off screen, one still frame under reduced motion.
+- **Frame.** 2.39 : 1 under the paragraph on wide screens. On narrow screens 2 : 1 — nearly the whole picture, not a crop of the hands — with dots no smaller than 1.75 CSS px, so it stays an abstraction rather than a shrunken photograph. The edges dissolve into the paper. No text in or around it; the figure is `role="img"` with a description.
 
 **Behaviour without JavaScript.** The server renders every article and the disc `hidden`. The collapse happens only once the script runs, so a reader without JavaScript — and any crawler or in-page find — gets the whole list. Collapsed items stay in the DOM (`hidden`), never removed.
 
@@ -386,7 +388,7 @@ Both sides means both. The results are the one scrolling region in the card, and
 
 **Keyboard navigation.** `↑` / `↓` move the selection through the results while focus stays in the field, so typing never needs a trip back. The field is therefore a `combobox`, the list a `listbox`, each result an `option`, and the selection is carried by `aria-activedescendant` — the same attribute the highlight is styled from. Selection wraps at both ends and clears whenever the query changes, because the results it pointed at no longer exist. `↵` opens the selected result, or the first one when nothing is selected. A keystroke that arrives mid-IME-composition is not a command: `Enter` closing a Japanese conversion must never open an article. Conversely, a prevented default is not proof the key was consumed — Pagefind cancels `Enter` on the field to stop the form submitting, and reading that as "handled" is what left the footer promising a key that did nothing.
 
-**The query has volume.** Between the header bar and the field runs a strip drawn by the shared 1-bit rasterizer. Each typed character is built from its 5 × 7 pixel glyph as voxels and drops in, squashes, flashes amber and cools; a deleted character tumbles away. The HUD gives the query's volume `V` (voxels) and `L = ∛V`, and the result count `N`, which rolls up and sends a hop down the letters when it grows. When a settled search finds nothing, the letters lose their faces and keep only their edges, and `N` reads `VOID`. The strip runs only while the dialog is open and something is moving. It is `aria-hidden`; the status line still announces results.
+**The query has volume.** The card has no header bar: the title is kept for screen readers and the close button sits alone in the top-right corner. The card opens with a strip drawn by the shared 1-bit rasterizer. Each typed character is built from its 5 × 7 pixel glyph as voxels and drops in, squashes, flashes amber and cools; a deleted character tumbles away. No counters are drawn in its corners; when the result count grows, a hop runs down the letters. When a settled search finds nothing, the letters lose their faces and keep only their edges. The field below is the same single underline as the sidebar search, thickening to amber on focus. The strip runs only while the dialog is open and something is moving. It is `aria-hidden`; the status line still announces results.
 
 **Results are a concordance.** Each excerpt is split around its first match (`concordance.ts`) into left context, keyword and right context, set as `1fr auto 1fr`. The keyword of every result falls on the same vertical axis, so a reader can scan how the word is used from top to bottom (KWIC).
 

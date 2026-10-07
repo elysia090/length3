@@ -3,142 +3,66 @@ export const prerender = true;
 
 import Footer from '../components/Footer.astro';
 import Header from '../components/Header.astro';
-import { Monolith } from '../features/monolith';
+import { Adam } from '../features/adam';
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout title="About — Length³" description="About Length³">
   <Header />
   <main class="about-shell" id="main-content">
-    <div class="about-column">
-      <header class="page-header about-header">
-        <h1 class="page-title">About</h1>
-        <hr class="amber-rule about-rule" />
-      </header>
-      <div class="about-body prose">
-        <!-- 石の左稜線を写した排除領域。本文はこれを avoid して折り返す。 -->
-        <div class="about-taper" aria-hidden="true"></div>
-        <p>
-          <strong>Length³</strong> is a technical blog focused on depth over breadth. Each article aims
-          to be worth the time it takes to read.
-        </p>
-      </div>
+    <header class="page-header about-header">
+      <h1 class="page-title">About</h1>
+      <hr class="amber-rule about-rule" />
+    </header>
+    <div class="about-body prose">
+      <p>
+        <strong>Length³</strong> is a technical blog focused on depth over breadth. Each article aims
+        to be worth the time it takes to read.
+      </p>
     </div>
-
-    <div class="about-figure">
-      <Monolith class="about-monolith" />
+    <div class="about-plate">
+      <Adam />
     </div>
   </main>
   <Footer />
 </BaseLayout>
 
 <style>
-  /* ページ全体を 1 画面ちょうどに収める。余りが出るとスクロールが生まれ、
-     position: fixed のテクスチャに対して石だけが動いて、せっかく面に彫れて
-     いる等高線がずれていく。
-
-     石は絶対配置。フローに残したまま height: 100% を与えると、行の高さが
-     石の原寸から決まり、その行に対して石が 100% を取ろうとして解けない
-     （石が原寸まで伸びてページのほうが伸びる）。フローから外すと高さの
-     決定が一方向になり、画面 → 石の順で一意に決まる。 */
+  /* 文章は短いので上に置き、絵はその下に版面の幅いっぱいで敷く。広い画面で
+     2.39 : 1。狭い画面でも寄らずにほぼ全景を写すので 2 : 1（元絵は 2.2 : 1）。 */
   .about-shell {
-    /* 石の幅と、文章との間隔。本文の折り返し幅もここから引く。 */
-    --stone-width: min(46vw, 13.5rem);
-    --stone-gap: clamp(0.75rem, 3vw, 2.5rem);
-
-    position: relative;
     flex: 1;
     /* body が縦 flex なので、幅を宣言しないと margin-inline: auto が
        shrink-to-fit を招き、版面が内容の幅まで縮む。 */
     width: 100%;
     max-width: var(--layout-max-width);
     margin: 0 auto;
-    padding-block: 2rem 0;
+    padding-block: 2rem 4rem;
     padding-inline: max(var(--page-gutter), env(safe-area-inset-left))
       max(var(--page-gutter), env(safe-area-inset-right));
-  }
-
-  /* 本文の列は石の幅を引かない。石をよけるのは列ではなく行で、下の
-     .about-taper がやる。 */
-  .about-column {
-    min-width: 0;
-    max-width: var(--measure);
-  }
-
-  /* 石は上が尖って下が太い。その稜線をそのまま排除領域にすると、行に使える
-     幅が上から下へ細っていき、本文が段差になって落ちる。石をよけた結果と
-     文字の形が同じものになる。
-
-     shape-outside を解さないブラウザでは矩形のフロートに退化する。行の長さが
-     揃うだけで、本文はどこにも重ならない。 */
-  /* .prose > p は content-visibility: auto を持つ。これは layout 封じ込めを
-     作るので、段落が独立した整形文脈になり、フロートの「形」ではなく矩形の
-     隣に置かれてしまう（行が段差にならない原因だった）。この頁は 3 文しか
-     ないので、飛ばし描画の利点は最初からない。 */
-  .about-body > * {
-    content-visibility: visible;
-    contain-intrinsic-size: auto none;
-  }
-
-  .about-taper {
-    float: right;
-    width: calc(var(--stone-width) + var(--stone-gap));
-    height: 22rem;
-    shape-outside: polygon(100% 0, 100% 100%, 0 100%, 46% 0);
-    shape-margin: 0.75rem;
   }
 
   .about-rule {
     margin-top: 1rem;
   }
 
-  /* 石は文章の隣に、天井から床まで立てる。高さは画面が決めるので、ここで
-     与えるのは幅の上限だけ。裾は霧に溶ける素材なので台座は要らない。
+  .about-body {
+    max-width: var(--measure);
+  }
 
-     z-index は上げない。テクスチャ (body::before) は position: fixed の全面
-     オーバーレイなので、石の暗い面には等高線がそのまま乗る。紙の上に置いた
-     写真ではなく、ページと同じ面に彫られた物として見える。描画は
-     features/monolith の 1 ビットのラスタライザで、透明の画素から紙が覗く。 */
-  /* 石は読むものではなく、この頁の地の一部。文章を選ぼうとして端まで
-     引いた指が石まで掴まないよう、選択・長押しの対象から外す（Monolith 側）。
-     絵は aria-hidden で、押せることと形はボタンの名前が読み上げる。 */
-  .about-figure {
-    position: absolute;
-    inset-block: 2rem 0;
-    inset-inline-end: max(var(--page-gutter), env(safe-area-inset-right));
-    width: var(--stone-width);
-    margin: 0;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
+  .about-plate {
+    aspect-ratio: 2 / 1;
+    margin-top: 3rem;
   }
 
   @media (min-width: 52.5rem) {
     .about-shell {
-      /* 版面に余裕がある幅では、石も太くしてよい。 */
-      --stone-width: min(22vw, 16rem);
-      --stone-gap: var(--layout-gap);
-
-      padding-block: 4rem 0;
+      padding-block: 4rem 5rem;
     }
 
-    /* 広い画面の石の丈は据え置き（clamp(28rem, 82vh, 52rem)）。画面いっぱい
-       まで伸ばすと、承認済みの版より石が高くなって釣り合いが変わる。天井は
-       開けたまま床から立てる。max-height は、極端に低い画面でも版面から
-       はみ出させないための保険。 */
-    .about-figure {
-      inset-block: auto 0;
-      height: min(clamp(28rem, 82vh, 52rem), 100%);
-    }
-
-    .about-column {
-      padding-top: 1rem;
-    }
-
-    /* 横に並ぶ幅では本文の列と石の列が重ならないので、よける必要がない。
-       ここで残すと本文の折り返しまで変わってしまう。 */
-    .about-taper {
-      display: none;
+    .about-plate {
+      aspect-ratio: 2.39 / 1;
+      margin-top: 4rem;
     }
   }
 </style>

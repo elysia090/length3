@@ -1,6 +1,6 @@
-import { drawText, glyphRows, textWidth } from '../../shared/pixel/font';
+import { glyphRows } from '../../shared/pixel/font';
 import { clamp, hash, IDENTITY, mul, rotX, rotZ, spring } from '../../shared/pixel/math';
-import { AMBER, INK, Raster } from '../../shared/pixel/raster';
+import { Raster } from '../../shared/pixel/raster';
 import { type CubeState, cubeSolid, drawEdges, drawFaces, View } from '../../shared/pixel/solids';
 
 /**
@@ -55,10 +55,6 @@ export function diffLetters(letters: readonly Letter[], query: string, now: numb
     next.push({ ch, voxels: voxelize(ch), born: now + i * 0.035, died: null });
   });
   return next;
-}
-
-export function queryVolume(letters: readonly Letter[]): number {
-  return letters.filter((l) => l.died === null).reduce((n, l) => n + l.voxels.length, 0);
 }
 
 function rgba(css: string, fallback: number): number {
@@ -134,14 +130,15 @@ export function mountQueryStrip(canvas: HTMLCanvasElement): QueryStrip | null {
 
     const n = Math.max(alive.length, 1);
     const widthUnits = Math.max(n * GLYPH_W, 18);
-    const ppu = Math.min(raster.h / 13, (raster.w * 0.56) / widthUnits);
+    const ppu = Math.min(raster.h / 15, (raster.w * 0.6) / widthUnits);
     const camera = {
       azimuth: 0.38,
       elevation: 0.42,
       target: [0, 3.6, 0] as [number, number, number],
       span: 1,
     };
-    const view = new View(camera, ppu, raster.w * 0.46, raster.h * 0.6);
+    // 字は帯の真ん中に。隅に数字は置かない。
+    const view = new View(camera, ppu, raster.w * 0.5, raster.h * 0.56);
     const cubes: { c: CubeState; hot: number }[] = [];
     const startX = -(alive.length * GLYPH_W) / 2;
     let slot = 0;
@@ -228,14 +225,6 @@ export function mountQueryStrip(canvas: HTMLCanvasElement): QueryStrip | null {
       if (hollow || (cube && !cube.c.landed)) drawEdges(raster, view, s, hollow, 0.05);
     });
 
-    const m = 4;
-    const vol = queryVolume(letters);
-    drawText(raster, 'V', m, m, INK);
-    drawText(raster, String(vol), m + 9, m, INK);
-    drawText(raster, 'L', m, m + 10, INK);
-    drawText(raster, Math.cbrt(Math.max(vol, 0)).toFixed(2), m + 9, m + 10, INK);
-    const label = hollow ? 'N 0  VOID' : `N ${Math.round(shown)}`;
-    drawText(raster, label, raster.w - m - textWidth(label), m, hollow ? INK : AMBER);
     raster.present(out, palette);
     ctx2d.putImageData(image, 0, 0);
     if (running && !still && busy(t)) raf = requestAnimationFrame(loop);

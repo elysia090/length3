@@ -136,11 +136,6 @@
   white-space: nowrap;
 }
 
-.card-volume-root sup {
-  font-size: 0.75em;
-  line-height: 0;
-}
-
 /* 立方体。線は 1 本の太さで、手前の辺も奥の辺も同じに引く。 */
 .volume-cube {
   display: block;

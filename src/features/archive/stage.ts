@@ -91,7 +91,7 @@ export function mountArchive(root: HTMLElement): void {
     if (!image || !out) return;
     const t = now();
     const scene = archiveSceneAt(t, archive, interaction, reduced.matches);
-    hits = renderArchive(raster, archive, scene, t);
+    hits = renderArchive(raster, archive, scene);
     raster.present(out, palette);
     ctx2d.putImageData(image, 0, 0);
     const slug = archive.specimens[scene.lit]?.slug;

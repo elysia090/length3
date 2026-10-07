@@ -1,9 +1,9 @@
-import { cross, dot, normalize, sub, type Vec3 } from '../../shared/pixel/math';
-import type { Projector } from '../../shared/pixel/solids';
+import { cross, dot, normalize, sub, type Vec3 } from './math';
+import type { Projector } from './solids';
 
 /**
- * 透視投影のカメラ。射撃場は一人称なので、一覧や Robot Tune の平行投影
- * とは違うレンズが要る。奥行きは 1/z を返す: 画面上で線形に補間でき、
+ * 透視投影のカメラ。射撃場の一人称と About の石の煽りは、一覧や
+ * Robot Tune の平行投影とは違うレンズが要る。奥行きは 1/z を返す: 画面上で線形に補間でき、
  * 近いほど大きいので Raster の Z バッファの約束（大きいほど手前）に合う。
  */
 export class PerspView implements Projector {

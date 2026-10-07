@@ -3,13 +3,9 @@
  * 目次の下に置く、読んだぶんだけ積まれる立方体（reel.ts）。進み具合は
  * 上端の進捗バーが支援技術に伝えているので、こちらは絵として隠す。
  */
-interface Props {
-  readingTime: number;
-}
-const { readingTime } = Astro.props;
 ---
 
-<div class="reading-reel" data-reading-reel data-minutes={readingTime} aria-hidden="true">
+<div class="reading-reel" data-reading-reel aria-hidden="true">
   <canvas></canvas>
 </div>
 
@@ -25,10 +21,11 @@ const { readingTime } = Astro.props;
   .reading-reel {
     position: sticky;
     bottom: 0;
-    margin-top: 2rem;
-    padding-block: 1rem 0.5rem;
-    border-top: 0.0625rem solid var(--rule);
-    background: var(--bg);
+    margin-top: 1rem;
+    padding-block: 2rem 0.5rem;
+    /* 下から上がってくる目次の行は、紙に溶けてから立方体の下へ消える。
+       箱で隠すと、そこだけ紙を切り貼りしたように見える。 */
+    background: linear-gradient(to bottom, transparent, var(--bg) 1.75rem);
   }
 
   .reading-reel canvas {

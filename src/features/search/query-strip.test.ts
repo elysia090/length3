@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffLetters, type Letter, queryVolume, voxelize } from './query-strip';
+import { diffLetters, type Letter, voxelize } from './query-strip';
 import { isGunman } from './search-play';
 
 describe('query strip', () => {
@@ -18,11 +18,6 @@ describe('query strip', () => {
     expect(dying.join('')).toBe('ad');
     // 頭の 3 字は打ち直されていない（落ち直さない）。
     expect(letters.filter((l) => l.died === null && l.born < 1)).toHaveLength(3);
-  });
-
-  it('measures the volume of the query in voxels', () => {
-    const letters = diffLetters([], 'L', 0);
-    expect(queryVolume(letters)).toBe(voxelize('L').length);
   });
 
   it('opens the range only for gunman', () => {

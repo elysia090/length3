@@ -1,8 +1,8 @@
 import { drawText, textWidth } from '../../shared/pixel/font';
 import { add, clamp, easeOutBack, hash, rotX, scale, type Vec3 } from '../../shared/pixel/math';
+import { PerspView } from '../../shared/pixel/persp';
 import { AMBER, INK, PAPER, Raster, threshold } from '../../shared/pixel/raster';
 import { drawEdges, drawFaces, type Solid } from '../../shared/pixel/solids';
-import { PerspView } from './persp';
 import {
   about,
   box,

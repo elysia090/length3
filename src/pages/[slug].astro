@@ -7,39 +7,32 @@ import ArticleLayout from '../layouts/ArticleLayout.astro';
 import { getBlogCatalog } from '../features/catalog';
 import type { BlogPost, ProcessedPost } from '../features/catalog';
 
-interface Reel {
+interface Neighbour {
   href: string;
   title: string;
-  number: number;
 }
 
 export const getStaticPaths = (async () => {
-  const { processedPosts, catalogNumbers } = await getBlogCatalog();
-  // 新しい順に並んでいるので、一つ後ろが「前のリール」（古い記事）。
-  const reel = (p: ProcessedPost | undefined): Reel | undefined =>
-    p && {
-      href: `/${p.slug}`,
-      title: p.entry.data.title,
-      number: catalogNumbers.get(p.slug) ?? 0,
-    };
+  const { processedPosts } = await getBlogCatalog();
+  // 新しい順に並んでいるので、一つ後ろが前の記事（古い側）。
+  const neighbour = (p: ProcessedPost | undefined): Neighbour | undefined =>
+    p && { href: `/${p.slug}`, title: p.entry.data.title };
   return processedPosts.map((processed, i) => ({
     params: { slug: processed.slug },
     props: {
       entry: processed.entry,
       processed,
-      number: catalogNumbers.get(processed.slug) ?? 0,
-      previous: reel(processedPosts[i + 1]),
-      next: reel(processedPosts[i - 1]),
+      previous: neighbour(processedPosts[i + 1]),
+      next: neighbour(processedPosts[i - 1]),
     },
   }));
 }) satisfies GetStaticPaths;
 
-const { entry, processed, number, previous, next } = Astro.props as {
+const { entry, processed, previous, next } = Astro.props as {
   entry: BlogPost;
   processed: ProcessedPost;
-  number: number;
-  previous?: Reel;
-  next?: Reel;
+  previous?: Neighbour;
+  next?: Neighbour;
 };
 const { Content, headings } = await render(entry);
 ---
@@ -53,7 +46,6 @@ const { Content, headings } = await render(entry);
   readingTime={processed.readingTime}
   headings={headings}
   lang={entry.data.lang}
-  number={number}
   previous={previous}
   next={next}
 >

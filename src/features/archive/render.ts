@@ -1,6 +1,5 @@
-import { drawText, textWidth } from '../../shared/pixel/font';
 import type { Vec3 } from '../../shared/pixel/math';
-import { AMBER, INK, type Raster, threshold } from '../../shared/pixel/raster';
+import { INK, type Raster, threshold } from '../../shared/pixel/raster';
 import {
   cubeSolid,
   drawEdges,
@@ -19,15 +18,6 @@ export interface Hit {
   y0: number;
   x1: number;
   y1: number;
-}
-
-const sig = (v: number) => (v >= 100 ? Math.round(v).toString() : v.toFixed(2));
-
-/** 映画のタイムコード。24 コマ。 */
-function timecode(t: number): string {
-  const f = Math.floor(t * 24);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(Math.floor(f / 86400) % 100)}:${pad(Math.floor(f / 1440) % 60)}:${pad(Math.floor(f / 24) % 60)}:${pad(f % 24)}`;
 }
 
 /** 区画の角に小さな十字。図面の通り芯の印。 */
@@ -69,42 +59,7 @@ function drawPlan(r: Raster, view: View, archive: Archive) {
   }
 }
 
-function drawHud(r: Raster, archive: Archive, scene: ArchiveScene, t: number) {
-  const m = r.w < 240 ? 4 : 6;
-  const count = archive.specimens.length;
-  drawText(r, 'V', m, m, INK);
-  drawText(r, `${archive.volume} min`, m + 9, m, INK);
-  drawText(r, 'L', m, m + 10, INK);
-  drawText(r, sig(Math.cbrt(Math.max(1, archive.volume))), m + 9, m + 10, INK);
-  drawText(r, 'N', m, m + 20, INK);
-  drawText(r, String(count), m + 9, m + 20, INK);
-
-  const s = archive.specimens[scene.lit];
-  if (s) {
-    const color = scene.fresh > 0.5 ? AMBER : INK;
-    const lines = [`No.${String(s.number).padStart(3, '0')}`, `${s.minutes} min`, s.date];
-    lines.forEach((line, j) => {
-      drawText(r, line, r.w - m - textWidth(line), m + j * 10, j === 0 ? color : INK);
-    });
-  }
-
-  // 標本の数だけ升を並べ、照らしているものを琥珀に。
-  const y = r.h - m - 4;
-  for (let k = 0; k < count; k++) {
-    const x = m + k * 5;
-    if (k === scene.lit) r.rect(x, y, 4, 4, AMBER);
-    else {
-      r.set(x, y, INK);
-      r.set(x + 3, y, INK);
-      r.set(x, y + 3, INK);
-      r.set(x + 3, y + 3, INK);
-    }
-  }
-  const tc = timecode(t);
-  drawText(r, tc, r.w - m - textWidth(tc), r.h - m - 7, INK);
-}
-
-export function renderArchive(r: Raster, archive: Archive, scene: ArchiveScene, t: number): Hit[] {
+export function renderArchive(r: Raster, archive: Archive, scene: ArchiveScene): Hit[] {
   r.clear();
   const span = scene.span;
   const ppu = Math.min(r.w / (span * 1.12), r.h / (span * 0.62));
@@ -133,6 +88,5 @@ export function renderArchive(r: Raster, archive: Archive, scene: ArchiveScene, 
       y1: Math.max(...pts.map((p) => p[1])),
     });
   });
-  drawHud(r, archive, scene, t);
   return hits;
 }

@@ -36,7 +36,7 @@ top-level `packageManager` field.
   logic, colocated CSS and unit tests, and exposes a public API through its
   `index.ts`. `catalog` (post data), `archive` (index stage and list), `article`
   (TOC, reading reel, end of reel), `search`, `gunman`, `robot-tune` (opening),
-  `monolith` (About), `void` (404). `src/architecture.test.ts` enforces the
+  `adam` (About), `void` (404). `src/architecture.test.ts` enforces the
   boundaries: features meet only through `index.ts`, and `shared`, `i18n` and
   `config` never import features, pages or layouts
 - `src/shared/pixel/`: the 1-bit software rasterizer every picture is drawn with

@@ -15,8 +15,6 @@ import {
 } from '../../shared/pixel/solids';
 import type { Scene } from './choreo';
 import { STACK } from './choreo';
-import { formatLength, formatVolume, groupDigits, sci, unitCount } from './scale';
-import { BPM } from './timeline';
 
 export interface Frame {
   scene: Scene;
@@ -129,39 +127,11 @@ function drawScope(
   }
 }
 
-function countLabel(scene: Scene): string {
-  const n = unitCount(scene.level, scene.count);
-  const s = n.toString();
-  return s.length <= 13 ? groupDigits(n) : sci(Number(n));
-}
-
-function drawHud(r: Raster, f: Frame) {
-  const { scene } = f;
+// 数字は描かない。拍の升目と波形だけを下端に置く（文字は図の外の
+// キャプションが持つ）。
+function drawScore(r: Raster, f: Frame) {
   const m = r.w < 240 ? 4 : 6;
-  const volume = Number(unitCount(scene.level, scene.count));
-  const hot = scene.cubes.some((c) => c.landed && c.hot > 0.5);
-  drawText(r, 'V', m, m, INK);
-  drawText(r, formatVolume(volume), m + 9, m, hot ? AMBER : INK);
-  drawText(r, 'L', m, m + 10, INK);
-  drawText(r, formatLength(Math.cbrt(Math.max(volume, 1))), m + 9, m + 10, INK);
-  drawText(r, 'N', m, m + 20, INK);
-  drawText(r, countLabel(scene), m + 9, m + 20, INK);
-
-  const bpm = `${Math.round(BPM)} BPM`;
-  drawText(r, bpm, r.w - m - textWidth(bpm), m, INK);
-  const label =
-    scene.phase === 'loop'
-      ? `LOOP ${String(scene.level).padStart(2, '0')}`
-      : scene.phase === 'build'
-        ? 'BUILD'
-        : 'INTRO';
-  drawText(r, label, r.w - m - textWidth(label), m + 10, INK);
-
-  const formula = scene.phase === 'loop' ? '13 × 2 + 1 = 3³' : '1 + 7 + 19 = 3³';
-  const rowY = r.h - m - 7;
-  drawText(r, formula, m, rowY - 11, INK);
-  drawCells(r, scene, m, rowY);
-
+  drawCells(r, f.scene, m, r.h - m - 7);
   const sw = Math.min(72, Math.floor(r.w * 0.22));
   drawScope(r, f.scope, r.w - m - sw, r.h - m - 16, sw, 14);
 }
@@ -205,6 +175,6 @@ export function render(r: Raster, f: Frame): void {
   for (const c of scene.cubes) if (c.composite) drawSeams(r, view, c, f.xray, bias);
   if (!f.xray) for (const c of scene.cubes) drawShadow(r, view, c);
   drawFloor(r, view, scene);
-  drawHud(r, f);
+  drawScore(r, f);
   if (f.status) drawStatus(r, f.status);
 }

@@ -11,13 +11,12 @@ test('about route smoke', async ({ page }) => {
   await expect(page.locator('.site-header')).toBeVisible();
   await expect(page.locator('footer')).toBeVisible();
 
-  // ページの中身は一段落と石の二つしかない。石は 1 ビットの絵で、押すと整列する。
-  const canvas = page.locator('.about-figure canvas');
-  await expect(canvas).toBeVisible();
-  expect(await canvas.evaluate((el: HTMLCanvasElement) => el.width)).toBeGreaterThan(0);
-  const touch = page.getByRole('button', { name: /monolith/i });
-  await expect(touch).toBeVisible();
-  await touch.click();
+  // ページの中身は一段落と絵の二つしかない。絵は 1 ビットの網点で刷る。
+  const plate = page.getByRole('img', { name: /Creation of Adam/ });
+  await expect(plate).toBeVisible();
+  await expect
+    .poll(() => plate.locator('canvas').evaluate((el: HTMLCanvasElement) => el.width))
+    .toBeGreaterThan(0);
 
   expect(errors).toEqual([]);
 });

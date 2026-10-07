@@ -1,4 +1,3 @@
-import { drawText } from '../../shared/pixel/font';
 import { clamp, IDENTITY } from '../../shared/pixel/math';
 import { INK, Raster } from '../../shared/pixel/raster';
 import { type CubeState, cubeSolid, drawEdges, drawFaces, View } from '../../shared/pixel/solids';
@@ -69,11 +68,11 @@ export function mountRobotTune(root: HTMLElement): void {
   const chipCanvas = chip?.querySelector('canvas') ?? null;
   const chipCtx = chipCanvas?.getContext('2d') ?? null;
   const chipRaster = new Raster();
-  chipRaster.resize(86, 15);
-  const chipImage = chipCtx ? chipCtx.createImageData(86, 15) : null;
+  chipRaster.resize(26, 15);
+  const chipImage = chipCtx ? chipCtx.createImageData(26, 15) : null;
   const chipOut = chipImage ? new Uint32Array(chipImage.data.buffer) : null;
   if (chipCanvas) {
-    chipCanvas.width = 86;
+    chipCanvas.width = 26;
     chipCanvas.height = 15;
   }
 
@@ -181,7 +180,13 @@ export function mountRobotTune(root: HTMLElement): void {
     const solid = cubeSolid(cube, 0);
     if (playing && frozen === null) drawFaces(chipRaster, view, solid, 0.95);
     drawEdges(chipRaster, view, solid, !(playing && frozen === null), 0.05);
-    drawText(chipRaster, playing ? 'ROBOT TUNE ‖' : 'ROBOT TUNE ▶', 18, 4, INK);
+    // 曲名は書かない。止める／鳴らすの記号だけ。
+    if (playing) {
+      chipRaster.rect(19, 4, 2, 7, INK);
+      chipRaster.rect(23, 4, 2, 7, INK);
+    } else {
+      for (let k = 0; k < 4; k++) chipRaster.rect(19 + k, 4 + k, 1, 7 - 2 * k, INK);
+    }
     chipRaster.present(chipOut, palette);
     chipCtx.putImageData(chipImage, 0, 0);
   }

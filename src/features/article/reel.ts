@@ -1,6 +1,5 @@
-import { drawText, textWidth } from '../../shared/pixel/font';
 import { clamp, IDENTITY, spring } from '../../shared/pixel/math';
-import { AMBER, INK, Raster } from '../../shared/pixel/raster';
+import { INK, Raster } from '../../shared/pixel/raster';
 import {
   CORNERS,
   type CubeState,
@@ -14,9 +13,9 @@ import {
 
 /**
  * 読んだぶんだけ積まれる立方体。3³ の点線の枠に、本文の 1/27 を読むごとに
- * 1 個ずつ落ちてきて、潰れて、冷める。27 個目で枠が埋まり、琥珀に光って
- * FIN と出る。下には読書の進み具合をタイムコードで（読了時間を 24 コマで
- * 刻んだ、今どこまで来たか / 全体）。
+ * 1 個ずつ落ちてきて、潰れて、冷める。27 個目で枠が埋まり、全体が琥珀に
+ * 光って冷める。数字は描かない（進み具合は上端の進捗バーが持つ）。
+ * 進み具合の測り方も進捗バーと同じ、頁全体のスクロール量。
  *
  * スクロールしたときだけ描く。動きを減らす設定では落ちる動きを省く。
  */
@@ -26,13 +25,6 @@ const COUNT = N * N * N;
 
 export function reelCount(progress: number): number {
   return Math.min(COUNT, Math.floor(clamp(progress) * COUNT + 1e-9));
-}
-
-/** 分 → HH:MM:SS:FF（24 コマ）。 */
-export function filmTime(minutes: number): string {
-  const f = Math.round(minutes * 60 * 24);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(Math.floor(f / 86400))}:${pad(Math.floor(f / 1440) % 60)}:${pad(Math.floor(f / 24) % 60)}:${pad(f % 24)}`;
 }
 
 function rgba(css: string, fallback: number): number {
@@ -45,12 +37,9 @@ function rgba(css: string, fallback: number): number {
 export function mountReel(root: HTMLElement): void {
   const canvasEl = root.querySelector<HTMLCanvasElement>('canvas');
   const context = canvasEl?.getContext('2d');
-  const article = document.querySelector<HTMLElement>('.prose');
-  if (!canvasEl || !context || !article) return;
+  if (!canvasEl || !context) return;
   const canvas: HTMLCanvasElement = canvasEl;
   const ctx2d: CanvasRenderingContext2D = context;
-  const prose: HTMLElement = article;
-  const minutes = Number(root.dataset.minutes) || 1;
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const raster = new Raster();
   const style = getComputedStyle(root);
@@ -73,7 +62,7 @@ export function mountReel(root: HTMLElement): void {
     if (w0 <= 0) return;
     const px = Math.max(1, Math.round(dpr * 2));
     const w = Math.floor(w0 / px);
-    const h = Math.round(w * 0.9);
+    const h = Math.round(w * 0.78);
     if (w !== raster.w || h !== raster.h) {
       raster.resize(w, h);
       canvas.width = w;
@@ -86,9 +75,8 @@ export function mountReel(root: HTMLElement): void {
   }
 
   function measure() {
-    const r = prose.getBoundingClientRect();
-    const span = Math.max(1, r.height - window.innerHeight * 0.6);
-    progress = clamp(-r.top / span);
+    const doc = document.documentElement;
+    progress = clamp(window.scrollY / Math.max(1, doc.scrollHeight - window.innerHeight));
     const want = reelCount(progress);
     const t = now();
     while (added.length < want) added.push(t + (reduced ? -9 : added.length === want - 1 ? 0 : -9));
@@ -106,7 +94,7 @@ export function mountReel(root: HTMLElement): void {
       { azimuth: Math.PI / 4 - 0.22, elevation: 0.56, target: [1.5, 1.3, 1.5], span: 1 },
       ppu,
       raster.w / 2,
-      raster.h * 0.44,
+      raster.h * 0.52,
     );
     const full = added.length === COUNT;
     const fin = full ? clamp(1 - (t - (added[COUNT - 1] ?? 0)) / 0.8) : 0;
@@ -145,10 +133,6 @@ export function mountReel(root: HTMLElement): void {
       const b = vert(pv, j);
       raster.line(a[0], a[1], a[2], b[0], b[1], b[2], INK, true, 0.03, [1, 2]);
     }
-    const label = full ? 'FIN' : `V ${added.length}/27`;
-    drawText(raster, label, 0, raster.h - 18, full ? AMBER : INK);
-    const tc = filmTime(minutes * progress);
-    drawText(raster, tc, raster.w - textWidth(tc), raster.h - 8, INK);
     raster.present(out, palette);
     ctx2d.putImageData(image, 0, 0);
     if (busy || fin > 0) raf = requestAnimationFrame(frame);

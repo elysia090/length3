@@ -1,4 +1,4 @@
-import { drawText, glyphRows, textWidth } from '../../shared/pixel/font';
+import { glyphRows } from '../../shared/pixel/font';
 import {
   add,
   clamp,
@@ -11,7 +11,7 @@ import {
   rotZ,
   type Vec3,
 } from '../../shared/pixel/math';
-import { AMBER, INK, Raster, threshold } from '../../shared/pixel/raster';
+import { INK, Raster, threshold } from '../../shared/pixel/raster';
 import {
   type CubeState,
   cubeSolid,
@@ -24,7 +24,7 @@ import {
 /**
  * 404。点の字で組んだ「404」が、面のない線画（体積ゼロ）で床に立っている。
  * 隣のシャベルが 1.4 秒ごとに 1 個ずつすくって放る。掘り尽くすと、字は
- * 上から降ってきて組み直る。押すとすぐに 1 個掘る。
+ * 上から降ってきて組み直る。押すとすぐに 1 個掘る。字は描き込まない。
  */
 
 const DIG = 1.4;
@@ -186,9 +186,6 @@ export function mountVoid(root: HTMLElement): void {
         }
       }
     }
-    drawText(raster, 'V 0', 2, 2, INK);
-    const label = 'NOT FOUND';
-    drawText(raster, label, raster.w - textWidth(label) - 2, 2, AMBER);
     raster.present(out, palette);
     ctx2d.putImageData(image, 0, 0);
   }

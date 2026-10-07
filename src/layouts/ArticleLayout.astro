@@ -2,7 +2,7 @@
 import type { TocHeading } from '../features/article';
 import type { TagLink } from '../features/catalog';
 import BaseLayout from './BaseLayout.astro';
-import { ArticleActions, EndOfReel, ReadingReel, TableOfContents } from '../features/article';
+import { ArticleActions, ArticlePager, ReadingReel, TableOfContents } from '../features/article';
 import Breadcrumb from '../components/Breadcrumb.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
@@ -18,9 +18,8 @@ interface Props {
   readingTime: number;
   headings: TocHeading[];
   lang?: 'en' | 'ja';
-  number?: number;
-  previous?: { href: string; title: string; number: number } | undefined;
-  next?: { href: string; title: string; number: number } | undefined;
+  previous?: { href: string; title: string } | undefined;
+  next?: { href: string; title: string } | undefined;
 }
 
 const {
@@ -32,7 +31,6 @@ const {
   readingTime,
   headings,
   lang = 'en',
-  number = 0,
   previous,
   next,
 } = Astro.props;
@@ -70,7 +68,7 @@ const copy = getSiteCopy(lang);
         <!-- TOC — left column, sticky -->
         <aside class="toc-aside" aria-label={copy.tableOfContents}>
           <TableOfContents headings={headings} lang={lang} />
-          <ReadingReel readingTime={readingTime} />
+          <ReadingReel />
         </aside>
 
         <!-- Prose — center column -->
@@ -119,13 +117,7 @@ const copy = getSiteCopy(lang);
             </header>
 
             <slot />
-            <EndOfReel
-              number={number}
-              readingTime={readingTime}
-              lang={lang}
-              previous={previous}
-              next={next}
-            />
+            <ArticlePager previous={previous} next={next} />
           </article>
 
           <!-- Actions at end of prose — relocated away from the article body per spec §1 -->
