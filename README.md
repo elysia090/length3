@@ -33,7 +33,13 @@ top-level `packageManager` field.
 
 - `src/`: Astro pages, layouts, components, styles, and content collections
 - `src/features/`: feature modules — each owns its `.astro` components, browser
-  logic, and unit tests (`blog`, `article`, `search`)
+  logic, colocated CSS and unit tests, and exposes a public API through its
+  `index.ts`. `catalog` (post data), `archive` (index stage and list), `article`
+  (TOC, reading reel, end of reel), `search`, `gunman`, `robot-tune` (opening),
+  `monolith` (About), `void` (404). `src/architecture.test.ts` enforces the
+  boundaries: features meet only through `index.ts`, and `shared`, `i18n` and
+  `config` never import features, pages or layouts
+- `src/shared/pixel/`: the 1-bit software rasterizer every picture is drawn with
 - `src/components/`: shell components shared across every page (header, footer,
   breadcrumb) plus `RubyText`, which content files import
 - `src/styles/`: `index.css` is the only entry point; it declares the cascade

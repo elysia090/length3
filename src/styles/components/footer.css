@@ -30,3 +30,18 @@
 .footer-sep {
   color: var(--rule);
 }
+
+/* 奥付。名前と年の行のあとに、読み飛ばしてよい細さで。 */
+.footer-colophon {
+  flex-basis: 100%;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-style: italic;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+
+.footer-colophon sup {
+  font-size: 0.7em;
+  line-height: 0;
+}

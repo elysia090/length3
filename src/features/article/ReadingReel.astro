@@ -1,0 +1,40 @@
+---
+/**
+ * 目次の下に置く、読んだぶんだけ積まれる立方体（reel.ts）。進み具合は
+ * 上端の進捗バーが支援技術に伝えているので、こちらは絵として隠す。
+ */
+interface Props {
+  readingTime: number;
+}
+const { readingTime } = Astro.props;
+---
+
+<div class="reading-reel" data-reading-reel data-minutes={readingTime} aria-hidden="true">
+  <canvas></canvas>
+</div>
+
+<script>
+  import { mountReel } from './reel';
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-reading-reel]')) mountReel(el);
+</script>
+
+<style>
+  /* 目次の列は中でスクロールする。その底に貼り付けて、目次が長くても
+     立方体はいつも見えているようにする。 */
+  .reading-reel {
+    position: sticky;
+    bottom: 0;
+    margin-top: 2rem;
+    padding-block: 1rem 0.5rem;
+    border-top: 0.0625rem solid var(--rule);
+    background: var(--bg);
+  }
+
+  .reading-reel canvas {
+    display: block;
+    width: 100%;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+</style>

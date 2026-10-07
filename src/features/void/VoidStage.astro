@@ -1,0 +1,59 @@
+---
+/**
+ * 404 の舞台。体積の無い「404」を、シャベルが 1 個ずつ掘っていく（stage.ts）。
+ */
+---
+
+<figure class="void-stage" data-void>
+  <canvas aria-hidden="true"></canvas>
+  <button type="button" class="void-dig">
+    <span class="void-sr">A hollow 404 made of voxels; a shovel digs it away. Press to dig.</span>
+  </button>
+</figure>
+
+<script>
+  import { mountVoid } from './stage';
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-void]')) mountVoid(el);
+</script>
+
+<style>
+  .void-stage {
+    position: relative;
+    z-index: var(--z-surface);
+    margin: 0 0 2rem;
+    line-height: 0;
+  }
+
+  .void-stage canvas {
+    display: block;
+    width: 100%;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  .void-dig {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .void-dig:focus-visible {
+    outline: 2px solid var(--amber-text);
+    outline-offset: 4px;
+  }
+
+  .void-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>

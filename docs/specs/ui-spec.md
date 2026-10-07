@@ -36,12 +36,18 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 
 ```
 ┌────────────────────────────────────────────┐
-│  Lead — newest article, dark, both columns ╱
+│  Opening — Robot Tune, one screen, ENTER ↓ │
+├──────────────────── #index ────────────────┤
+│  Stage — every article a cube (2.39:1)     │
 ├─────────────────────────────┬──────────────┤
 │     Article list (1fr)      │  Sidebar     │
 │                             │  280px       │
 └─────────────────────────────┴──────────────┘
 ```
+
+**The opening.** `/` begins with the Robot Tune (`features/robot-tune`, `variant="opening"`), sized to fit one screen with its credit line above and an `ENTER the index` link below. Nothing plays until the reader presses play; sound is never automatic. ENTER scrolls to `#index` (instantly under reduced motion). Once a reader has scrolled past the opening or pressed ENTER, the rest of the session starts at the index: a tiny inline script in the head marks the document before first paint, and the page jumps to `#index`. A URL with a hash and back/forward navigation are left to the browser.
+
+**Now playing.** When the tune is playing and its figure is off screen, a 86 × 15 pixel chip appears fixed at the bottom-left: a cube hopping on the beat (wireframe in the silent beats) and `ROBOT TUNE ‖`. It is a real button that pauses and resumes; it disappears when the figure is back in view or the tune stops.
 
 **The stage.** Above both columns sits a small 1-bit picture drawn by the same rasterizer as the Robot Tune article (`src/shared/pixel/`): about 320 columns scaled by a whole number of device pixels, four colours (transparent so the paper shows through, paper, ink, amber), shading by 4 × 4 Bayer dots. Every article is a cube standing on a dotted plan, its edge the cube root of its reading time (the same measure as the list's volume cube). 2.39:1 on wide screens, 4:3 on narrow ones.
 
@@ -54,6 +60,12 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 Below the stage, two columns. No left gutter — the content area's own left padding provides the margin. The sidebar is separated from the main column by a single 1px rule (`var(--rule)`). The sidebar contains **search and nothing else**. Tags, statistics, and category listings each live on their own dedicated page. Placing them in the sidebar would create a secondary reading surface that competes with the article list.
 
 Below **840px** viewport width, the sidebar disappears and the layout collapses to a single column. Search relocates to a nav-bar icon, accessible via the `/` keyboard shortcut.
+
+**Tag pages** reuse the stage with only that tag's articles.
+
+**404.** The void: a hollow (edges-only, zero-volume) `404` built from voxels stands on a dotted floor; a shovel scoops one voxel every 1.4 s and throws it, and when the glyphs are dug out they fall back from above. Pressing digs one more. The HUD reads `V 0` and `NOT FOUND`. The heading is "Nothing to dig here" with a link back to `/#index`.
+
+**Footer colophon.** One italic line under the footer: the typefaces, the rasterizer, synthesized sound, `Volume = L³`.
 
 ### Article Page Layout
 
@@ -70,6 +82,10 @@ Table of contents on the left. Prose in the center. The right column is **delibe
 All utility functions — Edit, Share, Copy Link, reading progress — are relocated away from the article body. They do not appear alongside the text. The reader's peripheral vision should encounter only the quiet presence of the TOC and open space.
 
 **TOC behavior.** `position: sticky; top: 32px`. The TOC tracks the reader's scroll position, highlighting the current section.
+
+**Reading reel.** Under the TOC, sticky at the bottom of its column, a 3³ dashed frame fills with one cube per 1/27 of the article read; each drops, squashes and cools. The 27th fills the frame, flashes amber and reads `FIN`. Below it, a 24 fps timecode of reading time so far. It draws only on scroll and is `aria-hidden` — the progress bar already reports progress.
+
+**End of reel.** After the prose, `— FIN —`, `End of reel No. NNN · X min = r³`, and the previous and next reels (`rel="prev"`/`rel="next"`). It is excluded from the search index.
 
 **Responsive collapse.** At 720–960px, the TOC remains but the right empty column disappears. At 640–720px, the TOC moves to the top of the article, collapsed inside a `<details>` element. Below 640px, the same `<details>` treatment, fully single-column.
 
@@ -293,7 +309,7 @@ Getting there took the two opposite mistakes. Built from white alone the disc wa
 
 This does not contradict the search overlay's ban on `backdrop-filter` (below). That ban is about a **surface the reader reads through**; the disc is a **control the reader looks at**. Blur that dims a page of text serves the interface; blur that gives a 44px control physical depth serves the reader's understanding of what it is.
 
-**The stone is not selectable.** On the About page the monolith is set outside the text flow, and dragging a selection to the end of a sentence used to catch it — a blue selection box and a "Save Image" callout over an object that is supposed to be carved into the page rather than pasted onto it. The figure takes `user-select: none`, `-webkit-user-drag: none`, `-webkit-touch-callout: none`, and `pointer-events: none`. Its `alt` text is untouched, so nothing changes for a screen reader.
+**The stone.** The About page's monolith is drawn, not photographed: `features/monolith` stands a 1 : 4 : 9 slab (1² : 2² : 3²) on a dotted floor with the same 1-bit rasterizer, about 100 columns wide, its base dissolving into the paper. The camera tours it slowly and cuts every 9 s (ground level, high, head-on — where it is only a black rectangle). Touching it is _alignment_: the camera drops to the ground head-on, an amber sun rises over the top edge, a quarter-tone cluster of nine voices sounds, and after 4 s the tour resumes. The figure takes `user-select: none` and `-webkit-touch-callout: none`; the canvas is `aria-hidden` and a full-size button carries the description. Reduced motion: one still frame, and the alignment is shown without motion.
 
 **Behaviour without JavaScript.** The server renders every article and the disc `hidden`. The collapse happens only once the script runs, so a reader without JavaScript — and any crawler or in-page find — gets the whole list. Collapsed items stay in the DOM (`hidden`), never removed.
 

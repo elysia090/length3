@@ -1,5 +1,7 @@
-import { clamp } from '../../shared/pixel/math';
-import { Raster } from '../../shared/pixel/raster';
+import { drawText } from '../../shared/pixel/font';
+import { clamp, IDENTITY } from '../../shared/pixel/math';
+import { INK, Raster } from '../../shared/pixel/raster';
+import { type CubeState, cubeSolid, drawEdges, drawFaces, View } from '../../shared/pixel/solids';
 import { Player } from './audio';
 import { sceneAt } from './choreo';
 import { render } from './render';
@@ -42,6 +44,7 @@ export function mountRobotTune(root: HTMLElement): void {
   const canvas: HTMLCanvasElement = canvasEl;
   const button: HTMLButtonElement = buttonEl;
   const ctx2d: CanvasRenderingContext2D = context;
+  const audioSrc: string = src;
 
   const player = new Player();
   const raster = new Raster();
@@ -61,6 +64,18 @@ export function mountRobotTune(root: HTMLElement): void {
     rgba(style.getPropertyValue('--ink'), 0xff1e1915),
     rgba(style.getPropertyValue('--amber'), 0xff0c58ea),
   ]);
+
+  const chip = root.querySelector<HTMLButtonElement>('[data-now-playing]');
+  const chipCanvas = chip?.querySelector('canvas') ?? null;
+  const chipCtx = chipCanvas?.getContext('2d') ?? null;
+  const chipRaster = new Raster();
+  chipRaster.resize(86, 15);
+  const chipImage = chipCtx ? chipCtx.createImageData(86, 15) : null;
+  const chipOut = chipImage ? new Uint32Array(chipImage.data.buffer) : null;
+  if (chipCanvas) {
+    chipCanvas.width = 86;
+    chipCanvas.height = 15;
+  }
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -134,10 +149,59 @@ export function mountRobotTune(root: HTMLElement): void {
     setCaption(idle ? -1 : scene.completed);
   }
 
+  /**
+   * 舞台が画面の外にあるあいだ、鳴っていることを知らせる小さな札。
+   * 拍に合わせて立方体が跳ね、無音では辺だけになる（舞台と同じ約束）。
+   */
+  function drawChip() {
+    if (!chip || !chipCtx || !chipImage || !chipOut) return;
+    const playing = state === 'playing';
+    const pos = playing || state === 'paused' ? player.position() : 0;
+    const frozen = playing ? silenceStart(pos) : null;
+    const beat = beatAt(frozen ?? pos);
+    const f = beat - Math.floor(beat);
+    const hop = playing && frozen === null && !reduced.matches ? Math.max(0, 1 - f * 3) * 0.55 : 0;
+    chipRaster.clear();
+    const cube: CubeState = {
+      base: [0, hop, 0],
+      size: 1,
+      rot: IDENTITY,
+      squash: [1, 1 - hop * 0.15, 1],
+      hot: hop > 0.35 ? 1 : 0,
+      composite: false,
+      airborne: 0,
+      landed: true,
+    };
+    const view = new View(
+      { azimuth: 0.6, elevation: 0.5, target: [0, 0.8, 0], span: 1 },
+      7,
+      8,
+      chipRaster.h / 2 + 1,
+    );
+    const solid = cubeSolid(cube, 0);
+    if (playing && frozen === null) drawFaces(chipRaster, view, solid, 0.95);
+    drawEdges(chipRaster, view, solid, !(playing && frozen === null), 0.05);
+    drawText(chipRaster, playing ? 'ROBOT TUNE ‖' : 'ROBOT TUNE ▶', 18, 4, INK);
+    chipRaster.present(chipOut, palette);
+    chipCtx.putImageData(chipImage, 0, 0);
+  }
+
+  function syncChip() {
+    if (!chip) return;
+    chip.hidden = visible || (state !== 'playing' && state !== 'paused');
+    chip.setAttribute(
+      'aria-label',
+      state === 'playing' ? 'Robot Tune を一時停止' : 'Robot Tune を再生',
+    );
+  }
+
   function loop() {
     raf = 0;
-    draw();
-    if (visible && (state === 'playing' || state === 'loading')) raf = requestAnimationFrame(loop);
+    syncChip();
+    if (visible) draw();
+    else drawChip();
+    const moving = state === 'playing' || state === 'loading';
+    if (moving && (visible || (chip && !chip.hidden))) raf = requestAnimationFrame(loop);
   }
   const kick = () => {
     if (!raf) raf = requestAnimationFrame(loop);
@@ -152,7 +216,7 @@ export function mountRobotTune(root: HTMLElement): void {
     kick();
   }
 
-  button.addEventListener('click', async () => {
+  async function toggle() {
     if (state === 'loading') return;
     if (state === 'playing') {
       await player.pause();
@@ -169,7 +233,7 @@ export function mountRobotTune(root: HTMLElement): void {
       player.prepare();
       if (!player.loaded) {
         setState('loading');
-        await player.load(src, (r) => {
+        await player.load(audioSrc, (r) => {
           progress = r;
         });
       }
@@ -180,6 +244,13 @@ export function mountRobotTune(root: HTMLElement): void {
       setState('error');
       draw();
     }
+  }
+
+  button.addEventListener('click', toggle);
+  chip?.addEventListener('click', async () => {
+    await toggle();
+    syncChip();
+    drawChip();
   });
 
   volume?.addEventListener('input', () => {
@@ -190,7 +261,8 @@ export function mountRobotTune(root: HTMLElement): void {
   new ResizeObserver(resize).observe(root);
   new IntersectionObserver((entries) => {
     visible = entries.some((e) => e.isIntersecting);
-    if (visible) kick();
+    syncChip();
+    kick();
   }).observe(root);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) kick();

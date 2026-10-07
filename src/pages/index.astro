@@ -7,6 +7,7 @@ import Footer from '../components/Footer.astro';
 import { ArchiveStage, ArticleList, TopicList, VolumeDefs } from '../features/archive';
 import { SearchPanel } from '../features/search';
 import { getBlogCatalog } from '../features/catalog';
+import { RobotTuneStage } from '../features/robot-tune';
 import { getSiteCopy } from '../i18n/site-copy';
 
 const { processedPosts, topics, catalogNumbers, maxReadingTime } = await getBlogCatalog();
@@ -14,6 +15,8 @@ const copy = getSiteCopy('en');
 ---
 
 <BaseLayout title="Length³" description="A technical blog.">
+  <RobotTuneStage variant="opening" enter="#index" />
+  <div id="index" class="index-anchor"></div>
   <Header />
   <main class="index-layout" id="main-content">
     <VolumeDefs />

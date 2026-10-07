@@ -2,14 +2,52 @@
 /**
  * Robot Tune の舞台。音が鳴っているあいだだけ、箱に体積がある。
  * 描画は stage.ts、時間の数え方は timeline.ts、振付は choreo.ts。
+ *
+ * variant="opening" はサイトの入口。最初の一画面を占め、下の ENTER で
+ * 一覧（enter に渡したアンカー）へ降りる。鳴らした音楽は一覧を見ている
+ * あいだも続き、舞台が画面の外に出ると左下に小さな札が出る。同じ
+ * セッションで二度目に来たときは、入口を飛ばして一覧から始まる。
  */
 interface Props {
   src?: string;
+  variant?: 'figure' | 'opening';
+  enter?: string;
 }
-const { src = '/audio/robot-tune.mp3' } = Astro.props;
+const { src = '/audio/robot-tune.mp3', variant = 'figure', enter = '#index' } = Astro.props;
+const opening = variant === 'opening';
 ---
 
-<figure class="robot-tune" data-robot-tune data-src={src} data-state="idle" data-pagefind-ignore>
+{
+  opening && (
+    <script
+      is:inline
+      set:html={`(() => {
+        try {
+          const nav = performance.getEntriesByType('navigation')[0];
+          if (!sessionStorage.getItem('l3-opening') || location.hash || nav?.type === 'back_forward') return;
+          document.documentElement.dataset.skipOpening = '';
+        } catch {}
+      })();`}
+    />
+  )
+}
+{
+  opening && (
+    <p class="opening-credit" aria-hidden="true">
+      <span>Length³ presents</span>
+      <span class="opening-title">ROBOT TUNE</span>
+      <span>166.03 BPM · 13 beats · 3³</span>
+    </p>
+  )
+}
+<figure
+  class:list={['robot-tune', { 'robot-tune--opening': opening }]}
+  data-robot-tune
+  data-src={src}
+  data-state="idle"
+  data-opening={opening ? '' : undefined}
+  data-pagefind-ignore
+>
   <div class="robot-tune-screen">
     <canvas class="robot-tune-canvas" aria-hidden="true"></canvas>
     <button type="button" class="robot-tune-toggle" data-toggle aria-pressed="false">
@@ -26,14 +64,30 @@ const { src = '/audio/robot-tune.mp3' } = Astro.props;
     <span data-caption>音が鳴っているあいだだけ、箱に体積がある。</span>
     <span class="robot-tune-count" data-count></span>
   </figcaption>
+  {
+    opening && (
+      <button type="button" class="now-playing" data-now-playing hidden>
+        <canvas aria-hidden="true" />
+      </button>
+    )
+  }
 </figure>
+{
+  opening && (
+    <a class="opening-enter" href={enter} data-opening-enter>
+      <span aria-hidden="true">↓</span> ENTER <span class="opening-enter-sub">the index</span>
+    </a>
+  )
+}
 
 <script>
+  import { mountOpening } from './opening';
   import { mountRobotTune } from './stage';
 
   for (const el of document.querySelectorAll<HTMLElement>('[data-robot-tune]')) {
     mountRobotTune(el);
   }
+  mountOpening(document);
 </script>
 
 <style>
@@ -113,6 +167,97 @@ const { src = '/audio/robot-tune.mp3' } = Astro.props;
     line-height: 1.7;
     color: var(--ink-2);
     min-height: 4.5em;
+  }
+
+  /* ─── 入口 ─────────────────────────────────────────────── */
+  /* 最初の一画面。上に映画の頭のような字幕、真ん中に舞台、下に ENTER。
+     舞台の幅は画面の高さから逆算して、一画面に収める。 */
+  .opening-credit {
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+    margin: 0;
+    padding-top: max(1.5rem, 4svh);
+    font-family: var(--font-mono);
+    font-size: var(--font-ui-xs);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .opening-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 1rem + 2vw, 2.25rem);
+    font-style: italic;
+    letter-spacing: 0.08em;
+    text-transform: none;
+    color: var(--ink);
+  }
+
+  .robot-tune--opening {
+    width: min(100% - 2 * var(--page-gutter), calc((100svh - 17rem) * 1.6), 70rem);
+    margin: 1.5rem auto 0;
+  }
+
+  @media (max-width: 32.5rem) {
+    .robot-tune--opening {
+      width: min(100% - 2 * var(--page-gutter), calc(100svh - 19rem));
+    }
+  }
+
+  .opening-enter {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.5rem;
+    width: max-content;
+    min-height: 2.75rem;
+    margin: 0.5rem auto 0;
+    padding: 0.75rem 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.24em;
+    color: var(--ink);
+  }
+
+  .opening-enter:hover {
+    color: var(--amber-text);
+  }
+
+  .opening-enter-sub {
+    font-family: var(--font-display);
+    font-style: italic;
+    letter-spacing: 0;
+    color: var(--ink-3);
+  }
+
+  /* 画面の外で鳴っているあいだの札。左下に貼り付く。 */
+  .now-playing {
+    position: fixed;
+    left: max(0.75rem, env(safe-area-inset-left));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    z-index: 40;
+    display: block;
+    padding: 0.5rem 0.625rem;
+    border: 0.0625rem solid var(--ink);
+    background: var(--bg);
+    cursor: pointer;
+    line-height: 0;
+  }
+
+  .now-playing[hidden] {
+    display: none;
+  }
+
+  .now-playing canvas {
+    width: calc(86px * 2);
+    height: calc(15px * 2);
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  .now-playing:hover {
+    border-color: var(--amber-text);
   }
 
   .robot-tune-count {

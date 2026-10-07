@@ -80,3 +80,18 @@ test('the article list collapses and grows four at a time', async ({ page }) => 
   await expect(page.locator('.article-card[data-teaser]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('the first visit opens on the robot tune and ENTER lands on the index', async ({ page }) => {
+  const errors = trackBrowserErrors(page);
+
+  await page.goto('/');
+  const stage = page.locator('[data-opening]');
+  await expect(stage).toBeInViewport();
+  await page.locator('[data-opening-enter]').click();
+  await expect(page.locator('.article-card').first()).toBeInViewport();
+
+  // 二回目からは前置きを飛ばして目次から始まる。
+  await page.goto('/');
+  await expect(page.locator('.article-card').first()).toBeInViewport();
+  expect(errors).toEqual([]);
+});

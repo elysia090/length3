@@ -12,3 +12,9 @@ test('tag route smoke', async ({ page }) => {
   await expect(page.locator('.breadcrumb')).toContainText('Length³');
   expect(errors).toEqual([]);
 });
+
+test('unknown routes dig in the void', async ({ page }) => {
+  await page.goto('/no-such-reel');
+  await expect(page.locator('main h1')).toHaveText('Nothing to dig here');
+  await expect(page.locator('a[href="/#index"]').first()).toBeVisible();
+});
