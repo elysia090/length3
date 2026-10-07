@@ -137,7 +137,11 @@ export function revealClue(tx: Tx, fake = false): boolean {
 
 export function see(tx: Tx): void {
   const e = enc(tx);
-  if (e && !e.foe.seen) tx.emit({ type: 'seen' });
+  if (!e || e.foe.seen) return;
+  tx.emit({ type: 'seen' });
+  // 流用：見つめられるほど、相手は打ち解ける。
+  const t = Math.round(tx.rule('seenTrust', { who: e.who }, 0));
+  if (t > 0) trust(tx, t);
 }
 
 export function stun(tx: Tx): void {
@@ -175,6 +179,9 @@ export function hurt(tx: Tx, base: number): number {
   const g = Math.min(e.guard, amount);
   if (g) tx.emit({ type: 'enc.you', field: 'guard', n: -g });
   amount -= g;
+  // 流用：受け止めた分だけ、相手が折れる。
+  const ab = g ? Math.round(g * tx.rule('absorb', { who: e.who }, 0)) : 0;
+  if (ab > 0) breakFoe(tx, ab);
   if (amount > 0) {
     tx.emit({ type: 'vital', who: e.who, hp: -amount });
     xp(tx, 'VIT', 1, e.who);
@@ -201,9 +208,17 @@ export function hurtMind(tx: Tx, base: number): number {
 export function heal(tx: Tx, hp: number, mind = 0, who: Who = actor(tx)): void {
   const c = charOf(tx.w, who);
   const s = stats(tx.w, who);
-  const h = Math.min(Math.round(tx.rule('heal', { who, kind: 'hp' }, hp)), maxHp(s) - c.hp);
+  const want = Math.round(tx.rule('heal', { who, kind: 'hp' }, hp));
+  const h = Math.min(want, maxHp(s) - c.hp);
   const m = Math.min(Math.round(tx.rule('heal', { who, kind: 'mind' }, mind)), maxMind(s) - c.mind);
   if (h > 0 || m > 0) tx.emit({ type: 'vital', who, hp: Math.max(0, h), mind: Math.max(0, m) });
+  // 流用：溢れた回復が、相手を削る。
+  const e = tx.w.enc;
+  const over = want - Math.max(0, h);
+  if (e && e.phase === 'act' && e.who === who && over > 0) {
+    const d = Math.round(over * tx.rule('overheal', { who }, 0));
+    if (d > 0) hitFoe(tx, d, true);
+  }
 }
 
 /** 代償。守りも構えも通さない。 */
@@ -218,6 +233,12 @@ export function coins(tx: Tx, n: number, who: Who = actor(tx)): void {
   const c = charOf(tx.w, who);
   const d = n > 0 ? Math.round(tx.rule('coins', { who }, n)) : Math.max(-c.coins, n);
   if (d) tx.emit({ type: 'coins', who, n: d });
+  // 流用：遭遇で払った金が、相手の意志を折る。
+  const e = tx.w.enc;
+  if (d < 0 && e && e.phase === 'act' && e.who === who) {
+    const b = Math.round(-d * tx.rule('coinBurn', { who }, 0));
+    if (b > 0) breakFoe(tx, b);
+  }
 }
 
 export function gainPerm(tx: Tx, id: string, why: string, who: Who = actor(tx)): void {

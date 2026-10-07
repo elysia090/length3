@@ -66,7 +66,13 @@ export type Ev =
   | { type: 'story.seen'; id: string }
   | { type: 'found'; id: string }
   | { type: 'build'; id: string; on: boolean }
-  | { type: 'enc.start'; who: Who; foe: Foe; tier: 'normal' | 'danger' | 'boss' | 'rival' }
+  | {
+      type: 'enc.start';
+      who: Who;
+      foe: Foe;
+      tier: 'normal' | 'danger' | 'boss' | 'rival';
+      stage?: Tag[];
+    }
   | { type: 'intent'; move: string; intent: Intent }
   | {
       type: 'foe';

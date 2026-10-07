@@ -1,3 +1,4 @@
+import { WORK_ARCH } from '../content/archetypes';
 import { DATA_VERSION, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import { epithetsFor } from '../content/epithets';
@@ -31,11 +32,12 @@ import {
   zeroStats,
 } from '../core/model';
 import { ask } from '../core/rules';
-import { meets } from '../core/tags';
+import { meets, TAGS, type Tag } from '../core/tags';
 import type { Tx } from '../core/tx';
 import { Tx as TxClass } from '../core/tx';
 import { autoPlay } from './ai';
-import { cardsAfter, rewards, shiftAll, startEnc, transform } from './encounter';
+import { cardsAfter, resonate, rewards, shiftAll, startEnc, transform } from './encounter';
+import { misses } from './near';
 import { charOf, coins, gainPerm, losePerm, maxHp, maxMind, refill, stats, xp } from './ops';
 
 /**
@@ -108,6 +110,17 @@ function statsOfChar(c: Char) {
 
 // ─── 地図 ─────────────────────────────────────────────────────
 
+/** 見せ場のタグを 2 つ。 */
+function drawStage(tx: Tx): Tag[] {
+  const pool = [...TAGS];
+  const out: Tag[] = [];
+  for (let i = 0; i < 2; i++) {
+    const t = pool.splice(Math.floor(tx.rand('map') * pool.length), 1)[0];
+    if (t) out.push(t);
+  }
+  return out;
+}
+
 function buildMap(tx: Tx, stratum: number): void {
   const pool = STRATUM_FOES[stratum] ?? STRATUM_FOES[1];
   if (!pool) return;
@@ -140,6 +153,7 @@ function buildMap(tx: Tx, stratum: number): void {
       const node: MapNode = { id: id++, row, col, kind, next: [], visited: false, eps: [] };
       if (kind === 'person') node.npc = tx.pick('map', pool.person);
       if (kind === 'danger') node.npc = tx.pick('map', pool.danger);
+      if (node.npc && tx.rand('map') < PACE.stage) node.stage = drawStage(tx);
       // 場所と人物には、エピテットが刻まれていることがある。
       if (tx.rand('map') < 0.35) {
         const list2 = node.npc ? foeEps : placeEps;
@@ -161,6 +175,7 @@ function buildMap(tx: Tx, stratum: number): void {
     next: [],
     visited: false,
     eps: [],
+    stage: drawStage(tx),
   };
   nodes.push(boss);
   for (let row = 0; row < ROWS; row++) {
@@ -370,6 +385,7 @@ function rivalStep(tx: Tx): void {
       target.npc,
       target.kind === 'person' ? 'normal' : target.kind === 'boss' ? 'boss' : 'danger',
       target.eps,
+      target.stage,
     );
     if (target.kind !== 'boss') tx.emit({ type: 'node', id: target.id, rival: outcome });
     tx.emit({ type: 'rival', log: `${foeDef(target.npc).name}：${OUTCOME_NAME[outcome]}` });
@@ -413,6 +429,7 @@ function rivalFight(
   npc: string,
   tier: 'normal' | 'danger' | 'boss',
   eps: readonly string[],
+  stage?: readonly Tag[],
 ): Outcome {
   const sub = structuredClone(tx.w);
   sub.enc = null;
@@ -424,8 +441,9 @@ function rivalFight(
     story: (tx.rand('rival') * 4294967296) >>> 0,
   };
   const stx = new TxClass(sub, true);
-  startEnc(stx, 'rival', npc, tier, { eps });
+  startEnc(stx, 'rival', npc, tier, { eps, stage });
   autoPlay(stx, 30);
+  stx.flush();
   const e = sub.enc as World['enc'];
   const outcome: Outcome = e?.outcome ?? 'left';
   if (e) {
@@ -436,6 +454,7 @@ function rivalFight(
       hostility: e.foe.hostility,
     });
     rewards(stx, 'rival', npc, outcome);
+    resonate(stx, 'rival');
     if (outcome === 'uncovered') {
       const take = foeDef(npc).take.find((id) => !sub.rival.char.perms.includes(id));
       if (take) gainPerm(stx, take, npc, 'rival');
@@ -517,6 +536,7 @@ function enter(tx: Tx, node: MapNode): void {
     const tier = node.kind === 'person' ? 'normal' : node.kind === 'boss' ? 'boss' : 'danger';
     tx.emit({ type: 'pending', p: { kind: 'encounter', npc: node.npc, tier } });
     startEnc(tx, 'you', node.npc, tier, {
+      stage: node.stage,
       eps: node.eps,
       after: node.rival && node.rival !== 'passed' ? node.rival : undefined,
     });
@@ -555,6 +575,19 @@ function enter(tx: Tx, node: MapNode): void {
         if (d) cards.push(d.id);
       }
       if (node.rival) cards.pop();
+      // 古物商は、あなたが探しているものを聞きつけている（あと一つの要素）。
+      const want = misses(w)[0]?.lack;
+      const fits = (d: (typeof pool)[number]) =>
+        want?.tag
+          ? d.tags.includes(want.tag)
+          : want?.arch
+            ? (WORK_ARCH[d.id] ?? []).includes(want.arch)
+            : d.id === want?.card;
+      if (want && !want.perm && tx.rand('loot') < 0.65) {
+        const near = pool.filter(fits);
+        const d = near[Math.floor(tx.rand('loot') * near.length)];
+        if (d) cards.splice(0, 1, d.id);
+      }
       const items = [...allItems()]
         .sort(() => tx.rand('loot') - 0.5)
         .slice(0, 3)
@@ -564,6 +597,11 @@ function enter(tx: Tx, node: MapNode): void {
         .sort(() => tx.rand('loot') - 0.5)
         .slice(0, 2)
         .map((e) => `ep:${e.id}`);
+      const t = want?.tag;
+      const tagEp = t
+        ? allEpithets().find((e) => e.card?.add?.includes(t) && !eps.includes(`ep:${e.id}`))
+        : undefined;
+      if (tagEp) eps.splice(0, 1, `ep:${tagEp.id}`);
       tx.emit({ type: 'pending', p: { kind: 'shop', cards, items: [...items, ...eps], sold: [] } });
       return;
     }
@@ -643,7 +681,7 @@ export function close(tx: Tx): boolean {
     caught: e.caught,
     hostility: e.foe.hostility,
   });
-  const notes = rewards(tx, 'you', e.foe.id, o, node?.rival);
+  const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];
   if (o === 'beaten') tx.emit({ type: 'flag', key: 'beaten', v: (w.flags.beaten ?? 0) + 1 });
   if (p.npc === 'rival') tx.emit({ type: 'flag', key: 'rivalMet', v: 1 });
   // 打ち解けたり暴いたりすると、エピテットを拾うことがある。
@@ -809,12 +847,16 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
   };
   const timeFor = (h: number) => Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, h)));
   switch (a) {
-    case 'rest':
-      heal(0.4);
+    case 'rest': {
+      // 同じ層で休むほど、効きは薄れる（安全な道ばかりでは、夜を越えられない）。
+      const again = w.flags[`rested${w.stratum}`] ?? 0;
+      tx.emit({ type: 'flag', key: `rested${w.stratum}`, v: again + 1 });
+      heal(PACE.rest * (again ? PACE.restAgain : 1));
       refill(tx, 1 + (y.perms.includes('insomnia') ? 1 : 0), undefined, 'you', true);
       careBonus(tx);
       passTime(tx, timeFor(1));
       break;
+    }
     case 'full': {
       const card = slot !== undefined ? y.cards[slot] : null;
       if (!card || slot === undefined) return false;

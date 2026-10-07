@@ -18,7 +18,9 @@ import { EPITHETS, type Epithet } from './epithets';
 import { FOE_LIST } from './foes';
 import { ITEM_LIST } from './items';
 import { JOB_LIST } from './jobs';
+import { LEGENDS, legendRules } from './legends';
 import { COMBO_LIST, PERM_LIST } from './perms';
+import { SIGNATURES } from './signatures';
 import { STORY_LIST } from './story';
 import { WORKS } from './works';
 
@@ -40,9 +42,19 @@ function table<T extends { id: string }>(name: string, list: () => readonly T[])
 
 const cards = () =>
   table<CardDef>('cards', () =>
-    [...WORKS, ...BASICS, ...LEGACY].map((d) =>
-      tuned({ ...d, arch: d.arch ?? WORK_ARCH[d.id] ?? [] }),
-    ),
+    [...WORKS, ...BASICS, ...LEGACY].map((d) => {
+      const sig = SIGNATURES[d.id];
+      const legend = LEGENDS.find((l) => l.id === d.id);
+      const lr = legend ? legendRules(legend) : null;
+      return tuned({
+        ...d,
+        arch: d.arch ?? WORK_ARCH[d.id] ?? [],
+        sig: sig?.text,
+        legend: legend?.title,
+        passive: [...(d.passive ?? []), ...(sig?.passive ?? []), ...(lr?.passive ?? [])],
+        triggers: [...(d.triggers ?? []), ...(sig?.triggers ?? []), ...(lr?.triggers ?? [])],
+      });
+    }),
   );
 const foes = () =>
   table<FoeDef>('foes', () =>

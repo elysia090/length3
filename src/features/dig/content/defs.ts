@@ -54,6 +54,10 @@ export interface CardDef {
   };
   shift?: { on: 'spent' | 'rested'; every: number; cap: number; perm?: string };
   hidden?: { id: string; when: Cond; fx: readonly Fx[]; text: string };
+  /** 見せ場（その札だけの規則）の一文。 */
+  sig?: string;
+  /** 主役の札なら、その物語の題。 */
+  legend?: string;
   passive?: readonly PassiveSpec[];
   triggers?: readonly TriggerSpec[];
   /** 入った版・退いた版。 */

@@ -83,7 +83,12 @@ export function apply(w: World, ev: Ev): void {
       break;
     case 'map.built':
       w.stratum = ev.stratum;
-      w.map = ev.nodes.map((n) => ({ ...n, next: [...n.next], eps: [...n.eps] }));
+      w.map = ev.nodes.map((n) => ({
+        ...n,
+        next: [...n.next],
+        eps: [...n.eps],
+        ...(n.stage ? { stage: [...n.stage] } : {}),
+      }));
       w.pos = null;
       break;
     case 'time':
@@ -221,6 +226,7 @@ export function apply(w: World, ev: Ev): void {
         cards: 0,
         lies: 0,
         caught: 0,
+        stage: [...(ev.stage ?? [])],
       };
       break;
     case 'intent':

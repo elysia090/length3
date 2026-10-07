@@ -745,3 +745,45 @@ export const EPITHETS: readonly Epithet[] = [
 /** 刻める先ごとに、意味を持つエピテット。 */
 export const epithetsFor = (kind: 'card' | 'foe' | 'place' | 'story' | 'memory') =>
   EPITHETS.filter((e) => !!e[kind]);
+
+/**
+ * 流用のエピテット。刻んだカードを持っているあいだ、変換の規則が効く。
+ * 同じ語が人物や記憶では別の意味になる（多義）ので、ここでは札の面だけ。
+ */
+export const SPILL_AURA: Readonly<Record<string, PassiveSpec>> = {
+  blessed: {
+    rule: 'overheal',
+    fn: (_c, v) => v + 0.5,
+    text: '《祝福された》流用：溢れた回復の半分が相手を削る',
+  },
+  heavy: {
+    rule: 'absorb',
+    fn: (_c, v) => v + 0.3,
+    text: '《重い》流用：受け止めた傷の 3 割が相手を折る',
+  },
+  borrowed: {
+    rule: 'coinBurn',
+    fn: (_c, v) => v + 0.3,
+    text: '《借り物の》流用：払った金の 3 割が相手を折る',
+  },
+  false: {
+    rule: 'lieEcho',
+    fn: (_c, v) => v + 0.5,
+    text: '《偽りの》流用：嘘の信頼の半分が相手を崩す',
+  },
+  exposed: {
+    rule: 'openSpill',
+    fn: (_c, v) => v + 0.5,
+    text: '《露出した》流用：開けすぎた鍵が守りを剥がす',
+  },
+  awake: {
+    rule: 'seenTrust',
+    fn: (_c, v) => v + 1,
+    text: '《覚醒した》流用：予告を見るたび信頼 +1',
+  },
+  echoing: {
+    rule: 'guardSpill',
+    fn: (_c, v) => v + 0.2,
+    text: '《残響する》流用：残った守りの 2 割が信頼になる',
+  },
+};

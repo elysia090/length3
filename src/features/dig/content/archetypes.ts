@@ -457,7 +457,12 @@ export const ARCH_SETS: readonly ArchSet[] = [
     text: '予告が見え、嘘の予告の手番はカード ×1.3',
     passive: [
       { rule: 'intentVisible', fn: () => 1, text: '予告が見える' },
-      { rule: 'mult', when: (c) => !!c.enc?.foe.intent?.lie, fn: (_c, v) => v * 1.3, text: '嘘の手番 ×1.3' },
+      {
+        rule: 'mult',
+        when: (c) => !!c.enc?.foe.intent?.lie,
+        fn: (_c, v) => v * 1.3,
+        text: '嘘の手番 ×1.3',
+      },
     ],
   },
   {
@@ -520,7 +525,12 @@ export const ARCH_SETS: readonly ArchSet[] = [
     at: 2,
     text: '着くまでの時間 −1（2 段に 1 度）',
     passive: [
-      { rule: 'timeCost', when: (c) => c.kind === 'move', fn: (_c, v) => v - 0.5, text: '移動 −0.5 時間' },
+      {
+        rule: 'timeCost',
+        when: (c) => c.kind === 'move',
+        fn: (_c, v) => v - 0.5,
+        text: '移動 −0.5 時間',
+      },
     ],
   },
   {
@@ -528,7 +538,12 @@ export const ARCH_SETS: readonly ArchSet[] = [
     at: 3,
     text: '［場所］のカード ×1.4',
     passive: [
-      { rule: 'mult', when: (c) => !!c.tags?.includes('place'), fn: (_c, v) => v * 1.4, text: '［場所］×1.4' },
+      {
+        rule: 'mult',
+        when: (c) => !!c.tags?.includes('place'),
+        fn: (_c, v) => v * 1.4,
+        text: '［場所］×1.4',
+      },
     ],
   },
   {
@@ -552,7 +567,10 @@ export const ARCH_SETS: readonly ArchSet[] = [
       {
         on: 'enc.end',
         when: (ev, w) =>
-          ev.type === 'enc.end' && ev.outcome === 'beaten' && mine(w) && (w.enc?.foe.trust ?? 0) > 0,
+          ev.type === 'enc.end' &&
+          ev.outcome === 'beaten' &&
+          mine(w) &&
+          (w.enc?.foe.trust ?? 0) > 0,
         run: (tx) => {
           coins(tx, 20, 'you');
           refill(tx, 1, undefined, 'you');
@@ -603,7 +621,11 @@ export const ARCH_SETS: readonly ArchSet[] = [
     passive: [
       {
         rule: 'strikeTaken',
-        fn: (c, v) => Math.min(v, Math.max(1, Math.ceil((c.who === 'rival' ? c.w.rival.char : c.w.you).hp / 2))),
+        fn: (c, v) =>
+          Math.min(
+            v,
+            Math.max(1, Math.ceil((c.who === 'rival' ? c.w.rival.char : c.w.you).hp / 2)),
+          ),
         text: '一撃は体力の半分まで',
       },
     ],

@@ -55,7 +55,27 @@ export type RuleName =
   | 'timeCost'
   /** 手番ごとの守り・構え（鎧・灯り）。 */
   | 'turnGuard'
-  | 'turnCalm';
+  | 'turnCalm'
+  /** 夜明けを過ぎた時間のうち、相手を荒らす分。 */
+  | 'lateness'
+  /**
+   * 流用（変換の比率。既定 0）。余ったもの・払ったもの・受けたものを、
+   * 別の通貨へ換える。職の本来の用途を、まったく別の勝ち筋へずらす。
+   *   overheal    溢れた回復 → 相手の体力
+   *   guardSpill  手番の終わりに残った守り → 信頼
+   *   coinBurn    遭遇で払った金 → 相手の意志
+   *   lieEcho     嘘で得た信頼 → 相手の意志
+   *   openSpill   去る率の 100% を超えた分（10% ごと）→ 相手の守りを剥がす
+   *   absorb      守りで受け止めた傷 → 相手の意志
+   *   seenTrust   本当の予告を見る → 信頼
+   */
+  | 'overheal'
+  | 'guardSpill'
+  | 'coinBurn'
+  | 'lieEcho'
+  | 'openSpill'
+  | 'absorb'
+  | 'seenTrust';
 
 export interface RuleCtx {
   w: World;

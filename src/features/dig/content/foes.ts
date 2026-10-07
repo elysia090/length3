@@ -1,4 +1,3 @@
-import { PACE } from './balance';
 import type { Intent, IntentKind, World } from '../core/model';
 import {
   end,
@@ -12,6 +11,7 @@ import {
   threatValue,
   trust,
 } from '../sim/ops';
+import { PACE } from './balance';
 import type { FoeDef, MoveDef } from './defs';
 import { permDef } from './registry';
 

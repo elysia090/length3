@@ -221,6 +221,10 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
         stun(tx);
         break;
       case 'leave':
+        if (e?.tier === 'boss') {
+          say(tx, 'voice', '逃げ場はない。');
+          break;
+        }
         if (f[1]) loseItem(tx);
         end(tx, 'left');
         break;
@@ -246,8 +250,13 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
         );
         const ok = roll(tx, 'INT', Math.max(5, Math.min(95, Math.round(pct))));
         claim(tx, f[3] ?? 'harmless', false);
-        if (ok) trust(tx, Math.max(1, Math.round(f[1] * ctx.mult)));
-        else {
+        if (ok) {
+          const t = Math.max(1, Math.round(f[1] * ctx.mult));
+          trust(tx, t);
+          // 流用：嘘で得た信頼の分だけ、相手の足場が崩れる。
+          const b = Math.round(t * tx.rule('lieEcho', { who: actor(tx), card: ctx.card }, 0));
+          if (b > 0) breakFoe(tx, b);
+        } else {
           tx.emit({ type: 'caught', about: f[3] ?? 'harmless' });
           say(tx, 'foe', '……嘘だな。');
           hostile(tx, 3);

@@ -92,6 +92,7 @@ export function decide(
       break;
   }
   if (!ok && !tx.out.length) return [];
+  tx.flush();
   if (!w.ending) sync(tx);
   return tx.close();
 }

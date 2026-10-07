@@ -1,11 +1,8 @@
-import type { MapNode, World } from '../core/model';
-import { ARCH_NAME, type Archetype, type Tag, TAG_NAME } from '../core/tags';
-import { ARCH_SETS, WORK_ARCH } from '../content/archetypes';
-import { archCount, tagCount } from '../content/cardinfo';
+import { WORK_ARCH } from '../content/archetypes';
+import { PACE } from '../content/balance';
 import {
   allBuilds,
   allCards,
-  allCombos,
   allEpithets,
   allLinks,
   cardDef,
@@ -13,8 +10,10 @@ import {
   foeDef,
   permDef,
 } from '../content/registry';
-import { buildNeed, buildsOf } from '../content/sources';
+import type { MapNode, World } from '../core/model';
+import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { decide } from './decide';
+import { type Miss, misses } from './near';
 import { maxHp, stats } from './ops';
 import { pilot } from './pilot';
 import { nodeOf, reachable } from './run';
@@ -67,13 +66,7 @@ export interface Route {
   hint?: string;
 }
 
-export interface Miss {
-  kind: 'build' | 'combo' | 'link' | 'arch';
-  name: string;
-  text: string;
-  lack: { tag?: Tag; arch?: Archetype; perm?: string; card?: string };
-  value: number;
-}
+export type { Miss };
 
 export interface Advice {
   win: Route[];
@@ -99,7 +92,8 @@ const NODE_NAME: Record<MapNode['kind'], string> = {
 export function nodeLabel(n: MapNode): string {
   const who = n.npc ? foeDef(n.npc).name : NODE_NAME[n.kind];
   const eps = n.eps.map((e) => epithetDef(e)?.name).filter(Boolean);
-  return eps.length ? `${who}（${eps.join('・')}）` : who;
+  const stage = n.stage?.length ? `［${n.stage.map((t) => TAG_NAME[t]).join('・')}］` : '';
+  return `${eps.length ? `${who}（${eps.join('・')}）` : who}${stage}`;
 }
 
 /** 規則の出どころを、画面の言葉に。構成から来たものだけ（基本の規則・深さ・版は数えない）。 */
@@ -124,6 +118,8 @@ export function sourceLabel(src: string): string | null {
     }
     case 'ep':
       return b ? `《${epithetDef(b)?.name ?? b}》` : null;
+    case 'stage':
+      return a ? `見せ場［${TAG_NAME[a as Tag]}］` : null;
     case 'foe':
     case 'place':
     case 'story':
@@ -135,7 +131,13 @@ export function sourceLabel(src: string): string | null {
 
 // ─── 試行 ─────────────────────────────────────────────────────
 
-const OUTCOME_GAIN: Record<string, number> = { uncovered: 8, trusted: 7, broken: 5, beaten: 4, left: 0 };
+const OUTCOME_GAIN: Record<string, number> = {
+  uncovered: 8,
+  trusted: 7,
+  broken: 5,
+  beaten: 4,
+  left: 0,
+};
 
 function snapshot(w: World) {
   const y = w.you;
@@ -154,12 +156,23 @@ function snapshot(w: World) {
 export function probe(w: World, nodeId: number, samples = 2): Probe | null {
   const target = nodeOf(w, nodeId);
   if (!target) return null;
-  const out: Probe = { node: nodeId, dead: 0, hp: 0, mind: 0, uses: w.you.cards.map(() => 0), gain: 0, fired: new Map(), outcomes: {}, gets: [] };
+  const out: Probe = {
+    node: nodeId,
+    dead: 0,
+    hp: 0,
+    mind: 0,
+    uses: w.you.cards.map(() => 0),
+    gain: 0,
+    fired: new Map(),
+    outcomes: {},
+    gets: [],
+  };
   const gets = new Set<string>();
   for (let i = 0; i < samples; i++) {
     const s = structuredClone(w);
     const salt = Math.imul(nodeId + 1, 0x9e3779b1) ^ Math.imul(i + 3, 0x85ebca6b);
-    for (const k of ['enc', 'ai', 'story', 'loot', 'rival', 'gossip'] as const) s.rng[k] = (s.rng[k] ^ salt ^ (k.length * 0x2545f491)) >>> 0;
+    for (const k of ['enc', 'ai', 'story', 'loot', 'rival', 'gossip'] as const)
+      s.rng[k] = (s.rng[k] ^ salt ^ (k.length * 0x2545f491)) >>> 0;
     s.pending = null;
     s.enc = null;
     const parent = s.map.find((m) => m.next.includes(nodeId));
@@ -202,7 +215,8 @@ export function probe(w: World, nodeId: number, samples = 2): Probe | null {
       g += OUTCOME_GAIN[last] ?? 0;
     }
     out.gain += (g - 40 * dead) / samples;
-    for (const [src, n] of trace) if (sourceLabel(src)) out.fired.set(src, (out.fired.get(src) ?? 0) + n / samples);
+    for (const [src, n] of trace)
+      if (sourceLabel(src)) out.fired.set(src, (out.fired.get(src) ?? 0) + n / samples);
   }
   out.gets = [...gets];
   return out;
@@ -248,6 +262,7 @@ function walkPath(w: World, path: number[], probes: Map<number, Probe>): Walk {
   const short = new Set<number>();
   const thin = new Set<number>();
   const caps = w.you.cards.map((c) => c?.max ?? 0);
+  let rests = w.flags[`rested${w.stratum}`] ?? 0;
   for (const id of path) {
     const p = probes.get(id);
     const node = nodeOf(w, id);
@@ -256,7 +271,7 @@ function walkPath(w: World, path: number[], probes: Map<number, Probe>): Walk {
     if (node.kind === 'boss') continue;
     if (node.kind === 'rest') {
       // 食堂は、着いたときの傷み具合で効く（試行はいまの体で測るので、ここで足す）。
-      hp = Math.min(max, hp + 0.4 * max);
+      hp = Math.min(max, hp + PACE.rest * (rests++ ? PACE.restAgain : 1) * max);
       uses.forEach((u, slot) => {
         uses[slot] = Math.min(caps[slot] ?? 0, u + 1);
       });
@@ -298,44 +313,6 @@ function score(kind: RouteKind, x: Walk): number {
 
 // ─── あと一つ ─────────────────────────────────────────────────
 
-/** あと 1 つで成立するもの（ビルド・記憶の組み合わせ・連携・原型の重なり）。 */
-export function misses(w: World): Miss[] {
-  const y = w.you;
-  const tags = tagCount(y);
-  const arch = archCount(y);
-  const ids = new Set(y.cards.map((c) => c?.id).filter(Boolean));
-  const on = new Set(buildsOf(y).map((b) => b.id));
-  const out: Miss[] = [];
-  for (const b of allBuilds()) {
-    if (on.has(b.id)) continue;
-    const lacks: Miss['lack'][] = [];
-    for (const [t, n] of Object.entries(buildNeed(b.need))) {
-      const d = (n ?? 0) - (tags[t as Tag] ?? 0);
-      for (let i = 0; i < d; i++) lacks.push({ tag: t as Tag });
-    }
-    for (const [a, n] of Object.entries(b.arch ?? {})) {
-      const d = (n ?? 0) - (arch[a as Archetype] ?? 0);
-      for (let i = 0; i < d; i++) lacks.push({ arch: a as Archetype });
-    }
-    if (b.any && !b.any.some((id) => ids.has(id))) lacks.push({ card: b.any[0] });
-    const first = lacks[0];
-    if (lacks.length === 1 && first) out.push({ kind: 'build', name: `《${b.name}》`, text: b.text, lack: first, value: 100 });
-  }
-  for (const c of allCombos()) {
-    if (w.flags[`combo:${c.id}`]) continue;
-    const lack = c.needs.filter((p) => !y.perms.includes(p));
-    if (lack.length === 1 && lack[0]) out.push({ kind: 'combo', name: c.name, text: c.text, lack: { perm: lack[0] }, value: 70 });
-  }
-  for (const l of allLinks()) {
-    const lack = l.cards.filter((id) => !ids.has(id));
-    if (lack.length === 1 && lack[0] && l.cards.length > 1) out.push({ kind: 'link', name: `〈${l.name}〉`, text: l.text, lack: { card: lack[0] }, value: 50 });
-  }
-  for (const s of ARCH_SETS) {
-    if ((arch[s.arch] ?? 0) === s.at - 1) out.push({ kind: 'arch', name: `〈${ARCH_NAME[s.arch]}×${s.at}〉`, text: s.text, lack: { arch: s.arch }, value: 25 + 5 * s.at });
-  }
-  return out.sort((a, b) => b.value - a.value);
-}
-
 function lackText(l: Miss['lack']): string {
   if (l.tag) return `［${TAG_NAME[l.tag]}］が 1 つ`;
   if (l.arch) return `〈${ARCH_NAME[l.arch]}〉の原型が 1 つ`;
@@ -351,7 +328,12 @@ interface Supply {
 }
 
 /** 足りないものが、地図のどこで拾えそうか。確約はしない。 */
-function supplies(w: World, lack: Miss['lack'], ahead: readonly MapNode[], probes: Map<number, Probe>): Supply[] {
+function supplies(
+  _w: World,
+  lack: Miss['lack'],
+  ahead: readonly MapNode[],
+  probes: Map<number, Probe>,
+): Supply[] {
   const out: Supply[] = [];
   const pool = allCards().filter((d) => d.layer !== 'legacy' && !d.retired);
   const cardEps = allEpithets().filter((e) => !!e.card);
@@ -363,11 +345,21 @@ function supplies(w: World, lack: Miss['lack'], ahead: readonly MapNode[], probe
         const eps = cardEps.filter((e) => e.card?.add?.includes(t));
         const c = 1 - (1 - frac) ** 3 + (eps.length / cardEps.length) * 2;
         const ep = eps[0];
-        out.push({ node: n, chance: Math.min(0.9, c), what: ep ? `［${TAG_NAME[t]}］のカードか、《${ep.name}》系のエピテット` : `［${TAG_NAME[t]}］のカード` });
+        out.push({
+          node: n,
+          chance: Math.min(0.9, c),
+          what: ep
+            ? `［${TAG_NAME[t]}］のカードか、《${ep.name}》系のエピテット`
+            : `［${TAG_NAME[t]}］のカード`,
+        });
       } else if (lack.arch) {
         const a = lack.arch;
         const frac = pool.filter((d) => (WORK_ARCH[d.id] ?? []).includes(a)).length / pool.length;
-        out.push({ node: n, chance: 1 - (1 - frac) ** 3, what: `〈${ARCH_NAME[a]}〉の原型を持つカード` });
+        out.push({
+          node: n,
+          chance: 1 - (1 - frac) ** 3,
+          what: `〈${ARCH_NAME[a]}〉の原型を持つカード`,
+        });
       } else if (lack.card) {
         out.push({ node: n, chance: 3 / pool.length, what: `『${cardDef(lack.card).name}』` });
       }
@@ -376,14 +368,30 @@ function supplies(w: World, lack: Miss['lack'], ahead: readonly MapNode[], probe
       const def = foeDef(n.npc);
       const p = probes.get(n.id);
       const odds = (k: string) => p?.outcomes[k] ?? 0.25;
-      const perms = [...def.take, ...Object.values(def.rewards).flatMap((r) => (r?.perm ? [r.perm] : []))];
-      const hit = perms.find((id) => (lack.perm ? id === lack.perm : lack.tag ? permDef(id)?.tags.includes(lack.tag) : false));
-      if (hit) out.push({ node: n, chance: Math.max(odds('uncovered'), odds('trusted')), what: `${def.name}の記憶《${permDef(hit)?.name ?? hit}》` });
+      const perms = [
+        ...def.take,
+        ...Object.values(def.rewards).flatMap((r) => (r?.perm ? [r.perm] : [])),
+      ];
+      const hit = perms.find((id) =>
+        lack.perm ? id === lack.perm : lack.tag ? permDef(id)?.tags.includes(lack.tag) : false,
+      );
+      if (hit)
+        out.push({
+          node: n,
+          chance: Math.max(odds('uncovered'), odds('trusted')),
+          what: `${def.name}の記憶《${permDef(hit)?.name ?? hit}》`,
+        });
       else if (lack.tag) {
         const t = lack.tag;
         const eps = cardEps.filter((e) => e.card?.add?.includes(t));
         const ep = eps[0];
-        if (ep) out.push({ node: n, chance: 0.45 * (odds('trusted') + odds('uncovered')) * (eps.length / allEpithets().length), what: `《${ep.name}》系のエピテット` });
+        if (ep)
+          out.push({
+            node: n,
+            chance:
+              0.45 * (odds('trusted') + odds('uncovered')) * (eps.length / allEpithets().length),
+            what: `《${ep.name}》系のエピテット`,
+          });
       }
     }
   }
@@ -398,7 +406,9 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
   if (w.enc || w.pending || w.ending) return null;
   const all = paths(w);
   if (!all.length) return null;
-  const ahead = [...new Set(all.flat())].map((id) => nodeOf(w, id)).filter((n): n is MapNode => !!n);
+  const ahead = [...new Set(all.flat())]
+    .map((id) => nodeOf(w, id))
+    .filter((n): n is MapNode => !!n);
   const probes = new Map<number, Probe>();
   const first = Math.min(...ahead.map((n) => n.row));
   for (const n of ahead) {
@@ -407,7 +417,8 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
   }
   const walks = all.map((p) => walkPath(w, p, probes));
   const best = (kind: RouteKind, list: Walk[], avoid: number[][] = []) => {
-    const same = (a: number[], b: number[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+    const same = (a: number[], b: number[]) =>
+      a.length === b.length && a.every((x, i) => x === b[i]);
     let pick: Walk | undefined;
     let v = Number.NEGATIVE_INFINITY;
     for (const x of list) {
@@ -420,7 +431,11 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     }
     return pick;
   };
-  const steps = (x: Walk) => x.path.map((id) => nodeOf(w, id)).filter((n): n is MapNode => !!n).map(nodeLabel);
+  const steps = (x: Walk) =>
+    x.path
+      .map((id) => nodeOf(w, id))
+      .filter((n): n is MapNode => !!n)
+      .map(nodeLabel);
   const links = (x: Walk) =>
     [...x.fired.entries()]
       .filter(([, n]) => n >= 0.5)
@@ -463,9 +478,13 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
   if (chain) {
     const l = links(chain);
     const fragile = [...chain.short].map(cardName).filter(Boolean);
-    const thin = [...chain.thin].filter((s) => !chain.short.has(s)).map(cardName).filter(Boolean);
+    const thin = [...chain.thin]
+      .filter((s) => !chain.short.has(s))
+      .map(cardName)
+      .filter(Boolean);
     const warn: string[] = [];
-    if (fragile.length) warn.push(`${fragile.join('・')}の回数が途中で尽きる。読み違えると全部崩れる`);
+    if (fragile.length)
+      warn.push(`${fragile.join('・')}の回数が途中で尽きる。読み違えると全部崩れる`);
     if (thin.length) warn.push(`${thin.join('・')}は残り 1 回を切る`);
     if (chain.alive < 0.7) warn.push(`倒れる見込み ${Math.round((1 - chain.alive) * 100)}%`);
     const gets = [...new Set(chain.path.flatMap((id) => probes.get(id)?.gets ?? []))].slice(0, 3);

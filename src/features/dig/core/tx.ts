@@ -17,6 +17,8 @@ export class Tx {
   private book: Rulebook | null = null;
   /** 渡すと、効いた規則とトリガの出どころを数える（ルート読み用）。 */
   trace: Map<string, number> | null = null;
+  /** この遭遇で値を動かした、構成の出どころ（共鳴）。flush で遭遇に書く。 */
+  private res = new Set<string>();
 
   constructor(
     readonly w: World,
@@ -46,12 +48,28 @@ export class Tx {
   }
 
   rule(name: RuleName, ctx: Partial<RuleCtx> & { who?: Who }, base: number): number {
-    const seen = this.trace ? (p: { source: string }) => this.mark(p.source) : undefined;
-    return evaluate(this.rules(), name, { w: this.w, who: 'you', enc: this.w.enc, ...ctx }, base, seen);
+    return evaluate(
+      this.rules(),
+      name,
+      { w: this.w, who: 'you', enc: this.w.enc, ...ctx },
+      base,
+      (p) => this.mark(p.source),
+    );
   }
 
   private mark(source: string): void {
     if (this.trace) this.trace.set(source, (this.trace.get(source) ?? 0) + 1);
+    if (this.w.enc && RESONANT.test(source)) this.res.add(source);
+  }
+
+  /** 共鳴した出どころを、遭遇の状態として記録する（イベントになる）。 */
+  flush(): void {
+    const e = this.w.enc;
+    const list = [...this.res];
+    this.res.clear();
+    if (!e) return;
+    for (const src of list)
+      if (!e.st[`r:${src}`]) this.emit({ type: 'enc.st', key: `r:${src}`, n: 1 });
   }
 
   /** 0 以上 1 未満。用途ごとの流れから。 */
@@ -84,6 +102,9 @@ export class Tx {
     return this.out;
   }
 }
+
+/** 共鳴に数える出どころ（構成から来たもの。基本の規則・深さ・版・職は数えない）。 */
+const RESONANT = /^(card|perm|build|link|arch|ep|stage):/;
 
 /** 規則の出どころが変わるイベント（集め直す）。 */
 const REBUILD = new Set<Ev['type']>([

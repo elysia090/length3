@@ -18,8 +18,23 @@ export const DATA_VERSION = '1.3.0';
  *   dawn     夜明けまでの時間（22 時から）。過ぎると相手が荒れる
  *   tough    人物の体力・意志の倍率（遭遇を 5〜7 手にする）
  *   build    ビルドの条件の倍率（初めの 5 枚では、まず揃わない）
+ *   stratum  層ごとの人物の強さの伸び（下の層ほど、構成の力が要る）
+ *   stage    人物の場所に見せ場が付く割合（最後の相手には必ず）。合うタグのカード
+ *            ×stageMult。相手は ×stageTough
+ *   rest     食堂の回復（最大値の割合）。同じ層の 2 度目からは restAgain 倍
  */
-export const PACE = { rows: 8, dawn: 10, tough: 1.7, build: 1.7 } as const;
+export const PACE = {
+  rows: 8,
+  dawn: 10,
+  tough: 1.7,
+  build: 1.7,
+  stratum: 0.3,
+  rest: 0.4,
+  restAgain: 0.5,
+  stage: 0.5,
+  stageMult: 1.35,
+  stageTough: 1.25,
+} as const;
 
 export interface Release {
   v: string;

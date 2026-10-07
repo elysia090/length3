@@ -3,11 +3,12 @@ import { cardArch, cardTags } from '../content/cardinfo';
 import type { EpithetCtx } from '../content/defs';
 import type { CardFacet } from '../content/epithets';
 import { holds, run } from '../content/fx';
-import { cardDef, epithetDef, foeDef, permDef } from '../content/registry';
+import { allEpithets, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import type { Basic } from '../core/events';
 import { portrait } from '../core/mind';
 import type { Card, Char, Foe, Outcome, Who, World } from '../core/model';
 import { ask } from '../core/rules';
+import type { Tag } from '../core/tags';
 import type { Tx } from '../core/tx';
 import { planFoe } from './ai';
 import {
@@ -16,9 +17,12 @@ import {
   coins,
   end,
   gainPerm,
+  heal,
   hitFoe,
   hostile,
   line,
+  maxHp,
+  maxMind,
   revealClue,
   roll,
   say,
@@ -44,6 +48,8 @@ export interface Meet {
   eps?: readonly string[];
   /** もう一人が先に寄ったときの決着。 */
   after?: string;
+  /** 見せ場のタグ。 */
+  stage?: readonly Tag[];
 }
 
 export function startEnc(
@@ -55,9 +61,13 @@ export function startEnc(
 ): void {
   const w = tx.w;
   const def = foeDef(npc);
-  const late = w.hour >= PACE.dawn ? w.hour - PACE.dawn + 1 : 0;
+  const late = Math.max(
+    0,
+    Math.round(tx.rule('lateness', { who }, w.hour >= PACE.dawn ? w.hour - PACE.dawn + 1 : 0)),
+  );
   const depth = w.depth + late;
-  const grow = PACE.tough * (1 + 0.1 * depth + 0.2 * (w.stratum - 1));
+  // 夜明けを過ぎた 1 時間ごとに、深さ 2.5 段ぶん荒れる（退屈な道の代償）。
+  const grow = PACE.tough * (1 + 0.1 * w.depth + 0.25 * late + PACE.stratum * (w.stratum - 1));
   const f: Foe = {
     id: def.id,
     name: def.name,
@@ -115,7 +125,14 @@ export function startEnc(
     if (ff.lies === 'never') f.st.honest = 1;
   }
   def.shape?.(w, f);
-  tx.emit({ type: 'enc.start', who, foe: f, tier: tier as 'normal' });
+  // 見せ場の相手は手強い（構成が噛み合えば、そのぶん稼げる）。
+  const stage = [...(m.stage ?? [])];
+  if (stage.length) {
+    f.maxHp = f.hp = Math.round(f.hp * PACE.stageTough);
+    f.maxResolve = f.resolve = Math.round(f.resolve * PACE.stageTough);
+    f.need += 1;
+  }
+  tx.emit({ type: 'enc.start', who, foe: f, tier: tier as 'normal', stage });
   const e = w.enc;
   if (!e) return;
   // 初めの敵意と信頼（規則）。
@@ -198,14 +215,27 @@ function rivalStats(w: World, r: Char) {
 export const pressDamage = (w: World, who: Who) =>
   Math.max(1, 2 + statOf(w, who, 'ATK') - Math.floor((w.enc?.foe.def ?? 0) / 2));
 
+/** 去る率の、上限で切る前の値（長引くほど相手も飽きて道が開く。開けすぎる鍵の流用にも使う）。 */
+function rawLeave(w: World): number {
+  const e = w.enc;
+  if (!e || e.tier === 'boss') return 0;
+  const f = e.foe;
+  return (
+    50 +
+    10 * (statOf(w, e.who, 'AGI') - f.agi) -
+    4 * (f.hostility - 3) +
+    6 * Math.max(0, e.turn - 4)
+  );
+}
+
 export function leaveChance(w: World): number {
   const e = w.enc;
   if (!e) return 0;
   const f = e.foe;
+  // 層の最後の相手からは、逃げられない。
+  if (e.tier === 'boss') return 0;
   if (f.hostility <= 2 || f.st.stun) return 100;
-  // 長引くほど、相手も飽きて道が開く（膠着しない）。
-  const stale = 6 * Math.max(0, e.turn - 4);
-  const base = 50 + 10 * (statOf(w, e.who, 'AGI') - f.agi) - 4 * (f.hostility - 3) + stale;
+  const base = rawLeave(w);
   return Math.max(5, Math.min(100, Math.round(ask(w, 'leaveChance', {}, base))));
 }
 
@@ -259,7 +289,7 @@ export function basic(tx: Tx, a: Basic): boolean {
     case 'leave': {
       xp(tx, 'AGI', 1);
       const c = leaveChance(tx.w);
-      if (c >= 100 || roll(tx, 'AGI', c)) {
+      if (c >= 100 || (c > 0 && roll(tx, 'AGI', c))) {
         end(tx, 'left');
         return true;
       }
@@ -417,6 +447,14 @@ function foeTurn(tx: Tx): void {
   settle(tx);
   if (!w.enc || w.enc.phase !== 'act') return;
   tx.emit({ type: 'turn' });
+  // 流用：残った守りが信頼に、開けすぎる鍵が相手の守りを剥がす。
+  const spill = Math.floor(w.enc.guard * tx.rule('guardSpill', {}, 0));
+  if (spill > 0) trust(tx, spill);
+  const open = Math.round(tx.rule('leaveChance', {}, rawLeave(w)) - 100);
+  const peel = open > 0 ? Math.floor((open / 10) * tx.rule('openSpill', {}, 0)) : 0;
+  if (peel > 0 && w.enc?.phase === 'act')
+    tx.emit({ type: 'foe', field: 'guard', n: Math.max(-w.enc.foe.guard, -peel) });
+  if (!w.enc || w.enc.phase !== 'act') return;
   const keepG = tx.rule('guardKeep', {}, 0);
   const g = Math.floor(w.enc.guard * keepG) + Math.round(tx.rule('turnGuard', {}, 0));
   if (g !== w.enc.guard) tx.emit({ type: 'enc.you', field: 'guard', n: g - w.enc.guard });
@@ -534,3 +572,57 @@ export function rewards(tx: Tx, who: Who, npc: string, outcome: Outcome, after?:
 export const hasBuild = (w: World, id: string) => w.builds.includes(id);
 export const permName = (id: string) => permDef(id)?.name ?? id;
 export const chanceFor = chance;
+
+/**
+ * 共鳴。遭遇のあいだに実際に値を動かした構成の出どころ（カード・記憶・
+ * ビルド・連携・原型・エピテット）の数だけ、見返りがある。噛み合わせるほど
+ * 強くなる（相互作用の多い道を通る理由）。
+ *   2 以上  金 2×数。関わったカードの能力値に経験 +1
+ *   3 以上  関わったカードの最大回数 +1（元の回数 +2 まで）
+ *   4 以上  エピテットを 1 つ拾う
+ *   6 以上  体力と精神が 3 割戻る
+ */
+export function resonance(w: World): string[] {
+  return Object.keys(w.enc?.st ?? {})
+    .filter((k) => k.startsWith('r:'))
+    .map((k) => k.slice(2));
+}
+
+export function resonate(tx: Tx, who: Who): string[] {
+  const list = resonance(tx.w);
+  const n = list.length;
+  const notes: string[] = [];
+  if (n < 2) return notes;
+  coins(tx, 2 * n, who);
+  for (const src of list) {
+    const [kind, , id] = src.split(':');
+    if (kind === 'card' && id) for (const s of cardDef(id).stats) xp(tx, s, 1, who);
+  }
+  notes.push(`共鳴 ${n}`);
+  if (n >= 3) {
+    // 輝いたカードは育つ（最大回数 +1。元の回数 +2 まで）。
+    const ch = charOf(tx.w, who);
+    for (const src of list) {
+      const [kind, slot, id] = src.split(':');
+      const i = Number(slot);
+      const card = ch.cards[i];
+      if (kind !== 'card' || !id || !card || card.id !== id || card.max >= cardDef(id).uses + 2)
+        continue;
+      tx.emit({ type: 'card.max', who, slot: i, n: 1 });
+      notes.push(`『${cardDef(id).name}』の回数 +1`);
+    }
+  }
+  if (n >= 4) {
+    const pool = allEpithets();
+    const ep = pool[Math.floor(tx.rand('loot') * pool.length)];
+    if (ep) {
+      tx.emit({ type: 'ep.held', who, ep: ep.id, n: 1 });
+      notes.push(`エピテット《${ep.name}》`);
+    }
+  }
+  if (n >= 6) {
+    const s = stats(tx.w, who);
+    heal(tx, Math.round(maxHp(s) * 0.3), Math.round(maxMind(s) * 0.3), who);
+  }
+  return notes;
+}

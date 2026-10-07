@@ -1,11 +1,12 @@
 import type { Char, World } from '../core/model';
 import { type Patch, setSources, type Trigger } from '../core/rules';
-import { type ArchCount, meets, type TagCount } from '../core/tags';
+import { type ArchCount, meets, TAG_NAME, type TagCount } from '../core/tags';
 import { ARCH_SETS } from './archetypes';
 import { DATA_VERSION, PACE, releaseRules } from './balance';
 import { BASE_RULES, BASE_TRIGGERS, DEPTH_RULES } from './base';
 import { archCount, tagCount } from './cardinfo';
 import type { BuildDef, LinkDef, PassiveSpec, TriggerSpec } from './defs';
+import { SPILL_AURA } from './epithets';
 import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './registry';
 
 /**
@@ -26,7 +27,9 @@ export function buildsOf(c: Char): BuildDef[] {
   const ids = new Set(c.cards.filter((x) => x).map((x) => x?.id));
   return allBuilds().filter(
     (b) =>
-      meets(tags, buildNeed(b.need)) && archMeets(arch, b.arch) && (!b.any || b.any.some((id) => ids.has(id))),
+      meets(tags, buildNeed(b.need)) &&
+      archMeets(arch, b.arch) &&
+      (!b.any || b.any.some((id) => ids.has(id))),
   );
 }
 
@@ -67,8 +70,11 @@ function collect(w: World) {
     const def = cardDef(card.id);
     add(`card:${slot}:${def.id}`, def.passive, def.triggers);
     for (const e of card.eps ?? []) {
-      const aura = epithetDef(e)?.card?.aura;
-      if (aura) add(`ep:${slot}:${e}`, aura);
+      const aura = [
+        ...(epithetDef(e)?.card?.aura ?? []),
+        ...(SPILL_AURA[e] ? [SPILL_AURA[e]] : []),
+      ];
+      if (aura.length) add(`ep:${slot}:${e}`, aura);
     }
   });
   for (const id of c.perms) {
@@ -78,6 +84,16 @@ function collect(w: World) {
   for (const b of buildsOf(c)) add(`build:${b.id}`, b.passive, b.triggers);
   for (const l of linksOf(c)) add(`link:${l.id}`, l.passive, l.triggers);
   for (const s of archSetsOf(c)) add(`arch:${s.arch}${s.at}`, s.passive, s.triggers);
+  // 見せ場。合うタグのカードがよく効く（共鳴に数える）。
+  for (const t of w.enc?.stage ?? [])
+    add(`stage:${t}`, [
+      {
+        rule: 'mult',
+        when: (c) => !!c.tags?.includes(t),
+        fn: (_c, v) => v * PACE.stageMult,
+        text: `見せ場［${TAG_NAME[t]}］×${PACE.stageMult}`,
+      },
+    ]);
   // 人物・場所・出来事に刻まれたエピテット。
   for (const e of w.enc?.foe.eps ?? []) {
     const f = epithetDef(e)?.foe;
@@ -135,6 +151,7 @@ function keyOf(w: World): string {
     c.cards.map((x) => (x ? `${x.id}+${(x.eps ?? []).join('+')}` : '-')).join(','),
     c.perms.map((p) => `${p}${(c.permEps?.[p] ?? []).join('+')}`).join(','),
     (w.enc?.foe.eps ?? []).join('+'),
+    (w.enc?.stage ?? []).join('+'),
     w.pos,
     w.pending?.kind === 'story' ? w.pending.eps.join('+') : '',
   ].join('|');
