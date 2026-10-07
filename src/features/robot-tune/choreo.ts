@@ -1,4 +1,13 @@
 import {
+  armPose,
+  DIG,
+  interpolateKeys,
+  type Pose,
+  placeShovel,
+  SHOVEL_ARM,
+  solveArm,
+} from '../../shared/pixel/linkage';
+import {
   add,
   apply,
   clamp,
@@ -247,122 +256,98 @@ function zoomAt(beat: number): number {
 }
 
 /**
- * シャベルの手つき。時刻（8 分音符）t に対して、
- *   突く   stab の前後で刃を地面へ差し込み、跳ね返る
- *   掬う   scoop で刃を寝かせて持ち上げ、launch へ向けて後ろへ引く
- *   放る   launch で山の方へ振り抜き、刃をはね上げ、ばねで戻る
- * の重ね合わせ。返すのは、寝かせ角・振り向き・高さ・差し込み。
+ * シャベルの手つき。油圧ショベルの三節の腕の掘り方で、一掬いずつ動く
+ * （shared/pixel/linkage.ts）。scoop で刃が土に入り、手前へ巻き込んで
+ * 持ち上げ、launch で腕を山の方へ伸ばして土を放つ。鍵の時刻は 8 分音符。
  */
-interface Gesture {
-  tilt: number;
-  yaw: number;
-  lift: number;
-  plunge: number;
+type Key = readonly [number, Pose];
+const { REST, REACH, BITE, CURL, LIFT, DUMP, FOLLOW } = DIG;
+const ARM = SHOVEL_ARM;
+
+/** 一掬い。loaded なら土はもう刃に載っていて、上げるところから。 */
+function throwKeys(scoop: number, launch: number, loaded = false): Key[] {
+  const d = launch - scoop;
+  const load: Key[] = loaded
+    ? [[launch - 0.6, REST]]
+    : [
+        [scoop - 0.45, REACH],
+        [scoop, BITE],
+        [scoop + 0.4 * d, CURL],
+      ];
+  return [
+    ...load,
+    [scoop + 0.75 * d, LIFT],
+    [launch, DUMP],
+    [launch + 0.3, FOLLOW],
+    [launch + 0.8, REST],
+  ];
 }
 
-function stab(t: number, at: number, depth: number): Gesture {
-  const u = t - at;
-  if (u < -0.5 || u > 2) return { tilt: 0, yaw: 0, lift: 0, plunge: 0 };
-  const into = u < 0 ? easeInCubic(clamp((u + 0.5) / 0.5)) : Math.max(0, spring(u * 0.18, 3.2, 9));
-  return { tilt: 0.38 * into * depth, yaw: 0, lift: 0, plunge: 0.22 * into * depth };
-}
-
-function fling(t: number, scoop: number, launch: number): Gesture {
-  if (t < scoop - 0.5 || t > launch + 3) return { tilt: 0, yaw: 0, lift: 0, plunge: 0 };
-  if (t < scoop) {
-    // 掬う直前、刃を差し込む。
-    const a = easeInCubic(clamp((t - scoop + 0.5) / 0.5));
-    return { tilt: 0.34 * a, yaw: 0, lift: 0, plunge: 0.18 * a };
-  }
-  if (t < launch) {
-    // 刃を寝かせて持ち上げ、後ろへ引いて溜める。
-    const a = easeOutCubic(clamp((t - scoop) / Math.max(0.5, launch - scoop)));
-    return { tilt: 0.34 - 0.5 * a, yaw: -0.55 * a, lift: 0.35 * a, plunge: 0.18 * (1 - a) };
-  }
-  // 振り抜いて、刃をはね上げ、ばねで戻る。
-  const u = t - launch;
-  const swing = easeOutBack(clamp(u / 0.45), 1.6);
-  const back = clamp((u - 0.6) / 2.2);
-  const settle = 1 - easeOutCubic(back);
-  return {
-    tilt: (-0.16 - 0.5 * swing) * settle,
-    yaw: (-0.55 + 0.95 * swing) * settle,
-    lift: (0.35 + 0.25 * swing) * settle,
-    plunge: 0,
-  };
-}
-
-function sum(gs: Gesture[]): Gesture {
-  return gs.reduce(
-    (a, g) => ({
-      tilt: a.tilt + g.tilt,
-      yaw: a.yaw + g.yaw,
-      lift: a.lift + g.lift,
-      plunge: a.plunge + g.plunge,
-    }),
-    { tilt: 0, yaw: 0, lift: 0, plunge: 0 },
-  );
-}
-
-function gestureAt(beat: number): Gesture {
-  const s = split(beat);
-  if (s.phase === 'pre') return { tilt: 0, yaw: 0, lift: 0, plunge: 0 };
-  if (s.phase === 'intro') {
-    // 1 拍に 1 個。裏の 8 分音符で掬い、拍で放る。
-    const i = Math.floor(s.e / 2);
-    return sum([fling(s.e, 2 * i + 1, 2 * i + 2), fling(s.e, 2 * i - 1, 2 * i)]);
-  }
-  if (s.phase === 'build') {
-    // 溜め。突く間隔が拍から 8 分音符へ詰まり、深くなっていく。
-    const u = beat - BUILD_START;
-    const dense = u > 4;
-    const at = dense ? Math.round(s.e) : 2 * Math.round(s.e / 2);
-    return stab(s.e, at, 0.6 + 0.5 * clamp(u / 8));
-  }
-  return loopGesture(s.e);
-}
-
-/** ループの狙いの手つき。直近の一掬いと、突く動き。 */
-function loopGesture(e: number): Gesture {
-  let current: Throw | undefined;
-  for (const th of LOOP_THROWS) if (e >= th.scoop - 0.5) current = th;
-  return sum([
-    ...LOOP_STABS.map((at) => stab(e, at, 0.7)),
-    ...(current ? [fling(e, current.scoop, current.launch)] : []),
-  ]);
+/** 突く。伸ばして食い込み、少しこじって戻る。 */
+function stabKeys(at: number, depth: number): Key[] {
+  return [
+    [at - 0.45, REACH],
+    [at, BITE],
+    [at + 0.35, { reach: 0.05, rise: -0.05, lean: 0.5 + 0.35 * depth, swing: 0 }],
+    [at + 1, REST],
+  ];
 }
 
 /**
- * ループの手つき。一掬いごとの動きは詰まった所で途中で打ち切られるので、
- * ばねで追わせた表から読む（shovel-motion.ts）。イントロはそのまま。
+ * 一掬いごとの鍵を一本の列にする。次の動きが始まったら、前の動きの残りの
+ * 鍵は捨てる（詰まった所では戻りきらずに次へ移る）。関節角に解いて返す。
  */
-const LOOP_GESTURE = springTrack(
-  (e) => {
-    const g = loopGesture(e);
-    return [g.tilt, g.yaw, g.lift, g.plunge];
-  },
+function chain(moves: Key[][]): (readonly [number, number[]])[] {
+  const sorted = [...moves].sort((a, b) => (a[0]?.[0] ?? 0) - (b[0]?.[0] ?? 0));
+  const out: Key[] = [];
+  sorted.forEach((keys, i) => {
+    const next = sorted[i + 1]?.[0]?.[0] ?? Infinity;
+    for (const k of keys) if (k[0] < next) out.push(k);
+  });
+  return out.map(([t, p]) => [t, solveArm(ARM, p)] as const);
+}
+
+const SPRING = { freq: 5.5, damping: 0.85, lead: 0.12 };
+const joints = (keys: (readonly [number, number[]])[]) => (e: number) => interpolateKeys(keys, e);
+
+/** イントロと溜め（8 分音符、通算）。1 拍に 1 掬い、溜めでは突く間隔が詰まる。 */
+const INTRO_ARM = springTrack(
+  joints(
+    chain([
+      ...INTRO_SLOTS.map((_, i) => throwKeys(2 * i - 1, 2 * i, i === 0)),
+      ...[54, 56, 58, 60, 62, 63].map((at) =>
+        stabKeys(at, 0.6 + 0.5 * clamp((at / 2 - BUILD_START) / 8)),
+      ),
+    ]),
+  ),
+  -4,
+  2 * INTRO_BEATS,
+  EIGHTH_SEC,
+  SPRING,
+);
+
+/** ループ（8 分音符）。継ぎ目でつながるよう、前後の周の動きも並べる。 */
+const LOOP_ARM = springTrack(
+  joints(
+    chain(
+      [-LOOP_EIGHTHS, 0, LOOP_EIGHTHS].flatMap((o) => [
+        ...LOOP_THROWS.map((th) => throwKeys(th.scoop + o, th.launch + o)),
+        ...LOOP_STABS.map((at) => stabKeys(at + o, 0.7)),
+      ]),
+    ),
+  ),
   0,
   LOOP_EIGHTHS,
   EIGHTH_SEC,
-  { freq: 4.2, damping: 0.6, lead: 0.18 },
+  SPRING,
   LOOP_EIGHTHS,
 );
 
-function shovelGesture(beat: number): Gesture {
+function armAt(beat: number): Pose {
   const s = split(beat);
-  if (s.phase !== 'loop') return gestureAt(beat);
-  const [tilt = 0, yaw = 0, lift = 0, plunge = 0] = readTrack(LOOP_GESTURE, s.e);
-  return { tilt, yaw, lift, plunge };
+  const track = s.phase === 'loop' ? LOOP_ARM : INTRO_ARM;
+  return armPose(ARM, readTrack(track, s.e));
 }
-
-/**
- * 回る軸の位置（シャベルの単位、刃先から柄の方へ）。柄の真ん中より少し
- * 上、重心のあたり。柄は刃の上端（1.1）から握り（3.66）まで。刃先を軸に
- * 回すと、土に刺さった刃が動かず柄だけが振り回されて見える。
- */
-const FULCRUM: Vec3 = [0, 2.45, 0];
-/** 休んでいる姿勢で柄が後ろへ寝ている角度。 */
-const REST_LEAN = 0.62;
 
 function shovelAt(beat: number, zoom: number, az: number): ShovelState {
   const unit = zoom / STACK;
@@ -370,23 +355,17 @@ function shovelAt(beat: number, zoom: number, az: number): ShovelState {
   const toward: Vec3 = [Math.sin(az), 0, Math.cos(az)];
   const center: Vec3 = [zoom / 2, 0, zoom / 2];
   const home = add(center, add(scale(right, 3.25 * unit), scale(toward, 0.9 * unit)));
-  const g = shovelGesture(beat);
-  // 刃は山の方を向く。手つきの振り向きはその向きからの差。
+  const p = armAt(beat);
+  // 刃は山の方を向く。
   const aim = Math.atan2(center[0] - home[0], center[2] - home[2]);
   const breathe = 0.03 * Math.sin(Math.PI * beat);
-  const rest = mul(rotY(aim), rotX(-REST_LEAN));
-  const rot = mul(
-    rotY(aim + g.yaw),
-    mul(rotZ(0.04 * g.yaw), rotX(-(REST_LEAN + g.tilt + breathe))),
+  const { tip, rot } = placeShovel(
+    home,
+    aim,
+    mul(rotY(aim), rotX(-REST.lean)),
+    { ...p, lean: p.lean + breathe },
+    unit,
   );
-  // 休んでいる姿勢での軸の位置を、持ち上げ・差し込みの分だけ上下させ、
-  // そこを中心に回す。刃先の位置はそこから逆算する。
-  const fulcrum = add(add(home, scale(apply(rest, FULCRUM), unit)), [
-    0,
-    (g.lift - g.plunge) * unit,
-    0,
-  ]);
-  const tip = add(fulcrum, scale(apply(rot, FULCRUM), -unit));
   // 刃先は土に少しだけ入る。それより深くは沈めない。
   const floor = -0.15 * unit;
   return {
@@ -505,6 +484,8 @@ function buildWave(beat: number, cell: Cell): number {
 }
 
 const NO_JITTER: Vec3 = [0, 0, 0];
+/** 刃の上と空中での土くれの大きさ（一辺 1 に対して）。イントロもループも同じ。 */
+const CLOD = 0.32;
 
 export function sceneAt(beat: number): Scene {
   const s = split(beat);
@@ -537,16 +518,18 @@ export function sceneAt(beat: number): Scene {
     const toBeat = (e: number) => loopStart + e / 2;
     for (const [n, th] of LOOP_THROWS.entries()) {
       th.cells.forEach((slot, j) => {
-        // イントロと同じ一辺 1 の箱を、一掬いの中で 1 個ずつ刃に載せて放る。
-        // 前の箱が刃を離れた瞬間に次の箱が刃に現れるので、重ならない。
-        const step = Math.min(0.2, (th.land - th.launch) / (th.cells.length + 1));
-        const launch = th.launch + step * j;
+        // 一掬いの土くれ。刃の上でも飛んでいるあいだも小さく、着地の直前に
+        // 一辺 1 の箱に膨らむ。刃から順にこぼれるように、少しずつ遅れて離れる。
         const f: Flight = {
-          appear: j === 0 ? th.scoop : th.launch + step * (j - 1),
-          launch,
-          land: th.land + STAGGER * j,
-          size: 1,
-          jitter: NO_JITTER,
+          appear: th.scoop,
+          launch: th.launch + 0.06 * (j % 3),
+          land: th.land + STAGGER * (j % 3),
+          size: CLOD,
+          jitter: [
+            (hash(j * 13 + n) - 0.5) * 0.5,
+            (hash(j * 7 + n + 3) - 0.5) * 0.3 + 0.12 * (j % 3),
+            (hash(j * 5 + n + 9) - 0.5) * 0.5,
+          ],
         };
         const c = flying(j * 31 + n * 7 + s.cycle * 977, s.e, toBeat, f, slot, true);
         if (c) cubes.push(c);
@@ -570,7 +553,9 @@ export function sceneAt(beat: number): Scene {
         appear: i === 0 ? -Infinity : 2 * i - 1,
         launch: 2 * i,
         land: 2 * i + 2,
-        size: 1,
+        // ループと同じ小さな土くれ。着地の直前に一辺 1 に膨らむ。最初の 1 個は
+        // 刃に載ったまま幕が開くので、そのときから小さい。
+        size: CLOD,
         jitter: NO_JITTER,
       };
       const c = flying(i * 17 + 3, s.e, (e) => e / 2, f, slot, false);

@@ -1,4 +1,14 @@
 import {
+  armPose,
+  DIG,
+  interpolateKeys,
+  type Pose,
+  placeShovel,
+  SHOVEL_ARM,
+  solveArm,
+} from '../../shared/pixel/linkage';
+import {
+  apply,
   clamp,
   easeOutBack,
   easeOutCubic,
@@ -16,7 +26,8 @@ import type { CubeState, ShovelState } from '../../shared/pixel/solids';
  *
  *   掴んで運ぶ   シャベルは持ち上がり、運ぶ向きに遅れて傾く（ばね）。離すと
  *                落ちて刺さる
- *   床を押す     シャベルがそこへ跳んでいって掘る。穴が開き、土くれが飛ぶ。
+ *   床を押す     シャベルがそこへ跳んでいって、油圧ショベルの腕のように掘る。
+ *                穴が開き、土くれが飛ぶ。
  *                穴は少しずつ埋まる
  *   同じ所を三度 何かが出てくる（琥珀の小さな箱）。押すと、どれか一本の
  *                記事が開く
@@ -78,11 +89,29 @@ export function newYard(home: [number, number]): Yard {
   };
 }
 
-/** 跳ぶ・差し込む・振り上げるの長さ（秒）。 */
+/** 跳ぶ・刃が土に入る・掘り終わるまでの秒。 */
 export const HOP = 0.28;
 export const PLUNGE = 0.42;
-export const FLING = 0.56;
 export const DIG_END = 1.0;
+
+/**
+ * 掘る一巡り（秒）。油圧ショベルの三節の腕の掘り方（shared/pixel/linkage.ts）。
+ * 跳んでいるあいだに構え、PLUNGE で刃が入り、巻き込んで持ち上げ、前へ
+ * 伸ばして放ってから休みへ戻る。関節角に解いておく。
+ */
+const DIG_KEYS = (
+  [
+    [0, DIG.REST],
+    [HOP * 0.7, DIG.REACH],
+    [PLUNGE, DIG.BITE],
+    [0.52, DIG.CURL],
+    [0.64, DIG.LIFT],
+    [0.76, DIG.DUMP],
+    [0.86, DIG.FOLLOW],
+    [DIG_END, DIG.REST],
+  ] as const
+).map(([t, p]) => [t, solveArm(SHOVEL_ARM, p)] as const);
+
 /** 穴が一段埋まるまでの秒。 */
 export const REFILL = 7;
 /** 出てきた箱が床に沈むまでの秒。 */
@@ -150,6 +179,7 @@ export function yardShovel(yard: Yard, base: ShovelState, t: number, still: bool
     const u = (t - yard.dropAt) / 0.5;
     y = -0.14 * Math.sin(Math.PI * clamp(u * 1.6)) * (1 - u);
   }
+  let arm: Pose | null = null;
   if (d && !still) {
     const u = t - d.at;
     if (u < HOP) {
@@ -157,31 +187,27 @@ export function yardShovel(yard: Yard, base: ShovelState, t: number, still: bool
       const p = q * q * (3 - 2 * q);
       x = d.from[0] + (d.x - d.from[0]) * p;
       z = d.from[1] + (d.z - d.from[1]) * p;
-      y = 0.9 * Math.sin(Math.PI * (u / HOP));
-    } else if (u < PLUNGE) {
-      // 刃を土へ。柄は起きる。
-      const p = (u - HOP) / (PLUNGE - HOP);
-      y = -0.28 * easeOutCubic(p);
-      rot = mul(rotX(0.35 * p), rot);
-    } else if (u < FLING) {
-      // こじって振り上げる。
-      const p = (u - PLUNGE) / (FLING - PLUNGE);
-      y = -0.28 * (1 - p) + 0.35 * p;
-      rot = mul(rotX(0.35 - 0.9 * easeOutBack(p, 1.4)), rot);
-    } else {
-      const p = clamp((u - FLING) / (DIG_END - FLING));
-      y = 0.35 * (1 - easeOutCubic(p));
-      rot = mul(rotX(-0.55 * (1 - easeOutCubic(p))), rot);
+      y = 0.9 * Math.sin(Math.PI * q);
     }
+    arm = armPose(SHOVEL_ARM, interpolateKeys(DIG_KEYS, u));
   }
   if (!still && t - yard.spinAt < 0.7) {
     const p = (t - yard.spinAt) / 0.7;
     rot = mul(rotY(Math.PI * 2 * easeOutBack(p, 1.2)), rot);
     y += 0.5 * Math.sin(Math.PI * p);
   }
+  let pivot: Vec3 = [x, y, z];
+  if (arm) {
+    // 刃の向いている方へ掘る。腕は重心を中心にシャベルを回し、弧で運ぶ。
+    const face = apply(rot, [0, 0, 1]);
+    const placed = placeShovel(pivot, Math.atan2(face[0], face[2]), rot, arm, base.scale);
+    rot = placed.rot;
+    // 刃先は穴の底あたりまで。
+    pivot = [placed.tip[0], Math.max(-0.2 * base.scale, placed.tip[1]), placed.tip[2]];
+  }
   // 運ぶ向きへの傾き。世界の軸で後から掛ける。
   rot = mul(rotZ(-yard.lean[0]), mul(rotX(yard.lean[1]), rot));
-  return { pivot: [x, y, z], scale: base.scale, rot };
+  return { pivot, scale: base.scale, rot };
 }
 
 /** 掘ったときに飛ぶ土くれ（琥珀の小さな箱）。 */
