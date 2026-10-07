@@ -268,8 +268,6 @@ export interface World {
   flags: Record<string, number>;
   unlocked: string[];
   seen: string[];
-  /** いま発火しているビルド。 */
-  builds: string[];
   /** この挑戦で明らかになった隠し効果。 */
   found: string[];
   ending: Ending | null;

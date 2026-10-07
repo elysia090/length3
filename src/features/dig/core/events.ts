@@ -65,7 +65,6 @@ export type Ev =
   | { type: 'unlock'; story: string }
   | { type: 'story.seen'; id: string }
   | { type: 'found'; id: string }
-  | { type: 'build'; id: string; on: boolean }
   | {
       type: 'enc.start';
       who: Who;

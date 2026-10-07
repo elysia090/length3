@@ -51,7 +51,6 @@ export function emptyWorld(): World {
     flags: {},
     unlocked: [],
     seen: [],
-    builds: [],
     found: [],
     ending: null,
     seq: 0,
@@ -206,9 +205,6 @@ export function apply(w: World, ev: Ev): void {
       break;
     case 'found':
       if (!w.found.includes(ev.id)) w.found.push(ev.id);
-      break;
-    case 'build':
-      w.builds = ev.on ? [...new Set([...w.builds, ev.id])] : w.builds.filter((b) => b !== ev.id);
       break;
     case 'enc.start':
       w.enc = {

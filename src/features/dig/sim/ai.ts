@@ -1,5 +1,6 @@
 import type { MoveDef } from '../content/defs';
 import { cardDef, foeDef } from '../content/registry';
+import { forkEncounter } from '../core/branch';
 import type { Basic } from '../core/events';
 import { believes, portrait } from '../core/mind';
 import type { Intent, World } from '../core/model';
@@ -29,7 +30,7 @@ export type Action = { kind: 'basic'; a: Basic } | { kind: 'card'; slot: number 
 
 /** 世界の複製（試行用）。乱数の流れも分けて、本物の流れを汚さない。 */
 export function fork(w: World, salt: number): World {
-  const c = structuredClone(w);
+  const c = forkEncounter(w);
   c.rng = {
     ...c.rng,
     enc: (c.rng.enc ^ Math.imul(salt + 1, 0x9e3779b1)) >>> 0,

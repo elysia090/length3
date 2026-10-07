@@ -8,6 +8,7 @@ import { archCount, tagCount } from './cardinfo';
 import type { BuildDef, LinkDef, PassiveSpec, TriggerSpec } from './defs';
 import { SPILL_AURA } from './epithets';
 import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './registry';
+import { SURGES, tierOf } from './surges';
 
 /**
  * 規則の出どころを集める。遭遇している者（あなたか、ライバル）の
@@ -17,11 +18,35 @@ import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './reg
 const archMeets = (have: ArchCount, need: ArchCount | undefined) =>
   !need || Object.entries(need).every(([a, n]) => (have[a as keyof ArchCount] ?? 0) >= (n ?? 0));
 
-/** ビルドの実際の条件（PACE.build 倍）。 */
-export const buildNeed = (need: TagCount): TagCount =>
-  Object.fromEntries(Object.entries(need).map(([t, n]) => [t, Math.ceil((n ?? 0) * PACE.build)]));
+/** ビルドの実際の条件（PACE.build 倍）。一度だけ作る。 */
+const needs = new WeakMap<TagCount, TagCount>();
+export function buildNeed(need: TagCount): TagCount {
+  let n = needs.get(need);
+  if (!n) {
+    n = Object.fromEntries(
+      Object.entries(need).map(([t, x]) => [t, Math.ceil((x ?? 0) * PACE.build)]),
+    );
+    needs.set(need, n);
+  }
+  return n;
+}
+
+/** 構成の指紋（ビルドの判定を使い回す鍵）。 */
+const deckKey = (c: Char) =>
+  `${c.cards.map((x) => (x ? `${x.id}+${x.eps.join('+')}` : '-')).join(',')}|${c.perms.map((p) => `${p}${(c.permEps[p] ?? []).join('+')}`).join(',')}`;
+const builds = new Map<string, BuildDef[]>();
 
 export function buildsOf(c: Char): BuildDef[] {
+  const key = deckKey(c);
+  const hit = builds.get(key);
+  if (hit) return hit;
+  const out = judgeBuilds(c);
+  if (builds.size > 512) builds.clear();
+  builds.set(key, out);
+  return out;
+}
+
+function judgeBuilds(c: Char): BuildDef[] {
   const tags = tagCount(c);
   const arch = archCount(c);
   const ids = new Set(c.cards.filter((x) => x).map((x) => x?.id));
@@ -81,7 +106,13 @@ function collect(w: World) {
     const p = permDef(id);
     if (p) add(`perm:${id}`, p.passive, p.triggers);
   }
-  for (const b of buildsOf(c)) add(`build:${b.id}`, b.passive, b.triggers);
+  for (const b of buildsOf(c)) {
+    add(`build:${b.id}`, b.passive, b.triggers);
+    // 段：暴走（上限つき）と極み（上限なし）。
+    const t = tierOf(c, b.id);
+    const sv = SURGES[b.id];
+    if (t > 0 && sv) add(`surge:${b.id}`, sv.passive?.(t === 2), sv.triggers?.(t === 2));
+  }
   for (const l of linksOf(c)) add(`link:${l.id}`, l.passive, l.triggers);
   for (const s of archSetsOf(c)) add(`arch:${s.arch}${s.at}`, s.passive, s.triggers);
   // 見せ場。合うタグのカードがよく効く（共鳴に数える）。
@@ -148,7 +179,9 @@ function keyOf(w: World): string {
     who,
     c.job,
     w.depth,
-    c.cards.map((x) => (x ? `${x.id}+${(x.eps ?? []).join('+')}` : '-')).join(','),
+    c.cards
+      .map((x) => (x ? `${x.id}+${(x.eps ?? []).join('+')}+${x.marks.ch ?? 0}` : '-'))
+      .join(','),
     c.perms.map((p) => `${p}${(c.permEps?.[p] ?? []).join('+')}`).join(','),
     (w.enc?.foe.eps ?? []).join('+'),
     (w.enc?.stage ?? []).join('+'),

@@ -97,8 +97,9 @@ function shopping(w: World): Cmd | null {
   for (const id of p.cards) {
     if (p.sold.includes(id) || cardPrice(w, id) > w.you.coins) continue;
     for (let slot = 0; slot < 5; slot++) {
-      const c = structuredClone(w.you);
-      c.cards[slot] = newCard(0, id);
+      const cards = [...w.you.cards];
+      cards[slot] = newCard(0, id);
+      const c = { ...w.you, cards };
       const g = deckScore(c) - base;
       if (g > gain) {
         gain = g;
@@ -124,8 +125,9 @@ function bestInscription(you: Char, ep: string): { slot: number; gain: number } 
   let out: { slot: number; gain: number } | null = null;
   you.cards.forEach((card, slot) => {
     if (!card || card.eps.length >= 2 || card.eps.includes(ep)) return;
-    const c = structuredClone(you);
-    c.cards[slot]?.eps.push(ep);
+    const cards = [...you.cards];
+    cards[slot] = { ...card, eps: [...card.eps, ep] };
+    const c = { ...you, cards };
     const g = deckScore(c) - base;
     if (g > 0 && (!out || g > out.gain)) out = { slot, gain: g };
   });

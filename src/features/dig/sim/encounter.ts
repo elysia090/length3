@@ -4,6 +4,7 @@ import type { EpithetCtx } from '../content/defs';
 import type { CardFacet } from '../content/epithets';
 import { holds, run } from '../content/fx';
 import { allEpithets, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
+import { buildsOf } from '../content/sources';
 import type { Basic } from '../core/events';
 import { portrait } from '../core/mind';
 import type { Card, Char, Foe, Outcome, Who, World } from '../core/model';
@@ -455,6 +456,11 @@ function foeTurn(tx: Tx): void {
   if (peel > 0 && w.enc?.phase === 'act')
     tx.emit({ type: 'foe', field: 'guard', n: Math.max(-w.enc.foe.guard, -peel) });
   if (!w.enc || w.enc.phase !== 'act') return;
+  // 長引いた遭遇は、相手が苛立って強くなる（膠着しない。最後の相手も同じ）。
+  if (w.enc.turn > PACE.stall) {
+    if (w.enc.turn === PACE.stall + 1) say(tx, 'voice', '相手の苛立ちが、目に見えて増していく。');
+    tx.emit({ type: 'foe', field: 'atk', n: 1 + Math.floor((w.enc.turn - PACE.stall) / 4) });
+  }
   const keepG = tx.rule('guardKeep', {}, 0);
   const g = Math.floor(w.enc.guard * keepG) + Math.round(tx.rule('turnGuard', {}, 0));
   if (g !== w.enc.guard) tx.emit({ type: 'enc.you', field: 'guard', n: g - w.enc.guard });
@@ -569,7 +575,7 @@ export function rewards(tx: Tx, who: Who, npc: string, outcome: Outcome, after?:
   return notes;
 }
 
-export const hasBuild = (w: World, id: string) => w.builds.includes(id);
+export const hasBuild = (w: World, id: string) => buildsOf(w.you).some((b) => b.id === id);
 export const permName = (id: string) => permDef(id)?.name ?? id;
 export const chanceFor = chance;
 

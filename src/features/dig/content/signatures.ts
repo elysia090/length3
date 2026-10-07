@@ -2,7 +2,7 @@ import type { Ev } from '../core/events';
 import type { Char, World } from '../core/model';
 import type { RuleCtx } from '../core/rules';
 import type { Tx } from '../core/tx';
-import { breakFoe, cut, expose, hostile, revealClue, stun } from '../sim/ops';
+import { breakFoe, calm, coins, cut, expose, heal, hostile, revealClue, stun } from '../sim/ops';
 import { tagCount } from './cardinfo';
 import type { PassiveSpec, TriggerSpec } from './defs';
 
@@ -476,5 +476,111 @@ export const SIGNATURES: Readonly<Record<string, Signature>> = {
         text: '過密 ×1.15',
       },
     ],
+  },
+  may3: {
+    text: '銃殺隊の前で：敵意 8 以上の相手に ×2',
+    passive: [
+      {
+        rule: 'mult',
+        when: (c) => is('may3')(c) && (c.enc?.foe.hostility ?? 0) >= 8,
+        fn: (_c, v) => v * 2,
+        text: '銃口の前 ×2',
+      },
+    ],
+  },
+  icesea: {
+    text: '難破：体力が半分を切っていれば、使うたびに体力 +4',
+    triggers: [
+      {
+        on: 'card.use',
+        when: (ev, w) => {
+          if (!used('icesea')(ev, w)) return false;
+          const ch = w.enc?.who === 'rival' ? w.rival.char : w.you;
+          return ch.hp * 2 < 16 + 4 * (ch.innate.VIT + ch.growth.VIT);
+        },
+        run: (tx) => heal(tx, 4),
+        text: '氷の上で息をつく',
+      },
+    ],
+  },
+  cafe: {
+    text: '夜のカフェ：深夜に使うと、心の構え +3',
+    triggers: [
+      {
+        on: 'card.use',
+        when: (ev, w) => used('cafe')(ev, w) && w.hour >= 2,
+        run: (tx) => calm(tx, 3),
+        text: '赤と緑の部屋',
+      },
+    ],
+  },
+  bureau: {
+    text: 'たらい回し：［制度］の相手は、止められると敵意 −2（窓口が変わっただけ）',
+    triggers: [
+      {
+        on: 'card.use',
+        when: (ev, w) => used('bureau')(ev, w) && !!w.enc?.foe.tags.includes('institution'),
+        run: (tx) => hostile(tx, -2),
+        text: 'たらい回し',
+      },
+    ],
+  },
+  morel: {
+    text: '記録された永遠：相手が同じ手を繰り返すとき ×2',
+    passive: [
+      {
+        rule: 'mult',
+        when: (c) => is('morel')(c) && !!c.enc && c.enc.foe.history.at(-1) === c.enc.foe.move,
+        fn: (_c, v) => v * 2,
+        text: '繰り返し ×2',
+      },
+    ],
+  },
+  map: {
+    text: '地図と領土：持っているあいだ、本当の手がかりを見るたび 金 2',
+    triggers: [
+      {
+        on: 'clue',
+        when: (ev) => ev.type === 'clue' && ev.shown && !ev.false,
+        run: (tx) => coins(tx, 2),
+        text: '地図に起こす',
+      },
+    ],
+  },
+  picnic: {
+    text: 'ゾーンの遺物：奇妙な場所で使うと、金 +6・手がかり +1',
+    triggers: [
+      {
+        on: 'card.use',
+        when: (ev, w) => used('picnic')(ev, w) && !!w.map.find((n) => n.id === w.pos)?.eps.length,
+        run: (tx) => {
+          coins(tx, 6);
+          revealClue(tx);
+        },
+        text: '遺物',
+      },
+    ],
+  },
+  seven: {
+    text: '七つ目：見えている手がかり 1 つにつき ×1.15',
+    passive: [
+      {
+        rule: 'mult',
+        when: is('seven'),
+        fn: (c, v) => v * (1 + 0.15 * (c.enc?.foe.clues.filter((x) => x.shown).length ?? 0)),
+        text: '手がかりの数だけ',
+      },
+    ],
+  },
+  dunes: {
+    text: '砂の女：立ち去る −20%。そのかわり毎手番 体力 +1',
+    passive: [
+      { rule: 'leaveChance', fn: (_c, v) => (v > 0 && v < 100 ? v - 20 : v), text: '砂の穴' },
+    ],
+    triggers: [{ on: 'turn', run: (tx) => heal(tx, 1), text: '砂を掻く' }],
+  },
+  objectivity: {
+    text: '機械的客観性：持っているあいだ、誤った手がかり −20%',
+    passive: [{ rule: 'falseChance', fn: (_c, v) => v - 20, text: '客観' }],
   },
 };

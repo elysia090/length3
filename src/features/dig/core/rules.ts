@@ -191,7 +191,11 @@ export function bookOf(w: World): Rulebook {
   if (hit) return hit;
   const s = sources.collect(w);
   const book = compile(key, s.patches, s.triggers);
-  if (cache.size > 64) cache.clear();
+  // 古いものから捨てる（Map は入れた順に並ぶ）。
+  if (cache.size >= 256) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
   cache.set(key, book);
   return book;
 }

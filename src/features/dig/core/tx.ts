@@ -29,7 +29,7 @@ export class Tx {
   emit(ev: Ev): void {
     apply(this.w, ev);
     this.out.push(ev);
-    if (REBUILD.has(ev.type)) this.book = null;
+    if (REBUILD.has(ev.type) || (ev.type === 'card.mark' && ev.mark === 'ch')) this.book = null;
     if (this.depth > 6) return;
     const triggers = this.rules().triggers[ev.type];
     if (!triggers) return;
@@ -104,7 +104,7 @@ export class Tx {
 }
 
 /** 共鳴に数える出どころ（構成から来たもの。基本の規則・深さ・版・職は数えない）。 */
-const RESONANT = /^(card|perm|build|link|arch|ep|stage):/;
+const RESONANT = /^(card|perm|build|link|arch|ep|stage|surge):/;
 
 /** 規則の出どころが変わるイベント（集め直す）。 */
 const REBUILD = new Set<Ev['type']>([
@@ -112,7 +112,6 @@ const REBUILD = new Set<Ev['type']>([
   'card.ep',
   'perm',
   'perm.ep',
-  'build',
   'enc.start',
   'enc.close',
   'run.started',

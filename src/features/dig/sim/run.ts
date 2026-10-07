@@ -4,6 +4,7 @@ import { memoryMods, tagCount } from '../content/cardinfo';
 import { epithetsFor } from '../content/epithets';
 import { holds } from '../content/fx';
 import {
+  allBuilds,
   allCards,
   allCombos,
   allEpithets,
@@ -18,6 +19,8 @@ import {
   storyDef,
 } from '../content/registry';
 import { buildsOf } from '../content/sources';
+import { SURGES, tierOf } from '../content/surges';
+import { branch } from '../core/branch';
 import type { RestAction } from '../core/events';
 import {
   blankMind,
@@ -431,7 +434,7 @@ function rivalFight(
   eps: readonly string[],
   stage?: readonly Tag[],
 ): Outcome {
-  const sub = structuredClone(tx.w);
+  const sub = branch(tx.w);
   sub.enc = null;
   sub.pending = null;
   sub.rng = {
@@ -1067,12 +1070,9 @@ export function depart(tx: Tx): boolean {
 
 // ─── ビルドと組み合わせ ───────────────────────────────────────
 
-/** 発火しているビルドと、揃った記憶の組み合わせを、イベントとして記録する。 */
+/** 揃った記憶の組み合わせを記録し、能力値の上限で体力・精神を切りそろえる。 */
 export function sync(tx: Tx): void {
   const w = tx.w;
-  const now = new Set(buildsOf(w.you).map((b) => b.id));
-  for (const id of w.builds) if (!now.has(id)) tx.emit({ type: 'build', id, on: false });
-  for (const id of now) if (!w.builds.includes(id)) tx.emit({ type: 'build', id, on: true });
   for (const c of allCombos()) {
     const key = `combo:${c.id}`;
     if (w.flags[key] || !c.needs.every((p) => w.you.perms.includes(p))) continue;
@@ -1093,7 +1093,7 @@ function score(w: World, won: boolean): number {
   return (
     (w.stratum - 1) * 150 +
     w.you.perms.length * 12 +
-    w.builds.length * 30 +
+    buildsOf(w.you).length * 30 +
     w.found.length * 20 +
     (won ? 400 + w.depth * 120 : 0) +
     (won && !w.rival.first ? 100 : 0)
@@ -1151,3 +1151,34 @@ function finale(tx: Tx, outcome: Outcome): void {
 }
 
 export const memo = { blankMind, holds };
+
+/**
+ * ビルドとその段は、構成から毎回導く（世界に書き残さない）。コマンドの前後で
+ * 比べて、変わったぶんだけを告げる。
+ */
+export function tiersOf(c: Char): Map<string, number> {
+  return new Map(buildsOf(c).map((b) => [b.id, tierOf(c, b.id)]));
+}
+
+export function announce(tx: Tx, before: Map<string, number>): void {
+  const now = tiersOf(tx.w.you);
+  for (const [id, t] of now) {
+    const was = before.get(id);
+    const b = allBuilds().find((x) => x.id === id);
+    if (!b) continue;
+    if (was === undefined) tx.emit({ type: 'note', text: `《${b.name}》が成立した。${b.text}` });
+    const sv = SURGES[id];
+    if (!sv || t <= (was ?? 0)) continue;
+    tx.emit({
+      type: 'note',
+      text:
+        t === 2
+          ? `《${b.name}》が極まった ── ${sv.name}：${sv.peakText}`
+          : `《${b.name}》が暴走した ── ${sv.name}：${sv.text}`,
+    });
+  }
+  for (const id of before.keys()) {
+    const b = allBuilds().find((x) => x.id === id);
+    if (b && !now.has(id)) tx.emit({ type: 'note', text: `《${b.name}》が崩れた。` });
+  }
+}

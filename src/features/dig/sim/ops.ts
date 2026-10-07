@@ -15,16 +15,40 @@ export const actor = (tx: Tx): Who => tx.w.enc?.who ?? 'you';
 
 // ─── 能力値とタグ ─────────────────────────────────────────────
 
-export function stats(w: World, who: Who): StatBlock {
-  const c = charOf(w, who);
-  const out = zeroStats();
-  for (const s of STATS) out[s] = c.innate[s] + c.growth[s];
+/** 記憶（永続カード）の補正の合計と、盤面で変わる記憶。並びが同じなら使い回す。 */
+const permPart = new Map<string, { mods: StatBlock; dyn: string[] }>();
+function permsOf(c: Char): { mods: StatBlock; dyn: string[] } {
+  let key = c.perms.join(',');
+  for (const id of c.perms) {
+    const e = c.permEps[id];
+    if (e?.length) key += `|${id}:${e.join('+')}`;
+  }
+  const hit = permPart.get(key);
+  if (hit) return hit;
+  const mods = zeroStats();
+  const dyn: string[] = [];
   for (const id of c.perms) {
     const d = permDef(id);
     const k = memoryMods(c, id);
-    for (const s of STATS) out[s] += Math.round((d?.mods?.[s] ?? 0) * k);
-    if (d?.dyn && w.enc?.who === who) for (const s of STATS) out[s] += d.dyn(w, s);
+    for (const s of STATS) mods[s] += Math.round((d?.mods?.[s] ?? 0) * k);
+    if (d?.dyn) dyn.push(id);
   }
+  const out = { mods, dyn };
+  if (permPart.size > 1024) permPart.clear();
+  permPart.set(key, out);
+  return out;
+}
+
+export function stats(w: World, who: Who): StatBlock {
+  const c = charOf(w, who);
+  const p = permsOf(c);
+  const out = zeroStats();
+  for (const s of STATS) out[s] = c.innate[s] + c.growth[s] + p.mods[s];
+  if (p.dyn.length && w.enc?.who === who)
+    for (const id of p.dyn) {
+      const d = permDef(id);
+      if (d?.dyn) for (const s of STATS) out[s] += d.dyn(w, s);
+    }
   for (const s of STATS) out[s] = Math.max(0, out[s]);
   return out;
 }

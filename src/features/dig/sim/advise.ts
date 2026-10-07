@@ -10,6 +10,8 @@ import {
   foeDef,
   permDef,
 } from '../content/registry';
+import { buildsOf } from '../content/sources';
+import { branch } from '../core/branch';
 import type { MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { decide } from './decide';
@@ -148,7 +150,7 @@ function snapshot(w: World) {
     perms: new Set(y.perms),
     eps: y.epithets.length,
     coins: y.coins,
-    builds: new Set(w.builds),
+    builds: new Set(buildsOf(w.you).map((b) => b.id)),
   };
 }
 
@@ -169,7 +171,7 @@ export function probe(w: World, nodeId: number, samples = 2): Probe | null {
   };
   const gets = new Set<string>();
   for (let i = 0; i < samples; i++) {
-    const s = structuredClone(w);
+    const s = branch(w);
     const salt = Math.imul(nodeId + 1, 0x9e3779b1) ^ Math.imul(i + 3, 0x85ebca6b);
     for (const k of ['enc', 'ai', 'story', 'loot', 'rival', 'gossip'] as const)
       s.rng[k] = (s.rng[k] ^ salt ^ (k.length * 0x2545f491)) >>> 0;

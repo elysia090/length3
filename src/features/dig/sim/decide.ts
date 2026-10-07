@@ -5,6 +5,7 @@ import '../content/sources';
 import { basic, useCard } from './encounter';
 import {
   alter,
+  announce,
   breather,
   buy,
   choose,
@@ -19,6 +20,7 @@ import {
   sell,
   start,
   sync,
+  tiersOf,
   useItem,
 } from './run';
 
@@ -32,6 +34,7 @@ export function decide(
   opts: { sim?: boolean; trace?: Map<string, number> } = {},
 ): Ev[] {
   const tx = new Tx(w, opts.sim ?? false);
+  const before = opts.sim ? null : tiersOf(w.you);
   tx.trace = opts.trace ?? null;
   if (w.ending && cmd.c !== 'start') return [];
   let ok = true;
@@ -94,5 +97,6 @@ export function decide(
   if (!ok && !tx.out.length) return [];
   tx.flush();
   if (!w.ending) sync(tx);
+  if (before) announce(tx, before);
   return tx.close();
 }
