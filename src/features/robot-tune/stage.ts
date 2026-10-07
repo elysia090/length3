@@ -13,7 +13,7 @@ import {
   unitCount,
   volumeOfLevel,
 } from './scale';
-import { beatAt, envelopeAt, silenceStart } from './timeline';
+import { beatAt, envelopeAt, freezeStart, silenceStart } from './timeline';
 
 /** 横に並ぶ画素の目安。320 × 200 の時代の画面の細かさ。 */
 const TARGET_COLUMNS = 320;
@@ -124,14 +124,15 @@ export function mountRobotTune(root: HTMLElement): void {
     if (!image || !out) return;
     const playing = state === 'playing';
     const pos = playing || state === 'paused' ? player.position() : 0;
-    const frozenAt = playing ? silenceStart(pos) : null;
+    const frozenAt = playing ? freezeStart(pos) : null;
+    const quiet = playing && silenceStart(pos) !== null;
     const beat = playing || state === 'paused' ? beatAt(frozenAt ?? pos) : POSTER_BEAT;
     const scene = sceneAt(Math.max(POSTER_BEAT, beat));
     const env = playing ? envelopeAt(pos) : null;
     const gain = volume ? Number(volume.value) : 0.8;
     // 音が止まった所で体積も消える。動きを減らす設定のときは、
     // 面の点滅を避けて止まるだけにする。
-    const silent = !playing || frozenAt !== null;
+    const silent = !playing || quiet;
     const xray = silent && !(reduced.matches && playing);
     const pump = env ? 0.72 + 0.28 * clamp(env.low * 1.4) : 1;
     render(raster, {
@@ -157,10 +158,11 @@ export function mountRobotTune(root: HTMLElement): void {
     if (!chip || !chipCtx || !chipImage || !chipOut) return;
     const playing = state === 'playing';
     const pos = playing || state === 'paused' ? player.position() : 0;
-    const frozen = playing ? silenceStart(pos) : null;
+    const frozen = playing ? freezeStart(pos) : null;
+    const quiet = playing && silenceStart(pos) !== null;
     const beat = beatAt(frozen ?? pos);
     const f = beat - Math.floor(beat);
-    const hop = playing && frozen === null && !reduced.matches ? Math.max(0, 1 - f * 3) * 0.55 : 0;
+    const hop = playing && !quiet && !reduced.matches ? Math.max(0, 1 - f * 3) * 0.55 : 0;
     chipRaster.clear();
     const cube: CubeState = {
       base: [0, hop, 0],
@@ -179,8 +181,8 @@ export function mountRobotTune(root: HTMLElement): void {
       chipRaster.h / 2 + 1,
     );
     const solid = cubeSolid(cube, 0);
-    if (playing && frozen === null) drawFaces(chipRaster, view, solid, 0.95);
-    drawEdges(chipRaster, view, solid, !(playing && frozen === null), 0.05);
+    if (playing && !quiet) drawFaces(chipRaster, view, solid, 0.95);
+    drawEdges(chipRaster, view, solid, !(playing && !quiet), 0.05);
     // 曲名は書かない。止める／鳴らすの記号だけ。
     if (playing) {
       chipRaster.rect(19, 4, 2, 7, INK);

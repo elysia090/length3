@@ -89,6 +89,16 @@ export function silenceStart(pos: number): number | null {
   return fileStart - (at.iteration === 0 ? INTRO_SEC : LOOP_SEC) + tail[0];
 }
 
+/**
+ * 絵を止める時刻。イントロの無音では止めて、音が戻った瞬間に飛ばす。
+ * ループでは止めない: ループは 1 周 5.8 秒に 6 回も無音があり、そのたびに
+ * 止めて飛ばすと動きがカクつく。ループの無音は、面が消えて線画になる
+ * ことだけで示す（silenceStart は「いま無音か」を見るのに使う）。
+ */
+export function freezeStart(pos: number): number | null {
+  return locate(pos).loop ? null : silenceStart(pos);
+}
+
 export interface Envelope {
   /** 全帯域の RMS。0..1 */
   level: number;
