@@ -130,13 +130,27 @@
     padding-inline: clamp(1rem, 2vw, 1.5rem);
   }
 
+  /* 目次の列は縦に二段: 上が目次（長ければこの段だけが中でスクロール）、
+     下が読んだぶんの立方体（ReadingReel）。重ねないので、立方体に地の面を
+     敷いて目次を隠す必要がない。 */
   .toc-aside {
-    display: block;
+    display: flex;
+    flex-direction: column;
     grid-area: toc;
     position: sticky;
     top: 2rem;
     align-self: start;
     max-height: calc(100dvh - 4rem);
+    overflow: hidden;
+    padding-top: 2rem;
+    z-index: var(--z-surface); /* テクスチャ (--z-texture) より前面でテキストを描画 */
+    /* 背景なし: TOC列はテクスチャをそのまま透過させる。
+       左端の硬い境界線を排除しスペーシングを自然に保つ。 */
+  }
+
+  .toc-aside > .toc {
+    flex: 0 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
@@ -147,14 +161,10 @@
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
     transition: scrollbar-color var(--transition-slow);
-    padding-top: 2rem;
-    z-index: var(--z-surface); /* テクスチャ (--z-texture) より前面でテキストを描画 */
-    /* 背景なし: TOC列はテクスチャをそのまま透過させる。
-       左端の硬い境界線を排除しスペーシングを自然に保つ。 */
   }
 
-  .toc-aside:hover,
-  .toc-aside:focus-within {
+  .toc-aside > .toc:hover,
+  .toc-aside > .toc:focus-within {
     scrollbar-color: var(--rule) transparent;
   }
 }

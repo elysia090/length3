@@ -81,7 +81,7 @@ All utility functions — Edit, Share, Copy Link, reading progress — are reloc
 
 **TOC behavior.** `position: sticky; top: 32px`. The TOC tracks the reader's scroll position, highlighting the current section.
 
-**Reading reel.** Under the TOC, sticky at the bottom of its column, a 3³ dashed frame fills with one cube per 1/27 of the article read; each drops, squashes and cools. The 27th fills the frame and the whole cube flashes amber and cools. No numbers or labels are drawn. Progress is measured exactly as the reading-progress bar measures it (page scroll), so the frame is full when the bar reads 100%. It draws only on scroll and is `aria-hidden` — the progress bar already reports progress.
+**Reading reel.** Under the TOC. The TOC column is two stacked parts — the TOC, which alone scrolls when it is long, and the reel, always visible below it — so nothing overlaps and the reel needs no backing surface over the paper. In it a 3³ dashed frame fills with one cube per 1/27 of the article read; each drops, squashes and cools. The 27th fills the frame and the whole cube flashes amber and cools. No numbers or labels are drawn. Progress is measured exactly as the reading-progress bar measures it (page scroll), so the frame is full when the bar reads 100%. It draws only on scroll and is `aria-hidden` — the progress bar already reports progress.
 
 **Previous / next.** After the prose, the previous and next articles (`rel="prev"`/`rel="next"`): a direction in small mono and the title, under a hairline. No sign-off, no heading. It is excluded from the search index.
 

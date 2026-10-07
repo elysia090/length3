@@ -16,16 +16,12 @@
 </script>
 
 <style>
-  /* 目次の列は中でスクロールする。その底に貼り付けて、目次が長くても
-     立方体はいつも見えているようにする。 */
+  /* 目次の列の下段。目次とは重ならないので地の面は敷かない。 */
   .reading-reel {
-    position: sticky;
-    bottom: 0;
-    margin-top: 1rem;
-    padding-block: 2rem 0.5rem;
-    /* 下から上がってくる目次の行は、紙に溶けてから立方体の下へ消える。
-       箱で隠すと、そこだけ紙を切り貼りしたように見える。 */
-    background: linear-gradient(to bottom, transparent, var(--bg) 1.75rem);
+    flex: none;
+    margin-top: 1.5rem;
+    padding-block: 1rem 0.5rem;
+    border-top: 0.0625rem solid var(--rule);
   }
 
   .reading-reel canvas {
