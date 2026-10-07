@@ -513,17 +513,16 @@ export function sceneAt(beat: number): Scene {
     const toBeat = (e: number) => loopStart + e / 2;
     for (const [n, th] of LOOP_THROWS.entries()) {
       th.cells.forEach((slot, j) => {
+        // イントロと同じ一辺 1 の箱を、一掬いの中で 1 個ずつ刃に載せて放る。
+        // 前の箱が刃を離れた瞬間に次の箱が刃に現れるので、重ならない。
+        const step = Math.min(0.2, (th.land - th.launch) / (th.cells.length + 1));
+        const launch = th.launch + step * j;
         const f: Flight = {
-          appear: th.scoop,
-          // 刃から順にこぼれるように、ほんの少しずつ遅れて離れる。
-          launch: th.launch + 0.06 * (j % 3),
-          land: th.land + STAGGER * (j % 3),
-          size: 0.32,
-          jitter: [
-            (hash(j * 13 + n) - 0.5) * 0.5,
-            (hash(j * 7 + n + 3) - 0.5) * 0.3 + 0.12 * (j % 3),
-            (hash(j * 5 + n + 9) - 0.5) * 0.5,
-          ],
+          appear: j === 0 ? th.scoop : th.launch + step * (j - 1),
+          launch,
+          land: th.land + STAGGER * j,
+          size: 1,
+          jitter: NO_JITTER,
         };
         const c = flying(j * 31 + n * 7 + s.cycle * 977, s.e, toBeat, f, slot, true);
         if (c) cubes.push(c);
