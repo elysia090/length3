@@ -9,6 +9,7 @@ import {
   BPM,
   beatAt,
   EIGHTH_SEC,
+  freezeStart,
   INTRO_BEATS,
   LOOP_EIGHTHS,
   silenceStart,
@@ -113,43 +114,53 @@ describe('choreography', () => {
   });
 });
 
-describe('shovel motion', () => {
-  // 320 × 200 の画面に写したときの、60 fps の 1 コマあたりの動き（画素）。
-  const onScreen = (beat: number, local: [number, number, number]) => {
-    const sc = sceneAt(beat);
+describe('loop playback', () => {
+  // 再生位置から描くのと同じ手順で、320 × 200 の画面に写した 1 コマ（60 fps）
+  // あたりの動き（画素）を測る。
+  const frame = (pos: number) => {
+    const sc = sceneAt(beatAt(freezeStart(pos) ?? pos));
     const zoom = sc.camera.span / 2.15;
     const view = new View(sc.camera, Math.min(320 / (zoom * 2.8), 200 / (zoom * 2.05)), 160, 100);
     const s = sc.shovel;
-    return view.project(add(s.pivot, scale(apply(s.rot, local), s.scale)));
+    return {
+      grip: view.project(add(s.pivot, scale(apply(s.rot, [0, 3.6, 0]), s.scale))),
+      pile: view.project(add(sc.cubes[0]?.base ?? [0, 0, 0], [0, 0.5, 0])),
+    };
   };
-  const motion = (from: number, to: number, local: [number, number, number]) => {
-    const step = 1 / 60 / (60 / BPM);
-    const out: number[] = [];
-    let prev = onScreen(from, local);
-    for (let b = from + step; b < to; b += step) {
-      const p = onScreen(b, local);
-      out.push(Math.hypot(p[0] - prev[0], p[1] - prev[1]));
-      prev = p;
-    }
-    return out.sort((a, b) => a - b);
-  };
+  const start = INTRO_SEC + LOOP_SEC + 0.02;
+  const end = INTRO_SEC + 2 * LOOP_SEC - 0.02;
 
-  it('never jumps between frames, in the intro or the loop', () => {
-    const loop = INTRO_BEATS + BEATS_PER_LOOP;
-    for (const [a, b] of [
-      [0, 26],
-      [loop + 0.3, loop + BEATS_PER_LOOP - 0.3],
-    ] as const) {
-      const grip = motion(a, b, [0, 3.6, 0]);
-      expect(grip[grip.length - 1]).toBeLessThan(10);
-    }
+  it('never freezes in the loop (rests only drop the faces)', () => {
+    for (let pos = start; pos < end; pos += 0.01) expect(freezeStart(pos)).toBeNull();
+    // イントロでは無音で止める。
+    expect(freezeStart(0.2)).toBe(0);
   });
 
-  it('keeps the hands steadier than the blade', () => {
-    const grip = motion(2, 20, [0, 3.6, 0]);
-    const tip = motion(2, 20, [0, 0, 0]);
-    const mid = (a: number[]) => a[Math.floor(a.length / 2)] ?? 0;
-    expect(mid(grip)).toBeLessThan(mid(tip));
+  it('moves the shovel and the camera without jumps', () => {
+    // 飛びは速さではなく、コマごとの動きの急な変わり目（2 階差分）に出る。
+    // 振り抜きは速いが滑らかで、止めて飛ばすと 1 コマで大きく変わる。
+    const path = (key: 'grip' | 'pile') => {
+      const out: number[][] = [];
+      for (let pos = start; pos < end; pos += 1 / 60) {
+        const p = frame(pos)[key];
+        out.push([p[0], p[1]]);
+      }
+      return out;
+    };
+    for (const [key, limit] of [
+      ['grip', 9],
+      ['pile', 6],
+    ] as const) {
+      const pts = path(key);
+      let worst = 0;
+      for (let i = 2; i < pts.length; i++) {
+        const [ax = 0, ay = 0] = pts[i - 2] ?? [];
+        const [bx = 0, by = 0] = pts[i - 1] ?? [];
+        const [cx = 0, cy = 0] = pts[i] ?? [];
+        worst = Math.max(worst, Math.hypot(cx - 2 * bx + ax, cy - 2 * by + ay));
+      }
+      expect(worst, key).toBeLessThan(limit);
+    }
   });
 });
 
