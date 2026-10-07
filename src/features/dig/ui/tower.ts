@@ -117,7 +117,7 @@ export class Tower {
     const z = this.cam.zoom;
     return {
       x: W / 2 + (u - v) * 30 * z - this.cam.x * z,
-      y: H * 0.34 + (u + v) * 13 * z + (f - this.cam.floor) * 50 * z - this.cam.y * z,
+      y: H * 0.24 + (u + v) * 13 * z + (f - this.cam.floor) * 50 * z - this.cam.y * z,
     };
   }
 
@@ -142,7 +142,7 @@ export class Tower {
 
     this.abyss(view);
     // 深いフロアから描く（上のフロアが手前に重なる）。
-    for (let f = view.floors - 1; f >= -1; f--) this.slab(view, f);
+    for (let f = view.floors - 1; f >= 0; f--) this.slab(view, f);
     this.stairs(view, t);
     this.placed = [];
     const rooms = [...view.rooms].sort((a, b) => b.floor - a.floor);
@@ -357,6 +357,8 @@ export class Tower {
     const pos = new Map(view.rooms.map((room) => [room.id, room]));
     for (const room of view.rooms) {
       if (!room.person) continue;
+      // 遠いフロアの人は描かない（近づけば見えてくる。画面を静かに保つ）。
+      if (room.floor - this.cam.floor > 3.2 && room.kind !== 'boss') continue;
       const inEnc = view.enc?.room === room.id;
       const { x, y } = this.center(room);
       const k = (room.kind === 'boss' ? 1.8 : 1.25) * zm;
@@ -432,7 +434,7 @@ export class Tower {
     const x = ((cssX - rect.left) / rect.width) * W;
     const y = ((cssY - rect.top) / rect.height) * H;
     let best: number | null = null;
-    let d = 12 * this.cam.zoom;
+    let d = 18 * this.cam.zoom;
     for (const p of this.placed) {
       const e = Math.hypot(p.x - x, (p.y - 4 - y) * 1.2);
       if (e < d) {

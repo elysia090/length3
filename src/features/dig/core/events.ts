@@ -127,7 +127,11 @@ export type Ev =
   | { type: 'rival.char'; char: import('./model').Char }
   | { type: 'rule'; source: string; text: string }
   | { type: 'ending'; ending: Ending }
-  | { type: 'note'; text: string };
+  /**
+   * 一文。level は画面に出す重み：0 は出さない（読み上げだけ）、1 は塔の上に
+   * 小さく出してすぐ消す、2 は記録に残す、3 は名場面として大きく一度だけ出す。
+   */
+  | { type: 'note'; text: string; level?: 0 | 1 | 2 | 3 };
 
 export type EvType = Ev['type'];
 export type EvOf<T extends EvType> = Extract<Ev, { type: T }>;

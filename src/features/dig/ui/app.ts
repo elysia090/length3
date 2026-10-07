@@ -18,7 +18,7 @@ import { nextTier, SURGES, tierOf } from '../content/surges';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME } from '../core/tags';
-import { type Advice, advise, nodeLabel } from '../sim/advise';
+import { type Advice, advise, nodeLabel, type RouteKind } from '../sim/advise';
 import { canAccept, leaveChance, resonance, shownIntent } from '../sim/encounter';
 import { Game } from '../sim/game';
 import { foeHardness, hardnessLabel, nodeHardness, outmatched, youHardness } from '../sim/hardness';
@@ -43,6 +43,8 @@ import {
   storyChance,
 } from '../sim/run';
 import { button, type Child, fill, h, meter } from './dom';
+import { HINTS, nextHint } from './hints';
+import { bestSlot, delta, say as sayDelta, withCard, withEpithet } from './preview';
 import { loadProfile, loadRun, type Profile, saveProfile, saveRun } from './save';
 import { DigSound } from './sound';
 import { type RoomView, Tower, type TowerView } from './tower';
@@ -101,6 +103,16 @@ export function openDig(doc: Document, onClose: () => void): void {
   let game: Game | null = null;
   let screen: Screen = 'create';
   let focus: number | null = null;
+  /** 押して見ている部屋（脇に詳しく出す）。 */
+  let pinned: number | null = null;
+  /** 見取り図に描く道（選んだ一本と、触れている一本だけ）。 */
+  let routeSel: RouteKind | null = null;
+  let routePeek: RouteKind | null = null;
+  /** 案内を一覧でめくっているときの位置。 */
+  let browse: number | null = null;
+  let hintShown: string | null = null;
+  /** 遭遇の外で押して開いたカード（触れられない端末でも中身を読める）。 */
+  let opened: number | null = null;
   let advice: Advice | null = null;
   let adviceAt = -1;
   let log: string[] = [];
@@ -122,7 +134,12 @@ export function openDig(doc: Document, onClose: () => void): void {
   const bar = h('header', { class: 'dig-bar' });
   const canvas = h('canvas', { class: 'dig-tower', 'aria-label': '塔の見取り図' });
   const tip = h('div', { class: 'dig-tip', hidden: true });
-  const view = h('div', { class: 'dig-view' }, canvas, tip);
+  // 案内の帯（天井の代わり）。名場面・いまの一文・ヒントを、一つずつ。
+  const moment = h('p', { class: 'dig-guide__moment', hidden: true });
+  const caption = h('p', { class: 'dig-guide__line' });
+  const hintBox = h('div', { class: 'dig-guide__hint' });
+  const guide = h('div', { class: 'dig-guide' }, moment, caption, hintBox);
+  const view = h('div', { class: 'dig-view' }, guide, canvas, tip);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
@@ -164,6 +181,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       sound.fail();
       return false;
     }
+    if (hintShown) seeHint(hintShown);
     react(evs);
     aim = null;
     if (cmd.c === 'claim') {
@@ -221,11 +239,18 @@ export function openDig(doc: Document, onClose: () => void): void {
         case 'perm':
           sound.gain();
           break;
-        case 'note':
-          say(ev.text);
+        case 'note': {
+          // 重みで出し分ける：0 読み上げだけ、1 帯に一瞬、2 記録にも、3 名場面。
+          const lv = ev.level ?? 1;
+          live.textContent = ev.text;
+          if (lv >= 2) log = [...log.slice(-30), ev.text];
+          if (lv === 3) showMoment(ev.text);
+          else if (lv >= 1) showCaption(ev.text);
           break;
+        }
         case 'say':
-          say(ev.who === 'foe' ? `「${ev.text}」` : ev.text);
+          live.textContent = ev.text;
+          showCaption(ev.who === 'foe' ? `「${ev.text}」` : ev.text);
           break;
         default:
           break;
@@ -233,9 +258,97 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   }
 
-  function say(text: string): void {
-    log = [...log.slice(-30), text];
-    live.textContent = text;
+  let captionTimer = 0;
+  function showCaption(text: string): void {
+    caption.textContent = text;
+    caption.classList.add('is-on');
+    window.clearTimeout(captionTimer);
+    captionTimer = window.setTimeout(() => caption.classList.remove('is-on'), 2600);
+  }
+
+  const moments: string[] = [];
+  let momentBusy = false;
+  function showMoment(text: string): void {
+    moments.push(text);
+    if (momentBusy) return;
+    const next = () => {
+      const m = moments.shift();
+      if (!m) {
+        momentBusy = false;
+        moment.hidden = true;
+        return;
+      }
+      momentBusy = true;
+      moment.textContent = m;
+      moment.hidden = false;
+      window.setTimeout(next, 3400);
+    };
+    next();
+  }
+
+  /** 案内の帯のヒント（いま関係する、まだ見ていない一つ。一覧もめくれる）。 */
+  function renderGuide(): void {
+    hintBox.replaceChildren();
+    if (browse !== null) {
+      const i = browse;
+      const hnt = HINTS[i];
+      if (!hnt) return;
+      fill(hintBox, [
+        h('b', {}, `${hnt.title}（${i + 1}/${HINTS.length}）`),
+        h('span', {}, hnt.text),
+        h(
+          'span',
+          { class: 'dig-guide__nav' },
+          button(
+            '‹',
+            () => {
+              browse = (i - 1 + HINTS.length) % HINTS.length;
+              renderGuide();
+            },
+            { 'aria-label': '前の案内' },
+          ),
+          button(
+            '›',
+            () => {
+              browse = (i + 1) % HINTS.length;
+              renderGuide();
+            },
+            { 'aria-label': '次の案内' },
+          ),
+          button('閉じる', () => {
+            browse = null;
+            renderGuide();
+          }),
+        ),
+      ]);
+      return;
+    }
+    const w = game?.world;
+    const hnt = w && screen === 'play' ? nextHint(w, profile.hints) : null;
+    hintShown = hnt?.id ?? null;
+    fill(hintBox, [
+      hnt ? h('b', {}, hnt.title) : null,
+      hnt ? h('span', {}, hnt.text) : null,
+      h(
+        'span',
+        { class: 'dig-guide__nav' },
+        hnt ? button('わかった', () => seeHint(hnt.id)) : null,
+        button(
+          '？',
+          () => {
+            browse = 0;
+            renderGuide();
+          },
+          { 'aria-label': '案内を一覧で読む', title: '案内を一覧で読む' },
+        ),
+      ),
+    ]);
+  }
+
+  function seeHint(id: string): void {
+    if (!profile.hints.includes(id)) profile.hints.push(id);
+    saveProfile(profile);
+    renderGuide();
   }
 
   function finishRun(w: World): void {
@@ -313,7 +426,17 @@ export function openDig(doc: Document, onClose: () => void): void {
       };
     });
     const next = new Set(reachable(w).map((n) => n.id));
-    for (const r of rooms) r.reachable = next.has(r.id);
+    for (const r of rooms) {
+      r.reachable = next.has(r.id);
+      // 細かい印（硬度・見せ場・エピテット）は、行ける部屋と、見ている部屋と、最後の相手だけ。
+      const near = r.reachable || r.id === focus || r.id === pinned || r.kind === 'boss';
+      if (!near) {
+        r.hard = null;
+        r.over = false;
+        r.eps = 0;
+        r.stage = false;
+      }
+    }
     const edges = w.map.flatMap((n) => n.next.map((m) => [n.id, m] as const));
     const routes = advice
       ? [...advice.win, ...advice.play].map((r) => ({
@@ -336,7 +459,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         !rv.down && rv.stratum === w.stratum && rv.node !== null && w.enc?.foe.id !== 'rival'
           ? rv.node
           : null,
-      routes: w.enc || w.pending ? [] : routes,
+      routes: w.enc || w.pending ? [] : routes.filter((r) => r.kind === (routePeek ?? routeSel)),
       focus,
       enc: w.enc && w.enc.who === 'you' && w.pos !== null ? { room: w.pos, ...anim } : null,
     };
@@ -380,7 +503,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       sound.click();
       send({ c: 'move', node: id });
     } else {
-      focus = id;
+      pinned = pinned === id ? null : id;
       render();
     }
   });
@@ -494,13 +617,21 @@ export function openDig(doc: Document, onClose: () => void): void {
     side.replaceChildren();
     if (!game) return;
     renderPanel(game.world);
-    // 出来事の記録は、どの画面でも同じ場所に。
+    // 出来事の記録は、どの画面でも同じ場所に畳んでおく（開けば読める）。
     if (log.length)
       fill(side, [
         h(
-          'ol',
-          { class: 'dig-log', 'aria-label': '出来事' },
-          log.slice(-5).map((l) => h('li', {}, l)),
+          'details',
+          { class: 'dig-log' },
+          h('summary', {}, `記録（${log.length}）`),
+          h(
+            'ol',
+            {},
+            log
+              .slice(-12)
+              .reverse()
+              .map((l) => h('li', {}, l)),
+          ),
         ),
       ]);
   }
@@ -594,75 +725,110 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   function mapPanel(w: World): HTMLElement {
     const next = reachable(w);
-    const f = focus !== null ? nodeOf(w, focus) : undefined;
+    const sel = pinned !== null ? nodeOf(w, pinned) : undefined;
     const kids: (Child | readonly Child[])[] = [];
-    if (f) {
-      const can = next.some((n) => n.id === f.id);
+    if (sel) {
+      const can = next.some((n) => n.id === sel.id);
       kids.push(
         section(
           '部屋',
-          roomInfo(w, f),
+          roomInfo(w, sel),
           can
             ? button(
-                isHall(w, f) ? '廊下を歩いて、ここへ' : 'ここへ下りる',
-                () => send({ c: 'move', node: f.id }),
-                {
-                  class: 'dig-go',
-                },
+                isHall(w, sel) ? '廊下を歩いて、ここへ' : 'ここへ下りる',
+                () => send({ c: 'move', node: sel.id }),
+                { class: 'dig-go' },
               )
             : null,
+          button('閉じる', () => {
+            pinned = null;
+            render();
+          }),
         ),
       );
     } else
       kids.push(
         section(
           '行ける部屋',
-          h(
-            'p',
-            { class: 'dig-quiet' },
-            '光っている部屋を押す（← → で選んで Enter でも）。下りるか、廊下を歩くか。',
-          ),
-          next.map((n) =>
-            button(
-              `${isHall(w, n) ? '廊下 → ' : '下へ → '}${KIND_NAME[n.kind]}${n.npc ? `・${foeDef(n.npc).name}` : ''}`,
+          next.map((n) => {
+            const hard = n.npc ? nodeHardness(w, n) : null;
+            return button(
+              `${isHall(w, n) ? '廊下 → ' : '下へ → '}${n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]}${hard !== null ? `　硬度 ${hard}` : ''}${n.stage?.length ? '　見せ場' : ''}`,
               () => send({ c: 'move', node: n.id }),
-            ),
-          ),
+            );
+          }),
         ),
       );
     if (advice) {
-      const card = (r: Advice['win'][number]) =>
-        h(
-          'article',
-          { class: `dig-route dig-route--${r.kind}` },
-          h('h4', {}, r.label),
-          h('p', { class: 'dig-route__steps' }, r.steps.join(' → ')),
-          h('p', {}, r.text),
-          r.warn.length ? h('p', { class: 'dig-warn' }, r.warn.join('。')) : null,
-          r.hint ? h('p', { class: 'dig-amber' }, r.hint) : null,
-          r.path[0] !== undefined
-            ? button('この道へ一歩', () => send({ c: 'move', node: r.path[0] as number }))
-            : null,
-        );
-      kids.push(
-        section('勝つための推奨', advice.win.map(card)),
-        section('面白いことをするための推奨', advice.play.map(card)),
-      );
-    }
-    const near = misses(w).slice(0, 3);
-    if (near.length)
+      const all = [...advice.win, ...advice.play];
+      const short: Record<RouteKind, string> = {
+        safe: '安定',
+        chain: '高連鎖',
+        almost: 'あと一つ',
+      };
+      const metric = (r: (typeof all)[number]) =>
+        r.kind === 'safe'
+          ? `${Math.round(r.survive * 100)}%`
+          : r.kind === 'chain'
+            ? `噛み合い ${r.links.length}`
+            : r.hint
+              ? '一要素'
+              : '';
+      const chosen = all.find((r) => r.kind === routeSel);
       kids.push(
         section(
-          'あと一つ',
-          near.map((m) => h('p', {}, `${m.name}：あと${lackText(m.lack)}`)),
+          '道の読み',
+          h(
+            'div',
+            { class: 'dig-chips' },
+            all.map((r) =>
+              h(
+                'button',
+                {
+                  type: 'button',
+                  class: `dig-chip dig-chip--${r.kind}${routeSel === r.kind ? ' is-on' : ''}`,
+                  'aria-pressed': routeSel === r.kind ? 'true' : 'false',
+                  title: r.label,
+                  onclick: () => {
+                    routeSel = routeSel === r.kind ? null : r.kind;
+                    render();
+                  },
+                  onmouseenter: () => {
+                    routePeek = r.kind;
+                  },
+                  onmouseleave: () => {
+                    routePeek = null;
+                  },
+                },
+                h('b', {}, `${r.aim === 'win' ? '勝つ' : '面白い'}：${short[r.kind]}`),
+                h('span', {}, metric(r)),
+              ),
+            ),
+          ),
+          chosen
+            ? h(
+                'div',
+                { class: `dig-route dig-route--${chosen.kind}` },
+                h('p', {}, chosen.text),
+                chosen.warn.length ? h('p', { class: 'dig-warn' }, chosen.warn.join('。')) : null,
+                chosen.hint ? h('p', { class: 'dig-amber' }, chosen.hint) : null,
+                chosen.path[0] !== undefined
+                  ? button('この道へ一歩', () =>
+                      send({ c: 'move', node: chosen.path[0] as number }),
+                    )
+                  : null,
+              )
+            : h('p', { class: 'dig-quiet' }, '道を押すと、見取り図にその道が描かれる。'),
         ),
       );
+    }
     kids.push(
-      section(
-        'その場で',
-        button('一服する（1 時間）', () => send({ c: 'breather' })),
+      h(
+        'div',
+        { class: 'dig-row' },
+        button('一服（1 時間）', () => send({ c: 'breather' })),
         w.you.items.map((id, i) =>
-          button(`${itemDef(id)?.name ?? id}を使う`, () => send({ c: 'item', index: i }), {
+          button(itemDef(id)?.name ?? id, () => send({ c: 'item', index: i }), {
             title: itemDef(id)?.text,
           }),
         ),
@@ -833,7 +999,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (p.cards.length)
       kids.push(
         h('p', {}, 'カードを一枚拾える（拾うと決着を受け取る）：'),
-        p.cards.map((id) => cardOffer(id, () => pickCard(w, id))),
+        p.cards.map((id) => cardOffer(id, () => pickCard(w, id), 'pick')),
       );
     kids.push(
       button(
@@ -855,11 +1021,32 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   }
 
-  function cardOffer(id: string, on: () => void): HTMLElement {
+  /** 拾う札・買う札。押すか、枠へ落とす。決める前に、構成がどう変わるかを一行で。 */
+  function cardOffer(
+    id: string,
+    on: () => void,
+    source: 'pick' | 'buy' | null = null,
+  ): HTMLElement {
     const d = cardDef(id);
+    const w = game?.world;
+    const hint = w
+      ? (() => {
+          const slot = bestSlot(w.you, id);
+          const after = withCard(w.you, slot, id);
+          return sayDelta(delta(w.you, after), after);
+        })()
+      : '';
     return h(
       'button',
-      { type: 'button', class: 'dig-offer', onclick: on },
+      {
+        type: 'button',
+        class: 'dig-offer',
+        onclick: on,
+        draggable: source ? 'true' : undefined,
+        ondragstart: (ev: Event) => {
+          if (source) (ev as DragEvent).dataTransfer?.setData('text/plain', `${source}:${id}`);
+        },
+      },
       h('b', {}, d.name),
       d.legend ? h('span', { class: 'dig-amber' }, ` 主役『${d.legend}』`) : null,
       h(
@@ -869,6 +1056,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       ),
       h('span', { class: 'dig-offer__fx' }, fxText(d.ready)),
       d.sig ? h('span', { class: 'dig-offer__sig' }, d.sig) : null,
+      hint ? h('span', { class: 'dig-offer__next' }, hint) : null,
     );
   }
 
@@ -924,11 +1112,15 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-shopline' },
-          cardOffer(id, () => {
-            if (sold) return;
-            aim = { kind: 'buy', id };
-            render();
-          }),
+          cardOffer(
+            id,
+            () => {
+              if (sold) return;
+              aim = { kind: 'buy', id };
+              render();
+            },
+            sold ? null : 'buy',
+          ),
           h('span', { class: 'dig-price' }, sold ? '売約' : `金 ${cardPrice(w, id)}`),
         ),
       );
@@ -1045,6 +1237,14 @@ export function openDig(doc: Document, onClose: () => void): void {
     const builds = buildsOf(w.you);
     const slots = w.you.cards.map((c, slot) => {
       const onClick = () => clickSlot(w, slot);
+      const drop = {
+        ondragover: (ev: Event) => ev.preventDefault(),
+        ondrop: (ev: Event) => {
+          ev.preventDefault();
+          dropOn(w, slot, (ev as DragEvent).dataTransfer?.getData('text/plain') ?? '');
+        },
+      };
+      const peek = aimPreview(w, slot);
       if (!c)
         return h(
           'button',
@@ -1059,13 +1259,15 @@ export function openDig(doc: Document, onClose: () => void): void {
         'button',
         {
           type: 'button',
-          class: `dig-card${spent ? ' is-spent' : ''}${aim ? ' is-aim' : ''}${d.legend ? ' is-lead' : ''}`,
+          class: `dig-card${spent ? ' is-spent' : ''}${aim ? ' is-aim' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}`,
           onclick: onClick,
+          ...drop,
           title: [d.sig, d.flavor].filter(Boolean).join('\n'),
           'aria-label': `${slot + 1}　${cardName(c, spent)}`,
         },
         h('span', { class: 'dig-card__key' }, String(slot + 1)),
         h('b', { class: 'dig-card__name' }, cardName(c, spent)),
+        peek ? h('span', { class: 'dig-card__next' }, peek) : null,
         h('span', { class: 'dig-card__uses' }, pips(c)),
         h(
           'span',
@@ -1136,7 +1338,12 @@ export function openDig(doc: Document, onClose: () => void): void {
                     aim = { kind: 'inscribe', ep };
                     render();
                   },
-                  { title: `${epithetDef(ep)?.gloss ?? ''}\n${epithetDef(ep)?.card?.text ?? ''}` },
+                  {
+                    title: `${epithetDef(ep)?.gloss ?? ''}\n${epithetDef(ep)?.card?.text ?? ''}\n（カードへ落としても刻める）`,
+                    draggable: 'true',
+                    ondragstart: (ev: Event) =>
+                      (ev as DragEvent).dataTransfer?.setData('text/plain', `ep:${ep}`),
+                  },
                 ),
               ),
             )
@@ -1161,6 +1368,32 @@ export function openDig(doc: Document, onClose: () => void): void {
     return aim.action === 'full' ? 'ひと晩かけて満たすカードを選ぶ' : '捨てるカードを選ぶ';
   }
 
+  /** 狙っている一手を、その枠でしたら構成がどう変わるか。 */
+  function aimPreview(w: World, slot: number): string {
+    if (!aim) return '';
+    const card = w.you.cards[slot];
+    if (aim.kind === 'inscribe')
+      return card ? sayDelta(delta(w.you, withEpithet(w.you, slot, aim.ep))) : '';
+    if (aim.kind === 'buy' || aim.kind === 'pick')
+      return sayDelta(delta(w.you, withCard(w.you, slot, aim.id)));
+    if (aim.kind === 'rest' && aim.action === 'discard' && card) {
+      const cards = [...w.you.cards];
+      cards[slot] = null;
+      return sayDelta(delta(w.you, { ...w.you, cards }));
+    }
+    return '';
+  }
+
+  /** 枠へ落とされたもの（エピテット・拾う札・買う札）。 */
+  function dropOn(w: World, slot: number, data: string): void {
+    const [kind, id] = data.split(':');
+    if (!id) return;
+    if (kind === 'ep' && w.you.cards[slot]) send({ c: 'inscribe', ep: id, slot });
+    else if (kind === 'pick')
+      send({ c: 'claim', take: reward.take, help: reward.help, card: id, slot });
+    else if (kind === 'buy') send({ c: 'buy', id, slot });
+  }
+
   function clickSlot(w: World, slot: number): void {
     if (aim?.kind === 'inscribe') {
       send({ c: 'inscribe', ep: aim.ep, slot });
@@ -1176,7 +1409,13 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     if (aim?.kind === 'pick')
       return void send({ c: 'claim', take: reward.take, help: reward.help, card: aim.id, slot });
-    if (w.enc?.phase === 'act' && w.you.cards[slot]) send({ c: 'card', slot });
+    if (w.enc?.phase === 'act' && w.you.cards[slot]) {
+      send({ c: 'card', slot });
+      return;
+    }
+    // 遭遇の外では、押すと中身が開く（触れられない端末でも読める）。
+    opened = opened === slot ? null : slot;
+    render();
   }
 
   // ─── 人物を決める ───────────────────────────────────────────
@@ -1350,7 +1589,9 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   function render(): void {
     renderBar();
+    renderGuide();
     dialog.classList.toggle('is-create', screen === 'create');
+    dialog.classList.toggle('dig-enc-on', !!game?.world.enc);
     if (screen === 'create') {
       renderCreate();
       return;

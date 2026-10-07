@@ -313,6 +313,7 @@ export function start(
   tx.emit({
     type: 'note',
     text: `22:00。${SECTIONS[1]?.open ?? ''} 下のほうに、もう一つ灯りが揺れている。${rival.name}だ。`,
+    level: 2,
   });
   sync(tx);
 }
@@ -456,7 +457,8 @@ function rivalStep(tx: Tx): void {
   if (target.kind === 'boss') {
     if (rv.stratum >= 3) {
       tx.emit({ type: 'rival', down: true, first: !w.ending });
-      if (!w.ending) tx.emit({ type: 'note', text: `${ch.name}の灯りが、先に底のほうへ消えた。` });
+      if (!w.ending)
+        tx.emit({ type: 'note', text: `${ch.name}の灯りが、先に底のほうへ消えた。`, level: 2 });
     } else tx.emit({ type: 'rival', stratum: rv.stratum + 1, row: -2, node: null });
   }
 }
@@ -578,11 +580,12 @@ export function move(tx: Tx, id: number): boolean {
   const hall = isHall(w, node);
   tx.emit({ type: 'moved', node: node.id });
   const use = useOf(w.stratum, node.use);
-  if (hall) tx.emit({ type: 'note', text: '廊下を歩いて、隣の部屋へ。' });
+  if (hall) tx.emit({ type: 'note', text: '廊下を歩いて、隣の部屋へ。', level: 0 });
   else if (use)
     tx.emit({
       type: 'note',
       text: `B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}・${use.name}。${use.line}`,
+      level: 1,
     });
   tx.emit({ type: 'node', id: node.id, visited: true });
   // 着くのにかかる時間（場所のエピテットと、規則）。
@@ -619,7 +622,11 @@ export function move(tx: Tx, id: number): boolean {
     node.kind !== 'boss'
   ) {
     tx.emit({ type: 'flag', key: `met${w.stratum}`, v: 1 });
-    tx.emit({ type: 'note', text: `${rv.char.name}と鉢合わせた。同じ階段を下りてきたらしい。` });
+    tx.emit({
+      type: 'note',
+      text: `${rv.char.name}と鉢合わせた。同じ階段を下りてきたらしい。`,
+      level: 2,
+    });
     tx.emit({
       type: 'pending',
       p: { kind: 'encounter', npc: 'rival', tier: 'rival', resume: node.id },
@@ -635,7 +642,7 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
   const w = tx.w;
   if (node.npc) {
     if (node.eps.some((e) => epithetDef(e)?.place?.empty) && node.kind !== 'boss') {
-      tx.emit({ type: 'note', text: 'そこには、誰もいなかった。' });
+      tx.emit({ type: 'note', text: 'そこには、誰もいなかった。', level: 1 });
       return;
     }
     const tier = node.kind === 'person' ? 'normal' : node.kind === 'boss' ? 'boss' : 'danger';
@@ -651,7 +658,11 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
     case 'event': {
       if (w.flags.skipStory) {
         tx.emit({ type: 'flag', key: 'skipStory', v: 0 });
-        tx.emit({ type: 'note', text: '眠っているあいだに、そこには誰もいなくなっていた。' });
+        tx.emit({
+          type: 'note',
+          text: '眠っているあいだに、そこには誰もいなくなっていた。',
+          level: 1,
+        });
         return;
       }
       const id = pickStory(tx);
@@ -741,7 +752,7 @@ export function breather(tx: Tx): void {
   careBonus(tx);
   shiftAll(tx, 'you');
   passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, 1))));
-  tx.emit({ type: 'note', text: '壁にもたれて、一服した。' });
+  tx.emit({ type: 'note', text: '壁にもたれて、一服した。', level: 0 });
 }
 
 /** 古びた・未完のカードは、休ませたことを 2 倍に数える。 */
@@ -767,7 +778,7 @@ export function useItem(tx: Tx, index: number): boolean {
     if (def.refill.tags.length === 0) refill(tx, def.refill.n, undefined, 'you');
     else for (const t of def.refill.tags) refill(tx, def.refill.n, t, 'you');
   }
-  tx.emit({ type: 'note', text: `${def.name}を使った。` });
+  tx.emit({ type: 'note', text: `${def.name}を使った。`, level: 0 });
   return true;
 }
 
@@ -795,7 +806,7 @@ export function close(tx: Tx): boolean {
     tx.emit({ type: 'pending', p: null });
     tx.emit({ type: 'moved', node: p.back ?? null });
     passTime(tx, 1);
-    tx.emit({ type: 'note', text: `退いた。${e.foe.name}は、あなたを覚えている。` });
+    tx.emit({ type: 'note', text: `退いた。${e.foe.name}は、あなたを覚えている。`, level: 2 });
     return true;
   }
   const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];
@@ -828,7 +839,7 @@ export function close(tx: Tx): boolean {
     finish(tx, 'dead', o === 'fallen' ? '倒れた' : '心が崩れた');
     return true;
   }
-  if (notes.length) tx.emit({ type: 'note', text: `手に入れた：${notes.join('、')}` });
+  if (notes.length) tx.emit({ type: 'note', text: `手に入れた：${notes.join('、')}`, level: 1 });
   tx.emit({
     type: 'pending',
     p: {
@@ -871,6 +882,7 @@ export function claim(tx: Tx, take?: string, help?: number, card?: string, slot?
       tx.emit({
         type: 'note',
         text: `${foeDef(p.npc).name}に頼って《${cardDef(card.id).name}》を回復させた。${mercy ? '借りは、なかったことにされた。' : '借りができた。'}`,
+        level: 2,
       });
     }
   }
@@ -897,7 +909,11 @@ function crown(tx: Tx): void {
   const ep = id ? epithetDef(id) : undefined;
   if (!id || !t || !ep) return;
   tx.emit({ type: 'title', who: 'you', id });
-  tx.emit({ type: 'note', text: `あなたは《${ep.name}》人だと噂されはじめた。${t.text}` });
+  tx.emit({
+    type: 'note',
+    text: `あなたは《${ep.name}》人だと噂されはじめた。${t.text}`,
+    level: 3,
+  });
   for (const f of allFoes())
     if (f.id !== 'rival') tx.emit({ type: 'mind', npc: f.id, d: { heard: 1, ...t.mind } });
 }
@@ -917,7 +933,11 @@ function descend(tx: Tx): void {
   });
   if (w.rival.stratum < next && !w.rival.down)
     tx.emit({ type: 'rival', stratum: next, row: -2, node: null });
-  tx.emit({ type: 'note', text: `B${(next - 1) * (ROWS + 1) + 1}。${SECTIONS[next]?.open ?? ''}` });
+  tx.emit({
+    type: 'note',
+    text: `B${(next - 1) * (ROWS + 1) + 1}。${SECTIONS[next]?.open ?? ''}`,
+    level: 2,
+  });
 }
 
 // ─── 出来事 ───────────────────────────────────────────────────
@@ -967,7 +987,7 @@ export function choose(tx: Tx, i: number): boolean {
   }
   tx.emit({ type: 'story.seen', id: p.id });
   const text = [ok ? o.ok : (o.fail ?? o.ok), extra || ''].filter(Boolean).join(' ');
-  tx.emit({ type: 'note', text: `${def.title}：${text}` });
+  tx.emit({ type: 'note', text: `${def.title}：${text}`, level: 0 });
   tx.emit({ type: 'pending', p: { kind: 'told', id: p.id, ok, text, chance, roll } });
   sync(tx);
   return true;
@@ -1228,7 +1248,7 @@ export function sync(tx: Tx): void {
     const key = `combo:${c.id}`;
     if (w.flags[key] || !c.needs.every((p) => w.you.perms.includes(p))) continue;
     tx.emit({ type: 'flag', key, v: 1 });
-    tx.emit({ type: 'note', text: `記憶が繋がった ── ${c.name}。${c.text}` });
+    tx.emit({ type: 'note', text: `記憶が繋がった ── ${c.name}。${c.text}`, level: 3 });
     if (c.grant) gainPerm(tx, c.grant, `combo:${c.id}`, 'you');
     if (c.story) tx.emit({ type: 'unlock', story: c.story });
   }
@@ -1320,7 +1340,8 @@ export function announce(tx: Tx, before: Map<string, number>): void {
     const was = before.get(id);
     const b = allBuilds().find((x) => x.id === id);
     if (!b) continue;
-    if (was === undefined) tx.emit({ type: 'note', text: `《${b.name}》が成立した。${b.text}` });
+    if (was === undefined)
+      tx.emit({ type: 'note', text: `《${b.name}》が成立した。${b.text}`, level: 2 });
     const sv = SURGES[id];
     if (!sv || t <= (was ?? 0)) continue;
     tx.emit({
@@ -1329,10 +1350,11 @@ export function announce(tx: Tx, before: Map<string, number>): void {
         t === 2
           ? `《${b.name}》が極まった ── ${sv.name}：${sv.peakText}`
           : `《${b.name}》が暴走した ── ${sv.name}：${sv.text}`,
+      level: 3,
     });
   }
   for (const id of before.keys()) {
     const b = allBuilds().find((x) => x.id === id);
-    if (b && !now.has(id)) tx.emit({ type: 'note', text: `《${b.name}》が崩れた。` });
+    if (b && !now.has(id)) tx.emit({ type: 'note', text: `《${b.name}》が崩れた。`, level: 2 });
   }
 }

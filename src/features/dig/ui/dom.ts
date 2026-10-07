@@ -29,7 +29,7 @@ export function fill(el: Element, children: readonly (Child | readonly Child[])[
 export const button = (
   label: string,
   on: () => void,
-  attrs: Record<string, string | boolean | undefined> = {},
+  attrs: Record<string, string | boolean | undefined | ((ev: Event) => void)> = {},
 ) => h('button', { type: 'button', ...attrs, onclick: on }, label);
 
 export const meter = (v: number, max: number, cls: string, label: string) =>

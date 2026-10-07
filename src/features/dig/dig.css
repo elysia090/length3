@@ -98,9 +98,71 @@
 .dig-view {
   position: relative;
   display: grid;
-  place-items: center;
+  grid-template-rows: auto minmax(0, 1fr);
+  justify-items: center;
   min-height: 0;
   overflow: hidden;
+}
+
+/* 案内の帯（天井の代わり）。名場面・いまの一文・ヒントを、一つずつ静かに。 */
+.dig-guide {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  max-width: 44rem;
+  min-height: 3.25rem;
+  padding: 0.625rem 1rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.dig-guide__moment {
+  margin: 0;
+  padding: 0.375rem 0.625rem;
+  border: 0.125rem solid var(--amber-text);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dig-guide__moment[hidden] {
+  display: none;
+}
+
+.dig-guide__line {
+  min-height: 1.3em;
+  margin: 0;
+  color: var(--ink-2);
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.dig-guide__line.is-on {
+  opacity: 1;
+}
+
+.dig-guide__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  color: var(--ink-3);
+  font-size: var(--font-ui-xs);
+}
+
+.dig-guide__hint b {
+  color: var(--ink);
+}
+
+.dig-guide__nav {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.dig .dig-guide__nav button {
+  min-height: 1.75rem;
+  padding: 0 0.5rem;
+  font-size: var(--font-ui-xs);
 }
 
 .dig-tower {
@@ -217,6 +279,61 @@
   color: var(--ink-3);
 }
 
+/* 道の読み：三つの道は一行のチップ。選んだ一本だけ、詳しく。 */
+.dig-chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.dig .dig-chip {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.375rem 0.5rem;
+  font-size: var(--font-ui-xs);
+}
+
+.dig .dig-chip span {
+  color: var(--ink-3);
+}
+
+.dig .dig-chip.is-on {
+  border-width: 0.125rem;
+  border-color: var(--amber-text);
+}
+
+.dig-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 1rem;
+}
+
+.dig .dig-row button {
+  min-height: 2rem;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-card__next,
+.dig-offer__next {
+  font-size: var(--font-ui-xs);
+  color: var(--amber-text);
+}
+
+.dig-log summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.dig-log ol {
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 .dig-log {
   margin: 0.75rem 0 0;
   padding: 0;
@@ -304,7 +421,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
-  min-height: 6.5rem;
+  min-height: 4.5rem;
   padding: 0.375rem 0.5rem;
   font-size: var(--font-ui-xs);
   line-height: 1.45;
@@ -339,6 +456,22 @@
 
 .dig-card__name {
   font-size: 0.8125rem;
+}
+
+/* カードは名前・回数・主役の章だけ。タグと効き目は、触れたときに。 */
+.dig-card__tags,
+.dig-card__fx {
+  display: none;
+}
+
+.dig .dig-card.is-open .dig-card__tags,
+.dig .dig-card.is-open .dig-card__fx,
+.dig .dig-card:hover .dig-card__tags,
+.dig .dig-card:hover .dig-card__fx,
+.dig .dig-card:focus-visible .dig-card__tags,
+.dig .dig-card:focus-visible .dig-card__fx,
+.dig-enc-on .dig-card__fx {
+  display: block;
 }
 
 .dig-card__uses {

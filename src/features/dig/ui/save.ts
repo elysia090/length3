@@ -18,6 +18,8 @@ export interface Profile {
   /** 見つけた隠し効果と、読み終えた主役の物語。 */
   found: string[];
   legends: string[];
+  /** もう読んだ案内。 */
+  hints: string[];
   muted: boolean;
 }
 
@@ -33,6 +35,7 @@ const blank = (): Profile => ({
   remembered: {},
   found: [],
   legends: [],
+  hints: [],
   muted: false,
 });
 

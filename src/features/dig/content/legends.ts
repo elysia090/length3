@@ -1245,6 +1245,7 @@ export function legendRules(l: Legend): { passive: PassiveSpec[]; triggers: Trig
           tx.emit({
             type: 'note',
             text: `『${l.title}』第${'一二三'[k]}章「${ch.name}」── ${ch.line}`,
+            level: 3,
           });
       },
       text: `『${l.title}』を進める`,
