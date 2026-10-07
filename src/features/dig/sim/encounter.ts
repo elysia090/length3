@@ -1,0 +1,471 @@
+import type { Basic } from '../core/events';
+import { portrait } from '../core/mind';
+import type { Card, Char, Foe, Outcome, Who, World } from '../core/model';
+import { ask } from '../core/rules';
+import type { Tx } from '../core/tx';
+import { cardArch, cardTags } from '../content/cardinfo';
+import type { EpithetCtx } from '../content/defs';
+import type { CardFacet } from '../content/epithets';
+import { holds, run } from '../content/fx';
+import { activeBuild } from '../content/query';
+import { cardDef, epithetDef, foeDef, permDef } from '../content/registry';
+import { planFoe } from './ai';
+import {
+  charOf,
+  chance,
+  coins,
+  end,
+  gainPerm,
+  hitFoe,
+  hostile,
+  line,
+  revealClue,
+  roll,
+  say,
+  settle,
+  statOf,
+  stats,
+  trust,
+  xp,
+} from './ops';
+
+/**
+ * 遭遇の流れ。始める → あなたの手番（基本の行動か、カード）→ 相手が予告
+ * どおりに動く → 相手が次の手を決める（ai.ts）→ あなたの手番。
+ * 決着したら close で人物へ写す。
+ */
+
+// ─── 始める ───────────────────────────────────────────────────
+
+export interface Meet {
+  /** ライバルと会うとき、その人物。 */
+  rival?: Char;
+  /** その場所に刻まれたエピテット。 */
+  eps?: readonly string[];
+  /** もう一人が先に寄ったときの決着。 */
+  after?: string;
+}
+
+export function startEnc(tx: Tx, who: Who, npc: string, tier: Foe['tier' & never] | 'normal' | 'danger' | 'boss' | 'rival', m: Meet = {}): void {
+  const w = tx.w;
+  const def = foeDef(npc);
+  const late = w.hour >= 8 ? w.hour - 7 : 0;
+  const depth = w.depth + late;
+  const grow = 1 + 0.12 * depth + 0.18 * (w.stratum - 1);
+  const f: Foe = {
+    id: def.id,
+    name: def.name,
+    hp: Math.round(def.hp * grow),
+    maxHp: Math.round(def.hp * grow),
+    resolve: Math.round(def.resolve * grow),
+    maxResolve: Math.round(def.resolve * grow),
+    trust: 0,
+    need: def.need,
+    hostility: def.hostility,
+    guard: 0,
+    atk: Math.round(def.atk * (1 + 0.1 * depth) + (w.stratum - 1)),
+    def: def.def,
+    wil: def.wil,
+    int: def.int,
+    agi: def.agi,
+    tags: [...def.tags],
+    eps: [],
+    clues: def.clues.map((id) => ({ id, shown: false })),
+    move: null,
+    intent: null,
+    seen: false,
+    st: {},
+    history: [],
+  };
+  if (m.rival) {
+    const r = m.rival;
+    const s = rivalStats(w, r);
+    f.name = r.name;
+    f.maxHp = f.hp = Math.max(8, Math.round(r.hp * 1.2));
+    f.maxResolve = f.resolve = 10 + 3 * s.WIL;
+    f.atk = 2 + s.ATK;
+    f.def = s.DEF;
+    f.wil = s.WIL;
+    f.int = s.INT;
+    f.agi = s.AGI;
+    f.clues = r.perms.slice(0, 5).map((id) => ({ id, shown: false }));
+  }
+  // 場所のエピテットのうち、人物にも意味を持つものが移る。
+  for (const e of m.eps ?? []) {
+    const ff = epithetDef(e)?.foe;
+    if (!ff) continue;
+    f.eps.push(e);
+    if (ff.hp) f.maxHp = f.hp = Math.max(1, Math.round(f.hp * ff.hp));
+    if (ff.resolve) f.maxResolve = f.resolve = Math.max(1, Math.round(f.resolve * ff.resolve));
+    f.need = Math.max(1, f.need + (ff.need ?? 0));
+    f.hostility = Math.max(0, Math.min(10, f.hostility + (ff.hostility ?? 0)));
+    f.trust = Math.max(0, f.trust + (ff.trust ?? 0));
+    f.atk = Math.max(0, f.atk + (ff.atk ?? 0));
+    f.def = Math.max(0, f.def + (ff.def ?? 0));
+    f.int = Math.max(0, f.int + (ff.int ?? 0));
+    f.agi = Math.max(0, f.agi + (ff.agi ?? 0));
+    if (ff.stun) f.st.stun = 1;
+    if (ff.lies === 'always') f.st.liar = 1;
+    if (ff.lies === 'never') f.st.honest = 1;
+  }
+  def.shape?.(w, f);
+  tx.emit({ type: 'enc.start', who, foe: f, tier: tier as 'normal' });
+  const e = w.enc;
+  if (!e) return;
+  // 初めの敵意と信頼（規則）。
+  const host = Math.round(tx.rule('startHostility', { who }, 0));
+  if (host) hostile(tx, host);
+  const tr = Math.round(tx.rule('startTrust', { who }, 0));
+  if (tr > 0) tx.emit({ type: 'foe', field: 'trust', n: Math.min(tr, e.foe.need - 1 - e.foe.trust) });
+  // 認識世界。前の決着と、人づてに聞いた噂が、初めの構えを決める。
+  if (who === 'you') {
+    const mind = w.minds[npc];
+    const p = portrait(mind);
+    if (mind?.outcomes.beaten || mind?.outcomes.broken) hostile(tx, 3);
+    if (mind?.outcomes.trusted) tx.emit({ type: 'foe', field: 'trust', n: Math.max(0, Math.min(2, e.foe.need - 1 - e.foe.trust)) });
+    if (p.violent > 0.4) {
+      if (def.persona.fear >= 0.5) tx.emit({ type: 'foe', field: 'resolve', n: -Math.min(e.foe.resolve - 1, Math.round(6 * p.violent)) });
+      else hostile(tx, Math.round(3 * p.violent));
+    }
+    if (p.kind > 0.4 && def.persona.warmth > 0.3) tx.emit({ type: 'foe', field: 'trust', n: Math.max(0, Math.min(1, e.foe.need - 1 - e.foe.trust)) });
+    if (p.nosy > 0.4 || p.suspicion > 0.3) tx.emit({ type: 'foe.st', key: 'wary', n: 1 });
+    if (mind?.met) line(tx, 'again');
+    else if (mind?.heard) line(tx, 'heard');
+    else line(tx, 'greet');
+  }
+  switch (m.after) {
+    case 'beaten':
+      tx.emit({ type: 'foe', field: 'hp', n: -Math.round(e.foe.hp * 0.3) });
+      hostile(tx, 2);
+      say(tx, 'voice', 'もう一人に、やられたあとだ。');
+      break;
+    case 'trusted':
+      tx.emit({ type: 'foe', field: 'trust', n: Math.max(0, Math.min(2, e.foe.need - 1 - e.foe.trust)) });
+      say(tx, 'voice', 'もう一人と、もう打ち解けている。贈り物は向こうへ渡ったあとだ。');
+      break;
+    case 'uncovered':
+      revealClue(tx);
+      say(tx, 'voice', 'もう一人が、先に掘り返していた。');
+      break;
+    default:
+      break;
+  }
+  for (const ep of m.eps ?? []) {
+    const shown = (epithetDef(ep)?.foe?.show ?? 0) + (epithetDef(ep)?.place?.clue ?? 0);
+    for (let i = 0; i < shown; i++) revealClue(tx);
+  }
+  def.init?.(tx);
+  if (statOf(w, who, 'AGI') >= e.foe.agi + 3) tx.emit({ type: 'foe.st', key: 'late', n: 1 });
+  planFoe(tx);
+}
+
+function rivalStats(w: World, r: Char) {
+  const saved = w.rival.char;
+  w.rival.char = r;
+  const s = stats(w, 'rival');
+  w.rival.char = saved;
+  return s;
+}
+
+// ─── あなたの手番 ─────────────────────────────────────────────
+
+export const pressDamage = (w: World, who: Who) =>
+  Math.max(1, 2 + statOf(w, who, 'ATK') - Math.floor((w.enc?.foe.def ?? 0) / 2));
+
+export function leaveChance(w: World): number {
+  const e = w.enc;
+  if (!e) return 0;
+  const f = e.foe;
+  if (f.hostility <= 2 || f.st.stun) return 100;
+  const base = 50 + 10 * (statOf(w, e.who, 'AGI') - f.agi) - 4 * (f.hostility - 3);
+  return Math.max(5, Math.min(100, Math.round(ask(w, 'leaveChance', {}, base))));
+}
+
+export function canAccept(w: World): boolean {
+  const i = w.enc?.foe.intent;
+  const who = w.enc?.who ?? 'you';
+  return !!i && i.kind === 'bargain' && !i.lie && charOf(w, who).coins >= Math.round(ask(w, 'price', {}, i.price ?? 0));
+}
+
+export function basic(tx: Tx, a: Basic): boolean {
+  const e = tx.w.enc;
+  if (!e || e.phase !== 'act') return false;
+  const who = e.who;
+  const f = e.foe;
+  const def = foeDef(f.id);
+  switch (a) {
+    case 'press': {
+      let dmg = pressDamage(tx.w, who);
+      if (tx.rand('enc') * 100 < 5 + 2 * statOf(tx.w, who, 'AGI')) {
+        dmg *= 2;
+        say(tx, 'voice', '会心。');
+      }
+      xp(tx, 'ATK', 1);
+      hitFoe(tx, dmg);
+      hostile(tx, 1);
+      if (f.trust > 0) trust(tx, -1);
+      break;
+    }
+    case 'brace':
+      tx.emit({ type: 'enc.you', field: 'guard', n: 2 + statOf(tx.w, who, 'DEF') });
+      tx.emit({ type: 'enc.you', field: 'calm', n: 1 + Math.floor(statOf(tx.w, who, 'WIL') / 3) });
+      xp(tx, 'DEF', 1);
+      break;
+    case 'talk':
+      xp(tx, 'WIL', 1);
+      if (def.mute) say(tx, 'voice', '言葉は届かない。');
+      else if ((def.hush || f.eps.includes('silent')) && !f.st.unhushed) {
+        say(tx, 'foe', '……静かに。');
+        hostile(tx, 2);
+      } else if (f.hostility >= 7) hostile(tx, -1);
+      else {
+        trust(tx, 1 + (statOf(tx.w, who, 'WIL') >= 6 ? 1 : 0));
+        hostile(tx, -1);
+      }
+      break;
+    case 'leave': {
+      xp(tx, 'AGI', 1);
+      const c = leaveChance(tx.w);
+      if (c >= 100 || roll(tx, 'AGI', c)) {
+        end(tx, 'left');
+        return true;
+      }
+      say(tx, 'voice', '道を塞がれた。');
+      tx.emit({ type: 'foe.st', key: 'punish', n: 1 });
+      break;
+    }
+    case 'accept': {
+      if (!canAccept(tx.w)) return false;
+      coins(tx, -Math.round(tx.rule('price', {}, f.intent?.price ?? 0)));
+      tx.emit({ type: 'foe.st', key: 'dealt', n: 1 });
+      say(tx, 'foe', '……取引成立だ。');
+      if (!revealClue(tx)) trust(tx, 2);
+      break;
+    }
+  }
+  afterYou(tx);
+  return true;
+}
+
+/** カードのエピテット（カードの面）と、その場の文脈。 */
+function facets(w: World, c: Char, card: Card): { list: { id: string; f: CardFacet }[]; ctx: EpithetCtx } {
+  const list = (card.eps ?? []).flatMap((id) => {
+    const f = epithetDef(id)?.card;
+    return f ? [{ id, f }] : [];
+  });
+  const others = c.cards.filter((x): x is Card => !!x && x.uid !== card.uid).map((x) => cardTags(x));
+  return { list, ctx: { card, char: c, tags: cardTags(card), others } };
+}
+
+export function useCard(tx: Tx, slot: number): boolean {
+  const w = tx.w;
+  const e = w.enc;
+  if (!e || e.phase !== 'act') return false;
+  const who = e.who;
+  const c = charOf(w, who);
+  const card = c.cards[slot];
+  if (!card) return false;
+  const def = cardDef(card.id);
+  const { list, ctx } = facets(w, c, card);
+  const tags = ctx.tags;
+  const arch = cardArch(card);
+  const spent = card.uses <= 0;
+  const has = (k: keyof CardFacet) => list.some((x) => !!x.f[k]);
+  // 倍率。規則（ビルド・職・原型・弱点）→ 連鎖 → 書き留め → エピテット。
+  let mult = tx.rule('mult', { who, tags, arch, card: def.id, spent }, 1);
+  const chained = e.last.some((t) => tags.includes(t)) || list.some((x) => x.id === 'fervent');
+  if (chained) mult *= tx.rule('chain', { who, tags }, 1.25);
+  if (e.st.noted) {
+    mult *= 1.5;
+    tx.emit({ type: 'enc.st', key: 'noted', n: -(e.st.noted ?? 0) });
+  }
+  for (const x of list) if (x.f.mult) mult *= x.f.mult(w, ctx);
+  for (const x of list) {
+    if (x.f.variance) {
+      const [lo, hi] = x.f.variance;
+      mult *= lo + (hi - lo) * tx.rand('enc');
+    }
+  }
+  const dormKey = `dorm${slot}`;
+  if (has('dormant')) {
+    if (!e.st[dormKey]) {
+      tx.emit({ type: 'enc.st', key: dormKey, n: 1 });
+      mult = 0;
+    } else mult *= 2;
+  }
+  const free =
+    tx.rule('useSpend', { who, card: def.id, spent }, 1) === 0 || list.some((x) => x.f.free?.(w, card.id) ?? false);
+  const quiet = has('quiet');
+  tx.emit({ type: 'card.use', who, slot, card: card.id, spent, free, quiet, tags });
+  for (const s of def.stats) xp(tx, s, has('fixed') ? 0 : 1);
+  if (list.some((x) => x.id === 'recorded')) for (const s of def.stats) xp(tx, s, 1);
+  const twice = has('twice');
+  if (spent) tx.emit({ type: 'card.mark', who, slot, mark: 'spent', n: 1 });
+  else {
+    if (!free) tx.emit({ type: 'card.uses', who, slot, n: twice && !list.some((x) => x.id === 'torn') ? -2 : -1 });
+    tx.emit({ type: 'card.mark', who, slot, mark: 'used', n: 1 });
+  }
+  const fx = spent ? def.spent : def.ready;
+  const first = (card.marks.used ?? 0) + (card.marks.spent ?? 0) <= 1;
+  const fctx = {
+    mult,
+    card: card.id,
+    slot,
+    first,
+    invert: has('invert'),
+    pierce: has('pierce'),
+    fixed: has('fixed'),
+    cold: has('cold'),
+    rusty: spent && has('rusty'),
+  };
+  if (mult > 0) {
+    for (let i = 0; i < (twice ? 2 : 1); i++) run(tx, fx, fctx);
+    for (const x of list) if (x.f.after) run(tx, x.f.after, { ...fctx, mult: 1 });
+    if (list.some((x) => x.id === 'echoing')) run(tx, fx, { ...fctx, mult: mult * 0.4 });
+    if (list.some((x) => x.id === 'false')) tx.emit({ type: 'claim', about: 'harmless', truth: false });
+  } else say(tx, 'voice', 'まだ、目覚めていない。');
+  for (const x of list) if (x.f.host) hostile(tx, x.f.host);
+  if (list.some((x) => x.id === 'borrowed') && w.enc) tx.emit({ type: 'debt', who, npc: w.enc.foe.id, n: 1 });
+  if (has('burn') && card.max > 1) tx.emit({ type: 'card.max', who, slot, n: -1 });
+  // 隠し効果。条件がそろうと現れ、初めて現れたときに明らかになる。
+  const h = def.hidden;
+  if (h && w.enc?.phase === 'act' && holds(tx, h.when, fctx)) {
+    run(tx, h.fx, { ...fctx, mult: 1 });
+    if (who === 'you' && !w.found.includes(h.id)) {
+      tx.emit({ type: 'found', id: h.id });
+      say(tx, 'voice', `隠し効果：${h.text}`);
+    }
+  }
+  afterYou(tx);
+  return true;
+}
+
+function afterYou(tx: Tx): void {
+  settle(tx);
+  const e = tx.w.enc;
+  if (!e || e.phase !== 'act') return;
+  foeTurn(tx);
+}
+
+// ─── 相手の手番 ───────────────────────────────────────────────
+
+function foeTurn(tx: Tx): void {
+  const w = tx.w;
+  const e = w.enc;
+  if (!e) return;
+  const f = e.foe;
+  if (f.guard) tx.emit({ type: 'foe', field: 'guard', n: -f.guard });
+  const def = foeDef(f.id);
+  const move = def.moves.find((m) => m.id === f.move);
+  if (f.st.late) {
+    tx.emit({ type: 'foe.st', key: 'late', n: -1 });
+    say(tx, 'voice', `${f.name}は出遅れた。`);
+  } else if (f.st.stun) {
+    tx.emit({ type: 'foe.st', key: 'stun', n: -(f.st.stun ?? 1) });
+    say(tx, 'voice', `${f.name}は動けない。`);
+  } else if (move) {
+    if (f.intent?.kind === 'bargain' && !f.st.dealt && !f.intent.lie) hostile(tx, 1);
+    tx.emit({ type: 'act', move: move.id });
+    move.act(tx);
+  }
+  for (const k of ['dealt', 'punish', 'cut'] as const) if (w.enc?.foe.st[k]) tx.emit({ type: 'foe.st', key: k, n: -(w.enc.foe.st[k] ?? 0) });
+  settle(tx);
+  if (!w.enc || w.enc.phase !== 'act') return;
+  tx.emit({ type: 'turn' });
+  const keepG = tx.rule('guardKeep', {}, 0);
+  const g = Math.floor(w.enc.guard * keepG) + Math.round(tx.rule('turnGuard', {}, 0));
+  if (g !== w.enc.guard) tx.emit({ type: 'enc.you', field: 'guard', n: g - w.enc.guard });
+  const keepC = tx.rule('calmKeep', {}, 0.5);
+  const cm = Math.floor(w.enc.calm * keepC) + Math.round(tx.rule('turnCalm', {}, 0));
+  if (cm !== w.enc.calm) tx.emit({ type: 'enc.you', field: 'calm', n: cm - w.enc.calm });
+  planFoe(tx);
+}
+
+/** 予告を、見せるとおりに（嘘は、見抜けていなければ見かけで）。 */
+export function shownIntent(w: World) {
+  const e = w.enc;
+  const i = e?.foe.intent;
+  if (!e || !i) return null;
+  if (!i.lie) return i;
+  const visible =
+    e.foe.seen || ask(w, 'intentVisible', {}, 0) >= 1 || statOf(w, e.who, 'INT') >= e.foe.int + 3;
+  return visible ? i : { kind: i.seem ?? 'wait', label: i.seemLabel ?? '……', price: i.price };
+}
+
+// ─── 決着を写す ───────────────────────────────────────────────
+
+/** カードの回復条件・最大回数・酷使の変質。あなたにもライバルにも同じ規則で。 */
+export function cardsAfter(tx: Tx, who: Who, outcome: Outcome, log: { cards: number; lies: number; caught: number; hostility: number }): void {
+  const on: string[] = [];
+  if (outcome === 'beaten') on.push('win');
+  if (outcome === 'broken') on.push('broken', 'win');
+  if (outcome === 'trusted') on.push('trusted');
+  if (outcome === 'uncovered') on.push('uncover');
+  if (outcome === 'left' && log.hostility < 7) on.push('left');
+  if (log.lies > 0 && log.caught === 0) on.push('lieKept');
+  if (log.cards === 0 && outcome !== 'fallen' && outcome !== 'shattered') on.push('quiet');
+  const c = charOf(tx.w, who);
+  c.cards.forEach((card, slot) => {
+    if (!card) return;
+    const def = cardDef(card.id);
+    if (def.recover.on.some((t) => on.includes(t)) && card.uses < card.max) tx.emit({ type: 'card.uses', who, slot, n: 1 });
+  });
+  shiftAll(tx, who);
+  overuse(tx, who);
+}
+
+/** 使い方で最大回数が動く（嘘を酷使すると増え、虚言癖がつく）。 */
+export function shiftAll(tx: Tx, who: Who): void {
+  const c = charOf(tx.w, who);
+  c.cards.forEach((card, slot) => {
+    if (!card) return;
+    const sh = cardDef(card.id).shift;
+    if (!sh) return;
+    const count = Math.floor((card.marks[sh.on] ?? 0) / sh.every);
+    const done = card.marks.shifted ?? 0;
+    if (count <= done || card.max >= sh.cap) return;
+    const add = Math.min(count - done, sh.cap - card.max);
+    tx.emit({ type: 'card.max', who, slot, n: add });
+    tx.emit({ type: 'card.mark', who, slot, mark: 'shifted', n: count - done });
+    if (sh.perm) gainPerm(tx, sh.perm, card.id, who);
+  });
+}
+
+export function transform(tx: Tx, who: Who, slot: number, to: string, why: string): void {
+  const c = charOf(tx.w, who);
+  const old = c.cards[slot];
+  if (!old) return;
+  const def = cardDef(to);
+  tx.emit({ type: 'card.set', who, slot, card: { uid: c.uid, id: to, uses: def.uses, max: def.uses, marks: {}, eps: [...(old.eps ?? [])] }, why });
+}
+
+function overuse(tx: Tx, who: Who): void {
+  const c = charOf(tx.w, who);
+  c.cards.forEach((card, slot) => {
+    if (!card || (card.eps ?? []).includes('amber') || (card.eps ?? []).includes('forgotten')) return;
+    const o = cardDef(card.id).alter?.overuse;
+    if (o && (card.marks.spent ?? 0) >= o.need) transform(tx, who, slot, o.to, 'overuse');
+  });
+}
+
+/** 遭遇の褒美（金・品・記憶）。ライバルが先に打ち解けていれば、贈り物は無い。 */
+export function rewards(tx: Tx, who: Who, npc: string, outcome: Outcome, after?: string): string[] {
+  const notes: string[] = [];
+  const r = foeDef(npc).rewards[outcome];
+  if (!r) return notes;
+  const borrowed = tx.w.enc?.foe.eps.includes('borrowed');
+  if (r.coins && !(borrowed && outcome === 'beaten')) {
+    coins(tx, r.coins, who);
+    notes.push(`金 ${r.coins}`);
+  }
+  if (r.item) {
+    tx.emit({ type: 'item', who, id: r.item, n: 1 });
+    notes.push(r.item);
+  }
+  if (r.perm && !(after === 'trusted' && outcome === 'trusted')) gainPerm(tx, r.perm, npc, who);
+  return notes;
+}
+
+export const hasBuild = activeBuild;
+export const permName = (id: string) => permDef(id)?.name ?? id;
+export const chanceFor = chance;
