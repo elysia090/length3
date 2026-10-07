@@ -1,7 +1,9 @@
+import { clamp } from '../../shared/pixel/math';
 import { Raster } from '../../shared/pixel/raster';
 import { archiveSceneAt, type Interaction } from './choreo';
 import { type ArchiveSource, buildArchive } from './layout';
-import { type Hit, renderArchive } from './render';
+import { type ArchiveFrame, type Hit, renderArchive } from './render';
+import { clods, dig, newYard, pitDepth, treasureCubes, visibleTreasures, yardShovel } from './yard';
 
 /**
  * 一覧の舞台を動かす。描画は 320 列前後の小さな画像で、端末の画素の
@@ -14,6 +16,8 @@ import { type Hit, renderArchive } from './render';
  * 押すと（行でも標本でも）シャベルが標本を放ってから記事へ移る。舞台が
  * 見えていないとき、修飾キー付きのクリック、動きを減らす設定のときは、
  * 待たずにそのまま移る。
+ *
+ * シャベルは掴んで運べ、床を押すとそこへ跳んで掘る（yard.ts）。
  */
 
 const TARGET_COLUMNS = 320;
@@ -59,6 +63,24 @@ export function mountArchive(root: HTMLElement): void {
   let image: ImageData | null = null;
   let out: Uint32Array | null = null;
   let hits: Hit[] = [];
+  let frame: ArchiveFrame | null = null;
+  const yard = newYard([archive.width / 2 + 0.6, archive.depth / 2 - 0.4]);
+  // 掴んでいるあいだの位置と速さ（床の上、単位/秒）。傾きはこれをばねで追う。
+  let grab: {
+    x: number;
+    z: number;
+    vx: number;
+    vz: number;
+    sx: number;
+    sy: number;
+    moved: boolean;
+  } | null = null;
+  const leanV: [number, number] = [0, 0];
+  let lastDraw = -1;
+  // カメラの時計。シャベルに触れてから 8 秒は進めない（掘った場所が動かない）。
+  let cameraT = 0;
+  let playedAt = -99;
+  const PLAY_HOLD = 8;
   let px = 1;
   let visible = true;
   let raf = 0;
@@ -87,11 +109,47 @@ export function mountArchive(root: HTMLElement): void {
     draw();
   }
 
+  /** 傾きのばね。掴んで運ぶ速さの分だけ、運ぶ向きと逆へ遅れて傾く。 */
+  function stepLean(dt: number) {
+    const goal: [number, number] = grab
+      ? [clamp(-grab.vx * 0.09, -0.7, 0.7), clamp(grab.vz * 0.09, -0.7, 0.7)]
+      : [0, 0];
+    const w = 2 * Math.PI * 2.2;
+    for (let c = 0; c < 2; c++) {
+      const x = yard.lean[c] ?? 0;
+      const v = leanV[c] ?? 0;
+      const a = w * w * ((goal[c] ?? 0) - x) - 2 * 0.35 * w * v;
+      leanV[c] = v + a * dt;
+      yard.lean[c] = x + (leanV[c] ?? 0) * dt;
+    }
+    if (grab) {
+      grab.vx *= Math.exp(-dt * 8);
+      grab.vz *= Math.exp(-dt * 8);
+    }
+  }
+
   function draw() {
     if (!image || !out) return;
     const t = now();
-    const scene = archiveSceneAt(t, archive, interaction, reduced.matches);
-    hits = renderArchive(raster, archive, scene);
+    const still = reduced.matches;
+    const dt = lastDraw >= 0 ? Math.min(0.05, t - lastDraw) : 0;
+    if (!still) stepLean(dt);
+    if (grab || t - playedAt > PLAY_HOLD) cameraT += grab ? 0 : dt;
+    lastDraw = t;
+    const scene = archiveSceneAt(t, archive, interaction, still, cameraT);
+    scene.shovel = yardShovel(
+      yard,
+      grab ? { ...scene.shovel, pivot: [grab.x, 0, grab.z] } : scene.shovel,
+      t,
+      still,
+    );
+    if (grab) yard.home = [grab.x, grab.z];
+    frame = renderArchive(raster, archive, scene, {
+      pits: yard.pits.map((p) => ({ x: p.x, z: p.z, depth: pitDepth(p, t) })),
+      debris: clods(yard, t, still),
+      finds: treasureCubes(yard, t, still),
+    });
+    hits = frame.hits;
     raster.present(out, palette);
     ctx2d.putImageData(image, 0, 0);
     const slug = archive.specimens[scene.lit]?.slug;
@@ -119,10 +177,29 @@ export function mountArchive(root: HTMLElement): void {
     if (reduced.matches) draw();
   }
 
-  function hitAt(e: PointerEvent | MouseEvent): number {
+  function rasterPoint(e: PointerEvent | MouseEvent): [number, number] {
     const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * raster.w;
-    const y = ((e.clientY - rect.top) / rect.height) * raster.h;
+    return [
+      ((e.clientX - rect.left) / rect.width) * raster.w,
+      ((e.clientY - rect.top) / rect.height) * raster.h,
+    ];
+  }
+
+  const inside = (h: Hit, x: number, y: number, pad = 0) =>
+    x >= h.x0 - pad && x <= h.x1 + pad && y >= h.y0 - pad && y <= h.y1 + pad;
+
+  /** 床の上の点（区画の少し外まで）。 */
+  function floorAt(e: PointerEvent | MouseEvent): [number, number] | null {
+    const [x, y] = rasterPoint(e);
+    const p = frame?.view.unproject(x, y, 0);
+    if (!p) return null;
+    const hx = archive.width / 2 + 1.5;
+    const hz = archive.depth / 2 + 1.5;
+    return [clamp(p[0], -hx, hx), clamp(p[2], -hz, hz)];
+  }
+
+  function hitAt(e: PointerEvent | MouseEvent): number {
+    const [x, y] = rasterPoint(e);
     let best = -1;
     let area = Infinity;
     for (const h of hits) {
@@ -156,18 +233,99 @@ export function mountArchive(root: HTMLElement): void {
     }, THROW_MS);
   }
 
+  /** 柄の線分から数画素以内。外接矩形だと斜めの柄が周りの標本まで覆う。 */
+  function overShovel(e: PointerEvent | MouseEvent): boolean {
+    if (!frame) return false;
+    const [x, y] = rasterPoint(e);
+    const { x0, y0, x1, y1 } = frame.shovel;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const k = clamp(((x - x0) * dx + (y - y0) * dy) / Math.max(1e-6, dx * dx + dy * dy));
+    return Math.hypot(x - (x0 + dx * k), y - (y0 + dy * k)) < Math.max(4, raster.w / 60);
+  }
+
+  function findAt(e: PointerEvent | MouseEvent): number {
+    const [x, y] = rasterPoint(e);
+    return frame?.finds.findIndex((h) => inside(h, x, y, 2)) ?? -1;
+  }
+
+  let suppressClick = false;
+  canvas.addEventListener('pointerdown', (e) => {
+    // 掘り出した箱と標本が先。シャベルはその次。
+    if (e.button !== 0 || findAt(e) >= 0 || hitAt(e) >= 0 || !overShovel(e)) return;
+    const p = floorAt(e);
+    if (!p) return;
+    canvas.setPointerCapture(e.pointerId);
+    grab = { x: p[0], z: p[1], vx: 0, vz: 0, sx: e.clientX, sy: e.clientY, moved: false };
+    playedAt = now();
+    yard.held = true;
+    yard.liftSince = now();
+    canvas.style.cursor = 'grabbing';
+    kick();
+  });
+
   canvas.addEventListener('pointermove', (e) => {
+    if (grab) {
+      const p = floorAt(e);
+      if (p) {
+        const dt = 1 / 60;
+        grab.vx = grab.vx * 0.6 + ((p[0] - grab.x) / dt) * 0.4;
+        grab.vz = grab.vz * 0.6 + ((p[1] - grab.z) / dt) * 0.4;
+        grab.x = p[0];
+        grab.z = p[1];
+      }
+      if (Math.hypot(e.clientX - grab.sx, e.clientY - grab.sy) > 4) grab.moved = true;
+      if (reduced.matches) draw();
+      return;
+    }
     const i = hitAt(e);
-    canvas.style.cursor = i >= 0 ? 'pointer' : '';
+    canvas.style.cursor =
+      i >= 0 || findAt(e) >= 0 ? 'pointer' : overShovel(e) ? 'grab' : 'crosshair';
     if (i >= 0) hover(i);
   });
+
+  const release = (e: PointerEvent) => {
+    if (!grab) return;
+    const clickedShovel = !grab.moved;
+    grab = null;
+    yard.held = false;
+    yard.dropAt = now();
+    if (clickedShovel) yard.spinAt = now();
+    suppressClick = true;
+    canvas.style.cursor = overShovel(e) ? 'grab' : '';
+    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    kick();
+  };
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
   canvas.addEventListener('pointerleave', () => {
     canvas.style.cursor = '';
     hover(-1);
   });
   canvas.addEventListener('click', (e) => {
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
+    // 掘り出した箱は、どれか一本の記事への入口。
+    const f = findAt(e);
+    const found = f >= 0 ? visibleTreasures(yard, now())[f] : undefined;
+    const target = found ? archive.specimens[found.index] : undefined;
+    if (target) {
+      go(indexOf.get(target.slug) ?? -1, `/${target.slug}`);
+      return;
+    }
     const s = archive.specimens[hitAt(e)];
-    if (s) go(indexOf.get(s.slug) ?? -1, `/${s.slug}`);
+    if (s) {
+      go(indexOf.get(s.slug) ?? -1, `/${s.slug}`);
+      return;
+    }
+    const p = floorAt(e);
+    if (!p || archive.specimens.length === 0) return;
+    playedAt = now();
+    dig(yard, p[0], p[1], now(), () => Math.floor(Math.random() * archive.specimens.length));
+    kick();
+    if (reduced.matches) draw();
   });
 
   for (const [slug, card] of cards) {

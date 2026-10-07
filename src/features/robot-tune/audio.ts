@@ -19,6 +19,9 @@ export class Player {
   private scopeData: Float32Array<ArrayBuffer> | null = null;
   private startAt = 0;
   private offset = 0;
+  /** なめらかにした再生位置と、それを測った画面の時刻（ms）。 */
+  private clock = 0;
+  private clockAt = -1;
   private volume = 0.8;
 
   /** クリックの中で呼ぶ。AudioContext はユーザー操作の中でしか鳴らせない。 */
@@ -78,22 +81,42 @@ export class Player {
     src.loopEnd = LOOP_END_SEC + this.offset;
     src.connect(this.gain);
     this.startAt = ctx.currentTime + 0.06;
+    this.clockAt = -1;
     src.start(this.startAt, this.offset);
     this.source = src;
   }
 
-  /** 今スピーカーから出ている音の、イントロ頭からの通算秒。 */
+  /**
+   * 今スピーカーから出ている音の、イントロ頭からの通算秒。
+   *
+   * 音の時計（currentTime / getOutputTimestamp）は描画のフレームより粗い
+   * 刻みで進み、フレームごとに数 ms 前後する。そのまま絵に渡すとガタつく
+   * ので、画面の時計で進めた予測に、音の時計とのずれを少しずつ足して寄せる。
+   * 逆戻りはさせない。大きくずれたとき（復帰・シーク）だけ一気に合わせる。
+   */
   position(): number {
     const ctx = this.ctx;
     if (!ctx) return 0;
+    const perf = performance.now();
     let now = ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0);
     if (ctx.state === 'running' && typeof ctx.getOutputTimestamp === 'function') {
       const ts = ctx.getOutputTimestamp();
       if (ts.contextTime && ts.performanceTime) {
-        now = ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+        now = ts.contextTime + (perf - ts.performanceTime) / 1000;
       }
     }
-    return now - this.startAt;
+    const raw = now - this.startAt;
+    if (ctx.state !== 'running' || this.clockAt < 0) {
+      this.clock = raw;
+      this.clockAt = perf;
+      return raw;
+    }
+    const predicted = this.clock + (perf - this.clockAt) / 1000;
+    const drift = raw - predicted;
+    const next = Math.abs(drift) > 0.06 ? raw : predicted + drift * 0.08;
+    this.clock = Math.max(this.clock, next);
+    this.clockAt = perf;
+    return this.clock;
   }
 
   get playing(): boolean {
@@ -102,10 +125,12 @@ export class Player {
 
   async pause(): Promise<void> {
     await this.ctx?.suspend();
+    this.clockAt = -1;
   }
 
   async resume(): Promise<void> {
     await this.ctx?.resume();
+    this.clockAt = -1;
   }
 
   setVolume(v: number): void {

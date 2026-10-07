@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { add, apply, scale } from '../../shared/pixel/math';
+import { View } from '../../shared/pixel/solids';
 import { HIT, INTRO_SLOTS, LOOP_THROWS, sceneAt } from './choreo';
 import { INTRO_SEC, LOOP_ACCENTS, LOOP_ONSET_SEC, LOOP_SEC, LOOP_SILENCES } from './envelope';
 import { comparison, formatLength, formatVolume, groupDigits, unitCount } from './scale';
@@ -108,6 +110,46 @@ describe('choreography', () => {
     expect(v(INTRO_BEATS + 0.01)).toBe(27n);
     expect(v(INTRO_BEATS + BEATS_PER_LOOP - 0.01)).toBe(27n ** 2n);
     expect(v(INTRO_BEATS + BEATS_PER_LOOP + 0.01)).toBe(27n ** 2n);
+  });
+});
+
+describe('shovel motion', () => {
+  // 320 × 200 の画面に写したときの、60 fps の 1 コマあたりの動き（画素）。
+  const onScreen = (beat: number, local: [number, number, number]) => {
+    const sc = sceneAt(beat);
+    const zoom = sc.camera.span / 2.15;
+    const view = new View(sc.camera, Math.min(320 / (zoom * 2.8), 200 / (zoom * 2.05)), 160, 100);
+    const s = sc.shovel;
+    return view.project(add(s.pivot, scale(apply(s.rot, local), s.scale)));
+  };
+  const motion = (from: number, to: number, local: [number, number, number]) => {
+    const step = 1 / 60 / (60 / BPM);
+    const out: number[] = [];
+    let prev = onScreen(from, local);
+    for (let b = from + step; b < to; b += step) {
+      const p = onScreen(b, local);
+      out.push(Math.hypot(p[0] - prev[0], p[1] - prev[1]));
+      prev = p;
+    }
+    return out.sort((a, b) => a - b);
+  };
+
+  it('never jumps between frames, in the intro or the loop', () => {
+    const loop = INTRO_BEATS + BEATS_PER_LOOP;
+    for (const [a, b] of [
+      [0, 26],
+      [loop + 0.3, loop + BEATS_PER_LOOP - 0.3],
+    ] as const) {
+      const grip = motion(a, b, [0, 3.6, 0]);
+      expect(grip[grip.length - 1]).toBeLessThan(10);
+    }
+  });
+
+  it('keeps the hands steadier than the blade', () => {
+    const grip = motion(2, 20, [0, 3.6, 0]);
+    const tip = motion(2, 20, [0, 0, 0]);
+    const mid = (a: number[]) => a[Math.floor(a.length / 2)] ?? 0;
+    expect(mid(grip)).toBeLessThan(mid(tip));
   });
 });
 

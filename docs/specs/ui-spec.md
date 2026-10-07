@@ -36,7 +36,7 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 
 ```
 ┌────────────────────────────────────────────┐
-│  Opening — Robot Tune, one screen, ENTER ↓ │
+│  Header, then Robot Tune — one screen      │
 ├──────────────────── #index ────────────────┤
 │  Stage — every article a cube (2.39:1)     │
 ├─────────────────────────────┬──────────────┤
@@ -45,7 +45,7 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 └─────────────────────────────┴──────────────┘
 ```
 
-**The opening.** `/` begins with the site header and, under it, the Robot Tune (`features/robot-tune`, `variant="opening"`) sized to fit the rest of one screen. The title is not a heading laid over it but `ROBOT TUNE` in the 5 × 7 pixel font at the picture's top-left — part of the picture. No credit line, no "enter" link: the reader scrolls on into the index. Nothing plays until the reader presses play. Once a reader has scrolled past the opening, the rest of the session starts at the index: a tiny inline script marks the document before first paint, and the page jumps to `#index`. A URL with a hash and back/forward navigation are left to the browser.
+**The opening.** `/` begins with the site header and, under it, the Robot Tune (`features/robot-tune`, `variant="opening"`) sized to fit the rest of one screen. The title is not a heading laid over it but `ROBOT TUNE` in the 5 × 7 pixel font at the picture's top-left — part of the picture. The shovel digs from the hands: it pivots about the grip height on the shaft, so the blade does the work and the handle stays steady; each step of a dig (plunge, pry, wind up, fling, recover) is a target pose, followed by a spring (3.6 Hz, damping 0.55) solved ahead into a table, so poses never jump between frames. The audio clock is smoothed against the frame clock, since the output timestamp advances in coarser steps than frames. No credit line, no "enter" link: the reader scrolls on into the index. Nothing plays until the reader presses play. Once a reader has scrolled past the opening, the rest of the session starts at the index: a tiny inline script marks the document before first paint, and the page jumps to `#index`. A URL with a hash and back/forward navigation are left to the browser.
 
 **Now playing.** When the tune is playing and its figure is off screen, a 26 × 15 pixel chip appears fixed at the bottom-left: a cube hopping on the beat (wireframe in the silent beats) and a pause or play glyph. No title is written on it. It is a real button that pauses and resumes; it disappears when the figure is back in view or the tune stops.
 
@@ -55,6 +55,7 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 - At rest the camera dollies slowly and cuts by 90° every 6 s, overshooting and settling; every fourth cut drops to a low angle. Each cut moves the light to the next article: it hops, squashes, flashes amber and cools, and a smaller hop ripples outward by distance.
 - Touching a row lights its cube; touching a cube lights its row. Pressing either has the shovel throw the cube, then navigates (560 ms). With the stage off screen, a modified click, or reduced motion, navigation is immediate.
 - No text is drawn into the stage: no counters, no timecode, no labels in the corners. The list beside it already carries every number; the picture only has to show which article is lit.
+- **The shovel is a toy** (`yard.ts`). Grab it and carry it across the floor: it lifts, and leans back against the direction of travel on a spring, then drops and sticks when released. Pressing the floor sends it hopping there to dig: a dithered pit opens and amber clods fly. Pits refill over seven seconds. Digging the same pit three times unearths a small amber cube that pops out beside it; pressing that cube opens a random article. Pressing the shovel without moving it makes it spin. While it is being played with, the camera stops cutting for eight seconds so the pit stays where it was dug. Cubes and unearthed finds take precedence over the shovel for the pointer; the shovel's hit area is its shaft, not its bounding box. Cursors: pointer over a cube or find, grab over the shovel, crosshair on the floor.
 - It stops when off screen or when the tab is hidden. Under reduced motion it draws one still frame and redraws only on touch. It is `aria-hidden`; the list carries everything.
 
 Below the stage, two columns: the list, and a sidebar with the search field and the topic index. The sidebar is `position: sticky`, so search stays within reach however far down the list the reader has gone.

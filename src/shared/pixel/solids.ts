@@ -95,6 +95,26 @@ export class View implements Projector {
   facing(n: Vec3): boolean {
     return apply(this.m, n)[2] > 1e-4;
   }
+
+  /**
+   * 画面の点 (sx, sy) を通る視線が、高さ y の水平面と交わる点。視線が
+   * 面と平行なら null。回転行列の逆は転置。
+   */
+  unproject(sx: number, sy: number, y = 0): Vec3 | null {
+    const m = this.m;
+    const vx = (sx - this.cx) / this.ppu + this.t[0];
+    const vy = -(sy - this.cy) / this.ppu + this.t[1];
+    const back = (v: Vec3): Vec3 => [
+      m[0] * v[0] + m[3] * v[1] + m[6] * v[2],
+      m[1] * v[0] + m[4] * v[1] + m[7] * v[2],
+      m[2] * v[0] + m[5] * v[1] + m[8] * v[2],
+    ];
+    const p0 = back([vx, vy, 0]);
+    const dir = back([0, 0, 1]);
+    if (Math.abs(dir[1]) < 1e-6) return null;
+    const k = (y - p0[1]) / dir[1];
+    return [p0[0] + dir[0] * k, y, p0[2] + dir[2] * k];
+  }
 }
 
 const ORIGIN: Vec3 = [0, 0, 0];
