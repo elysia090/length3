@@ -355,20 +355,44 @@ function shovelGesture(beat: number): Gesture {
   return { tilt, yaw, lift, plunge };
 }
 
+/**
+ * 回る軸の位置（シャベルの単位、刃先から柄の方へ）。柄の真ん中より少し
+ * 上、重心のあたり。柄は刃の上端（1.1）から握り（3.66）まで。刃先を軸に
+ * 回すと、土に刺さった刃が動かず柄だけが振り回されて見える。
+ */
+const FULCRUM: Vec3 = [0, 2.45, 0];
+/** 休んでいる姿勢で柄が後ろへ寝ている角度。 */
+const REST_LEAN = 0.62;
+
 function shovelAt(beat: number, zoom: number, az: number): ShovelState {
   const unit = zoom / STACK;
   const right: Vec3 = [Math.cos(az), 0, -Math.sin(az)];
   const toward: Vec3 = [Math.sin(az), 0, Math.cos(az)];
   const center: Vec3 = [zoom / 2, 0, zoom / 2];
-  const pivot = add(center, add(scale(right, 3.25 * unit), scale(toward, 0.9 * unit)));
+  const home = add(center, add(scale(right, 3.25 * unit), scale(toward, 0.9 * unit)));
   const g = shovelGesture(beat);
   // 刃は山の方を向く。手つきの振り向きはその向きからの差。
-  const aim = Math.atan2(center[0] - pivot[0], center[2] - pivot[2]);
+  const aim = Math.atan2(center[0] - home[0], center[2] - home[2]);
   const breathe = 0.03 * Math.sin(Math.PI * beat);
+  const rest = mul(rotY(aim), rotX(-REST_LEAN));
+  const rot = mul(
+    rotY(aim + g.yaw),
+    mul(rotZ(0.04 * g.yaw), rotX(-(REST_LEAN + g.tilt + breathe))),
+  );
+  // 休んでいる姿勢での軸の位置を、持ち上げ・差し込みの分だけ上下させ、
+  // そこを中心に回す。刃先の位置はそこから逆算する。
+  const fulcrum = add(add(home, scale(apply(rest, FULCRUM), unit)), [
+    0,
+    (g.lift - g.plunge) * unit,
+    0,
+  ]);
+  const tip = add(fulcrum, scale(apply(rot, FULCRUM), -unit));
+  // 刃先は土に少しだけ入る。それより深くは沈めない。
+  const floor = -0.15 * unit;
   return {
-    pivot: add(pivot, [0, (g.lift - g.plunge) * unit, 0]),
+    pivot: tip[1] < floor ? [tip[0], floor, tip[2]] : tip,
     scale: unit,
-    rot: mul(rotY(aim + g.yaw), mul(rotZ(0.04 * g.yaw), rotX(-(0.62 + g.tilt + breathe)))),
+    rot,
   };
 }
 
@@ -513,17 +537,16 @@ export function sceneAt(beat: number): Scene {
     const toBeat = (e: number) => loopStart + e / 2;
     for (const [n, th] of LOOP_THROWS.entries()) {
       th.cells.forEach((slot, j) => {
+        // イントロと同じ一辺 1 の箱を、一掬いの中で 1 個ずつ刃に載せて放る。
+        // 前の箱が刃を離れた瞬間に次の箱が刃に現れるので、重ならない。
+        const step = Math.min(0.2, (th.land - th.launch) / (th.cells.length + 1));
+        const launch = th.launch + step * j;
         const f: Flight = {
-          appear: th.scoop,
-          // 刃から順にこぼれるように、ほんの少しずつ遅れて離れる。
-          launch: th.launch + 0.06 * (j % 3),
-          land: th.land + STAGGER * (j % 3),
-          size: 0.32,
-          jitter: [
-            (hash(j * 13 + n) - 0.5) * 0.5,
-            (hash(j * 7 + n + 3) - 0.5) * 0.3 + 0.12 * (j % 3),
-            (hash(j * 5 + n + 9) - 0.5) * 0.5,
-          ],
+          appear: j === 0 ? th.scoop : th.launch + step * (j - 1),
+          launch,
+          land: th.land + STAGGER * j,
+          size: 1,
+          jitter: NO_JITTER,
         };
         const c = flying(j * 31 + n * 7 + s.cycle * 977, s.e, toBeat, f, slot, true);
         if (c) cubes.push(c);
