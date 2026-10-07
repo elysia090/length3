@@ -474,7 +474,10 @@ function foeTurn(tx: Tx): void {
   // 長引いた遭遇は、相手が苛立って強くなる（膠着しない。最後の相手も同じ）。
   if (w.enc.turn > PACE.stall) {
     if (w.enc.turn === PACE.stall + 1) say(tx, 'voice', '相手の苛立ちが、目に見えて増していく。');
-    tx.emit({ type: 'foe', field: 'atk', n: 1 + Math.floor((w.enc.turn - PACE.stall) / 4) });
+    // 体への手も、心への手も（構えと落ち着きを固めても、いずれ崩れる）。
+    const n = 1 + Math.floor((w.enc.turn - PACE.stall) / 4);
+    tx.emit({ type: 'foe', field: 'atk', n });
+    tx.emit({ type: 'foe', field: 'wil', n });
   }
   const keepG = tx.rule('guardKeep', {}, 0);
   const g = Math.floor(w.enc.guard * keepG) + Math.round(tx.rule('turnGuard', {}, 0));

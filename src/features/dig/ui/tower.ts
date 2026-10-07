@@ -10,6 +10,9 @@ import { AMBER, INK, PAPER, Raster, threshold } from '../../../shared/pixel/rast
  *
  * 人間は記号で描く：丸（頭）と逆三角形（体）。あなたは琥珀で塗り、
  * もう一人の灯り持ちは輪郭だけ、ほかの人物は墨。
+ *
+ * 建物は一棟ではない。左右に隣の塔が、床板の縁と柱だけうっすら見えている。
+ * 渡り廊下のある階でだけ、その塔の部屋が灯る（渡ると、カメラもそちらへ寄る）。
  */
 
 export const W = 320;
@@ -23,6 +26,8 @@ export interface RoomView {
   floor: number;
   col: number;
   cols: number;
+  /** 0 は本棟、-1 / 1 は左右の隣の塔。 */
+  tower: number;
   kind: RoomKind;
   /** 人物がいるか（遭遇の部屋）。 */
   person: boolean;
@@ -105,8 +110,20 @@ export class Tower {
 
   // ─── 投影 ───────────────────────────────────────────────────
 
+  /**
+   * 隣の塔の中心。u と v を逆向きに同じだけずらすと、画面の上では真横になる
+   * （同じフロアの高さのまま、左右に並ぶ）。
+   */
+  private static wing(side: number): { u: number; v: number } {
+    return { u: side * 2.3, v: -side * 2.3 };
+  }
+
   /** 部屋の床の上の位置（u は左右、v は奥行き）。 */
   private static spot(r: RoomView): { u: number; v: number } {
+    if (r.tower) {
+      const c = Tower.wing(r.tower);
+      return { u: c.u, v: c.v + (r.floor % 2 ? 0.15 : -0.15) };
+    }
     const span = r.cols <= 1 ? 0 : 2.6 / (r.cols - 1);
     const u = r.cols <= 1 ? 0 : -1.3 + r.col * span;
     const v = r.kind === 'boss' ? 0 : (r.col + r.floor) % 2 ? 0.28 : -0.28;
@@ -131,7 +148,14 @@ export class Tower {
     const targetFloor = here ? here.floor - (view.enc ? 0 : 0.3) : -0.6;
     const targetZoom = view.enc ? 1.9 : 1;
     const spot = here ? Tower.spot(here) : { u: 0, v: 0 };
-    const targetX = view.enc ? (spot.u - spot.v) * 30 : 0;
+    // 隣の塔にいるときは、そちらへ寄せる。渡れる部屋が見えているときは、少しだけ。
+    const bridge = view.rooms.find((x) => x.reachable && x.tower);
+    const side = here?.tower ? spot : bridge ? Tower.spot(bridge) : null;
+    const targetX = view.enc
+      ? (spot.u - spot.v) * 30
+      : side
+        ? (side.u - side.v) * 30 * (here?.tower ? 0.6 : 0.3)
+        : 0;
     // 遭遇中は、その部屋を画面のまん中より少し下へ。
     const targetY = view.enc ? (spot.u + spot.v) * 13 - H * 0.16 : 0;
     const k = 1 - Math.exp(-dt * 6);
@@ -141,6 +165,7 @@ export class Tower {
     this.cam.x = lerp(this.cam.x, targetX, k);
 
     this.abyss(view);
+    this.wings(view);
     // 深いフロアから描く（上のフロアが手前に重なる）。
     for (let f = view.floors - 1; f >= 0; f--) this.slab(view, f);
     this.stairs(view, t);
@@ -208,12 +233,66 @@ export class Tower {
     if (lx > 0 && ly > 0 && ly < H - 8) drawText(r, label, lx, ly, fade > 0.5 ? INK : INK);
   }
 
+  /**
+   * 隣の塔。床板の縁（点線）と、手前の二本の柱だけ。部屋のあるフロアの床だけ
+   * うっすら塗る。遠いフロアほど消える。
+   */
+  private wings(view: TowerView): void {
+    const r = this.raster;
+    const U = 0.75;
+    const V = 0.55;
+    const lit = new Set(view.rooms.filter((x) => x.tower).map((x) => `${x.tower}:${x.floor}`));
+    for (const side of [-1, 1]) {
+      const c = Tower.wing(side);
+      let prev: { x: number; y: number }[] | null = null;
+      for (let f = -1; f < view.floors + 1; f++) {
+        const away = f - this.cam.floor;
+        if (away > 4.5) break;
+        const p = [
+          this.project(c.u - U, c.v - V, f),
+          this.project(c.u + U, c.v - V, f),
+          this.project(c.u + U, c.v + V, f),
+          this.project(c.u - U, c.v + V, f),
+        ] as { x: number; y: number }[];
+        const [a, b, cc, d] = p as [
+          { x: number; y: number },
+          { x: number; y: number },
+          { x: number; y: number },
+          { x: number; y: number },
+        ];
+        const z = -f - 0.5;
+        if (lit.has(`${side}:${f}`)) {
+          r.tri(a.x, a.y, z, b.x, b.y, z, cc.x, cc.y, z, 0.96, INK, PAPER);
+          r.tri(a.x, a.y, z, cc.x, cc.y, z, d.x, d.y, z, 0.96, INK, PAPER);
+        }
+        const dash: [number, number] = away > 2 ? [1, 5] : [1, 3];
+        for (const [s, e] of [
+          [a, b],
+          [b, cc],
+          [cc, d],
+          [d, a],
+        ] as const)
+          r.line(s.x, s.y, z, e.x, e.y, z, INK, false, 0, dash);
+        // 柱（手前の角から、一つ下のフロアの同じ角へ）。
+        if (prev)
+          for (const i of [2, 3]) {
+            const s = prev[i];
+            const e = p[i];
+            if (s && e) r.line(s.x, s.y, z, e.x, e.y, z, INK, false, 0, [1, 4]);
+          }
+        prev = p;
+      }
+    }
+  }
+
   private stairs(view: TowerView, _t: number): void {
     const r = this.raster;
     const pos = new Map(view.rooms.map((room) => [room.id, room]));
     // 廊下（同じフロアの隣どうし）。細い実線。
     for (const a of view.rooms) {
-      const b = view.rooms.find((x) => x.floor === a.floor && x.col === a.col + 1);
+      const b = view.rooms.find(
+        (x) => x.floor === a.floor && x.tower === a.tower && x.col === a.col + 1,
+      );
       if (!b) continue;
       const pa = this.center(a);
       const pb = this.center(b);
@@ -225,7 +304,11 @@ export class Tower {
       if (!a || !b) continue;
       const pa = this.center(a);
       const pb = this.center(b);
-      r.line(pa.x, pa.y + 2, 0, pb.x, pb.y - 2, 0, INK, false, 0, [1, 2]);
+      if (a.tower !== b.tower) {
+        // 渡り廊下（二本の破線）。
+        r.line(pa.x, pa.y, 0, pb.x, pb.y - 3, 0, INK, false, 0, [3, 2]);
+        r.line(pa.x, pa.y + 3, 0, pb.x, pb.y, 0, INK, false, 0, [3, 2]);
+      } else r.line(pa.x, pa.y + 2, 0, pb.x, pb.y - 2, 0, INK, false, 0, [1, 2]);
     }
   }
 

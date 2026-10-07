@@ -4,6 +4,7 @@ import { memoryMods, tagCount } from '../content/cardinfo';
 import type { CardDef } from '../content/defs';
 import { BEATS, type FloorUse, SECTIONS, useOf } from '../content/floors';
 import { holds } from '../content/fx';
+import { LEGENDS } from '../content/legends';
 import {
   defaultSheet,
   JOB_EPITHETS,
@@ -228,6 +229,49 @@ function buildMap(tx: Tx, stratum: number): void {
       }
     }
   }
+  // 渡り廊下。区画に一度か二度、隣の塔へ渡れる部屋がある。隣の塔は二フロアだけ
+  // 下りて、本棟の下のフロアへ戻ってくる（戻り先は選べない）。
+  const starts = sec.wing.bridges >= 2 ? [1, 4] : [tx.int('map', 1, 4)];
+  for (const r of starts) {
+    const from = tx.pick(
+      'map',
+      (rows[r] ?? []).filter((n) => n.kind !== 'rest'),
+    );
+    const back = rows[r + 3] ?? [];
+    const [ua, ub] = sec.wing.uses;
+    if (!from || !back.length || !ua || !ub) continue;
+    const side = tx.rand('map') < 0.5 ? -1 : 1;
+    const room = (row: number, use: FloorUse): MapNode => {
+      const npc = use.people.length ? tx.pick('map', use.people) : undefined;
+      const n: MapNode = {
+        id: id++,
+        row,
+        col: 0,
+        kind: npc ? 'person' : 'shop',
+        next: [],
+        visited: false,
+        eps: [],
+        use: use.id,
+        tower: side,
+      };
+      if (npc) {
+        n.npc = npc;
+        n.stage = [...use.stage];
+      }
+      const e = tx.pick(
+        'map',
+        use.eps.filter((x) => (npc ? !!epithetDef(x)?.foe : !!epithetDef(x)?.place)),
+      );
+      if (e && tx.rand('map') < 0.6 && !epithetDef(e)?.place?.empty) n.eps.push(e);
+      return n;
+    };
+    const a = room(r + 1, ua);
+    const b = room(r + 2, ub);
+    from.next.push(a.id);
+    a.next = [b.id];
+    b.next = back.filter((_, i) => i === 0 || tx.rand('map') < 0.5).map((n) => n.id);
+    nodes.push(a, b);
+  }
   tx.emit({ type: 'map.built', stratum, nodes });
 }
 
@@ -251,11 +295,19 @@ export function reachable(w: World): MapNode[] {
 export function lateral(w: World): MapNode[] {
   const here = nodeOf(w, w.pos);
   if (!here || here.kind === 'boss' || w.pending || w.enc || w.ending) return [];
-  return w.map.filter((n) => n.row === here.row && Math.abs(n.col - here.col) === 1 && !n.visited);
+  return w.map.filter(
+    (n) =>
+      n.row === here.row &&
+      (n.tower ?? 0) === (here.tower ?? 0) &&
+      Math.abs(n.col - here.col) === 1 &&
+      !n.visited,
+  );
 }
 
 /** その部屋へは廊下か（同じフロア）。 */
 export const isHall = (w: World, n: MapNode) => nodeOf(w, w.pos)?.row === n.row;
+/** その部屋へは渡り廊下か（塔が替わる）。 */
+export const isBridge = (w: World, n: MapNode) => (nodeOf(w, w.pos)?.tower ?? 0) !== (n.tower ?? 0);
 
 // ─── 始める ───────────────────────────────────────────────────
 
@@ -393,7 +445,7 @@ function rivalStep(tx: Tx): void {
   }
   const here = rv.node === null ? undefined : nodeOf(w, rv.node);
   const options = here
-    ? here.next.map((id) => nodeOf(w, id)).filter((n): n is MapNode => !!n)
+    ? here.next.map((id) => nodeOf(w, id)).filter((n): n is MapNode => !!n && !n.tower)
     : w.map.filter((n) => n.row === 0);
   if (!options.length) return;
   const tired = ch.hp < maxHp(s) * 0.7;
@@ -578,9 +630,18 @@ export function move(tx: Tx, id: number): boolean {
   if (!node) return false;
   const from = w.pos;
   const hall = isHall(w, node);
+  const bridge = isBridge(w, node);
   tx.emit({ type: 'moved', node: node.id });
   const use = useOf(w.stratum, node.use);
   if (hall) tx.emit({ type: 'note', text: '廊下を歩いて、隣の部屋へ。', level: 0 });
+  else if (bridge)
+    tx.emit({
+      type: 'note',
+      text: node.tower
+        ? `渡り廊下で、${SECTIONS[w.stratum]?.wing.name ?? '隣の塔'}へ。${use?.line ?? ''}`
+        : '渡り廊下を戻って、本棟へ。',
+      level: 1,
+    });
   else if (use)
     tx.emit({
       type: 'note',
@@ -589,7 +650,7 @@ export function move(tx: Tx, id: number): boolean {
     });
   tx.emit({ type: 'node', id: node.id, visited: true });
   // 着くのにかかる時間（場所のエピテットと、規則）。
-  let hours = 1;
+  let hours = bridge ? 2 : 1;
   for (const e of node.eps) hours += epithetDef(e)?.place?.time ?? 0;
   if (node.eps.includes('closed') && w.you.perms.includes('shaft-key')) hours -= 2;
   passTime(
@@ -718,6 +779,14 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
         ? allEpithets().find((e) => e.card?.add?.includes(t) && !eps.includes(`ep:${e.id}`))
         : undefined;
       if (tagEp) eps.splice(0, 1, `ep:${tagEp.id}`);
+      // 隣の塔の棚には、本棟では出回らない主役の札が一枚まざる。
+      if (node.tower) {
+        const stars = pool.filter(
+          (d) => LEGENDS.some((l) => l.id === d.id) && !cards.includes(d.id),
+        );
+        const d = stars[Math.floor(tx.rand('loot') * stars.length)];
+        if (d) cards.splice(cards.length - 1, 1, d.id);
+      }
       tx.emit({ type: 'pending', p: { kind: 'shop', cards, items: [...items, ...eps], sold: [] } });
       return;
     }

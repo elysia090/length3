@@ -1,7 +1,7 @@
 import { buildsOf } from '../content/sources';
 import type { World } from '../core/model';
 import { foeHardness, nodeHardness, outmatched, youHardness } from '../sim/hardness';
-import { DAWN, lateral, reachable } from '../sim/run';
+import { DAWN, isBridge, lateral, reachable } from '../sim/run';
 
 /**
  * 案内（チュートリアルとヒント）。塔の上の帯に、いまの状況にいちばん関係する
@@ -59,6 +59,12 @@ export const HINTS: readonly Hint[] = [
     title: '廊下',
     text: '同じフロアの隣の部屋へは、廊下を歩いて行ける。下りずに 1 時間。出来事と人の両方を取れるが、夜明けが近づく。',
     when: (w) => onMap(w) && lateral(w).length > 0,
+  },
+  {
+    id: 'bridge',
+    title: '隣の塔',
+    text: '建物は一棟ではない。渡り廊下（2 時間）で隣の塔へ渡れる部屋がある。本棟では会わない顔と、珍しい棚がある。二フロア下りると、本棟へ戻ってくる。',
+    when: (w) => onMap(w) && w.pos !== null && reachable(w).some((n) => isBridge(w, n)),
   },
   {
     id: 'routes',

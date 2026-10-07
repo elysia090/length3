@@ -13,6 +13,10 @@ import type { Tag } from '../core/tags';
  *          安全と冒険が分かれ、真ん中で一息つき、後半は見せ場と古物商が
  *          続く（見せ場で足りないものに気づき、次の古物商で手に入れる）。
  *          最後のひと区切りの手前で、必ず補給できる
+ * 隣の塔   建物は一棟ではない。左右に別の塔がうっすら見えていて、区画に一度か
+ *          二度、渡り廊下で渡れる。隣の塔は二フロアだけ下りて、本棟の下の
+ *          フロアへ戻ってくる。そこには本棟では会わない顔と、珍しい棚がある
+ *          （そのぶん手強く、戻り先は選べない）
  */
 
 export interface FloorUse {
@@ -36,6 +40,8 @@ export interface Section {
   boss: FloorUse;
   /** 危険の部屋の出やすさ（下の区画ほど荒い）。 */
   danger: number;
+  /** 隣の塔（渡り廊下の先）。 */
+  wing: { name: string; uses: readonly FloorUse[]; bridges: number };
 }
 
 export const SECTIONS: Readonly<Record<number, Section>> = {
@@ -99,6 +105,30 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         line: '番号のない区画に、車が一台だけ停まっている。',
       },
     ],
+    wing: {
+      name: '向かいの雑居ビル',
+      bridges: 1,
+      uses: [
+        {
+          id: 'mahjong',
+          name: '雀荘の跡',
+          people: ['archivist'],
+          danger: [],
+          eps: ['forgotten', 'echoing'],
+          stage: ['private', 'person'],
+          line: '牌の音だけが、壁の向こうに残っている。ここにいるはずのない顔がいる。',
+        },
+        {
+          id: 'pawn',
+          name: '質屋の二階',
+          people: [],
+          danger: [],
+          eps: ['abandoned'],
+          stage: ['public', 'memory'],
+          line: '値札の付いた思い出が、天井まで積んである。',
+        },
+      ],
+    },
     boss: {
       id: 'last-train',
       name: '終電の待合',
@@ -160,6 +190,30 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         line: '黒く塗られた行だけが、きれいに揃っている。',
       },
     ],
+    wing: {
+      name: '旧館',
+      bridges: 2,
+      uses: [
+        {
+          id: 'maproom',
+          name: '地図室',
+          people: ['geologist'],
+          danger: [],
+          eps: ['recorded', 'drifting'],
+          stage: ['place', 'memory'],
+          line: '壁一面の地図に、この建物だけが描かれていない。',
+        },
+        {
+          id: 'lending',
+          name: '貸出カウンタ',
+          people: [],
+          danger: [],
+          eps: ['early'],
+          stage: ['public', 'private'],
+          line: '返却期限の印が、まだ来ない日付で押してある。',
+        },
+      ],
+    },
     boss: {
       id: 'booth',
       name: '映写室',
@@ -221,6 +275,30 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         line: '手すりの向こうは、底が見えない。',
       },
     ],
+    wing: {
+      name: '対の塔',
+      bridges: 2,
+      uses: [
+        {
+          id: 'mirror',
+          name: '鏡の間',
+          people: ['counterman'],
+          danger: [],
+          eps: ['imitated', 'inverted'],
+          stage: ['person', 'gaze'],
+          line: '鏡の中のこの塔には、灯りが一つ多い。見覚えのある給仕が、ここで店を開いている。',
+        },
+        {
+          id: 'greenhouse',
+          name: '温室',
+          people: [],
+          danger: [],
+          eps: ['damp', 'blessed'],
+          stage: ['body', 'trust'],
+          line: '琥珀の中で、まだ花が咲こうとしている。',
+        },
+      ],
+    },
     boss: {
       id: 'volume',
       name: '体積',
@@ -237,7 +315,9 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
 export function useOf(stratum: number, id: string | undefined): FloorUse | undefined {
   const s = SECTIONS[stratum];
   if (!s || !id) return undefined;
-  return s.boss.id === id ? s.boss : s.uses.find((u) => u.id === id);
+  return s.boss.id === id
+    ? s.boss
+    : (s.uses.find((u) => u.id === id) ?? s.wing.uses.find((u) => u.id === id));
 }
 
 type Kind = MapNode['kind'];

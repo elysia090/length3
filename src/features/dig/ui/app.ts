@@ -1,5 +1,5 @@
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
-import { useOf } from '../content/floors';
+import { SECTIONS, useOf } from '../content/floors';
 import { fxText } from '../content/fx';
 import { legendState } from '../content/legends';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
@@ -31,6 +31,7 @@ import {
   curePrice,
   DAWN,
   epPrice,
+  isBridge,
   isHall,
   nodeOf,
   OUTCOME_NAME,
@@ -413,7 +414,8 @@ export function openDig(doc: Document, onClose: () => void): void {
         id: n.id,
         floor: n.row,
         col: n.col,
-        cols: w.map.filter((m) => m.row === n.row).length,
+        cols: w.map.filter((m) => m.row === n.row && (m.tower ?? 0) === (n.tower ?? 0)).length,
+        tower: n.tower ?? 0,
         kind: n.kind,
         person: !!n.npc,
         hard,
@@ -509,8 +511,15 @@ export function openDig(doc: Document, onClose: () => void): void {
   });
 
   /** 下りるのにかかる時間（場所のエピテットで延びる）。 */
-  function descent(n: MapNode): number {
-    return Math.max(0, 1 + n.eps.reduce((a, e) => a + (epithetDef(e)?.place?.time ?? 0), 0));
+  /** そこへの行き方（廊下・渡り廊下・階段）と、かかる時間。どの画面でも同じ言い方で。 */
+  function way(w: World, n: MapNode): { name: string; verb: string; hours: number } {
+    const place = n.eps.reduce((a, e) => a + (epithetDef(e)?.place?.time ?? 0), 0);
+    if (w.pos !== null && isBridge(w, n)) {
+      const to = n.tower ? (SECTIONS[w.stratum]?.wing.name ?? '隣の塔') : '本棟';
+      return { name: '渡り廊下', verb: `渡り廊下で${to}へ`, hours: Math.max(0, 2 + place) };
+    }
+    if (isHall(w, n)) return { name: '廊下', verb: '廊下を歩く', hours: Math.max(0, 1 + place) };
+    return { name: '階段', verb: '下りる', hours: Math.max(0, 1 + place) };
   }
 
   /** 部屋に触れたときの小さな札（名前・人物・硬度・かかる時間）。 */
@@ -534,13 +543,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         hard !== null ? `　硬度 ${hard}${over ? '・歯が立たない' : ''}` : '',
       ),
       can
-        ? h(
-            'span',
-            { class: 'dig-amber' },
-            isHall(w, n)
-              ? `押すと廊下を歩く（${descent(n)} 時間）`
-              : `押すと下りる（${descent(n)} 時間）`,
-          )
+        ? h('span', { class: 'dig-amber' }, `押すと${way(w, n).verb}（${way(w, n).hours} 時間）`)
         : null,
     ]);
     const r = view.getBoundingClientRect();
@@ -685,7 +688,14 @@ export function openDig(doc: Document, onClose: () => void): void {
         `B${floorNo(w, n.row)}・${useOf(w.stratum, n.use)?.name ?? KIND_NAME[n.kind]}`,
         ` ── ${def ? def.name : KIND_NAME[n.kind]}`,
       ),
-      h('p', { class: 'dig-quiet' }, `下りるのに ${descent(n)} 時間`),
+      n.tower
+        ? h(
+            'p',
+            { class: 'dig-quiet' },
+            `${SECTIONS[w.stratum]?.wing.name ?? '隣の塔'}の部屋。本棟では会わない顔と、珍しい棚。`,
+          )
+        : null,
+      h('p', { class: 'dig-quiet' }, `${way(w, n).name}で ${way(w, n).hours} 時間`),
       def ? h('p', { class: 'dig-quiet' }, def.desc) : null,
       hard !== null
         ? h(
@@ -734,11 +744,9 @@ export function openDig(doc: Document, onClose: () => void): void {
           '部屋',
           roomInfo(w, sel),
           can
-            ? button(
-                isHall(w, sel) ? '廊下を歩いて、ここへ' : 'ここへ下りる',
-                () => send({ c: 'move', node: sel.id }),
-                { class: 'dig-go' },
-              )
+            ? button(`${way(w, sel).verb}`, () => send({ c: 'move', node: sel.id }), {
+                class: 'dig-go',
+              })
             : null,
           button('閉じる', () => {
             pinned = null;
@@ -753,7 +761,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           next.map((n) => {
             const hard = n.npc ? nodeHardness(w, n) : null;
             return button(
-              `${isHall(w, n) ? '廊下 → ' : '下へ → '}${n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]}${hard !== null ? `　硬度 ${hard}` : ''}${n.stage?.length ? '　見せ場' : ''}`,
+              `${way(w, n).name} → ${n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]}${hard !== null ? `　硬度 ${hard}` : ''}${n.stage?.length ? '　見せ場' : ''}`,
               () => send({ c: 'move', node: n.id }),
             );
           }),

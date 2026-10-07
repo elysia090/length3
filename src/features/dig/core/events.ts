@@ -76,7 +76,7 @@ export type Ev =
   | { type: 'intent'; move: string; intent: Intent }
   | {
       type: 'foe';
-      field: 'hp' | 'resolve' | 'trust' | 'hostility' | 'guard' | 'def' | 'atk';
+      field: 'hp' | 'resolve' | 'trust' | 'hostility' | 'guard' | 'def' | 'atk' | 'wil';
       n: number;
       by?: string;
     }

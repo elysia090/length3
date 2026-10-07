@@ -6,7 +6,17 @@ import type { Char, World } from '../core/model';
 import { advise, type RouteKind } from './advise';
 import { bestAction } from './ai';
 import { maxHp, stats } from './ops';
-import { canChoose, cardPrice, epPrice, newCard, nodeOf, ROWS, reachable } from './run';
+import {
+  canChoose,
+  cardPrice,
+  epPrice,
+  isBridge,
+  isHall,
+  newCard,
+  nodeOf,
+  ROWS,
+  reachable,
+} from './run';
 
 /**
  * 自動操縦。あなたの席に座る頭（ライバルと同じ 1 手読み）に、地図の上の
@@ -53,11 +63,16 @@ export function pilot(w: World): Cmd | null {
   }
   const ins = inscription(w);
   if (ins) return ins;
-  const next = reachable(w);
-  if (!next.length) return null;
-  // 傷んでいて、食堂に行けず、夜にまだ余裕があるなら、その場で一服。
+  const all = reachable(w);
+  if (!all.length) return null;
   const row = nodeOf(w, w.pos)?.row ?? -1;
   const slack = PACE.dawn - w.hour - (ROWS - row);
+  // 廊下は夜に余裕があるときだけ。渡り廊下は回り道のぶん（2 時間）余裕が要る。
+  const roomy = all.filter((n) =>
+    isBridge(w, n) && w.pos !== null ? slack >= 3 : isHall(w, n) ? slack >= 1 : true,
+  );
+  const next = roomy.length ? roomy : all;
+  // 傷んでいて、食堂に行けず、夜にまだ余裕があるなら、その場で一服。
   if (w.you.hp * 2 < maxHp(stats(w, 'you')) && !next.some((n) => n.kind === 'rest') && slack >= 1)
     return { c: 'breather' };
   const tired = w.you.hp < 12 || w.you.cards.filter((c) => c && c.uses === 0).length >= 2;
