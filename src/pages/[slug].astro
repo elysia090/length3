@@ -4,18 +4,36 @@ export const prerender = true;
 import { render } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
-import { getBlogCatalog } from '../features/blog/catalog';
-import type { BlogPost, ProcessedPost } from '../features/blog/types';
+import { getBlogCatalog } from '../features/catalog';
+import type { BlogPost, ProcessedPost } from '../features/catalog';
+
+interface Neighbour {
+  href: string;
+  title: string;
+}
 
 export const getStaticPaths = (async () => {
   const { processedPosts } = await getBlogCatalog();
-  return processedPosts.map((processed) => ({
+  // 新しい順に並んでいるので、一つ後ろが前の記事（古い側）。
+  const neighbour = (p: ProcessedPost | undefined): Neighbour | undefined =>
+    p && { href: `/${p.slug}`, title: p.entry.data.title };
+  return processedPosts.map((processed, i) => ({
     params: { slug: processed.slug },
-    props: { entry: processed.entry, processed },
+    props: {
+      entry: processed.entry,
+      processed,
+      previous: neighbour(processedPosts[i + 1]),
+      next: neighbour(processedPosts[i - 1]),
+    },
   }));
 }) satisfies GetStaticPaths;
 
-const { entry, processed } = Astro.props as { entry: BlogPost; processed: ProcessedPost };
+const { entry, processed, previous, next } = Astro.props as {
+  entry: BlogPost;
+  processed: ProcessedPost;
+  previous?: Neighbour;
+  next?: Neighbour;
+};
 const { Content, headings } = await render(entry);
 ---
 
@@ -28,6 +46,8 @@ const { Content, headings } = await render(entry);
   readingTime={processed.readingTime}
   headings={headings}
   lang={entry.data.lang}
+  previous={previous}
+  next={next}
 >
   <Content />
 </ArticleLayout>

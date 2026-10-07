@@ -4,25 +4,24 @@ export const prerender = true;
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import { VoidStage } from '../features/void';
 ---
 
 <BaseLayout title="404 — Length³" description="Page not found">
   <Header />
   <main class="page-shell page-shell--spacious not-found" id="main-content">
-    <p class="page-kicker not-found-code">404</p>
-    <h1 class="not-found-title">Page not found</h1>
+    <VoidStage />
+    <h1 class="not-found-title">Nothing to dig here</h1>
     <hr class="amber-rule not-found-rule" />
-    <p class="not-found-body">The page you're looking for doesn't exist or has been moved.</p>
-    <a href="/" class="not-found-link">← Back to articles</a>
+    <p class="not-found-body">
+      This address has length but no volume. The page doesn't exist, or it has been moved.
+    </p>
+    <a href="/#index" class="not-found-link">← Back to the index</a>
   </main>
   <Footer />
 </BaseLayout>
 
 <style>
-  .not-found-code {
-    margin-bottom: 0.65rem;
-  }
-
   .not-found-title {
     font-family: var(--font-display);
     font-size: 2rem;

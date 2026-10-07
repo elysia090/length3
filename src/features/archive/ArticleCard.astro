@@ -1,0 +1,80 @@
+---
+import type { ProcessedPost } from '../catalog';
+import { formatDate } from '../catalog';
+import { formatCompactReadingTime, getSiteCopy } from '../../i18n/site-copy';
+
+/**
+ * 台帳の一行。展覧会の図録や本の目次のように、番号と題を大きく、その下に
+ * 一行だけ「長さ・日付・トピック」を置く。
+ *
+ * 長さは読了時間の立方根（L = ∛V）を、目盛りつきの線で引く。上の舞台が
+ * 体積（V）を見せ、一覧は長さ（L）を見せる。線の長さが行ごとに違うので、
+ * 一覧の右に楽譜のような律動が立つ。点線の地は一覧でいちばん長い記事の
+ * 長さで、どの行も同じ物差しの上にある。
+ *
+ * いちばん新しい 1 件（lead）だけ、題を大きくしてリードを添える。
+ */
+interface Props {
+  post: ProcessedPost;
+  /** 台帳番号。古い順に 1 から。 */
+  number: number;
+  /** 一覧でいちばん長い記事の読了時間。長さの物差し。 */
+  maxReadingTime: number;
+  lead?: boolean;
+}
+
+const { post, number, maxReadingTime, lead = false } = Astro.props;
+const { entry, slug, readingTime, description, tags: tagLinks } = post;
+const { title, publishDate, lang } = entry.data;
+
+const dateStr = formatDate(publishDate, lang);
+const visibleTagLinks = tagLinks.slice(0, 4);
+const hiddenTagCount = Math.max(0, tagLinks.length - visibleTagLinks.length);
+const copy = getSiteCopy(lang);
+const units = Math.cbrt(Math.max(1, maxReadingTime));
+const length = Math.cbrt(Math.max(1, readingTime)) / units;
+---
+
+<!-- SC 3.1.2: lang attr ensures AT uses correct phonetic rules for card language -->
+<article class:list={['article-card', { 'article-card--lead': lead }]} lang={lang} data-slug={slug}>
+  <p class="card-no" aria-hidden="true">No.&thinsp;{String(number).padStart(3, '0')}</p>
+  <h2 class="card-title">
+    <a href={`/${slug}`}>{title}</a>
+  </h2>
+  {lead && description && <p class="card-excerpt">{description}</p>}
+  <div class="card-meta">
+    {
+      readingTime > 0 && (
+        <span class="card-measure">
+          <span
+            class="card-length"
+            style={`--l: ${length.toFixed(3)}; --units: ${units.toFixed(3)}`}
+            aria-hidden="true"
+          >
+            <span class="card-length-bar" />
+          </span>
+          <span class="card-reading-time">{formatCompactReadingTime(readingTime, lang)}</span>
+        </span>
+      )
+    }
+    <time datetime={publishDate.toISOString()} class="card-date">{dateStr}</time>
+    {
+      visibleTagLinks.length > 0 && (
+        <ul class="card-tags tag-pill-list" aria-label={copy.tags}>
+          {visibleTagLinks.map((tag) => (
+            <li>
+              <a href={tag.href} class="tag-pill">
+                #{tag.name}
+              </a>
+            </li>
+          ))}
+          {hiddenTagCount > 0 && (
+            <li>
+              <span class="tag-pill tag-pill-overflow">+{hiddenTagCount}</span>
+            </li>
+          )}
+        </ul>
+      )
+    }
+  </div>
+</article>

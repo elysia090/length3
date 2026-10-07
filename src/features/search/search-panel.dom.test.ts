@@ -8,24 +8,14 @@ function createSidebarSearchDom() {
       <button type="button" data-search-trigger aria-expanded="false">Search</button>
       <dialog data-search-modal data-search-lang="en"></dialog>
       <template data-search-modal-template>
-        <div>
-          <button type="button" data-search-close>Close</button>
-          <p data-search-status></p>
-          <div data-pagefind-ui></div>
-          <div data-search-empty-state hidden></div>
-        </div>
+        <div><input data-search-input /><button type="button" data-search-close>Close</button></div>
       </template>
     </div>
     <div data-search-panel>
       <button type="button" data-search-trigger aria-expanded="false">Search</button>
       <dialog data-search-modal data-search-lang="ja"></dialog>
       <template data-search-modal-template>
-        <div>
-          <button type="button" data-search-close>Close</button>
-          <p data-search-status></p>
-          <div data-pagefind-ui></div>
-          <div data-search-empty-state hidden></div>
-        </div>
+        <div><input data-search-input /><button type="button" data-search-close>Close</button></div>
       </template>
     </div>
   `;

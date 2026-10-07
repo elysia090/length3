@@ -35,16 +35,35 @@ The outer content boundary is **1200px**. Within that boundary, the prose column
 ### Index Page Layout
 
 ```
-┌─────────────────────────────┬──────────────┐
+┌────────────────────────────────────────────┐
+│  Opening — Robot Tune, one screen, ENTER ↓ │
+├──────────────────── #index ────────────────┤
+│  Stage — every article a cube (2.39:1)     │
+├─────────────────────────────┬──────────────┤
 │     Article list (1fr)      │  Sidebar     │
 │                             │  280px       │
-│                             │  Search only │
 └─────────────────────────────┴──────────────┘
 ```
 
-Two columns. No left gutter — the content area's own left padding provides the margin. The sidebar is separated from the main column by a single 1px rule (`var(--rule)`). The sidebar contains **search and nothing else**. Tags, statistics, and category listings each live on their own dedicated page. Placing them in the sidebar would create a secondary reading surface that competes with the article list.
+**The opening.** `/` begins with the Robot Tune (`features/robot-tune`, `variant="opening"`), sized to fit one screen with a two-line title card above (`Length³ presents` / `ROBOT TUNE`) and an `Enter ↓` link below. The figure's caption is hidden here and the volume slider keeps only a screen-reader label: a title, a picture and a way in, nothing else. Nothing plays until the reader presses play; sound is never automatic. ENTER scrolls to `#index` (instantly under reduced motion). Once a reader has scrolled past the opening or pressed ENTER, the rest of the session starts at the index: a tiny inline script in the head marks the document before first paint, and the page jumps to `#index`. A URL with a hash and back/forward navigation are left to the browser.
 
-Below **840px** viewport width, the sidebar disappears and the layout collapses to a single column. Search relocates to a nav-bar icon, accessible via the `/` keyboard shortcut.
+**Now playing.** When the tune is playing and its figure is off screen, a 26 × 15 pixel chip appears fixed at the bottom-left: a cube hopping on the beat (wireframe in the silent beats) and a pause or play glyph. No title is written on it. It is a real button that pauses and resumes; it disappears when the figure is back in view or the tune stops.
+
+**The stage.** Above both columns sits a small 1-bit picture drawn by the same rasterizer as the Robot Tune article (`src/shared/pixel/`): about 320 columns scaled by a whole number of device pixels, four colours (transparent so the paper shows through, paper, ink, amber), shading by 4 × 4 Bayer dots. Every article is a cube standing on a dotted plan, its edge the cube root of its reading time — the same L the list draws as each row's length rule. 2.39:1 on wide screens, 4:3 on narrow ones.
+
+- One cube at a time has volume (dithered faces); the rest are hidden-line drawings, length only. Attention gives volume, the same grammar as the article, where silence leaves only edges.
+- At rest the camera dollies slowly and cuts by 90° every 6 s, overshooting and settling; every fourth cut drops to a low angle. Each cut moves the light to the next article: it hops, squashes, flashes amber and cools, and a smaller hop ripples outward by distance.
+- Touching a row lights its cube; touching a cube lights its row. Pressing either has the shovel throw the cube, then navigates (560 ms). With the stage off screen, a modified click, or reduced motion, navigation is immediate.
+- No text is drawn into the stage: no counters, no timecode, no labels in the corners. The list beside it already carries every number; the picture only has to show which article is lit.
+- It stops when off screen or when the tab is hidden. Under reduced motion it draws one still frame and redraws only on touch. It is `aria-hidden`; the list carries everything.
+
+Below the stage, two columns: the list, and a sidebar with the search field and the topic index. The sidebar is `position: sticky`, so search stays within reach however far down the list the reader has gone.
+
+Below **840px** the layout is one column in this order: stage → search → list → topics. Search comes before the list — a reader who came to look something up should not have to scroll past every article to find the field. (The sidebar is `display: contents` there, and grid areas set the order.)
+
+**Tag pages** reuse the stage with only that tag's articles.
+
+**404.** The void: a hollow (edges-only, zero-volume) `404` built from voxels stands on a dotted floor; a shovel scoops one voxel every 1.4 s and throws it, and when the glyphs are dug out they fall back from above. Pressing digs one more. Nothing is written into the picture. The heading is "Nothing to dig here" with a link back to `/#index`.
 
 ### Article Page Layout
 
@@ -61,6 +80,10 @@ Table of contents on the left. Prose in the center. The right column is **delibe
 All utility functions — Edit, Share, Copy Link, reading progress — are relocated away from the article body. They do not appear alongside the text. The reader's peripheral vision should encounter only the quiet presence of the TOC and open space.
 
 **TOC behavior.** `position: sticky; top: 32px`. The TOC tracks the reader's scroll position, highlighting the current section.
+
+**Reading reel.** Under the TOC. The TOC column is two stacked parts — the TOC, which alone scrolls when it is long, and the reel, always visible below it — so nothing overlaps and the reel needs no backing surface over the paper. In it a 3³ dashed frame fills with one cube per 1/27 of the article read; each drops, squashes and cools. The 27th fills the frame and the whole cube flashes amber and cools. No numbers or labels are drawn. Progress is measured exactly as the reading-progress bar measures it (page scroll), so the frame is full when the bar reads 100%. It draws only on scroll and is `aria-hidden` — the progress bar already reports progress.
+
+**Previous / next.** After the prose, the previous and next articles (`rel="prev"`/`rel="next"`): a direction in small mono and the title, under a hairline. No sign-off, no heading. It is excluded from the search index.
 
 **Responsive collapse.** At 720–960px, the TOC remains but the right empty column disappears. At 640–720px, the TOC moves to the top of the article, collapsed inside a `<details>` element. Below 640px, the same `<details>` treatment, fully single-column.
 
@@ -229,64 +252,52 @@ Amber-text on BG-2 measures **4.6:1** and clears AA — the pairing that appears
 
 **Vertical padding:** 20px top, 20px bottom. A 1px Rule border on the bottom edge.
 
-**Site icon.** The logotype is text on the page, but the tab needs a picture, and the picture is the About page's stone standing on the contour paper with `L³` set in the corner. It ships as `favicon.ico` (16/32/48 PNGs in one container), a 192px PNG for Android home screens, and a 180px `apple-touch-icon` — that last one flooded with BG behind the artwork, since iOS masks its own corners and composites anything transparent onto black.
+**Site icon.** The logotype is text on the page, but the tab needs a picture, and the picture is the old About page's stone standing on the contour paper with `L³` set in the corner. It ships as `favicon.ico` (16/32/48 PNGs in one container), a 192px PNG for Android home screens, and a 180px `apple-touch-icon` — that last one flooded with BG behind the artwork, since iOS masks its own corners and composites anything transparent onto black.
 
 The mark it replaced drew a full-size `3` beside the `L` **and** an amber `3` above it, which at tab size read as `L33`. An exponent is one digit in one position; a second copy of it at body size is not emphasis, it is a different number.
 
 ### Article List Item
 
-**Grid:** `80px` date column + `1fr` content column, with a `24px` gap.
+A catalogue, not a stack of cards: the list reads like the contents page of an exhibition catalogue. **Volume above, length below** — the stage shows each article as a volume (V = reading time); the list shows its length (L = ∛V).
 
-**Date column:**
+**Grid:** an `88px` number column and the content column, `24px` apart. Below 640px the number sits above the title.
 
-- Year: JetBrains Mono, 0.75rem, Ink-3, `letter-spacing: 0.06em`
-- Month.Day: JetBrains Mono, 0.8rem, Ink-2, `letter-spacing: 0.04em`
-- Format: `03.20` (dot-separated, zero-padded)
-- The two lines stack vertically with no explicit gap between them
+**Catalogue number:** `No. 008`. Fraunces italic, oldstyle figures, Ink-3, set level with the first line of the title. Counted from the oldest article, so adding an article never renumbers the others. `aria-hidden`.
 
-**Content column — vertical stack:**
+**Title:** Fraunces 1.1875rem, weight 400, Ink. The newest article is the **lead**: its title is set large (up to 2.125rem, weight 300) and it alone carries its description (three lines at most). Everything else is two lines — title, then one line of metadata — so the list is scanned by title and by shape, not read paragraph by paragraph.
 
-1. **Tags:** `#astro #mdx` format. JetBrains Mono, 0.75rem, amber. Multiple tags separated by whitespace. Zero top margin; 6px bottom margin before the title.
+**Metadata line** (JetBrains Mono 0.6875rem): length · reading time · date · topics.
 
-2. **Title:** Fraunces, 1.25rem, weight 400, Ink, `line-height: 1.4`. Italic is reserved for semantic emphasis within the title (proper nouns, technical terms), not as a default style for all titles.
+- **Length.** A rule whose length is the article's L, on a dotted track whose full width is the longest article's L. A tick stands at every whole unit and a small block marks the end. Down the list the rules differ, so the right side of the list has a rhythm, like a score — and every row is measured on the same scale.
+- Reading time `24 min`, date `2026/08/05`, up to four topics and `+n`.
 
-3. **Description:** system-ui, 0.88rem, Ink-2, `line-height: 1.75`. Maximum two lines of visible text. If a description exceeds two lines, the description itself is too long — the solution is editing the description, not truncating with an ellipsis.
+**Selected row.** Hovering or focusing a row, or touching its cube on the stage, raises an amber rule at the row's left edge and turns its title and its length rule amber — the same grammar as a selected search result. The stage answers by lighting that cube.
 
-4. **Reading time:** JetBrains Mono, 0.75rem, Ink-3. Format: `5 min`. No article count. No comment count. Comment counts broadcast weakness during low-activity periods and provide no value to the reader deciding whether to read.
-
-**Internal rhythm:** the steps double — **8 → 16 → 32**. Date, title, and description are one object and are joined at 8px. Tags are a second object and sit 16px below. The card boundary is 32px further still. A reader should be able to tell what belongs to what without reading a word of it, and doubling is the cheapest way to say it.
-
-**Item separation:** `border-bottom: 1px solid var(--rule)`. Padding: 28px top, 24px bottom (32/28 at ≥640px). The bottom is 4px short of the top on purpose: the tag row carries 4px of its own tap-target padding below the glyphs, so equal CSS padding renders as an unequal optical gap. First item: `padding-top: 0`. Last item: no bottom border — matched with `:last-of-type`, because the reveal control is the last _child_.
-
-**Hover:** Title color transitions to amber, 80ms ease. No background change. No cursor change (`cursor: default`). The color shift alone communicates interactivity.
+**Item separation:** a hairline between rows, 24px above and below. No hover background.
 
 ### Article List — Reveal Control
 
-The list renders **5 items** and holds the rest. The fifth is not there to be read: its foot fades out under a mask and its rule is dropped, so the list ends in a dissolve rather than a cut. Four items read normally; the fifth says "this continues."
+The list renders **5 items** and holds the rest. The fifth fades out under a mask and drops its rule, so the list ends in a dissolve rather than a cut.
 
-Sitting on that dissolve, centred, is a **44px glass disc carrying three dots**. Pressing it reveals **four more** items and moves the disc down to the new dissolve. When nothing is left, the disc is removed and the last item regains its full opacity and its missing rule.
+Under it is one line set like the topic index's `+31 more`: `Show 4 more articles` in Fraunces italic with a plus at the right, on a hairline. Pressing it reveals four more. When nothing is left, the line is removed and the last item regains its full opacity and its rule.
 
-The reason is distance, not tidiness. Search and the topic list live below the article list, so on a phone every article added pushes them further out of reach. Capping the list keeps the distance from the top of the page to the search field constant no matter how many articles exist.
+The cap exists for distance on a phone (search and topics follow the list), not for tidiness. The visible text is also the button's accessible name.
 
-**Why a disc and not "Older →".** There are no pages here to move between, so there is no page to name. Three dots say "there is more of this, in this direction" without claiming a structure the content does not have. Numbers would be worse: `Page 3 of 17` is a fact about the archive, not about what the reader is looking for.
+**Behaviour without JavaScript.** The server renders every article and the control `hidden`. The collapse happens only once the script runs, so a reader without JavaScript — and any crawler or in-page find — gets the whole list. Collapsed items stay in the DOM (`hidden`), never removed.
 
-**Glass.** The disc is the one Liquid-Glass-style surface in the interface: a translucent tint over a `backdrop-filter` blur, a specular rim (strong white inset on the top edge, a softer return on the bottom), a faint inner shading for thickness, and a soft drop shadow. It reads as a lens laid on the page — the paper texture stays visible through it, distorted. On press the rim inverts to a recess.
+**Accessibility.** The control is a real `<button>`, labelled with the count it will reveal (`Show 4 more articles`), and it names the list it controls with `aria-controls`. On press, focus moves to the first newly revealed item's link — necessary because the final press removes the button from under the reader's focus. A polite live region reports the outcome (`4 more articles shown. 5 remaining.`), which focus movement alone cannot convey.
 
-**Flat, not spherical.** Three layers and no more: the `backdrop-filter` blur, a cool tint at 12%, and a hairline edge. There is **no drop shadow and no specular rim** — those are the two cues that read as "raised", and with them the disc stopped being a lens on the page and became a button hovering over the list. Softening the shadow was not enough; the bevel does as much of the lifting as the shadow does. Both are gone, and what is left touches the paper.
+### About — The Plate
 
-Getting there took the two opposite mistakes. Built from white alone the disc was the same brightness as the paper and vanished into the contour lines — present and invisible. Answering that with a shadow and a diagonal sheen made it visible and floating. The thing that actually separates it is **hue**: the tint sits on the cool side of the paper it lies on, so the edge stands without the disc having to be darker or higher. On hover the tint and edge deepen; nothing rises and nothing sinks. On press, a single inset shadow. Where `prefers-reduced-transparency` removes the blur, the tint alone would leave a circle the brightness of the page, so the disc falls back to the BG-2 surface token and keeps its cool edge.
+About shows Michelangelo's _The Creation of Adam_ (c. 1512, public domain) printed like a two-colour risograph in the site's dots (`features/adam`). `scripts/adam/bake.ts` turns `data/creation-of-adam.jpg` into three plates in one lossless WebP — ink density, the share of ink dots that print amber instead, and an amber shadow on the plaster — and the browser only screens them with offset 4 × 4 Bayer matrices and films them.
 
-This does not contradict the search overlay's ban on `backdrop-filter` (below). That ban is about a **surface the reader reads through**; the disc is a **control the reader looks at**. Blur that dims a page of text serves the interface; blur that gives a 44px control physical depth serves the reader's understanding of what it is.
-
-**The stone is not selectable.** On the About page the monolith is set outside the text flow, and dragging a selection to the end of a sentence used to catch it — a blue selection box and a "Save Image" callout over an object that is supposed to be carved into the page rather than pasted onto it. The figure takes `user-select: none`, `-webkit-user-drag: none`, `-webkit-touch-callout: none`, and `pointer-events: none`. Its `alt` text is untouched, so nothing changes for a screen reader.
-
-**Behaviour without JavaScript.** The server renders every article and the disc `hidden`. The collapse happens only once the script runs, so a reader without JavaScript — and any crawler or in-page find — gets the whole list. Collapsed items stay in the DOM (`hidden`), never removed.
-
-**Accessibility.** The disc is a real `<button>`, labelled with the count it will reveal (`Show 4 more articles`), and it names the list it controls with `aria-controls`. On press, focus moves to the first newly revealed item's link — necessary because the final press removes the button from under the reader's focus. A polite live region reports the outcome (`4 more articles shown. 5 remaining.`), which focus movement alone cannot convey.
+- **Amber is placed, not derived.** It never fills an area and never follows a global tone rule. It replaces a fraction of the ink dots in a handful of authored places — the dark pocket of God's mantle the arm reaches out of, the dome of the mantle, the shadow mass under God, the earth under Adam's torso and knee — and lies as a thin shadow under the fingertips. About 1–2 % of the picture's dots. Nothing reaches Adam's head. No area prints solid: even the deepest ink leaves a tenth of the paper showing.
+- **Handheld camera.** No animation in the picture itself. The frame drifts a few pixels and rolls by under half a degree, as if held on a shoulder; the dot grid stays fixed to the screen, so the dots regroup as it sways, like grain. 24 frames a second, stopped off screen, one still frame under reduced motion.
+- **Frame.** 2.39 : 1 under the paragraph on wide screens. On narrow screens 2 : 1 — nearly the whole picture, not a crop of the hands — with dots no smaller than 1.75 CSS px, so it stays an abstraction rather than a shrunken photograph. The edges dissolve into the paper. No text in or around it; the figure is `role="img"` with a description.
 
 ### Topic List (Index Sidebar)
 
-**Rows:** JetBrains Mono, 0.75rem, `letter-spacing: 0.06em`. Topic name left, article count right, `padding: 14px 0`, `border-bottom: 1px solid var(--rule)`. Sorted by count, descending.
+**Rows:** set like the index at the back of a book. Fraunces 1rem, topic name left, a dotted leader, the count right in oldstyle figures. No rules between rows — seven rules took up more area than the words. 44px tall where the pointer is a finger, 32px where it is fine. Sorted by count, descending.
 
 **Disclosure:** only the **top 6** topics render as open rows. The remainder collapse into a native `<details>` whose `<summary>` is styled as one more row — `+N more` when closed, `Show less` when open, with a `+` glyph that rotates 45° into a `×`. The summary is 44px tall, matching the tap-target minimum.
 
@@ -326,38 +337,28 @@ The button lives in a wrapper the script places around the `<pre>`, not inside i
 
 **Language labels are not displayed.** The content of the code block identifies its language. A label stating `typescript` above TypeScript code provides zero additional information.
 
-### Search Modal (Pagefind)
+### Search (Pagefind)
 
-**Trigger:** `/` keyboard shortcut (when no input is focused), or a search icon in the nav bar (mobile).
+Search is a back-of-book index, full screen. It is built on Pagefind's core API (`pagefind.js`); Pagefind's own UI is not used, because its layout — a field, a list, "load more" — was dictating the structure.
 
-The sidebar trigger is a pill 44px tall where a finger is the pointer, and **36px where the pointer is fine** — with a lighter border to match. 44px is the touch-target floor, not a look; carried onto a desktop sidebar it made a thick capsule hanging beside the article list, heavier than any type on the page. WCAG 2.5.8's floor for a mouse is 24px, so 36px keeps room to spare. The pill shape and the amber lens say it is pressable; the border does not have to shout it as well.
+**Trigger.** The sidebar field (one rule with a half-written line on it: an amber lens, the placeholder in Fraunces italic at 1.25rem, the `/` key) or `/` anywhere outside a text field.
 
-**Overlay:** `rgba(28, 26, 24, 0.6)`. Solid dim, no `backdrop-filter: blur()`. Blur is a visual effect that serves the interface's aesthetics, not the reader's task. The overlay's purpose is to suppress the page beneath the modal, and a solid dim achieves that directly.
+**The sheet.** No floating card and no dim: the dialog is the whole viewport, paper with the same contour texture as the page. Three bands:
 
-**Modal body:** BG background, `border: 1px solid var(--rule)`, `border-radius: 6px`, width 560px (max 90vw), `box-shadow: 0 8px 32px rgba(0,0,0,0.15)`.
+1. **The query** — the input is the headline. Fraunces 300 at up to 4rem, no box; only the rule under it, which turns amber while the field has focus. `Esc` sits at the right as a key, and is the close button.
+2. **The archive** — the index stage's cubes (`features/archive` `mountArchiveField`). With no query every cube has volume; as results arrive only the matching articles keep their faces, the rest become edges, and the selected result hops and flashes amber. Nothing matching: every cube is length only.
+3. **The body** —
+   - **No query:** the topic index, set like the index at the back of a book — initials (Latin capitals, `0–9`, and `和` for kana and kanji) in amber italic, each term with a dotted leader to its count. Pressing a term searches it.
+   - **Results:** a list on the left and, from 60rem, a **preview** of the selected article on the right — `No. · date · minutes`, the title, its lead, and the sections that matched (each a link to its heading), then `Open ↵`. The reader can judge an article without opening it.
+   - **Nothing:** “Nothing in the index for ‘…’.” and the nearest topics (partial matches first, then small misspellings, else the most used).
 
-**Input row:** `padding: 12px 16px`. Search icon in amber, 16px. Text input in Fraunces 1rem — the search field uses the heading typeface so that typing a query feels like composing a thought, not operating a form field. `border-bottom: 1px solid var(--rule)` separates input from results.
+**A result** is a ledger row like the list's: number column, title in Fraunces, and the excerpt as a concordance line (`concordance.ts`): left context right-aligned, keyword in its own column, right context left-aligned, so every keyword falls on one vertical axis (KWIC). The selected row has the amber left rule and an amber title.
 
-**Results list:**
+**Keyboard and pointer.** The query is a `combobox`, the results a `listbox` of `option`s, and the selection is carried by `aria-activedescendant` while focus stays in the field. `↑` / `↓` move the selection (and the preview and the stage follow); `↵` opens it, `⌘↵` / `Ctrl↵` in a new tab. Keys pressed during IME composition are ignored. Pointing at a row selects it; clicking opens it (a modifier or the middle button opens a tab). `Esc` clears the query first and closes the sheet only when the query is empty. A polite live region reports the result count or the miss.
 
-- No section headers (no "Articles — 3 results" banners)
-- Each result: `padding: 10px 16px`, `border-left: 2px solid transparent`
-- Selected/focused result: `border-left-color` → amber, `background` → BG-2
-- Tag line: amber, JetBrains Mono, 0.75rem
-- Title: Fraunces 0.95rem, Ink. Matched substring: amber italic via styled `<mark>`
-- Date: JetBrains Mono, 0.75rem, Ink-3
+**GUNMAN.** Typing `gunman` opens a full-screen revolver range in the same 1-bit hand (`features/gunman/`, loaded only then). First person, one revolver, double action: the trigger raises the hammer and turns the cylinder one chamber, the hammer falls 70 ms later, and the chamber either fires (flash, recoil, synthesized report with range echo) or clicks dry. `R` swings the cylinder out and ejects six cases, then loads one round per press (hold to keep a cadence); a full cylinder or a shot flicks it shut, and it coasts, ticking past each chamber, before it latches. `S` spins the open cylinder. Paper target with persistent holes and ring scores, amber bottles that shatter, steel plates that ring and fall, a swinging plate, combo multiplier, a cylinder diagram that turns with the real one. Arrow keys aim and Space fires; Esc returns to the search with its query intact. A real Exit button, and a Reload button on touch screens. All sound is synthesized with Web Audio.
 
-**No footer.** The card is a header bar, a field, and results. It carried a strip of three key hints (`↑↓ navigate` `↵ open` `esc close`) and a `Pagefind` credit, which is a row of chrome explaining a keyboard to someone already holding one — and arrow keys in a result list are not a convention that needs teaching. The keys still work; only the label is gone. What the strip actually did was put a lit bar under every search, on a card whose whole job is to get out of the way once the reader has typed.
-
-**One left edge.** The dialog title, the empty state, the footer hints, and the result text all start at the same 16px from the card's inner edge; the input's own text is inset further only because a pill carries its own padding. The selected row's surface is the single thing allowed outside that column — it bleeds 8px past the text on both sides, so the highlight reads as a plate under the line rather than as a second margin.
-
-Both sides means both. The results are the one scrolling region in the card, and a scrollbar gutter reserved on the right alone shortened every row rule by its width — the list looked mis-set by a few pixels without ever showing why. The gutter is therefore thin and reserved on **both edges**, and the list bleeds out to the card's inner edges to pay for it. Where the platform draws overlay scrollbars — every touch device, and macOS by default — both reservations collapse to zero and the column lands exactly on 16px.
-
-**Keyboard navigation.** `↑` / `↓` move the selection through the results while focus stays in the field, so typing never needs a trip back. The field is therefore a `combobox`, the list a `listbox`, each result an `option`, and the selection is carried by `aria-activedescendant` — the same attribute the highlight is styled from. Selection wraps at both ends and clears whenever the query changes, because the results it pointed at no longer exist. `↵` opens the selected result, or the first one when nothing is selected. A keystroke that arrives mid-IME-composition is not a command: `Enter` closing a Japanese conversion must never open an article. Conversely, a prevented default is not proof the key was consumed — Pagefind cancels `Enter` on the field to stop the form submitting, and reading that as "handled" is what left the footer promising a key that did nothing.
-
-**Focus trap:** While the modal is open, Tab cycles only within modal elements. Escape closes the modal and returns focus to the trigger element.
-
-**Pagefind integration.** The spec defines the visual contract; Pagefind's default UI elements are fully overridden with a custom wrapper. Pagefind is used as a search engine only — its DOM output is consumed as data and rendered through custom markup matching this specification.
+**Japanese.** The index is built with Japanese pre-segmented (`segmented-pagefind`), so queries are segmented the same way with `Intl.Segmenter`, and the segmentation spaces are removed from titles and excerpts before display.
 
 ---
 
@@ -379,7 +380,7 @@ Animation exists only to communicate state change or to guide the eye. If an ani
 | Search modal close | opacity             | 100ms    | ease-in  |
 | Button hover       | color               | 80ms     | ease     |
 
-No other transitions exist. This list is exhaustive.
+No other transitions exist. This list is exhaustive. (A row's length rule turning amber on hover is a state switch with no duration, not a transition.)
 
 ### Scroll Behavior
 

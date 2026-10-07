@@ -1,7 +1,14 @@
 ---
-import { getSearchCopy } from './search-copy';
+import { getBlogCatalog } from '../catalog';
 import { getSiteCopy } from '../../i18n/site-copy';
+import { getSearchCopy } from './search-copy';
+import type { Entry } from './search-ui';
+import { groupTerms } from './terms';
 
+/**
+ * 検索の入口と、全画面の検索画面。画面は巻末索引のように引く（search-ui.ts）。
+ * 下見に使う記事の情報と、トピックの索引はここで組んで渡す。
+ */
 interface Props {
   lang?: 'en' | 'ja';
 }
@@ -9,6 +16,21 @@ interface Props {
 const { lang } = Astro.props;
 const copy = getSearchCopy(lang);
 const siteCopy = getSiteCopy(lang);
+const { processedPosts, catalogNumbers, topics } = await getBlogCatalog();
+const pad = (n: number) => String(n).padStart(2, '0');
+const entries: Entry[] = processedPosts.map((p) => {
+  const d = p.entry.data.publishDate;
+  return {
+    slug: p.slug,
+    number: catalogNumbers.get(p.slug) ?? 0,
+    minutes: p.readingTime,
+    date: `${d.getUTCFullYear()}.${pad(d.getUTCMonth() + 1)}.${pad(d.getUTCDate())}`,
+    title: p.entry.data.title,
+    lead: p.description ?? '',
+  };
+});
+const terms = topics.map((t) => ({ name: t.name, count: t.count }));
+const groups = groupTerms(terms);
 ---
 
 <div data-search-panel>
@@ -50,63 +72,73 @@ const siteCopy = getSiteCopy(lang);
     aria-label={copy.searchDialogLabel}
     data-search-modal
     data-search-lang={lang}
+    data-entries={JSON.stringify(entries)}
+    data-terms={JSON.stringify(terms)}
   >
   </dialog>
 
   <template data-search-modal-template>
-    <!-- showModal() の初期フォーカスがカード自身に来るようにする。
-         これがないと閉じるボタンにフォーカスが乗り、開いた瞬間に
-         フォーカスリングが出る。 -->
-    <div class="search-card" tabindex="-1" autofocus>
-      <div class="search-card-header">
-        <p class="search-title">{copy.searchDialogLabel}</p>
-        <button
-          type="button"
-          class="search-esc-btn"
-          data-search-close
-          aria-label={copy.closeSearch}
-        >
-          <svg
-            class="search-close-icon"
-            aria-hidden="true"
-            focusable="false"
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <line
-              x1="1"
-              y1="1"
-              x2="11"
-              y2="11"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"></line>
-            <line
-              x1="11"
-              y1="1"
-              x2="1"
-              y2="11"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"></line>
-          </svg>
+    <div class="sx">
+      <header class="sx-head">
+        <input
+          class="sx-query"
+          type="search"
+          role="combobox"
+          aria-label={copy.searchLabel}
+          aria-autocomplete="list"
+          aria-expanded="false"
+          aria-controls="sx-list"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          enterkeyhint="search"
+          placeholder={copy.searchPlaceholder}
+          data-search-input
+        />
+        <button type="button" class="sx-close" data-search-close aria-label={copy.closeSearch}>
+          <kbd aria-hidden="true">Esc</kbd>
         </button>
-      </div>
+      </header>
+      <canvas class="sx-field" data-search-field aria-hidden="true"></canvas>
       <p class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-search-status></p>
-      <div
-        class="search-results"
-        role="region"
-        aria-label={copy.resultsLabel}
-        aria-busy="false"
-        data-pagefind-ui
-      >
-      </div>
-      <div class="search-empty-state" data-search-empty-state data-search-state="empty" hidden>
-        <p class="search-empty-title">{copy.emptyTitle}</p>
-        <p class="search-empty-body">{copy.emptyBody}</p>
+      <div class="sx-body" data-search-body data-view="terms">
+        <nav class="sx-terms" aria-label={copy.indexLabel} data-search-terms>
+          {
+            groups.map((g) => (
+              <section class="sx-group">
+                <h2 class="sx-letter">{g.letter}</h2>
+                <ul class="sx-group-terms">
+                  {g.terms.map((t) => (
+                    <li>
+                      <button type="button" class="sx-term" data-term={t.name}>
+                        <span class="sx-term-name">{t.name}</span>
+                        <span class="sx-term-leader" aria-hidden="true" />
+                        <span class="sx-term-count">{t.count}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))
+          }
+        </nav>
+        <div class="sx-results" data-search-results hidden>
+          <ul
+            id="sx-list"
+            class="sx-list"
+            role="listbox"
+            aria-label={copy.resultsLabel}
+            data-search-list
+          >
+          </ul>
+          <section class="sx-preview" aria-label={copy.previewLabel} data-search-preview></section>
+        </div>
+        <div class="sx-void" data-search-void hidden>
+          <p class="sx-void-title" data-void-title></p>
+          <p class="sx-void-label">{copy.nearbyTerms}</p>
+          <div class="sx-void-terms" data-void-terms></div>
+        </div>
+        <p class="sx-message" data-search-message hidden></p>
       </div>
     </div>
   </template>

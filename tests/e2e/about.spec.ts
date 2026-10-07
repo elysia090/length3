@@ -11,11 +11,12 @@ test('about route smoke', async ({ page }) => {
   await expect(page.locator('.site-header')).toBeVisible();
   await expect(page.locator('footer')).toBeVisible();
 
-  // ページの中身は一段落と石の二つしかない。石が落ちたら About は空になる。
-  const monolith = page.locator('.about-figure img');
-  await expect(monolith).toBeVisible();
-  await expect(monolith).toHaveJSProperty('complete', true);
-  expect(await monolith.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  // ページの中身は一段落と絵の二つしかない。絵は 1 ビットの網点で刷る。
+  const plate = page.getByRole('img', { name: /Creation of Adam/ });
+  await expect(plate).toBeVisible();
+  await expect
+    .poll(() => plate.locator('canvas').evaluate((el: HTMLCanvasElement) => el.width))
+    .toBeGreaterThan(0);
 
   expect(errors).toEqual([]);
 });

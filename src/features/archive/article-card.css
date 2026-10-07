@@ -1,0 +1,290 @@
+/* 台帳の一行（トップと各トピックの頁）。
+   図録や目次の組み方: 左に番号、右に題、その下に一行だけ「長さ・日付・
+   トピック」。説明文は最新の 1 件（lead）にだけ添える。行は 8 → 16 → 24 の
+   刻みで、題と一行のあいだが 8、行の上下が 24。
+
+   選ばれている行（舞台の標本に触れている・行に触れている・焦点がある）は、
+   検索の結果と同じく左に琥珀の罫が立ち、題と長さの線が琥珀になる。 */
+.article-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 1.5rem 0;
+  border-bottom: 0.0625rem solid var(--rule);
+}
+
+.article-card:first-child {
+  padding-top: 0.5rem;
+}
+
+/* 一覧の末尾には「続きを開く」が続くので :last-child では当たらない。 */
+.article-card:last-of-type {
+  border-bottom: none;
+}
+
+.article-card::before {
+  content: '';
+  position: absolute;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  left: 0;
+  width: 0.125rem;
+  background: transparent;
+}
+
+.article-card:first-child::before {
+  top: 0.5rem;
+}
+
+.article-card[data-lit]::before,
+.article-card:focus-within::before {
+  background: var(--amber-text);
+}
+
+/* 古い順の通し番号。置かれた順番で、読む順番ではない。 */
+.card-no {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-style: italic;
+  font-variant-numeric: oldstyle-nums;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.card-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+}
+
+.card-title a {
+  color: var(--ink);
+  transition: color var(--transition-fast);
+}
+
+.article-card[data-lit] .card-title a {
+  color: var(--amber-text);
+}
+
+/* タッチ端末では tap 後も :hover が残り、1 件だけ選ばれたように見える。 */
+@media (hover: hover) {
+  .card-title a:hover {
+    color: var(--amber-text);
+  }
+}
+
+.card-excerpt {
+  max-width: 40em;
+  margin: 0.75rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/* 長さ・日付・トピックの一行。 */
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.25rem;
+  margin-top: 0.625rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+.card-measure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  white-space: nowrap;
+}
+
+.card-reading-time {
+  min-width: 3.75em;
+  color: var(--ink-2);
+}
+
+.card-date {
+  white-space: nowrap;
+}
+
+.card-tags {
+  margin: 0;
+}
+
+/* ─── 長さ（L = ∛V）────────────────────────────────────────────── */
+/* 地の点線が物差し（一覧でいちばん長い記事）。その上に、この記事の長さ
+   だけ実線を引き、長さ 1 ごとに目盛りを立て、端に小さな角を置く。 */
+.card-length {
+  --track: 6rem;
+  --c: var(--ink);
+
+  position: relative;
+  flex: none;
+  width: var(--track);
+  height: 0.5rem;
+  background: radial-gradient(circle, var(--ink-3) 0.5px, transparent 0.75px) 0 50% / 0.25rem
+    0.125rem repeat-x;
+}
+
+.card-length-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--l) * 100%);
+  background:
+    linear-gradient(var(--c), var(--c)) 0 50% / 100% 0.0625rem no-repeat,
+    repeating-linear-gradient(
+        to right,
+        var(--c) 0 0.0625rem,
+        transparent 0.0625rem calc(var(--track) / var(--units))
+      )
+      0 50% / 100% 0.3125rem no-repeat;
+}
+
+.card-length-bar::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -0.0625rem;
+  width: 0.1875rem;
+  height: 0.5rem;
+  background: var(--c);
+  transform: translateY(-50%);
+}
+
+.article-card[data-lit] .card-length,
+.article-card:focus-within .card-length {
+  --c: var(--amber-text);
+}
+
+@media (hover: hover) {
+  .article-card:hover .card-length {
+    --c: var(--amber-text);
+  }
+
+  .article-card:hover::before {
+    background: var(--amber-text);
+  }
+}
+
+/* ─── 最新の 1 件 ─────────────────────────────────────────────── */
+.article-card--lead .card-title {
+  font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.125rem);
+  font-weight: 300;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.article-card--lead .card-length {
+  --track: 8rem;
+}
+
+/* ─── 続きを開く ─────────────────────────────────────────────── */
+/* 記事が増えても、一覧の下にある検索とトピックまでの距離を一定に保つための
+   出口。トピックの「+31 more」と同じ組み方の一行で、押すたびに 4 件ずつ
+   伸びる。 */
+
+/* 折り畳んでいるあいだ、末尾の 1 件は裾が薄れる。下にまだ続くことを示す。 */
+.article-card[data-teaser] {
+  mask-image: linear-gradient(180deg, #000 30%, rgba(0, 0, 0, 0.12) 100%);
+  border-bottom-color: transparent;
+}
+
+.list-more {
+  border-top: 0.0625rem solid var(--rule);
+}
+
+.list-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 2.75rem; /* 44px — spec §8: タップターゲット下限 */
+  padding: 0.75rem 0 0.75rem 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-style: italic;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: color var(--transition-fast);
+}
+
+.list-more-icon {
+  position: relative;
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.list-more-icon::before,
+.list-more-icon::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 0.0625rem;
+  background: currentcolor;
+}
+
+.list-more-icon::after {
+  transform: rotate(90deg);
+}
+
+@media (hover: hover) {
+  .list-more-btn:hover {
+    color: var(--amber-text);
+  }
+}
+
+.list-more-btn:focus-visible {
+  outline: 0.125rem solid var(--amber-text);
+  outline-offset: 0.125rem;
+}
+
+/* 番号を左の列に出す幅。番号は題の 1 行目の高さに揃える。 */
+@media (min-width: 40rem) {
+  .article-card {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    column-gap: 1.5rem;
+  }
+
+  .card-no {
+    grid-row: 1 / span 3;
+    margin: 0;
+    padding: 0.3125rem 0 0 0.875rem;
+    font-size: 0.9375rem;
+  }
+
+  .article-card--lead .card-no {
+    padding-top: 0.875rem;
+  }
+
+  .card-title,
+  .card-excerpt,
+  .card-meta {
+    grid-column: 2;
+  }
+
+  .list-more-btn {
+    padding-left: 7rem;
+  }
+}

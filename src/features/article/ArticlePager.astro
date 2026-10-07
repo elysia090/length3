@@ -1,0 +1,93 @@
+---
+/**
+ * 本文の終わりに置く、前後の記事。前後は公開日の順（古い側が前）。
+ * 見出しも締めの言葉も置かない。方向と題だけ。
+ */
+interface Neighbour {
+  href: string;
+  title: string;
+}
+
+interface Props {
+  previous?: Neighbour | undefined;
+  next?: Neighbour | undefined;
+}
+
+const { previous, next } = Astro.props;
+---
+
+{
+  (previous || next) && (
+    <nav class="article-pager" aria-label="More articles" data-pagefind-ignore>
+      {previous ? (
+        <a class="pager-link pager-prev" href={previous.href} rel="prev">
+          <span class="pager-dir">← Previous</span>
+          <span class="pager-title">{previous.title}</span>
+        </a>
+      ) : (
+        <span />
+      )}
+      {next && (
+        <a class="pager-link pager-next" href={next.href} rel="next">
+          <span class="pager-dir">Next →</span>
+          <span class="pager-title">{next.title}</span>
+        </a>
+      )}
+    </nav>
+  )
+}
+
+<style>
+  .article-pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 4rem;
+  }
+
+  .pager-link {
+    display: grid;
+    align-content: start;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding-top: 1rem;
+    border-top: 0.0625rem solid var(--rule);
+    color: var(--ink);
+  }
+
+  .pager-next {
+    grid-column: 2;
+    text-align: right;
+  }
+
+  .pager-dir {
+    font-family: var(--font-mono);
+    font-size: var(--font-ui-xs);
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+  }
+
+  .pager-title {
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    transition: color var(--transition-fast);
+  }
+
+  @media (hover: hover) {
+    .pager-link:hover .pager-title {
+      color: var(--amber-text);
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .article-pager {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    .pager-next {
+      grid-column: 1;
+    }
+  }
+</style>

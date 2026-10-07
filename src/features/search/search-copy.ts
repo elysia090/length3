@@ -3,56 +3,59 @@ import type { SiteLanguage } from '../../i18n/language';
 export type { SiteLanguage };
 
 export interface SearchCopy {
-  clearSearch: string;
   closeSearch: string;
-  emptyBody: string;
-  emptyStatus: string;
-  emptyTitle: string;
   error: string;
+  indexLabel: string;
   loading: string;
+  nearbyTerms: string;
+  open: string;
+  previewLabel: string;
   resultCount: (count: number) => string;
   resultsLabel: string;
   searchDialogLabel: string;
   searchLabel: string;
   searchPlaceholder: string;
   unavailable: string;
+  voidStatus: (query: string) => string;
+  voidTitle: (query: string) => string;
 }
 
 const SEARCH_COPY_BY_LANGUAGE: Record<SiteLanguage, SearchCopy> = {
   en: {
-    clearSearch: 'Clear search',
     closeSearch: 'Close search',
-    emptyBody: 'Try a broader term or a topic label.',
-    emptyStatus: 'No matching articles. Try a broader term or a topic label.',
-    emptyTitle: 'No matching articles',
-    error: 'Search failed to load. Check the Pagefind integration.',
-    loading: 'Loading…',
+    error: 'Search failed to load.',
+    indexLabel: 'Index of topics',
+    loading: 'Opening the index…',
+    nearbyTerms: 'Nearby in the index',
+    open: 'Open',
+    previewLabel: 'Selected article',
     resultCount: (count) => `${count} search result${count === 1 ? '' : 's'} available.`,
     resultsLabel: 'Search results',
     searchDialogLabel: 'Search',
     searchLabel: 'Search articles',
-    searchPlaceholder: 'Search articles…',
+    searchPlaceholder: 'Search the index',
     unavailable: 'Search is unavailable until the Pagefind index has been built.',
+    voidStatus: (query) => `Nothing in the index for ${query}.`,
+    voidTitle: (query) => `Nothing in the index for “${query}”.`,
   },
   ja: {
-    clearSearch: '検索をクリア',
     closeSearch: '検索を閉じる',
-    emptyBody: 'より広い語句やトピック名で試してください。',
-    emptyStatus: '一致する記事はありません。より広い語句やトピック名で試してください。',
-    emptyTitle: '一致する記事はありません',
-    error: '検索の読み込みに失敗しました。Pagefind の設定を確認してください。',
-    loading: '読み込み中…',
+    error: '検索の読み込みに失敗しました。',
+    indexLabel: 'トピックの索引',
+    loading: '索引を開いています…',
+    nearbyTerms: '索引の近く',
+    open: '開く',
+    previewLabel: '選んでいる記事',
     resultCount: (count) => `${count}件の検索結果があります。`,
     resultsLabel: '検索結果',
     searchDialogLabel: '検索',
     searchLabel: '記事を検索',
-    searchPlaceholder: '記事を検索…',
+    searchPlaceholder: '索引を引く',
     unavailable: 'Pagefind のインデックスが未生成のため検索できません。',
+    voidStatus: (query) => `${query} は索引にありません。`,
+    voidTitle: (query) => `「${query}」は索引にありません。`,
   },
 };
-
-export const searchUnavailableMessage = SEARCH_COPY_BY_LANGUAGE.en.unavailable;
-export const searchErrorMessage = SEARCH_COPY_BY_LANGUAGE.en.error;
 
 export function getSearchCopy(language: SiteLanguage | null | undefined): SearchCopy {
   if (language === 'ja') {

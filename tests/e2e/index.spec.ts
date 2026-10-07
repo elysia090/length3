@@ -11,11 +11,12 @@ test('index route smoke', async ({ page }) => {
   await expect(page.locator('.index-sidebar')).toBeVisible();
   await expect(page.locator('.header-nav')).toHaveAttribute('aria-label', 'primary');
   await page.locator('[data-search-trigger]').click();
-  await expect(
-    page.locator(
-      '[data-pagefind-ui] .pagefind-ui__search-input, [data-pagefind-ui] .search-unavailable',
-    ),
-  ).toBeVisible();
+  // 検索は全画面の索引。問いの欄に焦点があり、何も打たなければトピックの索引が出る。
+  const query = page.getByRole('combobox', { name: 'Search articles' });
+  await expect(query).toBeFocused();
+  await expect(page.getByRole('navigation', { name: 'Index of topics' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(query).toBeHidden();
   expect(errors).toEqual([]);
 });
 
@@ -67,10 +68,31 @@ test('the article list collapses and grows four at a time', async ({ page }) => 
     await more.click();
     await expect(visible).toHaveCount(Math.min(total, initial + 4));
     await expect(page.locator('[data-article-reveal-status]')).toContainText('more article');
+
+    // 残りがある限り押し続ける。1 回で開き切るとは限らない。
+    for (let shown = initial + 4; shown < total; shown += 4) {
+      await more.click();
+      await expect(visible).toHaveCount(Math.min(total, shown + 4));
+    }
   }
 
   // 全部出たら出口は消え、最後の 1 件は薄れも解ける。
   await expect(page.locator('[data-article-reveal]')).toBeHidden();
   await expect(page.locator('.article-card[data-teaser]')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('the first visit opens on the robot tune and ENTER lands on the index', async ({ page }) => {
+  const errors = trackBrowserErrors(page);
+
+  await page.goto('/');
+  const stage = page.locator('[data-opening]');
+  await expect(stage).toBeInViewport();
+  await page.locator('[data-opening-enter]').click();
+  await expect(page.locator('.article-card').first()).toBeInViewport();
+
+  // 二回目からは前置きを飛ばして目次から始まる。
+  await page.goto('/');
+  await expect(page.locator('.article-card').first()).toBeInViewport();
   expect(errors).toEqual([]);
 });

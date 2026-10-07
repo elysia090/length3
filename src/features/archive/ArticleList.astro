@@ -1,0 +1,45 @@
+---
+import type { ProcessedPost } from '../catalog';
+import ArticleCard from './ArticleCard.astro';
+
+/**
+ * 一覧の台帳。行を全部出し、スクリプトが動いたときだけ頭の数件まで畳む
+ * （article-reveal.ts）。JS が無ければ「続きを開く」は hidden のまま、
+ * 一覧は全件出る。
+ */
+interface Props {
+  posts: readonly ProcessedPost[];
+  catalogNumbers: ReadonlyMap<string, number>;
+  maxReadingTime: number;
+}
+
+const { posts, catalogNumbers, maxReadingTime } = Astro.props;
+---
+
+<section class="article-list" aria-label="Articles" id="article-list">
+  {
+    posts.map((post, i) => (
+      <ArticleCard
+        post={post}
+        number={catalogNumbers.get(post.slug) ?? 0}
+        maxReadingTime={maxReadingTime}
+        lead={i === 0}
+      />
+    ))
+  }
+
+  <div class="list-more" data-article-reveal hidden>
+    <button type="button" class="list-more-btn" aria-controls="article-list">
+      <span class="list-more-label" data-article-reveal-label></span>
+      <span class="list-more-icon" aria-hidden="true"></span>
+    </button>
+  </div>
+  <!-- 焦点移動だけでは「何件増えて、あと何件あるか」が伝わらない。 -->
+  <p class="sr-only" aria-live="polite" data-article-reveal-status></p>
+</section>
+
+<script>
+  import { initializeArticleReveal } from './article-reveal';
+
+  initializeArticleReveal();
+</script>
