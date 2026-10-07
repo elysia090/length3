@@ -58,7 +58,7 @@ top-level `packageManager` field.
 
 The served MP3, envelope, beat grid and choreography are generated from the
 WAVs in `data/` by `node ./scripts/robot-tune/bake.ts`, which also measures the
-beat (eighth-note period by autocorrelation; the loop is 23 eighths). See
+beat (eighth-note period by autocorrelation; the loop is 32 eighths, the intro 64) and the onset strength of each loop eighth, where the cubes land. See
 [Robot Tune audio status](docs/reference/robot-tune-audio.md).
 
 ## Deployment

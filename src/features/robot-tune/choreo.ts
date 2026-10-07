@@ -18,7 +18,13 @@ import {
   vlerp,
 } from '../../shared/pixel/math';
 import type { CameraState, CubeState, ShovelState } from '../../shared/pixel/solids';
-import { INTRO_ONSET_SEC, INTRO_SILENCES, LOOP_ONSET_SEC, LOOP_SILENCES } from './envelope';
+import {
+  INTRO_ONSET_SEC,
+  INTRO_SILENCES,
+  LOOP_ACCENTS,
+  LOOP_ONSET_SEC,
+  LOOP_SILENCES,
+} from './envelope';
 import { BEAT_SEC, BEATS_PER_LOOP, EIGHTH_SEC, INTRO_BEATS, LOOP_EIGHTHS } from './timeline';
 
 export type { CameraState, CubeState, ShovelState };
@@ -27,17 +33,15 @@ export type { CameraState, CubeState, ShovelState };
  * 振付。通算拍 B を受け取って、その瞬間の舞台を返す純関数。拍の長さと数は
  * 音から測った値（timeline.ts）で、振付はそれに合わせて組む。
  *
- * イントロ（35 拍）は 1 拍に 1 個ずつ、1 → 2³ の殻 7 個 → 3³ の殻 19 個と
- * 足して 27 拍目で 3³ を積み上げる。残りの 8 拍は溜めで、シャベルは
- * 地面を突く間隔を詰めていき、積んだ 27 個は 8 分音符で波打つ。
+ * イントロ（8 分音符 64 個 = 32 拍、同じ 8 拍のフレーズが 4 回）は 1 拍に
+ * 1 個ずつ、1 → 2³ の殻 7 個 → 3³ の殻 19 個と足して 27 拍目で 3³ を
+ * 積み上げる。残りの 5 拍は溜めで、シャベルは地面を突く間隔を詰めていき、
+ * 積んだ 27 個は 8 分音符で波打つ。
  *
- * ループ（8 分音符 23 個 = 11 拍半）は、頭で前の 3³ を 1 個の立方体として
- * 数え直し、カメラを 3 倍引く。そこからイントロと同じ殻を、今度は一掬い
- * ずつ投げる: 2³ の殻 7 個を 12 番目の 8 分音符（ループでいちばん強い
- * キック）に、3³ の殻 19 個を 18 番目（二番目に強い）に落とす。投げる前は
- * 2・4 番目で地面を突き、5 番目で掬って 9 番目で放る。13 番目で掬って
- * 14 番目で放る。16 番目でカメラが切り返す。どの山場も、測った低域の
- * 立ち上がりが強い 8 分音符に置いてある（envelope.ts の LOOP_ACCENTS）。
+ * ループ（8 分音符 32 個 = 16 拍、フレーズ 2 回）は、頭で前の 3³ を 1 個の
+ * 立方体として数え直し、カメラを 3 倍引く。そこから前半で 2³ の殻、後半で
+ * 3³ の殻を、測った強い音の上に一掬いずつ落とす（LOOP_THROWS）。後半で
+ * いちばん強い音でカメラが切り返す。
  *
  * 世界の長さの単位は「いま積んでいる立方体 1 個の一辺」。段が上がるたびに
  * 単位ごと 3 倍になるので、座標は毎周 [0, 3]³ に収まる。
@@ -73,9 +77,15 @@ export const INTRO_SLOTS: readonly Cell[] = [
 ];
 
 /**
- * ループで一掬いずつ投げる殻。scoop で刃に載り、launch で放たれ、land で
- * 落ちる（いずれも 8 分音符の番号）。殻の中は下の段から順に、ほんの少し
- * ずつ遅れて着地する。
+ * ループで投げる一掬い。scoop で刃に載り、launch で放たれ、land で落ちる
+ * （いずれもループ頭からの 8 分音符）。
+ *
+ * 着地は音で決める。ループの前半（8 拍）で 2³ の殻 7 個、後半で 3³ の殻
+ * 19 個を積む。それぞれの半分のうち、測った立ち上がり（LOOP_ACCENTS）が
+ * HIT 以上の 8 分音符をすべて着地点にし、殻を時間順に均等に分けて載せる。
+ * 強い音が詰まっている所では一掬いが小さく速くなり、空いている所では
+ * 大きくゆっくりになる。飛ぶ時間は前の着地からの間（1〜2 個ぶん）。
+ * 無音をまたぐ一掬いは宙で止まり、音が戻った拍で着地する。
  */
 export interface Throw {
   cells: readonly Cell[];
@@ -83,18 +93,61 @@ export interface Throw {
   launch: number;
   land: number;
 }
+
+/** 着地点にする立ち上がりの強さ（0..1、ループ内の最大で割った値）。 */
+export const HIT = 0.5;
+/** 地面を突くだけの、中くらいの立ち上がり。 */
+const STAB_HIT = 0.35;
+const PHRASE = LOOP_EIGHTHS / 2;
+
+function throwsFor(cells: readonly Cell[], from: number, to: number): Throw[] {
+  const hits: number[] = [];
+  for (let e = Math.max(1, from); e < to; e++) if ((LOOP_ACCENTS[e] ?? 0) >= HIT) hits.push(e);
+  if (hits.length === 0) {
+    let best = Math.max(1, from);
+    for (let e = best; e < to; e++)
+      if ((LOOP_ACCENTS[e] ?? 0) > (LOOP_ACCENTS[best] ?? 0)) best = e;
+    hits.push(best);
+  }
+  const lands = hits.slice(0, cells.length);
+  const base = Math.floor(cells.length / lands.length);
+  const extra = cells.length % lands.length;
+  const out: Throw[] = [];
+  let next = 0;
+  lands.forEach((land, i) => {
+    const n = base + (i < extra ? 1 : 0);
+    const prev = i > 0 ? (lands[i - 1] ?? from) : from;
+    const flight = Math.min(2, Math.max(1, land - prev));
+    out.push({
+      cells: cells.slice(next, next + n),
+      scoop: land - flight - 0.5,
+      launch: land - flight,
+      land,
+    });
+    next += n;
+  });
+  return out;
+}
+
 export const LOOP_THROWS: readonly Throw[] = [
-  { cells: cellsOfShell(2), scoop: 5, launch: 9, land: 12 },
-  { cells: cellsOfShell(3), scoop: 13, launch: 14, land: 18 },
+  ...throwsFor(cellsOfShell(2), 0, PHRASE),
+  ...throwsFor(cellsOfShell(3), PHRASE, LOOP_EIGHTHS),
 ];
-/** 地面を突く 8 分音符（掘っている手つき）。 */
-const LOOP_STABS = [2, 4];
-/** カメラが 90° 切り返す 8 分音符。 */
-const LOOP_CUTS = [0, 16];
-/** 積み終わった山が沈み直す 8 分音符。 */
-const LOOP_SETTLE = 21;
-/** 殻の中の着地のずれ（8 分音符）。 */
-const STAGGER = 0.06;
+const LAND_SET = new Set(LOOP_THROWS.map((t) => t.land));
+/** 地面を突く 8 分音符。着地点にしなかった中くらいの立ち上がり。 */
+const LOOP_STABS = LOOP_ACCENTS.flatMap((a, e) =>
+  e > 0 && a >= STAB_HIT && a < HIT && !LAND_SET.has(e) ? [e] : [],
+);
+/** カメラが 90° 切り返す 8 分音符。ループ頭と、後半でいちばん強い音。 */
+const LOOP_CUTS = [
+  0,
+  LOOP_ACCENTS.reduce(
+    (best, a, e) => (e >= PHRASE && a > (LOOP_ACCENTS[best] ?? 0) ? e : best),
+    PHRASE,
+  ),
+];
+/** 一掬いの中の着地のずれ（8 分音符）。 */
+const STAGGER = 0.05;
 
 export interface CellRow {
   count: number;
@@ -254,10 +307,12 @@ function gestureAt(beat: number): Gesture {
     const at = dense ? Math.round(s.e) : 2 * Math.round(s.e / 2);
     return stab(s.e, at, 0.6 + 0.5 * clamp(u / 8));
   }
+  // 手つきは直近の一掬いだけ。詰まった所で重ねると刃が暴れる。
+  let current: Throw | undefined;
+  for (const th of LOOP_THROWS) if (s.e >= th.scoop - 0.5) current = th;
   return sum([
-    ...LOOP_STABS.map((at) => stab(s.e, at, 1)),
-    ...LOOP_THROWS.map((th) => fling(s.e, th.scoop, th.launch)),
-    stab(s.e, LOOP_SETTLE, 0.4),
+    ...LOOP_STABS.map((at) => stab(s.e, at, 0.7)),
+    ...(current ? [fling(s.e, current.scoop, current.launch)] : []),
   ]);
 }
 
@@ -422,8 +477,8 @@ export function sceneAt(beat: number): Scene {
         const f: Flight = {
           appear: th.scoop,
           // 刃から順にこぼれるように、ほんの少しずつ遅れて離れる。
-          launch: th.launch + 0.08 * (j % 4),
-          land: th.land + STAGGER * slot[1] + (STAGGER / 2) * (j % 3),
+          launch: th.launch + 0.06 * (j % 3),
+          land: th.land + STAGGER * (j % 3),
           size: 0.32,
           jitter: [
             (hash(j * 13 + n) - 0.5) * 0.5,

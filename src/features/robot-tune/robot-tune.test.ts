@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { INTRO_SLOTS, LOOP_THROWS, sceneAt } from './choreo';
-import { INTRO_SEC, LOOP_ACCENTS, LOOP_ONSET_SEC, LOOP_SEC } from './envelope';
+import { HIT, INTRO_SLOTS, LOOP_THROWS, sceneAt } from './choreo';
+import { INTRO_SEC, LOOP_ACCENTS, LOOP_ONSET_SEC, LOOP_SEC, LOOP_SILENCES } from './envelope';
 import { comparison, formatLength, formatVolume, groupDigits, unitCount } from './scale';
 import {
   BEATS_PER_LOOP,
@@ -38,7 +38,11 @@ describe('timeline (measured by scripts/robot-tune/bake.ts)', () => {
   it('freezes at the start of a silence', () => {
     expect(silenceStart(0.2)).toBe(0);
     expect(silenceStart(0.5)).toBeNull();
-    expect(silenceStart(INTRO_SEC + LOOP_SEC + 0.25)).toBeCloseTo(INTRO_SEC + LOOP_SEC + 0.2, 6);
+    const [s0] = LOOP_SILENCES[0] ?? [0, 0];
+    expect(silenceStart(INTRO_SEC + LOOP_SEC + s0 + 0.01)).toBeCloseTo(
+      INTRO_SEC + LOOP_SEC + s0,
+      6,
+    );
   });
 });
 
@@ -49,7 +53,6 @@ describe('choreography', () => {
     expect(new Set(INTRO_SLOTS.map(key)).size).toBe(27);
     const loopCells = LOOP_THROWS.flatMap((t) => t.cells.map(key));
     expect(new Set(['0,0,0', ...loopCells]).size).toBe(27);
-    expect(LOOP_THROWS.map((t) => t.cells.length)).toEqual([7, 19]);
   });
 
   it('never stacks a cube over an empty cell', () => {
@@ -64,14 +67,23 @@ describe('choreography', () => {
     }
   });
 
-  it('lands each scoop on one of the loudest measured kicks of the loop', () => {
-    const ranked = [...LOOP_ACCENTS].sort((a, b) => b - a);
+  it('lands every scoop on a strong measured onset, and gives every strong onset a landing', () => {
+    const lands = LOOP_THROWS.map((t) => t.land);
     for (const t of LOOP_THROWS) {
-      expect(LOOP_ACCENTS[t.land]).toBeGreaterThanOrEqual(ranked[2] ?? 1);
-      expect(t.scoop).toBeLessThanOrEqual(t.launch);
+      expect(LOOP_ACCENTS[t.land]).toBeGreaterThanOrEqual(HIT);
+      expect(t.scoop).toBeLessThan(t.launch);
       expect(t.launch).toBeLessThan(t.land);
       expect(t.land).toBeLessThan(LOOP_EIGHTHS);
     }
+    LOOP_ACCENTS.forEach((a, e) => {
+      if (e > 0 && a >= HIT) expect(lands).toContain(e);
+    });
+    // 前半で 2³ の殻、後半で 3³ の殻。
+    const half = LOOP_EIGHTHS / 2;
+    const count = (pred: (land: number) => boolean) =>
+      LOOP_THROWS.filter((t) => pred(t.land)).reduce((n, t) => n + t.cells.length, 0);
+    expect(count((l) => l < half)).toBe(7);
+    expect(count((l) => l >= half)).toBe(19);
   });
 
   it('completes 3³ at beat 27, and again inside every loop', () => {
@@ -79,8 +91,8 @@ describe('choreography', () => {
     expect(sceneAt(27.01).count).toBe(27);
     const head = sceneAt(INTRO_BEATS + 0.01);
     expect(head.count).toBe(1);
-    const second = LOOP_THROWS[1];
-    const full = sceneAt(INTRO_BEATS + (second?.land ?? 0) / 2 + 0.4);
+    const last = LOOP_THROWS[LOOP_THROWS.length - 1];
+    const full = sceneAt(INTRO_BEATS + (last?.land ?? 0) / 2 + 0.2);
     expect(full.count).toBe(27);
     const next = sceneAt(INTRO_BEATS + BEATS_PER_LOOP + 0.01);
     expect(next.level).toBe(head.level + 1);
