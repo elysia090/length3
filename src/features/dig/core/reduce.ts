@@ -51,6 +51,7 @@ export function emptyWorld(): World {
     enc: null,
     pending: null,
     flags: {},
+    goals: [],
     unlocked: [],
     seen: [],
     found: [],
@@ -154,6 +155,7 @@ export function apply(w: World, ev: Ev): void {
         ev.quiet ? 'quiet' : '',
         ev.spent ? 'spent' : '',
         ev.tags.includes('tech') ? 'tech' : '',
+        'used',
       );
       if (w.enc) {
         if (!ev.quiet) w.enc.cards++;
@@ -210,6 +212,12 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'flag':
       w.flags[ev.key] = ev.v;
+      break;
+    case 'goal.set':
+      w.goals = [...w.goals.filter((g) => g.size !== ev.goal.size), { ...ev.goal }];
+      break;
+    case 'goal.done':
+      w.goals = w.goals.filter((g) => g.size !== ev.size);
       break;
     case 'unlock':
       if (!w.unlocked.includes(ev.story)) w.unlocked.push(ev.story);

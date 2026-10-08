@@ -3,6 +3,7 @@ import type { World } from '../core/model';
 import { Tx } from '../core/tx';
 import '../content/sources';
 import { basic, useCard } from './encounter';
+import { checkGoals, initGoals } from './goals';
 import {
   alter,
   announce,
@@ -42,6 +43,8 @@ export function decide(
   switch (cmd.c) {
     case 'start':
       start(tx, cmd.seed, cmd.job, cmd.depth, cmd.carry, cmd.remembered, cmd.sheet);
+      tx.flush();
+      initGoals(tx, cmd.goals);
       break;
     case 'move':
       ok = move(tx, cmd.node);
@@ -99,6 +102,8 @@ export function decide(
   if (!ok && !tx.out.length) return [];
   tx.flush();
   if (!w.ending) sync(tx);
+  // 目標は、試算（予告）には混ぜない。届いた見返りが札の効き目に見えないように。
+  if (!opts.sim && !w.ending) checkGoals(tx);
   if (before) announce(tx, before);
   return tx.close();
 }

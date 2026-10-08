@@ -2,6 +2,9 @@ import type {
   Card,
   Ending,
   Foe,
+  Goal,
+  GoalCarry,
+  GoalSize,
   Intent,
   MapNode,
   Mind,
@@ -63,6 +66,8 @@ export type Ev =
   | { type: 'debt'; who: Who; npc: string; n: number }
   | { type: 'title'; who: Who; id: string }
   | { type: 'flag'; key: string; v: number }
+  | { type: 'goal.set'; goal: Goal }
+  | { type: 'goal.done'; size: GoalSize }
   | { type: 'unlock'; story: string }
   | { type: 'story.seen'; id: string }
   | { type: 'found'; id: string }
@@ -148,6 +153,8 @@ export type Cmd =
       carry?: string;
       remembered?: Record<string, Partial<Mind>>;
       sheet?: import('../content/origins').Sheet;
+      /** 前の挑戦で届かなかった目標（進んだ分ごと引き継ぐ）。 */
+      goals?: GoalCarry[];
     }
   | { c: 'move'; node: number }
   | { c: 'breather' }

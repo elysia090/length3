@@ -84,7 +84,7 @@
     "所持品": "Belongings",
     "名前 ": "Name ",
     "あなた": "You",
-    "深さ ": "Depth ",
+    "難度 ": "Difficulty ",
     " 今日の夜（全員同じ地図）": " Tonight (same map for everyone)",
     "このまま始める": "Start as is",
     "光っている部屋を押すと、そこへ下りる。← → で選んで Enter でもいい。一つ下りるごとに 1 時間。": "Press a lit room to go down to it. Or pick with ← → and hit Enter. Each floor down costs 1 hour.",
@@ -167,7 +167,17 @@
     "掘り当てた": "Struck it",
     "最後の面に、彼女の名前があった。その下に、あなたの名前も。明かりをつける。約束どおりに。": "On the last face, her name. Under it, yours. You switch on the light. As promised.",
     "面をひとつずつ剥がしていくと、底に小さな空洞があった。何が入っていたのかは、もう思い出せない。": "You peel the faces off one by one. At the bottom, a small hollow. What it held, you can no longer remember.",
-    " 約束は、古物商の棚に置いてきた。": " The promise, you left on the antique dealer's shelf."
+    " 約束は、古物商の棚に置いてきた。": " The promise, you left on the antique dealer's shelf.",
+    "目標": "Goals",
+    "小さな目標": "Small goal",
+    "中くらいの目標": "Medium goal",
+    "大きな目標": "Large goal",
+    "誰かと決着をつける": "Settle things with someone",
+    "次の区画へ下りる": "Go down to the next section",
+    "金 +6": "Coins +6",
+    "全ての札の回数 +1・体力と精神 +15%": "All cards +1 use · body and mind +15%",
+    "エピテットを一つ・金 +12": "One epithet · coins +12",
+    " 歯が立たない": " out of your league"
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -270,6 +280,14 @@
     "《{0}》が成立した。{1}": "«{0}» has formed. {1}",
     "《{0}》が極まった ── {1}：{2}": "«{0}» peaks — {1}: {2}",
     "《{0}》が暴走した ── {1}：{2}": "«{0}» surges — {1}: {2}",
-    "《{0}》が崩れた。": "«{0}» collapses."
+    "《{0}》が崩れた。": "«{0}» collapses.",
+    "硬度 {0}": "Hardness {0}",
+    "{0} 人と決着をつける": "Settle things with {0} people",
+    "札を {0} 回使う": "Use cards {0} times",
+    "{0} フロア下りる": "Go down {0} floors",
+    "目標に届いた：{0} ── {1}": "Goal reached: {0} — {1}",
+    "{0} が伸びた": "{0} grew",
+    "・{0}の上": " · above {0}",
+    "正面からは歯が立たない（あなたは硬度 {0}）。退いて、出直せる。": "Head-on, you can't touch them (you are hardness {0}). Step back; come again."
   }
 }

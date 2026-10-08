@@ -257,6 +257,26 @@ export interface Rival {
   log: string[];
 }
 
+/** 目標の大きさ（小・中・大）。 */
+export type GoalSize = 'S' | 'M' | 'L';
+/** 目標の物差し。 */
+export type GoalKind = 'settle' | 'use' | 'floor' | 'section';
+/** 目標。置いたときの物差しの値（base）から need 増えれば届く。 */
+export interface Goal {
+  size: GoalSize;
+  kind: GoalKind;
+  need: number;
+  base: number;
+}
+
+/** 挑戦をまたいで持ち越す、届かなかった目標（進んだ分ごと）。 */
+export interface GoalCarry {
+  size: GoalSize;
+  kind: GoalKind;
+  need: number;
+  got: number;
+}
+
 export type Stream = 'map' | 'enc' | 'ai' | 'story' | 'rival' | 'gossip' | 'loot' | 'flavor';
 
 export interface World {
@@ -276,6 +296,8 @@ export interface World {
   enc: Enc | null;
   pending: Pending | null;
   flags: Record<string, number>;
+  /** いま見えている目標（小・中・大の三つ）。 */
+  goals: Goal[];
   unlocked: string[];
   seen: string[];
   /** この挑戦で明らかになった隠し効果。 */

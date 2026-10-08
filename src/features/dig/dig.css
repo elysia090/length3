@@ -227,7 +227,8 @@
   line-height: 1.6;
 }
 
-.dig-sec + .dig-sec {
+.dig-sec + .dig-sec,
+* + .dig-goals {
   margin-top: 1rem;
   padding-top: 0.75rem;
   border-top: 0.0625rem solid var(--rule);
@@ -1079,4 +1080,120 @@
 
 .dig-side .dig-row .dig-act {
   max-width: 100%;
+}
+
+/* 場所（B# は太字）と硬度。どの画面でも同じ書き方。 */
+.dig-place {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 0.86em;
+}
+
+.dig-place b,
+.dig-where b {
+  color: var(--ink);
+}
+
+.dig-hard {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+
+/* 歯が立たない相手は、絵と同じく数字を墨の枠で囲む。 */
+.dig-hard.is-over {
+  padding: 0 0.25em;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* 目標（小・中・大）。 */
+.dig-goals ol {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dig-goal {
+  display: grid;
+  grid-template-columns: 14px 1fr 4.5em;
+  grid-template-areas:
+    'size text bar'
+    'size reward reward';
+  column-gap: 0.5rem;
+  align-items: center;
+}
+
+.dig-goal__size {
+  grid-area: size;
+  justify-self: center;
+  align-self: start;
+  margin-top: 0.3em;
+  background: var(--amber-text);
+}
+
+/* 大・中・小は、印の大きさで。 */
+.dig-goal--L .dig-goal__size {
+  width: 12px;
+  height: 12px;
+}
+
+.dig-goal--M .dig-goal__size {
+  width: 8px;
+  height: 8px;
+  margin-top: 0.45em;
+}
+
+.dig-goal--S .dig-goal__size {
+  width: 5px;
+  height: 5px;
+  margin-top: 0.55em;
+}
+
+.dig-goal__text {
+  grid-area: text;
+}
+
+.dig-goal__bar {
+  grid-area: bar;
+  height: 6px;
+  border: 1px solid var(--ink-3);
+}
+
+.dig-goal__bar i {
+  display: block;
+  height: 100%;
+  background: var(--amber-text);
+  transition: width 0.4s ease-out;
+}
+
+.dig-goal__reward {
+  grid-area: reward;
+  color: var(--ink-3);
+  font-size: 0.82em;
+}
+
+.dig-goal.is-fresh {
+  animation: dig-goal-in 0.9s ease-out;
+}
+
+@keyframes dig-goal-in {
+  0% {
+    background: color-mix(in srgb, var(--amber-text) 35%, transparent);
+    transform: translateX(6px);
+  }
+  100% {
+    background: transparent;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-goal.is-fresh {
+    animation: none;
+  }
 }

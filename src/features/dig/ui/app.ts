@@ -18,13 +18,14 @@ import {
 import { buildsOf } from '../content/sources';
 import { nextTier, SURGES, tierOf } from '../content/surges';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
-import type { Card, MapNode, World } from '../core/model';
+import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { clockOf, PHASE_NAME, phaseOf } from '../core/time';
 import { getLang, setLang, tr } from '../i18n';
 import { type Advice, advise, nodeLabel, type RouteKind } from '../sim/advise';
 import { canAccept, incoming, leaveChance, resonance, shownIntent } from '../sim/encounter';
 import { Game } from '../sim/game';
+import { carryGoals, metric as goalMetric, goalText, REWARD_TEXT } from '../sim/goals';
 import { foeHardness, hardnessLabel, nodeHardness, outmatched, youHardness } from '../sim/hardness';
 import { misses } from '../sim/near';
 import { maxHp, maxMind, stats } from '../sim/ops';
@@ -118,6 +119,29 @@ const BASIC_NAME: Record<Basic, string> = {
 
 const clock = (hour: number) => `${String(clockOf(hour)).padStart(2, '0')}:00`;
 const floorNo = (w: World, row: number) => (w.stratum - 1) * (ROWS + 1) + row + 1;
+
+/**
+ * 場所・人物・硬度の書き方は一つにそろえる（上帯・触れた札・部屋・遭遇・道の読み）。
+ *   場所  B3・閉店間際の酒場     （B# は太字、・でつなぐ）
+ *   人物  名前　硬度 5          （硬度は数字だけ。鉱物の名は触れると出る）
+ */
+const placeOf = (w: World, n: MapNode | undefined): Child[] =>
+  n
+    ? [
+        h('b', {}, `B${floorNo(w, n.row)}`),
+        `・${useOf(w.stratum, n.use)?.name ?? KIND_NAME[n.kind]}`,
+      ]
+    : [h('b', {}, `B${floorNo(w, 0)}`), `・${STRATUM_NAME[w.stratum] ?? ''}の上`];
+const whoOf = (n: MapNode) => (n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]);
+const hardTag = (hard: number, you?: number) =>
+  h(
+    'span',
+    {
+      class: `dig-hard${you !== undefined && outmatched(hard, you) ? ' is-over' : ''}`,
+      title: hardnessLabel(hard),
+    },
+    `硬度 ${hard}`,
+  );
 /** 回数の目盛り（残り＝塗り、使った分＝枠だけ）。文字ではなく四角で、字体に左右されない。 */
 const pips = (c: Card) =>
   h(
@@ -330,6 +354,19 @@ export function openDig(doc: Document, onClose: () => void): void {
         case 'perm':
           sound.gain();
           break;
+        case 'goal.done':
+          sound.ok();
+          sound.gain();
+          break;
+        case 'goal.set':
+          goalAt = { size: ev.goal.size, t };
+          break;
+        case 'grew':
+          if (ev.who === 'you' && (ev.n ?? 1) > 0) {
+            sound.gain();
+            showCaption(`${ev.stat} が伸びた`);
+          }
+          break;
         case 'note': {
           // 重みで出し分ける：0 読み上げだけ、1 帯に一瞬、2 記録にも、3 名場面。
           const lv = ev.level ?? 1;
@@ -356,6 +393,9 @@ export function openDig(doc: Document, onClose: () => void): void {
     window.clearTimeout(captionTimer);
     captionTimer = window.setTimeout(() => caption.classList.remove('is-on'), 2600);
   }
+
+  /** いちばん新しく置かれた目標（少しのあいだ光らせる）。 */
+  let goalAt: { size: GoalSize | null; t: number } = { size: null, t: -9 };
 
   const moments: string[] = [];
   let momentBusy = false;
@@ -468,6 +508,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       if (c && (c.marks.ch ?? 0) >= 3 && !profile.legends.includes(c.id))
         profile.legends.push(c.id);
     profile.carry = w.you.perms.find((p) => p !== 'promise' && !permDef(p)?.bad) ?? null;
+    profile.goals = carryGoals(w);
     saveProfile(profile);
   }
 
@@ -484,6 +525,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     };
     game = Game.start(s, create.job, create.depth, {
       carry: profile.carry ?? undefined,
+      goals: profile.goals,
       remembered: profile.remembered,
       sheet,
     });
@@ -687,12 +729,14 @@ export function openDig(doc: Document, onClose: () => void): void {
     const can = reachable(w).some((m) => m.id === n.id);
     tip.replaceChildren();
     fill(tip, [
-      h('b', {}, `B${floorNo(w, n.row)}・${useOf(w.stratum, n.use)?.name ?? ''}`),
+      h('span', {}, ...placeOf(w, n)),
       h(
         'span',
         {},
-        n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind],
-        hard !== null ? `　硬度 ${hard}${over ? '・歯が立たない' : ''}` : '',
+        whoOf(n),
+        hard !== null ? '　' : '',
+        hard !== null ? hardTag(hard, youHardness(w)) : null,
+        over ? h('span', { class: 'dig-warn' }, ' 歯が立たない') : null,
       ),
       can
         ? h('span', { class: 'dig-amber' }, `押すと${way(w, n).verb}（${way(w, n).hours} 時間）`)
@@ -726,12 +770,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       const row = nodeOf(w, w.pos)?.row ?? -1;
       const hard = youHardness(w);
       items.push(
-        h(
-          'span',
-          { class: 'dig-where' },
-          h('b', {}, row >= 0 ? `B${floorNo(w, row)}` : `B${floorNo(w, 0)} の上`),
-          ` ${useOf(w.stratum, nodeOf(w, w.pos)?.use)?.name ?? STRATUM_NAME[w.stratum] ?? ''}`,
-        ),
+        h('span', { class: 'dig-where' }, ...placeOf(w, row >= 0 ? nodeOf(w, w.pos) : undefined)),
         // 時刻と、いまが夜か朝か（数えなくていい。夜は、また来る）。
         h(
           'span',
@@ -747,7 +786,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           loss: w.enc?.phase === 'act' ? incoming(w).mind : 0,
         }),
         h('span', { class: 'dig-coins' }, `金 ${w.you.coins}`),
-        h('span', { class: 'dig-hard', title: '総合の地力（モース硬度）' }, hardnessLabel(hard)),
+        hardTag(hard),
         w.you.titles.length
           ? h(
               'span',
@@ -810,6 +849,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     side.replaceChildren();
     if (!game) return;
     renderPanel(game.world);
+    const goals = goalsPanel(game.world);
+    if (goals) fill(side, [goals]);
     // 出来事の記録は、どの画面でも同じ場所に畳んでおく（開けば読める）。
     if (log.length)
       fill(side, [
@@ -862,6 +903,37 @@ export function openDig(doc: Document, onClose: () => void): void {
     fill(side, [mapPanel(w)]);
   }
 
+  /** 目標（小・中・大）。遭遇のあいだは出さない（いまの相手に目を向けるように）。 */
+  function goalsPanel(w: World): HTMLElement | null {
+    if (w.enc || w.ending || !w.goals.length) return null;
+    const SIZE: Record<GoalSize, string> = {
+      S: '小さな目標',
+      M: '中くらいの目標',
+      L: '大きな目標',
+    };
+    const rows = (['L', 'M', 'S'] as const)
+      .map((size) => w.goals.find((g) => g.size === size))
+      .filter((g): g is Goal => !!g)
+      .map((g) => {
+        const got = Math.max(0, Math.min(g.need, goalMetric(w, g.kind) - g.base));
+        const fresh = goalAt.size === g.size && now() - goalAt.t < 2.4;
+        return h(
+          'li',
+          { class: `dig-goal dig-goal--${g.size}${fresh ? ' is-fresh' : ''}` },
+          // 大きさは字ではなく、印の大きさで（上から大・中・小）。
+          h('i', { class: 'dig-goal__size', role: 'img', 'aria-label': SIZE[g.size] }),
+          h('span', { class: 'dig-goal__text' }, goalText(g)),
+          h(
+            'span',
+            { class: 'dig-goal__bar', role: 'img', 'aria-label': `${got}/${g.need}` },
+            h('i', { style: `width:${Math.round((got / g.need) * 100)}%` }),
+          ),
+          h('span', { class: 'dig-goal__reward' }, REWARD_TEXT[g.size]),
+        );
+      });
+    return h('section', { class: 'dig-sec dig-goals' }, h('h3', {}, '目標'), h('ol', {}, rows));
+  }
+
   const section = (title: string, ...kids: (Child | readonly Child[])[]) =>
     h('section', { class: 'dig-sec' }, h('h3', {}, title), ...kids);
 
@@ -872,11 +944,13 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h(
       'div',
       { class: 'dig-room' },
+      h('p', { class: 'dig-place' }, ...placeOf(w, n)),
       h(
         'p',
         { class: 'dig-room__name' },
-        `B${floorNo(w, n.row)}・${useOf(w.stratum, n.use)?.name ?? KIND_NAME[n.kind]}`,
-        ` ── ${def ? def.name : KIND_NAME[n.kind]}`,
+        whoOf(n),
+        hard !== null ? '　' : '',
+        hard !== null ? hardTag(hard, you) : null,
       ),
       n.tower
         ? h(
@@ -887,12 +961,11 @@ export function openDig(doc: Document, onClose: () => void): void {
         : null,
       h('p', { class: 'dig-quiet' }, `${way(w, n).name}で ${way(w, n).hours} 時間`),
       def ? h('p', { class: 'dig-quiet' }, def.desc) : null,
-      hard !== null
+      hard !== null && outmatched(hard, you)
         ? h(
             'p',
-            { class: outmatched(hard, you) ? 'dig-warn' : '' },
-            `${hardnessLabel(hard)}（あなたは ${you}）`,
-            outmatched(hard, you) ? ' ── 正面からは歯が立たない。退いて、出直せる。' : '',
+            { class: 'dig-warn' },
+            `正面からは歯が立たない（あなたは硬度 ${you}）。退いて、出直せる。`,
           )
         : null,
       n.stage?.length
@@ -951,9 +1024,13 @@ export function openDig(doc: Document, onClose: () => void): void {
           '行ける部屋',
           next.map((n) => {
             const hard = n.npc ? nodeHardness(w, n) : null;
-            return button(
-              `${way(w, n).name} → ${n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]}${hard !== null ? `　硬度 ${hard}` : ''}${n.stage?.length ? '　見せ場' : ''}`,
-              () => send({ c: 'move', node: n.id }),
+            return h(
+              'button',
+              { type: 'button', onclick: () => send({ c: 'move', node: n.id }) },
+              `${way(w, n).name} → ${whoOf(n)}`,
+              hard !== null ? '　' : '',
+              hard !== null ? hardTag(hard, youHardness(w)) : null,
+              n.stage?.length ? '　見せ場' : '',
             );
           }),
         ),
@@ -1101,18 +1178,14 @@ export function openDig(doc: Document, onClose: () => void): void {
     const n = nodeOf(w, id);
     if (!n) return '進む';
     const hard = n.npc ? nodeHardness(w, n) : null;
-    return `${way(w, n).verb}：${n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]}${hard !== null ? `（硬度 ${hard}）` : ''}`;
+    return `${way(w, n).verb}：${whoOf(n)}${hard !== null ? `　硬度 ${hard}` : ''}`;
   }
 
   function firstStep(w: World, id: number | undefined): HTMLElement | null {
     if (id === undefined) return null;
     const n = nodeOf(w, id);
     if (!n) return null;
-    return h(
-      'span',
-      { class: 'dig-chip__step' },
-      `${way(w, n).name} → ${n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]}`,
-    );
+    return h('span', { class: 'dig-chip__step' }, `${way(w, n).name} → ${whoOf(n)}`);
   }
 
   function lackText(l: { tag?: string; arch?: string; perm?: string; card?: string }): string {
@@ -1203,13 +1276,8 @@ export function openDig(doc: Document, onClose: () => void): void {
         : null,
     ];
     const kids: (Child | readonly Child[])[] = [
-      h(
-        'p',
-        { class: 'dig-room__name' },
-        f.name,
-        ' ',
-        h('span', { class: outmatched(hard, you) ? 'dig-warn' : 'dig-quiet' }, hardnessLabel(hard)),
-      ),
+      h('p', { class: 'dig-place' }, ...placeOf(w, nodeOf(w, w.pos))),
+      h('p', { class: 'dig-room__name' }, f.name, '　', hardTag(hard, you)),
       // 一巡：前の手番（あなた → 相手）と、相手の次の手。
       lastTurn.length
         ? h(
@@ -2047,7 +2115,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'label',
           { class: 'dig-field' },
-          '深さ ',
+          '難度 ',
           h(
             'select',
             {

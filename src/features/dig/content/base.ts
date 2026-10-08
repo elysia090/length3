@@ -12,7 +12,7 @@ import { foeDef, permDef } from './registry';
  *   弱点と守り  相手の弱いタグを持つカードは ×1.5、守っているタグなら ×0.6
  *   攻め筋      見えている手がかり（相手の記憶）が、押す・話す・威圧・嘘を変える
  *   夜          深夜ほど相手は荒れている
- *   深さ        深いほど相手は荒れ、去りにくい
+ *   難度        高いほど相手は荒れ、去りにくい
  */
 const overlap = (a: readonly Tag[] | undefined, b: readonly Tag[]) =>
   !!a?.some((t) => b.includes(t));
@@ -101,47 +101,47 @@ export const BASE_RULES: readonly PassiveSpec[] = [
   },
 ];
 
-/** 深さ（難しさの段）。段を上がるごとに一つずつ重なる。 */
+/** 難度（難しさの段）。段を上がるごとに一つずつ重なる。 */
 export const DEPTH_RULES: readonly { at: number; spec: PassiveSpec }[] = [
   {
     at: 1,
     spec: {
       rule: 'startHostility',
       fn: (_c, v) => v + 1,
-      text: '深さ 1：相手は初めから荒れている（+1）',
+      text: '難度 1：相手は初めから荒れている（+1）',
     },
   },
   {
     at: 2,
-    spec: { rule: 'strikeTaken', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '深さ 2：受ける傷 +1' },
+    spec: { rule: 'strikeTaken', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '難度 2：受ける傷 +1' },
   },
   {
     at: 3,
     spec: {
       rule: 'restHeal',
       fn: (_c, v) => Math.round(v * 0.8),
-      text: '深さ 3：休んでも 2 割少ない',
+      text: '難度 3：休んでも 2 割少ない',
     },
   },
-  { at: 4, spec: { rule: 'price', fn: (_c, v) => Math.round(v * 1.2), text: '深さ 4：値段 ×1.2' } },
+  { at: 4, spec: { rule: 'price', fn: (_c, v) => Math.round(v * 1.2), text: '難度 4：値段 ×1.2' } },
   {
     at: 6,
     spec: {
       rule: 'threatTaken',
       fn: (_c, v) => (v > 0 ? v + 1 : v),
-      text: '深さ 6：精神への傷 +1',
+      text: '難度 6：精神への傷 +1',
     },
   },
   {
     at: 7,
-    spec: { rule: 'falseChance', fn: (_c, v) => v + 10, text: '深さ 7：誤った手がかり +10%' },
+    spec: { rule: 'falseChance', fn: (_c, v) => v + 10, text: '難度 7：誤った手がかり +10%' },
   },
   {
     at: 8,
     spec: {
       rule: 'leaveChance',
       fn: (_c, v) => (v >= 100 ? v : v - 10),
-      text: '深さ 8：去る −10%',
+      text: '難度 8：去る −10%',
     },
   },
 ];
