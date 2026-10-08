@@ -25,7 +25,7 @@ export const H = 240;
 /**
  * 床の形と投影。u は左右（ほとんど水平に、少しだけ右下がり）、v は奥行き
  * （手前が左下）。床は横に広く、奥行きは浅い板で、上下のフロアが重ならない
- * 間隔に積む。下のフロアほど間隔も大きさも縮み（遠近）、底は闇に溶ける。
+ * 間隔に積む。遠いフロアは細部を省いて、底の闇に溶ける。
  */
 const GEO = {
   /** 床板の半幅と半奥行き。 */
@@ -36,14 +36,17 @@ const GEO = {
   uy: 4,
   vx: -18,
   vy: 10,
-  /** いま見ているフロアの、次のフロアまでの間隔。 */
+  /** フロアの間隔（どの深さでも同じ）。 */
   gap: 64,
-  /** 下へ行くほどの縮み方。 */
-  shrink: 0.24,
 } as const;
 
-/** 地図の寄り（遭遇の寄りは別）。全体を少し大きく見せる。 */
-const MAP_ZOOM = 1.22;
+/**
+ * 寄り。ふだんは近景（あなたと、次に行ける部屋が収まるところまで寄る）。
+ * 見渡すときだけ引く。遭遇ではさらに寄る。
+ */
+const NEAR_ZOOM = 1.9;
+const FAR_ZOOM = 1;
+const ENC_ZOOM = 2.4;
 
 /** 部屋ごとに決まった、奥行きの揺らぎ（-1〜1）。並びが一直線にならないように。 */
 const jitter = (id: number) => ((((id + 1) * 2654435761) >>> 0) % 1000) / 500 - 1;
@@ -147,7 +150,9 @@ export class Tower {
   private palette: Uint32Array;
   private placed: Placed[] = [];
   /** カメラ（フロアの位置と寄り）。なめらかに追う。 */
-  private cam = { floor: -0.5, zoom: MAP_ZOOM, x: 0, y: 0 };
+  private cam = { floor: -0.5, zoom: NEAR_ZOOM, x: 0, y: 0 };
+  /** 見渡す（引いて、区画をひと目に）。 */
+  overview = false;
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d');
@@ -205,33 +210,73 @@ export class Tower {
     return { u, v: jitter(r.id) * (GEO.V - 0.45) };
   }
 
-  /**
-   * そのフロアの縮みと、いま見ているフロアからの縦のずれ。下へは対数で
-   * 詰まっていき（遠近）、上へはそのまま。
-   */
-  private depth(f: number): { s: number; dy: number } {
-    const d = f - this.cam.floor;
-    if (d <= 0) return { s: 1, dy: d * GEO.gap };
-    return { s: 1 / (1 + GEO.shrink * d), dy: (GEO.gap / GEO.shrink) * Math.log1p(GEO.shrink * d) };
+  /** いま見ているフロアからの隔たり（下が正）。 */
+  private away(f: number): number {
+    return f - this.cam.floor;
   }
 
-  /** 地図の上の人の大きさの倍率（寄るほど 1 に戻る）。 */
+  /** 地図の上の人の大きさの倍率（遭遇の寄りでは 1）。 */
   private mapPeople(): number {
-    return 1 + 0.3 * clamp((2 - this.cam.zoom) / (2 - MAP_ZOOM));
+    return 1 + 0.25 * clamp((ENC_ZOOM - this.cam.zoom) / (ENC_ZOOM - NEAR_ZOOM));
   }
 
-  /** そのフロアの物の大きさ（遠いほど小さい）。 */
-  private scale(f: number): number {
-    return this.depth(f).s;
+  /** そのフロアを細かく描くか（近いフロアだけ。遠景を静かに保つ）。 */
+  private detailed(f: number): boolean {
+    return this.away(f) < 2.4;
   }
 
   private project(u: number, v: number, f: number): { x: number; y: number } {
     const z = this.cam.zoom;
-    const { s, dy } = this.depth(f);
     return {
-      x: this.W / 2 + (u * GEO.ux + v * GEO.vx) * z * s - this.cam.x * z,
-      y: H * 0.3 + dy * z + (u * GEO.uy + v * GEO.vy) * z * s - this.cam.y * z,
+      x: this.W / 2 + (u * GEO.ux + v * GEO.vx) * z - this.cam.x * z,
+      y: H * 0.3 + this.away(f) * GEO.gap * z + (u * GEO.uy + v * GEO.vy) * z - this.cam.y * z,
     };
+  }
+
+  /** 寄っているか（近景・遭遇）。 */
+  private closeup(): boolean {
+    return this.cam.zoom > (NEAR_ZOOM + FAR_ZOOM) / 2;
+  }
+
+  /**
+   * 近景の構図。あなた（入口なら区画の上）・行ける部屋・触れている部屋を
+   * 包む枠を求めて、それが画面に収まる寄りと、枠の中心を返す。人の頭と
+   * 硬度の数字の分、上に余白を足す。
+   */
+  private frame(
+    view: TowerView,
+    here: RoomView | undefined,
+    floor: number,
+  ): { zoom: number; x: number; y: number } {
+    const pts: { x: number; y: number }[] = [];
+    const add = (u: number, v: number, f: number) =>
+      pts.push({ x: u * GEO.ux + v * GEO.vx, y: (f - floor) * GEO.gap + u * GEO.uy + v * GEO.vy });
+    if (here) {
+      const p = Tower.spot(here);
+      add(p.u, p.v, here.floor);
+    } else add(0, 0, -0.5);
+    // 行ける部屋。足止めされている間（食堂・古物商・出来事）は、この先の部屋。
+    const ahead = new Set(view.edges.filter(([from]) => from === view.you).map(([, to]) => to));
+    for (const r of view.rooms) {
+      if (!r.reachable && !ahead.has(r.id) && r.id !== view.focus) continue;
+      const p = Tower.spot(r);
+      add(p.u, p.v, r.floor);
+    }
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const minX = Math.min(...xs) - 24;
+    const maxX = Math.max(...xs) + 24;
+    const minY = Math.min(...ys) - 34;
+    const maxY = Math.max(...ys) + 14;
+    const zoom = clamp(
+      Math.min((this.W * 0.86) / (maxX - minX), (H * 0.78) / (maxY - minY)),
+      1.25,
+      NEAR_ZOOM,
+    );
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    // 画面の縦のまん中（少し下）に、枠の中心が来るように。
+    return { zoom, x: cx, y: cy - (H * 0.24) / zoom };
   }
 
   // ─── 描く ───────────────────────────────────────────────────
@@ -240,19 +285,33 @@ export class Tower {
     this.match();
     const r = this.raster;
     r.clear();
-    // カメラ：いる部屋のフロアを上寄りに。遭遇中はその部屋へ寄る。
+    // カメラ。遭遇中はその部屋へ寄る。ふだんは近景：あなたと、次に行ける
+    // 部屋と、触れている部屋がちょうど収まるように寄せて、真ん中に置く。
+    // 見渡すときは引いて、区画を上から。
     const here = view.rooms.find((x) => x.id === (view.enc?.room ?? view.you));
-    const targetFloor = here ? here.floor - (view.enc ? 0 : 0.3) : -0.6;
-    const targetZoom = view.enc ? 2.4 : MAP_ZOOM;
     const spot = here ? Tower.spot(here) : { u: 0, v: 0 };
-    // 隣の塔にいるときは、そちらへ寄せる。渡れる部屋が見えているときは、少しだけ。
-    const bridge = view.rooms.find((x) => x.reachable && x.tower);
-    const side = here?.tower ? spot : bridge ? Tower.spot(bridge) : null;
     const sx = (p: { u: number; v: number }) => p.u * GEO.ux + p.v * GEO.vx;
-    const targetX = view.enc ? sx(spot) : side ? sx(side) * (here?.tower ? 0.6 : 0.3) : 0;
-    // 遭遇中は、その部屋を画面のまん中より少し下へ。
-    const targetY = view.enc ? spot.u * GEO.uy + spot.v * GEO.vy - H * 0.14 : 0;
-    const k = 1 - Math.exp(-dt * 6);
+    const sy = (p: { u: number; v: number }) => p.u * GEO.uy + p.v * GEO.vy;
+    let targetFloor = here ? here.floor : -0.6;
+    let targetZoom = NEAR_ZOOM;
+    let targetX = 0;
+    let targetY = 0;
+    if (view.enc) {
+      targetZoom = ENC_ZOOM;
+      targetX = sx(spot);
+      // その部屋を画面のまん中より少し下へ。
+      targetY = sy(spot) - H * 0.14;
+    } else if (this.overview) {
+      targetFloor = (here?.floor ?? 0) - 0.3;
+      targetZoom = FAR_ZOOM;
+    } else {
+      const frame = this.frame(view, here, targetFloor);
+      targetZoom = frame.zoom;
+      targetX = frame.x;
+      targetY = frame.y;
+    }
+    // 0.4 秒ほどで落ち着く（次の操作を待たせない）。
+    const k = 1 - Math.exp(-dt * 7.5);
     this.cam.y = lerp(this.cam.y, targetY, k);
     this.cam.floor = lerp(this.cam.floor, targetFloor, k);
     this.cam.zoom = lerp(this.cam.zoom, targetZoom, k);
@@ -272,7 +331,7 @@ export class Tower {
     this.routes(view, t);
     const scene = view.enc?.scene;
     // 寄るほど場面が立ち上がる（0 = 地図、1 = 向き合った場面）。
-    const presence = clamp((this.cam.zoom - 1.5) / 0.7);
+    const presence = clamp((this.cam.zoom - (NEAR_ZOOM + 0.1)) / (ENC_ZOOM - NEAR_ZOOM - 0.1));
     const at = view.enc ? view.rooms.find((x) => x.id === view.enc?.room) : undefined;
     const c = at ? this.center(at) : null;
     if (scene && c && presence > 0) {
@@ -318,7 +377,7 @@ export class Tower {
       { x: number; y: number },
       { x: number; y: number },
     ];
-    const thick = 5 * this.cam.zoom * this.scale(f);
+    const thick = 5 * this.cam.zoom;
     const z = -f;
     // 上面：近いほど網点がしっかり、遠いほど紙に近い。
     const top = 0.95 + (1 - near) * 0.04;
@@ -363,7 +422,7 @@ export class Tower {
     // 続いて、点がまばらになって消える（同じ床が向こうにもある、という気配）。
     for (const p of plates)
       if (lit.has(`${p.key}:${f}`)) this.plate(p.u, p.v, f, fade, true, false);
-    if (this.cam.zoom < 1.5 && f >= 0) this.continues(f, fade);
+    if (!this.closeup() && f >= 0) this.continues(f, fade);
   }
 
   /** 床の縁の延長。端から離れるほど点が間遠になる。 */
@@ -523,7 +582,7 @@ export class Tower {
 
   /** 部屋の台の大きさ（画面の画素。床の向きの小さな板の、横と縦の半分）。 */
   private tile(room: RoomView): { w: number; h: number } {
-    const k = (room.kind === 'boss' ? 1.4 : 1) * this.cam.zoom * this.scale(room.floor);
+    const k = (room.kind === 'boss' ? 1.4 : 1) * this.cam.zoom;
     return { w: 9 * k, h: 4.5 * k };
   }
 
@@ -549,8 +608,7 @@ export class Tower {
       { x: number; y: number },
       { x: number; y: number },
     ];
-    const s = this.scale(room.floor);
-    const detail = s > 0.72;
+    const detail = this.detailed(room.floor);
     const hot = view.focus === room.id;
     const tone = room.visited ? 0.45 : 0.97;
     const z = 10 - room.floor;
@@ -687,12 +745,12 @@ export class Tower {
       if (room.floor - this.cam.floor > 3.2 && room.kind !== 'boss') continue;
       const inEnc = view.enc?.room === room.id;
       const { x, y } = this.center(room);
-      const sc = this.scale(room.floor);
+      const far = !this.detailed(room.floor);
       // 地図の上では人を一回り大きく（誰がどこにいるかが、まず目に入るように）。
-      const k = (room.kind === 'boss' ? 1.8 : 1.25) * zm * sc * this.mapPeople();
+      const k = (room.kind === 'boss' ? 1.8 : 1.25) * zm * this.mapPeople();
       const e = view.enc;
       // 遠いフロアの人は、頭の点だけ（いる、ということだけ分かれば足りる）。
-      if (!inEnc && sc < 0.62 && room.kind !== 'boss') {
+      if (!inEnc && far && room.kind !== 'boss') {
         if (!room.visited) {
           const c = room.reachable ? BLUE : INK;
           this.raster.rect(Math.round(x) - 1, Math.round(y - 6 * k), 2, 2, c);
@@ -719,7 +777,7 @@ export class Tower {
       else this.figure(x, y, k, INK);
       // 硬度（数字）。歯が立たない相手は、数字を墨の枠で囲む
       // （琥珀は「あなた」と「押せるもの」にだけ使う）。
-      if (room.hard !== null && !room.visited && !inEnc && sc > 0.8) {
+      if (room.hard !== null && !room.visited && !inEnc && !far) {
         const label = String(room.hard);
         const lx = Math.round(x + 5 * k);
         const ly = Math.round(y - 9 * k);
@@ -926,6 +984,11 @@ export class Tower {
     });
   }
 
+  /** 頭から計器への細い点線。 */
+  private leader(x0: number, y0: number, x1: number, y1: number): void {
+    this.raster.line(x0, y0, 99, x1, y1, 99, INK, false, 0, [1, 2]);
+  }
+
   /** 計器と気配（二人の頭の上、信頼の糸、守り、予告、跳ねる数）。 */
   private hud(cx: number, cy: number, boss: boolean, s: Scene, t: number): void {
     const r = this.raster;
@@ -981,8 +1044,11 @@ export class Tower {
     // 計器。あなたは左へ（体＝琥珀のべた、心＝琥珀のまばら）、相手は右へ
     // （体＝青のべた、意志＝青のまばら）。二人の間は空けておく。
     const bw = 18;
-    const yx = Math.round(youX + 2 - bw * K);
-    const yy = Math.round(youTop - 12);
+    // 計器は体から少し離して置き、細い点線で頭とつなぐ（体に貼りつけない）。
+    const off = 12 * zm;
+    const yx = Math.round(youX - off - bw * K);
+    const yy = Math.round(youTop - 14);
+    this.leader(youX - 2, youTop + 2, yx + bw * K, yy + 3);
     const lossHp = Math.max(0, s.loss.hp - s.you.guard);
     const lossMind = Math.max(0, s.loss.mind - s.you.calm);
     this.bar(yx, yy, bw, s.you.hp / Math.max(1, s.you.maxHp), AMBER, 1, {
@@ -995,8 +1061,9 @@ export class Tower {
       loss: (lossMind / Math.max(1, s.you.maxMind)) * bw,
       blink,
     });
-    const fx = Math.round(foeX - 2);
-    const fy = Math.round(foeTop - 12);
+    const fx = Math.round(foeX + off);
+    const fy = Math.round(foeTop - 14);
+    this.leader(foeX + 2, foeTop + 2, fx - 2, fy + 3);
     this.bar(fx, fy, bw, s.foe.hp / Math.max(1, s.foe.maxHp), BLUE, 1, {
       shield: (s.foe.guard / Math.max(1, s.foe.maxHp)) * bw,
     });

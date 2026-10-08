@@ -199,6 +199,8 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   function send(cmd: Cmd): boolean {
     if (!game) return false;
+    // 動いたら近景に戻る（次の一手が、すぐ目の前に見えるように）。
+    if (cmd.c === 'move') tower.overview = false;
     const evs = game.dispatch(cmd);
     if (!evs.length) {
       sound.fail();
@@ -262,7 +264,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           window.setTimeout(() => {
             if (game?.world.enc?.phase === 'over' && game.world.enc.who === 'you')
               send({ c: 'close' });
-          }, 900);
+          }, 750);
           break;
         case 'clue':
           if (ev.shown) sound.clue();
@@ -572,6 +574,22 @@ export function openDig(doc: Document, onClose: () => void): void {
     focus = null;
     render();
   });
+  /** 見渡す（引く）／近景に戻す。ホイールの向きでも切り替わる。 */
+  function setOverview(on: boolean): void {
+    if (tower.overview === on) return;
+    tower.overview = on;
+    renderBar();
+  }
+  canvas.addEventListener(
+    'wheel',
+    (ev) => {
+      if (Math.abs(ev.deltaY) < 4 || game?.world.enc) return;
+      ev.preventDefault();
+      setOverview(ev.deltaY > 0);
+    },
+    { passive: false },
+  );
+
   canvas.addEventListener('click', (ev) => {
     const id = tower.pick(ev.clientX, ev.clientY);
     if (id === null || !game) return;
@@ -584,7 +602,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   });
 
-  /** 下りるのにかかる時間（場所のエピテットで延びる）。 */
   /** そこへの行き方（廊下・渡り廊下・階段）と、かかる時間。どの画面でも同じ言い方で。 */
   function way(w: World, n: MapNode): { name: string; verb: string; hours: number } {
     const place = n.eps.reduce((a, e) => a + (epithetDef(e)?.place?.time ?? 0), 0);
@@ -683,6 +700,13 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     items.push(
       h('span', { class: 'dig-bar__end' }),
+      screen === 'play'
+        ? button('見渡す', () => setOverview(!tower.overview), {
+            'aria-pressed': tower.overview ? 'true' : 'false',
+            class: tower.overview ? 'is-chosen' : undefined,
+            title: '引いて、区画をひと目に（ホイールでも）',
+          })
+        : null,
       button('案内', toggleGuide, {
         'aria-pressed': browse !== null ? 'true' : 'false',
         class: browse !== null ? 'is-chosen' : undefined,
