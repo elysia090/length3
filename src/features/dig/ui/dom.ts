@@ -45,13 +45,15 @@ export function meter(
   max: number,
   cls: string,
   label: string,
-  extra: { shield?: number; loss?: number } = {},
+  extra: { shield?: number; loss?: number; gain?: number } = {},
 ): HTMLElement {
   const pct = (n: number) => Math.max(0, Math.min(100, (100 * n) / Math.max(1, max)));
   const have = Math.max(0, v);
   const shield = Math.max(0, extra.shield ?? 0);
   // 守りを越えた分だけが、本当に減る。
   const loss = Math.min(have, Math.max(0, (extra.loss ?? 0) - shield));
+  // 増えそうな分（信頼・手がかり）。棒の先に、点滅で継ぎ足す。
+  const gain = Math.max(0, Math.min(max - have, extra.gain ?? 0));
   return h(
     'span',
     {
@@ -68,6 +70,7 @@ export function meter(
       { class: 'dig-meter__bar' },
       h('span', { class: 'dig-meter__fill', style: `width:${pct(have - loss)}%` }),
       loss > 0 ? h('span', { class: 'dig-meter__loss', style: `width:${pct(loss)}%` }) : null,
+      gain > 0 ? h('span', { class: 'dig-meter__gain', style: `width:${pct(gain)}%` }) : null,
       shield > 0
         ? h('span', { class: 'dig-meter__shield', style: `width:${Math.min(60, pct(shield))}%` })
         : null,

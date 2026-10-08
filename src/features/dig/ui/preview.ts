@@ -1,8 +1,10 @@
 import { allBuilds } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import { tierOf } from '../content/surges';
-import type { Card, Char } from '../core/model';
+import { branch } from '../core/branch';
+import type { Card, Char, World } from '../core/model';
 import { ARCH_NAME } from '../core/tags';
+import { decide } from '../sim/decide';
 import { misses } from '../sim/near';
 import { newCard } from '../sim/run';
 
@@ -80,3 +82,37 @@ export function say(d: Delta, after?: Char): string {
 }
 
 export const buildName = (id: string) => allBuilds().find((b) => b.id === id)?.name ?? id;
+
+/** 札を一枚使ったときの、相手の四つの道への効き（相手が応じる前まで）。 */
+export interface CardEffect {
+  hp: number;
+  resolve: number;
+  trust: number;
+  clues: number;
+}
+
+const effects = new Map<string, CardEffect>();
+
+/**
+ * その札を、いま使ったらどうなるか。世界の写しで実際に使ってみて、相手の
+ * 手番（turn）より前に起きたことだけを数える。触れている間だけ呼ぶので、
+ * 同じ局面と枠の結果は覚えておく。
+ */
+export function cardEffect(w: World, slot: number): CardEffect {
+  const key = `${w.seed}:${w.seq}:${slot}`;
+  const hit = effects.get(key);
+  if (hit) return hit;
+  const out: CardEffect = { hp: 0, resolve: 0, trust: 0, clues: 0 };
+  const evs = decide(branch(w), { c: 'card', slot }, { sim: true });
+  for (const ev of evs) {
+    if (ev.type === 'turn') break;
+    if (ev.type === 'foe') {
+      if (ev.field === 'hp') out.hp += ev.n;
+      else if (ev.field === 'resolve') out.resolve += ev.n;
+      else if (ev.field === 'trust') out.trust += ev.n;
+    } else if (ev.type === 'clue' && ev.shown && !ev.false) out.clues += 1;
+  }
+  if (effects.size > 200) effects.clear();
+  effects.set(key, out);
+  return out;
+}

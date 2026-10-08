@@ -47,9 +47,10 @@ import {
 } from '../sim/run';
 import { button, type Child, fill, h, meter } from './dom';
 import { HINTS, nextHint } from './hints';
-import { bestSlot, delta, say as sayDelta, withCard, withEpithet } from './preview';
+import { bestSlot, cardEffect, delta, say as sayDelta, withCard, withEpithet } from './preview';
 import { loadProfile, loadRun, type Profile, saveProfile, saveRun } from './save';
 import { DigSound } from './sound';
+import type { TurnLine } from './state';
 import { type RoomView, type Scene, Tower, type TowerView } from './tower';
 
 /**
@@ -124,6 +125,10 @@ export function openDig(doc: Document, onClose: () => void): void {
   let hintShown: string | null = null;
   /** 遭遇の外で押して開いたカード（触れられない端末でも中身を読める）。 */
   let opened: number | null = null;
+  /** 遭遇中に触れている札（相手の四つの道に、効き目を先に映す）。 */
+  let hoverSlot: number | null = null;
+  /** 直前の手番（あなたが何をして、相手が何をしたか）。基本の一巡を見せる。 */
+  let lastTurn: TurnLine[] = [];
   let advice: Advice | null = null;
   let adviceAt = -1;
   let log: string[] = [];
@@ -211,7 +216,11 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (!game) return false;
     // 動いたら近景に戻る（次の一手が、すぐ目の前に見えるように）。
     if (cmd.c === 'move' && tower.overview) setOverview(false);
+    const before = game.world.enc ? shownIntent(game.world)?.label : undefined;
     const evs = game.dispatch(cmd);
+    if (cmd.c === 'card' || cmd.c === 'act') lastTurn = summarize(cmd, evs, before);
+    else if (cmd.c === 'move' || cmd.c === 'close') lastTurn = [];
+    hoverSlot = null;
     if (!evs.length) {
       sound.fail();
       return false;
@@ -899,7 +908,8 @@ export function openDig(doc: Document, onClose: () => void): void {
           }),
         ),
       );
-    } else
+    } else if (!advice)
+      // 道の読みが出ているあいだは、部屋の一覧は出さない（見取り図と道の読みで足りる）。
       kids.push(
         section(
           '行ける部屋',
@@ -955,6 +965,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                 },
                 h('b', {}, `${r.aim === 'win' ? '勝つ' : '面白い'}：${short[r.kind]}`),
                 h('span', {}, metric(r)),
+                firstStep(w, r.path[0]),
               ),
             ),
           ),
@@ -966,8 +977,10 @@ export function openDig(doc: Document, onClose: () => void): void {
                 chosen.warn.length ? h('p', { class: 'dig-warn' }, chosen.warn.join('。')) : null,
                 chosen.hint ? h('p', { class: 'dig-amber' }, chosen.hint) : null,
                 chosen.path[0] !== undefined
-                  ? button('この道へ一歩', () =>
-                      send({ c: 'move', node: chosen.path[0] as number }),
+                  ? button(
+                      stepLabel(w, chosen.path[0]),
+                      () => send({ c: 'move', node: chosen.path[0] as number }),
+                      { class: 'dig-go' },
                     )
                   : null,
               )
@@ -995,12 +1008,70 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h('div', {}, ...kids);
   }
 
+  /** その道の最初の一歩（行き方と、そこにいる人・ある物）。 */
+  function stepLabel(w: World, id: number): string {
+    const n = nodeOf(w, id);
+    if (!n) return '進む';
+    const hard = n.npc ? nodeHardness(w, n) : null;
+    return `${way(w, n).verb}：${n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]}${hard !== null ? `（硬度 ${hard}）` : ''}`;
+  }
+
+  function firstStep(w: World, id: number | undefined): HTMLElement | null {
+    if (id === undefined) return null;
+    const n = nodeOf(w, id);
+    if (!n) return null;
+    return h(
+      'span',
+      { class: 'dig-chip__step' },
+      `${way(w, n).name} → ${n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]}`,
+    );
+  }
+
   function lackText(l: { tag?: string; arch?: string; perm?: string; card?: string }): string {
     if (l.tag) return `［${TAG_NAME[l.tag as keyof typeof TAG_NAME]}］が 1 つ`;
     if (l.arch) return `〈${ARCH_NAME[l.arch as Archetype]}〉が 1 つ`;
     if (l.perm) return `記憶《${permDef(l.perm)?.name ?? l.perm}》`;
     if (l.card) return `『${cardDef(l.card).name}』`;
     return '何か';
+  }
+
+  /**
+   * 一つの手番を二行に。相手の手（act）より前があなたの番、後が相手の番。
+   * 何をして、相手の四つの道（とあなた）がどう動いたか。
+   */
+  function summarize(cmd: Cmd, evs: readonly Ev[], theirMove?: string): TurnLine[] {
+    const mine: string[] = [];
+    const theirs: string[] = [];
+    let what = cmd.c === 'act' ? BASIC_NAME[cmd.a] : '';
+    let side = mine;
+    let end: string | null = null;
+    const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+    for (const ev of evs) {
+      if (ev.type === 'card.use' && ev.who === 'you') what = `『${cardDef(ev.card).name}』`;
+      else if (ev.type === 'act') side = theirs;
+      else if (ev.type === 'turn') break;
+      else if (ev.type === 'enc.end') end = OUTCOME_NAME[ev.outcome];
+      else if (ev.type === 'foe' && ev.n) {
+        const name = {
+          hp: '体力',
+          resolve: '意志',
+          trust: '信頼',
+          guard: '守り',
+          hostility: '敵意',
+        }[ev.field as 'hp'];
+        if (name) side.push(`${side === mine ? '相手の' : ''}${name} ${sign(ev.n)}`);
+      } else if (ev.type === 'clue' && ev.shown && !ev.false) side.push('手がかり +1');
+      else if (ev.type === 'vital' && ev.who === 'you') {
+        if (ev.hp) side.push(`体力 ${sign(ev.hp)}`);
+        if (ev.mind) side.push(`精神 ${sign(ev.mind)}`);
+      } else if (ev.type === 'enc.you' && ev.n > 0)
+        side.push(`${ev.field === 'guard' ? '守り' : '心の構え'} +${ev.n}`);
+    }
+    const out: TurnLine[] = [{ who: 'you', what: what || '……', effects: mine }];
+    if (end) out.push({ who: 'end', what: end, effects: [] });
+    else if (theirs.length || theirMove)
+      out.push({ who: 'foe', what: theirMove ?? '……', effects: theirs });
+    return out;
   }
 
   function encounterPanel(w: World): HTMLElement {
@@ -1012,7 +1083,34 @@ export function openDig(doc: Document, onClose: () => void): void {
     const you = youHardness(w);
     const intent = shownIntent(w);
     const res = resonance(w);
-    const track = (label: string, v: number, max: number, cls: string) => meter(v, max, cls, label);
+    const shown = f.clues.filter((c) => c.shown && !c.false).length;
+    // 触れている札の効き目（相手の番の前まで）。四つの道の棒の先に、点滅で映す。
+    const eff =
+      hoverSlot !== null && e.phase === 'act' && w.you.cards[hoverSlot]
+        ? cardEffect(w, hoverSlot)
+        : null;
+    // 四つの決着の道。どれか一つを尽くせば終わる（これが遭遇の目当て）。
+    const way = (verb: string, el: HTMLElement) =>
+      h('div', { class: 'dig-way' }, h('span', { class: 'dig-way__verb' }, verb), el);
+    const ways = [
+      way(
+        '倒す',
+        meter(f.hp, f.maxHp, 'foe-hp', '体力', { shield: f.guard, loss: eff ? -eff.hp : 0 }),
+      ),
+      way(
+        '折る',
+        meter(f.resolve, f.maxResolve, 'foe-will', '意志', { loss: eff ? -eff.resolve : 0 }),
+      ),
+      f.need < 50
+        ? way('打ち解ける', meter(f.trust, f.need, 'foe-trust', '信頼', { gain: eff?.trust ?? 0 }))
+        : way('打ち解ける', h('span', { class: 'dig-quiet' }, '言葉は通じない')),
+      f.clues.length
+        ? way(
+            '暴く',
+            meter(shown, f.clues.length, 'foe-clue', '手がかり', { gain: eff?.clues ?? 0 }),
+          )
+        : null,
+    ];
     const kids: (Child | readonly Child[])[] = [
       h(
         'p',
@@ -1021,40 +1119,42 @@ export function openDig(doc: Document, onClose: () => void): void {
         ' ',
         h('span', { class: outmatched(hard, you) ? 'dig-warn' : 'dig-quiet' }, hardnessLabel(hard)),
       ),
-      h('p', { class: 'dig-quiet' }, def.desc),
-      meter(f.hp, f.maxHp, 'foe-hp', '体力', { shield: f.guard }),
-      track('意志', f.resolve, f.maxResolve, 'foe-will'),
-      f.need < 50
-        ? track('信頼', f.trust, f.need, 'foe-trust')
-        : h('p', { class: 'dig-quiet' }, '言葉は通じない'),
-      f.clues.length
+      // 一巡：前の手番（あなた → 相手）と、相手の次の手。
+      lastTurn.length
         ? h(
-            'p',
-            {},
-            `手がかり ${f.clues.filter((c) => c.shown && !c.false).length}/${f.clues.length}`,
+            'div',
+            { class: 'dig-turn' },
+            lastTurn.map((l) =>
+              h(
+                'p',
+                { class: `dig-turn__line is-${l.who}` },
+                h('b', {}, l.who === 'you' ? 'あなた' : l.who === 'foe' ? '相手' : '決着'),
+                ' ',
+                l.what,
+                l.effects.length
+                  ? h('span', { class: 'dig-turn__fx' }, ` → ${l.effects.join('・')}`)
+                  : '',
+              ),
+            ),
           )
         : null,
-      track('敵意', f.hostility, 10, 'foe-host'),
-      e.stage.length
-        ? h('p', { class: 'dig-amber' }, `見せ場［${e.stage.map((t) => TAG_NAME[t]).join('・')}］`)
-        : null,
-      f.eps.length
-        ? h('p', { class: 'dig-ep' }, f.eps.map((x) => `《${epithetDef(x)?.name ?? x}》`).join(''))
-        : null,
-      intent
+      intent && e.phase === 'act'
         ? h(
             'p',
             { class: 'dig-intent' },
-            '次の手：',
+            '相手の次の手：',
             h('b', {}, intent.label),
             intent.power ? ` （${intent.power}）` : '',
           )
         : null,
+      h('div', { class: 'dig-ways' }, ways),
       h(
         'p',
-        { class: 'dig-quiet' },
-        `あなたの守り ${e.guard}・心の構え ${e.calm}`,
+        { class: 'dig-quiet dig-enc__aside' },
+        `敵意 ${f.hostility}/10`,
+        e.stage.length ? `・見せ場［${e.stage.map((t) => TAG_NAME[t]).join('・')}］` : '',
         res.length ? `・共鳴 ${res.length}` : '',
+        f.eps.length ? `・${f.eps.map((x) => `《${epithetDef(x)?.name ?? x}》`).join('')}` : '',
       ),
     ];
     if (e.phase === 'over' && e.outcome) {
@@ -1063,21 +1163,26 @@ export function openDig(doc: Document, onClose: () => void): void {
         button('決着を受け取る', () => send({ c: 'close' }), { class: 'dig-go' }),
       );
     } else {
+      // 札を使わない手（素手）。札が主役なので、小さく下に。
       const lc = leaveChance(w);
       const basics: Basic[] = ['press', 'brace', 'talk', 'leave'];
       if (canAccept(w)) basics.push('accept');
       kids.push(
         h(
           'div',
-          { class: 'dig-basics' },
+          { class: 'dig-bare' },
+          h('span', { class: 'dig-bare__label' }, '素手で'),
           basics.map((a, i) =>
-            button(`${'QWERT'[i]}　${BASIC_NAME[a]}${a === 'leave' ? `（${lc}%）` : ''}`, () =>
-              send({ c: 'act', a }),
+            button(
+              `${BASIC_NAME[a]}${a === 'leave' ? ` ${lc}%` : ''}`,
+              () => send({ c: 'act', a }),
+              { class: 'dig-bare__act', title: `${'QWERT'[i]}` },
             ),
           ),
         ),
       );
     }
+    kids.push(h('p', { class: 'dig-quiet dig-enc__desc' }, def.desc));
     return h('div', { class: 'dig-enc' }, ...kids);
   }
 
@@ -1441,6 +1546,16 @@ export function openDig(doc: Document, onClose: () => void): void {
           class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}`,
           onclick: onClick,
           ...drop,
+          onmouseenter: () => {
+            if (w.enc?.phase !== 'act' || hoverSlot === slot) return;
+            hoverSlot = slot;
+            renderSide();
+          },
+          onmouseleave: () => {
+            if (hoverSlot !== slot) return;
+            hoverSlot = null;
+            renderSide();
+          },
           title: [d.sig, d.flavor].filter(Boolean).join('\n'),
           'aria-label': `${slot + 1}　${cardName(c, spent)}`,
         },
