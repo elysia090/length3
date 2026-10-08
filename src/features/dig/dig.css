@@ -1197,3 +1197,363 @@
     animation: none;
   }
 }
+
+/* 連鎖が決まった瞬間（場面の上に大きく。続けるほど大きく、強く）。 */
+.dig-combo {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border: 2px solid var(--amber-text);
+  background: var(--bg);
+  color: var(--amber-text);
+  font-family: var(--font-mono);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.dig-combo__n {
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+}
+
+.dig-combo__x {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.dig-combo.is-2 .dig-combo__n {
+  font-size: 1.6rem;
+}
+
+.dig-combo.is-3 {
+  background: var(--amber-text);
+  color: var(--bg);
+}
+
+.dig-combo.is-3 .dig-combo__n {
+  font-size: 2rem;
+}
+
+.dig-combo.is-on {
+  animation: dig-combo-pop 1.4s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+@keyframes dig-combo-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  24% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -62%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -80%) scale(0.96);
+  }
+}
+
+/* 連鎖と共鳴の列（遭遇の脇。四角の数で、いまと次）。 */
+.dig-flow {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.5rem 0;
+  font-size: 0.8125rem;
+}
+
+.dig-flow__row {
+  display: grid;
+  grid-template-columns: 2.6em auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.dig-flow__row b {
+  font-weight: 700;
+}
+
+.dig-flow__row.is-on {
+  color: var(--ink);
+}
+
+.dig-flow__row.is-on b {
+  color: var(--amber-text);
+}
+
+.dig-flow__next {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.dig-pips i.is-new {
+  animation: dig-lit 1.2s ease-out;
+}
+
+@keyframes dig-lit {
+  0% {
+    transform: scale(2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-text) 40%, transparent);
+  }
+  100% {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.dig-pips {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.dig-pips i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--ink-3);
+}
+
+.dig-pips i.is-on {
+  border-color: var(--amber-text);
+  background: var(--amber-text);
+}
+
+.dig-badge--boost.is-hot {
+  background: var(--amber-text);
+  color: var(--bg);
+}
+
+.dig-posture {
+  margin: -0.25rem 0 0.5rem;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-combo.is-on,
+  .dig-pips i.is-new {
+    animation: none;
+  }
+}
+
+/* 決着の判（受け取りの画面の頭。押印のように落ちてくる）。 */
+.dig-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.dig-result__who {
+  font-weight: 700;
+}
+
+.dig-result__stamp {
+  padding: 0.15rem 0.6rem;
+  border: 3px double var(--ink);
+  font-size: 1.25rem;
+  letter-spacing: 0.2em;
+  transform: rotate(-4deg);
+}
+
+.dig-result--trusted .dig-result__stamp,
+.dig-result--uncovered .dig-result__stamp {
+  border-color: var(--dig-blue);
+  color: var(--dig-blue);
+}
+
+.dig-result--beaten .dig-result__stamp,
+.dig-result--broken .dig-result__stamp {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+.dig-result__stamp.is-in {
+  animation: dig-stamp 0.45s cubic-bezier(0.3, 1.8, 0.5, 1) both;
+}
+
+@keyframes dig-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(-12deg) scale(2.4);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-4deg) scale(1);
+  }
+}
+
+/* 受け取ったもの。一つずつ、少し遅れて。 */
+.dig-spoils {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.dig-spoil {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--ink-3);
+  font-size: 0.8125rem;
+}
+
+.dig-spoil.is-key {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+  font-weight: 700;
+}
+
+.dig-spoil.is-in {
+  animation: dig-spoil-in 0.35s ease-out both;
+}
+
+@keyframes dig-spoil-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 増えた金（上帯に、少しのあいだ +n）。 */
+.dig-coins {
+  position: relative;
+}
+
+.dig-coins.is-up {
+  color: var(--amber-text);
+  font-weight: 700;
+}
+
+.dig-coins__up {
+  position: absolute;
+  top: -0.2rem;
+  left: 100%;
+  margin-left: 0.25rem;
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--amber-text);
+  animation: dig-coin-up 1.4s ease-out both;
+}
+
+@keyframes dig-coin-up {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  20% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* 地力が上がったとき、上帯の硬度が一度ふくらむ。 */
+.is-risen .dig-hard {
+  color: var(--amber-text);
+  font-weight: 700;
+  animation: dig-rise 0.8s ease-out 2;
+}
+
+@keyframes dig-rise {
+  50% {
+    transform: scale(1.3);
+  }
+}
+
+/* 新しく入った札（枠が光って、下から差し込まれる）。 */
+.dig-card.is-new {
+  animation: dig-card-in 0.6s cubic-bezier(0.2, 1.5, 0.5, 1) both;
+  box-shadow: 0 0 0 2px var(--amber-text);
+}
+
+@keyframes dig-card-in {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-result__stamp.is-in,
+  .dig-spoil.is-in,
+  .dig-coins__up,
+  .is-risen .dig-hard,
+  .dig-card.is-new {
+    animation: none;
+  }
+}
+
+/* 挑戦の終わり：点（数え上げ）と、記録の判と、四つの数。 */
+.dig-score {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.dig-score__n {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  color: var(--amber-text);
+}
+
+.dig-score__best {
+  padding: 0.1rem 0.5rem;
+  border: 3px double var(--amber-text);
+  color: var(--amber-text);
+  letter-spacing: 0.2em;
+  transform: rotate(-5deg);
+  animation: dig-stamp 0.45s cubic-bezier(0.3, 1.8, 0.5, 1) 1.3s both;
+}
+
+.dig-tally {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.dig-tally__item {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+}
+
+.dig-tally dt {
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+}
+
+.dig-tally dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 700;
+}

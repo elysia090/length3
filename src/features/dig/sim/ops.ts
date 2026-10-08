@@ -1,5 +1,6 @@
 import { PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
+import type { LineKind } from '../content/defs';
 import { cardDef, foeDef, permDef } from '../content/registry';
 import type { Char, Claim, Enc, Foe, Outcome, Stat, StatBlock, Who, World } from '../core/model';
 import { STATS, zeroStats } from '../core/model';
@@ -297,12 +298,26 @@ export function say(tx: Tx, who: 'foe' | 'you' | 'voice', text: string): void {
   if (!tx.sim) tx.emit({ type: 'say', who, text });
 }
 
-export function line(tx: Tx, kind: string): void {
+/**
+ * 相手の台詞（出会い・決着）。台詞は画面のためだけのものなので、試行では
+ * 引かず、乱数も手ざわりの流れ（flavor）から引く（勝ち負けの流れを乱さない）。
+ */
+export function line(tx: Tx, kind: LineKind): boolean {
   const e = tx.w.enc;
-  if (!e || tx.sim) return;
-  const lines = foeDef(e.foe.id).lines[kind as keyof ReturnType<typeof foeDef>['lines']] ?? [];
-  const text = lines.length ? lines[Math.floor(tx.rand('story') * lines.length)] : undefined;
-  if (text) say(tx, 'foe', text);
+  if (!e || tx.sim) return false;
+  const lines = foeDef(e.foe.id).lines[kind] ?? [];
+  const text = tx.pick('flavor', lines);
+  if (!text) return false;
+  say(tx, 'foe', text);
+  tx.spoke = true;
+  return true;
+}
+
+/** 途中の一言（傷・連鎖・挑発）。一つのコマンドに一つまで、確率 p で。 */
+export function quip(tx: Tx, kind: LineKind, p = 1): boolean {
+  if (tx.spoke || tx.sim || !tx.w.enc) return false;
+  if (p < 1 && tx.rand('flavor') >= p) return false;
+  return line(tx, kind);
 }
 
 // ─── カードの回数 ─────────────────────────────────────────────
@@ -324,7 +339,8 @@ export function refill(tx: Tx, n: number, tag?: Tag, who: Who = actor(tx), reste
 export function end(tx: Tx, outcome: Outcome): void {
   const e = tx.w.enc;
   if (!e || e.phase !== 'act') return;
-  if (['beaten', 'broken', 'trusted', 'uncovered', 'fled'].includes(outcome)) line(tx, outcome);
+  if (['beaten', 'broken', 'trusted', 'uncovered', 'fled'].includes(outcome))
+    line(tx, outcome as LineKind);
   tx.emit({ type: 'enc.end', outcome });
 }
 

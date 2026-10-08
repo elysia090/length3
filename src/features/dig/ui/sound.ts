@@ -67,4 +67,16 @@ export class DigSound {
     this.tone(1320, 0.06, 'sine', 0.06);
     this.tone(1760, 0.1, 'sine', 0.05, 1, 0.05);
   }
+  /** 連鎖。続けるほど音が上がり、重なる（二つ目で三和音、三つ目で上の主音まで）。 */
+  chain(n: number): void {
+    const root = [0, 440, 523, 587, 659][Math.min(n, 4)] ?? 659;
+    const steps = [1, 1.25, 1.5, 2].slice(0, Math.min(4, n + 1));
+    steps.forEach((k, i) => {
+      this.tone(root * k, 0.12 + 0.03 * n, 'square', 0.045, 1, i * 0.045);
+    });
+  }
+  /** 共鳴の灯りが一つ増えた。 */
+  resonate(n: number): void {
+    this.tone(880 * 1.06 ** n, 0.18, 'sine', 0.05, 1.02);
+  }
 }

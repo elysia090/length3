@@ -1,5 +1,6 @@
 import { PACE } from '../content/balance';
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
+import { IDLE, POSTURE, VITALS } from '../content/flavor';
 import { SECTIONS, useOf } from '../content/floors';
 import type { Fx } from '../content/fx';
 import { fxText } from '../content/fx';
@@ -19,14 +20,30 @@ import { buildsOf } from '../content/sources';
 import { nextTier, SURGES, tierOf } from '../content/surges';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
+import { ask } from '../core/rules';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { clockOf, PHASE_NAME, phaseOf } from '../core/time';
 import { getLang, setLang, tr } from '../i18n';
-import { type Advice, advise, nodeLabel, type RouteKind } from '../sim/advise';
-import { canAccept, incoming, leaveChance, resonance, shownIntent } from '../sim/encounter';
+import { type Advice, advise, nodeLabel, type RouteKind, sourceLabel } from '../sim/advise';
+import {
+  canAccept,
+  chainMult,
+  chainNext,
+  incoming,
+  leaveChance,
+  resonance,
+  shownIntent,
+} from '../sim/encounter';
 import { Game } from '../sim/game';
 import { carryGoals, metric as goalMetric, goalText, REWARD_TEXT } from '../sim/goals';
-import { foeHardness, hardnessLabel, nodeHardness, outmatched, youHardness } from '../sim/hardness';
+import {
+  foeHardness,
+  hardnessLabel,
+  MINERALS,
+  nodeHardness,
+  outmatched,
+  youHardness,
+} from '../sim/hardness';
 import { misses } from '../sim/near';
 import { maxHp, maxMind, stats } from '../sim/ops';
 import {
@@ -132,6 +149,41 @@ const placeOf = (w: World, n: MapNode | undefined): Child[] =>
         `・${useOf(w.stratum, n.use)?.name ?? KIND_NAME[n.kind]}`,
       ]
     : [h('b', {}, `B${floorNo(w, 0)}`), `・${STRATUM_NAME[w.stratum] ?? ''}の上`];
+/** 体と心の割合を、言葉の目盛り（満ちている・擦れている・傷んでいる・尽きかけ）に。 */
+const band = (r: number): 0 | 1 | 2 | 3 => (r >= 0.75 ? 0 : r >= 0.45 ? 1 : r >= 0.2 ? 2 : 3);
+const titled = (el: HTMLElement, text: string): HTMLElement => {
+  el.title = tr(text);
+  return el;
+};
+
+/** 倍率の書き方（×1.35、×1.5）。 */
+const fmtMult = (m: number) => String(Math.round(m * 100) / 100);
+
+/** 共鳴の段（灯りの数で、決着のときに受け取るもの）。 */
+const RES_STEPS: readonly [number, string][] = [
+  [2, '金'],
+  [3, '札の回数 +1'],
+  [4, 'エピテット'],
+  [6, '体と心が戻る'],
+];
+
+/** 小さな四角の並び（埋まった数 / 全部）。 */
+const pipRow = (n: number, of: number, cls: string, fresh = false) =>
+  h(
+    'span',
+    { class: `dig-pips dig-pips--${cls}`, 'aria-hidden': 'true' },
+    Array.from({ length: of }, (_, i) =>
+      h('i', { class: i < n ? (fresh && i === n - 1 ? 'is-on is-new' : 'is-on') : '' }),
+    ),
+  );
+
+/** 文の一つを、決まった鍵で選ぶ（描き直しても揺れないように）。 */
+const pickBy = <T>(list: readonly T[], key: string): T | undefined => {
+  let x = 0;
+  for (let i = 0; i < key.length; i++) x = (x * 31 + key.charCodeAt(i)) >>> 0;
+  return list[x % Math.max(1, list.length)];
+};
+
 const whoOf = (n: MapNode) => (n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]);
 const hardTag = (hard: number, you?: number) =>
   h(
@@ -229,7 +281,9 @@ export function openDig(doc: Document, onClose: () => void): void {
     'aria-label': '見渡す',
     title: '見渡す',
   });
-  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer);
+  /** 連鎖の印（決まった瞬間だけ、場面の上に大きく）。 */
+  const combo = h('div', { class: 'dig-combo', hidden: true, 'aria-hidden': 'true' });
+  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer, combo);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
@@ -269,6 +323,7 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   function send(cmd: Cmd): boolean {
     if (!game) return false;
+    lastInput = now();
     // 動いたら近景に戻る（次の一手が、すぐ目の前に見えるように）。
     if (cmd.c === 'move' && tower.overview) setOverview(false);
     const before = game.world.enc ? shownIntent(game.world)?.label : undefined;
@@ -283,6 +338,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     if (hintShown) seeHint(hintShown);
     react(evs);
+    rise(game.world);
     aim = null;
     hoverAim = null;
     if (cmd.c === 'claim') {
@@ -330,6 +386,11 @@ export function openDig(doc: Document, onClose: () => void): void {
           if (ev.who === 'you') {
             anim.end = null;
             anim.endAt = -9;
+            streak = 0;
+            lit = 0;
+            spoils = { list: [], at: -9 };
+            spoilsPlayed = false;
+            mutterTurn = -1;
           }
           break;
         case 'enc.end':
@@ -354,6 +415,40 @@ export function openDig(doc: Document, onClose: () => void): void {
         case 'perm':
           sound.gain();
           break;
+        case 'enc.st':
+          if (ev.key === 'chain') {
+            streak = Math.max(0, streak + ev.n);
+            bestStreak = Math.max(bestStreak, streak);
+            // 連鎖のイベントは札を使う前に出るので、誰の遭遇かで見分ける。
+            if (ev.n > 0 && (game?.world.enc?.who ?? 'you') === 'you') showCombo(streak);
+          } else if (ev.key.startsWith('r:') && ev.n > 0 && game?.world.enc?.who === 'you') {
+            lit++;
+            litAt = t;
+            sound.resonate(lit);
+          }
+          break;
+        case 'card.set':
+          if (ev.who === 'you' && ev.card) {
+            newAt.set(ev.slot, t);
+            sound.gain();
+          }
+          break;
+        case 'card.ep':
+          // エピテットを刻んだ札も、入ったばかりの札と同じく光らせる。
+          if (ev.who === 'you' && ev.on && !game?.world.enc) {
+            newAt.set(ev.slot, t);
+            sound.gain();
+          }
+          break;
+        case 'coins':
+          if (ev.who === 'you' && ev.n > 0) {
+            coinGain = { n: ev.n + (t - coinGain.at < 0.5 ? coinGain.n : 0), at: t };
+            window.setTimeout(() => renderBar(), 1500);
+          }
+          break;
+        case 'found':
+          foundNow = true;
+          break;
         case 'goal.done':
           sound.ok();
           sound.gain();
@@ -370,6 +465,12 @@ export function openDig(doc: Document, onClose: () => void): void {
         case 'note': {
           // 重みで出し分ける：0 読み上げだけ、1 帯に一瞬、2 記録にも、3 名場面。
           const lv = ev.level ?? 1;
+          // 決着の見返りは、帯ではなく受け取りの画面に一つずつ並べる。
+          if (ev.text.startsWith('手に入れた：')) {
+            spoils = { list: ev.text.slice('手に入れた：'.length).split('、'), at: t };
+            log = [...log.slice(-30), ev.text];
+            break;
+          }
           live.textContent = tr(ev.text);
           if (lv >= 2) log = [...log.slice(-30), ev.text];
           if (lv === 3) showMoment(ev.text);
@@ -378,6 +479,17 @@ export function openDig(doc: Document, onClose: () => void): void {
         }
         case 'say':
           live.textContent = tr(ev.text);
+          // 会心と隠し効果は、帯の一言ではなく、場面の上で。
+          if (ev.who === 'voice' && ev.text === '会心。') {
+            showStamp('会心', '×2', 3);
+            break;
+          }
+          if (ev.who === 'voice' && foundNow && ev.text.startsWith('隠し効果：')) {
+            foundNow = false;
+            sound.gain();
+            showMoment(ev.text);
+            break;
+          }
           showCaption(ev.who === 'foe' ? `「${ev.text}」` : ev.text);
           break;
         default:
@@ -392,6 +504,65 @@ export function openDig(doc: Document, onClose: () => void): void {
     caption.classList.add('is-on');
     window.clearTimeout(captionTimer);
     captionTimer = window.setTimeout(() => caption.classList.remove('is-on'), 2600);
+  }
+
+  /** 連鎖の続き・共鳴の灯りの数（画面の側で数える。演出のため）。 */
+  let streak = 0;
+  let lit = 0;
+  let litAt = -9;
+  let comboTimer = 0;
+  /** 新しく入った札の枠・増えた金・見つけた隠し効果・決着の見返り（演出のため）。 */
+  const newAt = new Map<number, number>();
+  let coinGain = { n: 0, at: -9 };
+  let foundNow = false;
+  let spoils: { list: string[]; at: number } = { list: [], at: -9 };
+  let hardSeen = 0;
+  let spoilsPlayed = false;
+  let bestBefore = 0;
+  let bestStreak = 0;
+  /** 新しく入った札の演出は、入った直後の一度の描画だけ（描き直しで繰り返さない）。 */
+  function fresh(slot: number): boolean {
+    const t = newAt.get(slot);
+    if (t === undefined) return false;
+    newAt.delete(slot);
+    return now() - t < 1.6;
+  }
+  function showCombo(n: number): void {
+    const w = game?.world;
+    const m = w ? ask(w, 'chain', { who: 'you' }, chainMult(n)) : chainMult(n);
+    showStamp(n >= 2 ? `連鎖 ${n}` : '連鎖', `×${fmtMult(m)}`, n);
+    sound.chain(n);
+  }
+  /** 場面の上の大きな印（連鎖・会心）。 */
+  function showStamp(big: string, small: string, n: number): void {
+    combo.replaceChildren(
+      h('b', { class: 'dig-combo__n' }, tr(big)),
+      h('span', { class: 'dig-combo__x' }, small),
+    );
+    combo.className = `dig-combo is-${Math.min(n, 3)}`;
+    combo.hidden = false;
+    // 同じ要素の演出を、最初からかけ直す。
+    void combo.offsetWidth;
+    combo.classList.add('is-on');
+    if (big === '会心') sound.chain(3);
+    window.clearTimeout(comboTimer);
+    comboTimer = window.setTimeout(() => {
+      combo.hidden = true;
+    }, 1400);
+  }
+
+  /** 地力（硬度）が上がったら、名場面に（鉱物の名が一つ硬いものへ）。 */
+  let hardAt = -9;
+  function rise(w: World): void {
+    const hd = youHardness(w);
+    if (hardSeen && hd > hardSeen && !w.ending) {
+      hardAt = now();
+      sound.gain();
+      showMoment(
+        `硬度が ${hd} に上がった ── ${MINERALS[hardSeen] ?? ''}から${MINERALS[hd] ?? ''}へ`,
+      );
+    }
+    hardSeen = hd;
   }
 
   /** いちばん新しく置かれた目標（少しのあいだ光らせる）。 */
@@ -488,6 +659,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     saveRun(null);
     const e = w.ending;
     if (!e) return;
+    bestBefore = profile.best;
     profile.runs++;
     if (e.won) {
       profile.wins++;
@@ -523,6 +695,8 @@ export function openDig(doc: Document, onClose: () => void): void {
       item: create.item,
       name: create.name.trim() || undefined,
     };
+    hardSeen = 0;
+    bestStreak = 0;
     game = Game.start(s, create.job, create.depth, {
       carry: profile.carry ?? undefined,
       goals: profile.goals,
@@ -656,8 +830,37 @@ export function openDig(doc: Document, onClose: () => void): void {
         render();
       }
       tower.draw(towerView(w), now(), dt);
+      idle(w);
     }
     raf = requestAnimationFrame(frame);
+  }
+
+  /**
+   * 手を止めているあいだの小さな文。向き合っているなら相手のつぶやき（手番に一度）、
+   * 地図の上なら建物の小ネタ（ときどき）。記録には残らない。
+   */
+  let lastInput = now();
+  let mutterTurn = -1;
+  let idleAt = -99;
+  function idle(w: World): void {
+    const t = now();
+    if (t - lastInput < 14 || caption.classList.contains('is-on')) return;
+    const e = w.enc;
+    if (e && e.who === 'you' && e.phase === 'act') {
+      if (mutterTurn === e.turn) return;
+      mutterTurn = e.turn;
+      const text = pickBy(foeDef(e.foe.id).lines.mutter ?? [], `${e.foe.id}:${e.turn}:${w.seq}`);
+      if (text) showCaption(`「${text}」`);
+      return;
+    }
+    if (w.enc || w.pending || w.ending || t - idleAt < 32 || t - lastInput < 22) return;
+    idleAt = t;
+    const use = nodeOf(w, w.pos)?.use;
+    const pool = IDLE.filter(
+      (x) => (!x.section || x.section === w.stratum) && (!x.use || (!!use && x.use.includes(use))),
+    );
+    const text = pool[Math.floor(Math.random() * pool.length)]?.text;
+    if (text) showCaption(text);
   }
   raf = requestAnimationFrame(frame);
 
@@ -777,16 +980,28 @@ export function openDig(doc: Document, onClose: () => void): void {
           { class: `dig-clock is-${phaseOf(w.hour)}` },
           `${PHASE_NAME[phaseOf(w.hour)]} ${clock(w.hour)}`,
         ),
-        meter(w.you.hp, maxHp(s), `hp${now() - healAt < 1.2 ? ' is-healed' : ''}`, '体力', {
-          shield: w.enc?.guard,
-          loss: w.enc?.phase === 'act' ? incoming(w).hp : 0,
-        }),
-        meter(w.you.mind, maxMind(s), `mind${now() - healAt < 1.2 ? ' is-healed' : ''}`, '精神', {
-          shield: w.enc?.calm,
-          loss: w.enc?.phase === 'act' ? incoming(w).mind : 0,
-        }),
-        h('span', { class: 'dig-coins' }, `金 ${w.you.coins}`),
-        hardTag(hard),
+        // 触れると、具合を言葉で（数ではなく）。
+        titled(
+          meter(w.you.hp, maxHp(s), `hp${now() - healAt < 1.2 ? ' is-healed' : ''}`, '体力', {
+            shield: w.enc?.guard,
+            loss: w.enc?.phase === 'act' ? incoming(w).hp : 0,
+          }),
+          VITALS.body[band(w.you.hp / maxHp(s))],
+        ),
+        titled(
+          meter(w.you.mind, maxMind(s), `mind${now() - healAt < 1.2 ? ' is-healed' : ''}`, '精神', {
+            shield: w.enc?.calm,
+            loss: w.enc?.phase === 'act' ? incoming(w).mind : 0,
+          }),
+          VITALS.mind[band(w.you.mind / maxMind(s))],
+        ),
+        h(
+          'span',
+          { class: `dig-coins${now() - coinGain.at < 1.4 ? ' is-up' : ''}` },
+          `金 ${w.you.coins}`,
+          now() - coinGain.at < 1.4 ? h('i', { class: 'dig-coins__up' }, `+${coinGain.n}`) : null,
+        ),
+        now() - hardAt < 2.5 ? h('span', { class: 'is-risen' }, hardTag(hard)) : hardTag(hard),
         w.you.titles.length
           ? h(
               'span',
@@ -1127,6 +1342,58 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h('div', {}, ...kids);
   }
 
+  /**
+   * 噛み合いの見える化。連鎖（続け打ち）と共鳴（構成の灯り）を、いつも同じ場所に
+   * 四角の列で出す。次に何が起きるかを一言で。
+   */
+  function flowRows(w: World): HTMLElement {
+    const e = w.enc;
+    const s = e?.st.chain ?? 0;
+    const nextM = ask(w, 'chain', { who: 'you' }, chainMult(s + 1));
+    const srcs = resonance(w);
+    const n = srcs.length;
+    const step = RES_STEPS.find(([k]) => k > n);
+    return h(
+      'div',
+      { class: 'dig-flow' },
+      h(
+        'p',
+        {
+          class: `dig-flow__row${s ? ' is-on' : ''}`,
+          title: '直前の札とタグが重なる札を続けて使うと、強くなる（三つ目まで重なる）',
+        },
+        h('b', {}, '連鎖'),
+        pipRow(Math.min(s, 3), 3, 'chain'),
+        h(
+          'span',
+          { class: 'dig-flow__next' },
+          s
+            ? `いま ×${fmtMult(ask(w, 'chain', { who: 'you' }, chainMult(s)))}・次 ×${fmtMult(nextM)}`
+            : '同じタグの札を続けると強くなる',
+        ),
+      ),
+      h(
+        'p',
+        {
+          class: `dig-flow__row${n ? ' is-on' : ''}${now() - litAt < 1.2 ? ' is-fresh' : ''}`,
+          title: n
+            ? `灯っている：${srcs
+                .map((x) => sourceLabel(x) ?? '')
+                .filter(Boolean)
+                .join('・')}`
+            : 'カード・記憶・ビルド・エピテットが働くたびに、灯りが一つ増える',
+        },
+        h('b', {}, '共鳴'),
+        pipRow(Math.min(n, 6), 6, 'res', now() - litAt < 1.2),
+        h(
+          'span',
+          { class: 'dig-flow__next' },
+          step ? `あと ${step[0] - n} で${step[1]}` : '満ちた：決着で全部受け取る',
+        ),
+      ),
+    );
+  }
+
   /** 札の目当ての印（読まずに分かる）。癒すは緑。 */
   /**
    * 札の目当ての印（読まずに分かる）。癒すは緑。遭遇の最中は、覚えておかなくて
@@ -1140,13 +1407,20 @@ export function openDig(doc: Document, onClose: () => void): void {
   ): HTMLElement | null {
     const bs = badgesOf(list);
     const e = w?.enc;
-    const chain = !!tags && !!e && e.last.some((t) => tags.includes(t));
+    const n = tags && w ? chainNext(w, tags) : 0;
+    const chain = n > 0;
     const stage = !!tags && !!e && e.stage.some((t) => tags.includes(t));
     if (!bs.length && !chain && !stage) return null;
     return h(
       'span',
       { class: 'dig-badges' },
-      chain ? h('i', { class: 'dig-badge dig-badge--boost' }, '連鎖') : null,
+      chain && w
+        ? h(
+            'i',
+            { class: `dig-badge dig-badge--boost${n >= 2 ? ' is-hot' : ''}` },
+            `${n >= 2 ? `連鎖 ${n}` : '連鎖'} ×${fmtMult(ask(w, 'chain', { who: 'you', tags: [...(tags ?? [])] }, chainMult(n)))}`,
+          )
+        : null,
       stage ? h('i', { class: 'dig-badge dig-badge--boost' }, '見せ場') : null,
       bs.map((b) => h('i', { class: `dig-badge dig-badge--${b}` }, BADGE_NAME[b])),
     );
@@ -1206,9 +1480,12 @@ export function openDig(doc: Document, onClose: () => void): void {
     let what = cmd.c === 'act' ? BASIC_NAME[cmd.a] : '';
     let side = mine;
     let end: string | null = null;
+    let chained = 0;
     const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
     for (const ev of evs) {
       if (ev.type === 'card.use' && ev.who === 'you') what = `『${cardDef(ev.card).name}』`;
+      else if (ev.type === 'enc.st' && ev.key === 'chain' && ev.n > 0 && side === mine)
+        chained = streak + ev.n;
       else if (ev.type === 'act') side = theirs;
       else if (ev.type === 'turn') break;
       else if (ev.type === 'enc.end') end = OUTCOME_NAME[ev.outcome];
@@ -1228,6 +1505,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       } else if (ev.type === 'enc.you' && ev.n > 0)
         side.push(`${ev.field === 'guard' ? '守り' : '心の構え'} +${ev.n}`);
     }
+    if (chained) what += `　連鎖 ${chained}`;
     const out: TurnLine[] = [{ who: 'you', what: what || '……', effects: mine }];
     if (end) out.push({ who: 'end', what: end, effects: [] });
     else if (theirs.length || theirMove)
@@ -1311,6 +1589,15 @@ export function openDig(doc: Document, onClose: () => void): void {
             intent.power ? ` （${intent.power}）` : '',
           )
         : null,
+      // 身ぶり（予告を、体の言葉でもう一度）。
+      intent && e.phase === 'act'
+        ? h(
+            'p',
+            { class: 'dig-posture' },
+            pickBy(POSTURE[intent.kind] ?? [], `${f.id}:${e.turn}`) ?? '',
+          )
+        : null,
+      e.phase === 'act' ? flowRows(w) : null,
       h('div', { class: 'dig-ways' }, ways),
       // 覚えておかなくていいものは出さない。敵意は荒れているときだけ（信頼が伸びにくく、
       // 手が重くなる）。見せ場のタグは札の印に出るので、ここでは名前だけ。
@@ -1407,9 +1694,38 @@ export function openDig(doc: Document, onClose: () => void): void {
   function rewardPanel(w: World): HTMLElement {
     const p = w.pending;
     if (p?.kind !== 'reward') return h('div');
+    // 決着の判と、受け取ったものを一つずつ（少しずつ遅れて現れ、音も一つずつ上がる）。
+    const fresh = now() - spoils.at < 1 && !spoilsPlayed;
     const kids: (Child | readonly Child[])[] = [
-      h('p', { class: 'dig-outcome' }, `${foeDef(p.npc).name}：${OUTCOME_NAME[p.outcome]}`),
+      h(
+        'div',
+        { class: `dig-result dig-result--${p.outcome}` },
+        h('span', { class: 'dig-result__who' }, foeDef(p.npc).name),
+        h('b', { class: `dig-result__stamp${fresh ? ' is-in' : ''}` }, OUTCOME_NAME[p.outcome]),
+      ),
+      spoils.list.length
+        ? h(
+            'ul',
+            { class: 'dig-spoils' },
+            spoils.list.map((x, i) =>
+              h(
+                'li',
+                {
+                  class: `dig-spoil${fresh ? ' is-in' : ''}${/^(金|エピテット|共鳴)/.test(x) ? ' is-key' : ''}`,
+                  style: `animation-delay:${0.35 + i * 0.16}s`,
+                },
+                x,
+              ),
+            ),
+          )
+        : null,
     ];
+    if (fresh && !spoilsPlayed) {
+      spoilsPlayed = true;
+      spoils.list.forEach((_, i) => {
+        window.setTimeout(() => sound.resonate(i * 2), 350 + i * 160);
+      });
+    }
     if (p.take.length)
       kids.push(
         h('p', {}, '記憶を一つ持ち帰れる：'),
@@ -1660,6 +1976,29 @@ export function openDig(doc: Document, onClose: () => void): void {
     return out.slice(0, 3);
   }
 
+  const tally = (k: string, v: string) =>
+    h('div', { class: 'dig-tally__item' }, h('dt', {}, k), h('dd', {}, v));
+
+  /** 点の数え上げ（一度だけ。描き直しでは最後の値のまま）。 */
+  let counted = '';
+  function countUp(n: number, key: string): HTMLElement {
+    const el = h('b', { class: 'dig-score__n' }, String(counted === key ? n : 0));
+    if (counted === key) return el;
+    counted = key;
+    const t0 = performance.now();
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / 1200);
+      el.textContent = String(Math.round(n * (1 - (1 - k) ** 3)));
+      if (k < 1) requestAnimationFrame(step);
+      else {
+        sound.ok();
+        if (n > bestBefore && bestBefore > 0) sound.gain();
+      }
+    };
+    requestAnimationFrame(step);
+    return el;
+  }
+
   function endPanel(w: World): HTMLElement {
     const e = w.ending;
     if (!e) return h('div');
@@ -1668,11 +2007,27 @@ export function openDig(doc: Document, onClose: () => void): void {
       e.title,
       h('p', { class: 'dig-persona' }, persona(w)),
       h('p', {}, e.text),
+      // 点は数え上げて、記録を越えたら判を押す。挑戦の中身は四つの数で。
       h(
-        'p',
-        { class: 'dig-quiet' },
-        `点 ${e.score}　最高 ${profile.best}　挑戦 ${profile.runs}　夜明けまで抜けた ${profile.wins}`,
+        'div',
+        { class: 'dig-score' },
+        countUp(e.score, `${w.seed}:${e.score}`),
+        e.score > bestBefore && bestBefore > 0
+          ? h('b', { class: 'dig-score__best' }, '新記録')
+          : h('span', { class: 'dig-quiet' }, `最高 ${profile.best}`),
       ),
+      h(
+        'dl',
+        { class: 'dig-tally' },
+        tally('到達', `B${floorNo(w, Math.max(0, nodeOf(w, w.pos)?.row ?? 0))}`),
+        tally(
+          '決着',
+          `${['beaten', 'broken', 'trusted', 'uncovered'].reduce((a, k) => a + (w.you.deeds[k] ?? 0), 0)} 人`,
+        ),
+        tally('目標', `${['S', 'M', 'L'].reduce((a, k) => a + (w.flags[`goal:${k}`] ?? 0), 0)} 個`),
+        tally('最長の連鎖', bestStreak ? `${bestStreak}` : '―'),
+      ),
+      h('p', { class: 'dig-quiet' }, `挑戦 ${profile.runs}　踏破 ${profile.wins}`),
       near.length
         ? h(
             'p',
@@ -1731,7 +2086,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         'button',
         {
           type: 'button',
-          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}`,
+          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}`,
           onclick: onClick,
           ...drop,
           onmouseenter: () => {
@@ -2034,6 +2389,7 @@ export function openDig(doc: Document, onClose: () => void): void {
               '続きから',
               () => {
                 const g = Game.load(saved);
+                hardSeen = 0;
                 if (g) {
                   game = g;
                   screen = 'play';
@@ -2219,6 +2575,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   const saved = loadRun();
   if (saved) {
     const g = Game.load(saved);
+    hardSeen = 0;
     if (g) {
       game = g;
       screen = 'play';

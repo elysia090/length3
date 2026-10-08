@@ -110,6 +110,10 @@ export function sourceLabel(src: string): string | null {
       const d = allBuilds().find((x) => x.id === a);
       return d ? `《${d.name}》` : null;
     }
+    case 'surge': {
+      const d = allBuilds().find((x) => x.id === a);
+      return d ? `《${d.name}》暴走` : null;
+    }
     case 'link': {
       const d = allLinks().find((x) => x.id === a);
       return d ? `〈${d.name}〉` : null;

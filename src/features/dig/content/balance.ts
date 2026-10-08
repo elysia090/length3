@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.6.0';
+export const DATA_VERSION = '1.7.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -27,6 +27,9 @@ export const DATA_VERSION = '1.6.0';
  *   stall    この手番を過ぎると、相手の攻撃が毎手番上がる（膠着しない）
  *   rest     食堂の回復（最大値の割合）。同じ層の 2 度目からは restAgain 倍
  */
+/** 連鎖の倍率（続けた数ごと。三つ目からは同じ）。 */
+export const CHAIN: readonly number[] = [1, 1.2, 1.35, 1.5];
+
 export const PACE = {
   rows: 8,
   dawn: 10,
@@ -46,6 +49,8 @@ export const PACE = {
   breath: 0.35,
   /** もう一人の灯り持ちと鉢合わせるのは、このフロアから（入口で潰されないように）。 */
   rivalFrom: 2,
+  /** 下りた先で、選択のない小さな出来事が起きる割合。 */
+  auto: 0.22,
 } as const;
 
 export interface Release {

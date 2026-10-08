@@ -2,6 +2,7 @@ import { WORK_ARCH } from '../content/archetypes';
 import { DATA_VERSION, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { CardDef } from '../content/defs';
+import { ARRIVE, AUTO } from '../content/flavor';
 import { BEATS, type FloorUse, SECTIONS, useOf } from '../content/floors';
 import { holds } from '../content/fx';
 import { LEGENDS } from '../content/legends';
@@ -641,7 +642,8 @@ export function move(tx: Tx, id: number): boolean {
   else if (use)
     tx.emit({
       type: 'note',
-      text: `B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}・${use.name}。${use.line}`,
+      // 着いたときの一文は、同じ部屋でも夜ごとに違う言い方で。
+      text: `B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}・${use.name}。${tx.pick('flavor', [use.line, ...(ARRIVE[use.id] ?? [])]) ?? use.line}`,
       level: 1,
     });
   tx.emit({ type: 'node', id: node.id, visited: true });
@@ -665,6 +667,7 @@ export function move(tx: Tx, id: number): boolean {
       });
     }
   }
+  if (!hall) happen(tx, node);
   // 新しい場所で戻るカード。
   w.you.cards.forEach((card, slot) => {
     if (card && cardDef(card.id).recover.on.includes('newPlace') && card.uses < card.max)
@@ -694,6 +697,38 @@ export function move(tx: Tx, id: number): boolean {
   }
   enter(tx, node, from);
   return true;
+}
+
+/**
+ * 下りた先でときどき起きる、選択のない小さな出来事（一挑戦に同じものは一度）。
+ * 動く数はほんの少しで、理由は文の中に書いてある。
+ */
+function happen(tx: Tx, node: MapNode): void {
+  const w = tx.w;
+  if (tx.rand('flavor') >= PACE.auto) return;
+  const pool = AUTO.filter(
+    (a) =>
+      (!a.section || a.section === w.stratum) &&
+      (!a.use || (node.use !== undefined && a.use.includes(node.use))) &&
+      !w.flags[`auto:${a.id}`],
+  );
+  const a = tx.pick('flavor', pool);
+  if (!a) return;
+  tx.emit({ type: 'flag', key: `auto:${a.id}`, v: 1 });
+  tx.emit({ type: 'note', text: a.text, level: 2 });
+  const fx = a.fx;
+  if (!fx) return;
+  if (fx.coins) coins(tx, fx.coins, 'you');
+  if (fx.hp || fx.mind) {
+    const y = w.you;
+    const s = stats(w, 'you');
+    const clamp = (n: number, now: number, max: number) =>
+      n < 0 ? -Math.min(now - 1, -n) : Math.min(max - now, n);
+    const hp = clamp(fx.hp ?? 0, y.hp, maxHp(s));
+    const mind = clamp(fx.mind ?? 0, y.mind, maxMind(s));
+    if (hp || mind) tx.emit({ type: 'vital', who: 'you', hp, mind });
+  }
+  if (fx.hour) passTime(tx, fx.hour);
 }
 
 function enter(tx: Tx, node: MapNode, from: number | null = null): void {
@@ -1424,7 +1459,7 @@ export function announce(tx: Tx, before: Map<string, number>): void {
     const b = allBuilds().find((x) => x.id === id);
     if (!b) continue;
     if (was === undefined)
-      tx.emit({ type: 'note', text: `《${b.name}》が成立した。${b.text}`, level: 2 });
+      tx.emit({ type: 'note', text: `《${b.name}》が成立した ── ${b.text}`, level: 3 });
     const sv = SURGES[id];
     if (!sv || t <= (was ?? 0)) continue;
     tx.emit({

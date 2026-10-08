@@ -17,6 +17,8 @@ export class Tx {
   private book: Rulebook | null = null;
   /** 渡すと、効いた規則とトリガの出どころを数える（ルート読み用）。 */
   trace: Map<string, number> | null = null;
+  /** このコマンドで相手がもう口を開いたか（台詞は一つのコマンドに一つまで）。 */
+  spoke = false;
   /** この遭遇で値を動かした、構成の出どころ（共鳴）。flush で遭遇に書く。 */
   private res = new Set<string>();
 

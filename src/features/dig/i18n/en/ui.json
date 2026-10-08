@@ -177,7 +177,20 @@
     "金 +6": "Coins +6",
     "全ての札の回数 +1・体力と精神 +15%": "All cards +1 use · body and mind +15%",
     "エピテットを一つ・金 +12": "One epithet · coins +12",
-    " 歯が立たない": " out of your league"
+    " 歯が立たない": " out of your league",
+    "連鎖": "Chain",
+    "共鳴": "Resonance",
+    "同じタグの札を続けると強くなる": "Play cards sharing a tag back to back to grow stronger",
+    "直前の札とタグが重なる札を続けて使うと、強くなる（三つ目まで重なる）": "A card that shares a tag with the last one hits harder, stacking up to the third in a row",
+    "カード・記憶・ビルド・エピテットが働くたびに、灯りが一つ増える": "Each card, memory, build or epithet that takes effect lights one more lamp",
+    "満ちた：決着で全部受け取る": "Full: you receive it all when this ends",
+    "金": "Coins",
+    "札の回数 +1": "Card uses +1",
+    "体と心が戻る": "Body and mind return",
+    "連鎖の倍率 +0.3": "Chain multiplier +0.3",
+    "連鎖の倍率 +0.2": "Chain multiplier +0.2",
+    "連鎖の倍率 +0.1": "Chain multiplier +0.1",
+    "暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（倍率 +0.3）。": "Eyes made for the dark, and a memory that will not fade. Chains cut especially deep (multiplier +0.3)."
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -288,6 +301,15 @@
     "目標に届いた：{0} ── {1}": "Goal reached: {0} — {1}",
     "{0} が伸びた": "{0} grew",
     "・{0}の上": " · above {0}",
-    "正面からは歯が立たない（あなたは硬度 {0}）。退いて、出直せる。": "Head-on, you can't touch them (you are hardness {0}). Step back; come again."
+    "正面からは歯が立たない（あなたは硬度 {0}）。退いて、出直せる。": "Head-on, you can't touch them (you are hardness {0}). Step back; come again.",
+    "連鎖 {0}": "Chain {0}",
+    "×{0}": "×{0}",
+    "連鎖 ×{0}": "Chain ×{0}",
+    "連鎖 {0} ×{1}": "Chain {0} ×{1}",
+    "いま ×{0}・次 ×{1}": "now ×{0} · next ×{1}",
+    "あと {0} で{1}": "{0} more: {1}",
+    "灯っている：{0}": "Lit: {0}",
+    "《{0}》暴走": "«{0}» overdrive",
+    "{0}　連鎖 {1}": "{0}  chain {1}"
   }
 }

@@ -21,6 +21,7 @@ import {
   hostile,
   loseItem,
   losePerm,
+  quip,
   refill,
   revealClue,
   roll,
@@ -256,7 +257,7 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
           if (b > 0) breakFoe(tx, b);
         } else {
           tx.emit({ type: 'caught', about: f[3] ?? 'harmless' });
-          say(tx, 'foe', '……嘘だな。');
+          if (!quip(tx, 'caught')) say(tx, 'foe', '……嘘だな。');
           hostile(tx, 3);
           trust(tx, -2);
         }
