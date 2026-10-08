@@ -1,6 +1,7 @@
 import { PACE } from '../content/balance';
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
 import { SECTIONS, useOf } from '../content/floors';
+import type { Fx } from '../content/fx';
 import { fxText } from '../content/fx';
 import { legendState } from '../content/legends';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
@@ -45,6 +46,7 @@ import {
   STRATUM_NAME,
   storyChance,
 } from '../sim/run';
+import { BADGE_NAME, badgesOf } from './badges';
 import { button, type Child, fill, h, meter } from './dom';
 import { HINTS, nextHint } from './hints';
 import { bestSlot, cardEffect, delta, say as sayDelta, withCard, withEpithet } from './preview';
@@ -127,6 +129,10 @@ export function openDig(doc: Document, onClose: () => void): void {
   let opened: number | null = null;
   /** 遭遇中に触れている札（相手の四つの道に、効き目を先に映す）。 */
   let hoverSlot: number | null = null;
+  /** 触れている選択肢（押す前に、相手になれる札を白く見せる）。 */
+  let hoverAim: typeof aim = null;
+  /** 最後に体か心が戻った時刻（上の帯の計器を、少しのあいだ緑に）。 */
+  let healAt = -9;
   /** 直前の手番（あなたが何をして、相手が何をしたか）。基本の一巡を見せる。 */
   let lastTurn: TurnLine[] = [];
   let advice: Advice | null = null;
@@ -144,7 +150,12 @@ export function openDig(doc: Document, onClose: () => void): void {
   const anim = { foeHitAt: -9, youHitAt: -9, end: null as 'fall' | 'glow' | null, endAt: -9 };
   /** 跳ねる数（遭遇の場面に、少しのあいだ浮かぶ）。 */
   let pops: Scene['pops'][number][] = [];
-  const pop = (who: 'you' | 'foe', n: number, tone: 'ink' | 'amber' | 'blue', at: number) => {
+  const pop = (
+    who: 'you' | 'foe',
+    n: number,
+    tone: 'ink' | 'amber' | 'blue' | 'green',
+    at: number,
+  ) => {
     if (!n) return;
     // 同じ瞬間に同じ側で跳ねる数は、少しずつずらす。
     const same = pops.filter((p) => p.who === who && at - p.at < 0.25).length;
@@ -228,6 +239,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (hintShown) seeHint(hintShown);
     react(evs);
     aim = null;
+    hoverAim = null;
     if (cmd.c === 'claim') {
       reward.take = undefined;
       reward.help = undefined;
@@ -257,8 +269,13 @@ export function openDig(doc: Document, onClose: () => void): void {
             sound.hurt();
           }
           if (ev.who === 'you' && game?.world.enc) {
-            pop('you', ev.hp ?? 0, (ev.hp ?? 0) > 0 ? 'amber' : 'ink', t);
-            pop('you', ev.mind ?? 0, (ev.mind ?? 0) > 0 ? 'amber' : 'ink', t);
+            // 戻った分は緑。
+            pop('you', ev.hp ?? 0, (ev.hp ?? 0) > 0 ? 'green' : 'ink', t);
+            pop('you', ev.mind ?? 0, (ev.mind ?? 0) > 0 ? 'green' : 'ink', t);
+          }
+          if (ev.who === 'you' && ((ev.hp ?? 0) > 0 || (ev.mind ?? 0) > 0)) {
+            healAt = t;
+            window.setTimeout(() => renderBar(), 1300);
           }
           break;
         case 'enc.you':
@@ -702,11 +719,11 @@ export function openDig(doc: Document, onClose: () => void): void {
           ' ',
           left > 0 ? `夜明けまで ${left} 時間` : '夜が明けた',
         ),
-        meter(w.you.hp, maxHp(s), 'hp', '体力', {
+        meter(w.you.hp, maxHp(s), `hp${now() - healAt < 1.2 ? ' is-healed' : ''}`, '体力', {
           shield: w.enc?.guard,
           loss: w.enc?.phase === 'act' ? incoming(w).hp : 0,
         }),
-        meter(w.you.mind, maxMind(s), 'mind', '精神', {
+        meter(w.you.mind, maxMind(s), `mind${now() - healAt < 1.2 ? ' is-healed' : ''}`, '精神', {
           shield: w.enc?.calm,
           loss: w.enc?.phase === 'act' ? incoming(w).mind : 0,
         }),
@@ -1008,6 +1025,23 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h('div', {}, ...kids);
   }
 
+  /** 札の目当ての印（読まずに分かる）。癒すは緑。 */
+  function badges(list: readonly Fx[]): HTMLElement | null {
+    const bs = badgesOf(list);
+    if (!bs.length) return null;
+    return h(
+      'span',
+      { class: 'dig-badges' },
+      bs.map((b) => h('i', { class: `dig-badge dig-badge--${b}` }, BADGE_NAME[b])),
+    );
+  }
+
+  /** 文の中の「体力 +n」「精神 +n」（戻る分）を緑に。 */
+  function heals(text: string): Child[] {
+    const parts = text.split(/((?:体力|精神) \+[0-9A-Za-z+.×]+)/);
+    return parts.map((p, i) => (i % 2 ? h('span', { class: 'dig-heal' }, p) : p));
+  }
+
   /** その道の最初の一歩（行き方と、そこにいる人・ある物）。 */
   function stepLabel(w: World, id: number): string {
     const n = nodeOf(w, id);
@@ -1132,7 +1166,12 @@ export function openDig(doc: Document, onClose: () => void): void {
                 ' ',
                 l.what,
                 l.effects.length
-                  ? h('span', { class: 'dig-turn__fx' }, ` → ${l.effects.join('・')}`)
+                  ? h(
+                      'span',
+                      { class: 'dig-turn__fx' },
+                      ' → ',
+                      l.effects.flatMap((x, i) => [i ? '・' : '', ...heals(x)]),
+                    )
                   : '',
               ),
             ),
@@ -1281,6 +1320,7 @@ export function openDig(doc: Document, onClose: () => void): void {
    * 変質させる、どれも同じ手順。
    */
   function choose(next: NonNullable<typeof aim>): void {
+    hoverAim = null;
     aim = sameAim(aim, next) ? null : next;
     render();
   }
@@ -1335,7 +1375,8 @@ export function openDig(doc: Document, onClose: () => void): void {
         { class: 'dig-quiet' },
         ` ${d.uses} 回 ［${d.tags.map((t) => TAG_NAME[t]).join('・')}］${(d.arch ?? []).map((a) => `〈${ARCH_NAME[a]}〉`).join('')}`,
       ),
-      h('span', { class: 'dig-offer__fx' }, fxText(d.ready)),
+      badges(d.ready),
+      h('span', { class: 'dig-offer__fx' }, heals(fxText(d.ready))),
       d.sig ? h('span', { class: 'dig-offer__sig' }, d.sig) : null,
       hint ? h('span', { class: 'dig-offer__next' }, hint) : null,
     );
@@ -1566,6 +1607,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           h('span', { class: 'dig-card__key' }, String(slot + 1)),
         ),
         pips(c),
+        badges(spent ? d.spent : d.ready),
         peek ? h('span', { class: 'dig-card__next' }, peek) : null,
         h(
           'span',
@@ -1578,7 +1620,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'span',
           { class: 'dig-card__fx' },
-          spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready),
+          heals(spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready)),
         ),
         ls && ch
           ? h(
@@ -1642,11 +1684,24 @@ export function openDig(doc: Document, onClose: () => void): void {
                 h('span', { class: 'dig-pills__label' }, 'エピテット'),
                 w.you.epithets.map((ep) =>
                   button(
-                    `《${epithetDef(ep)?.name ?? ep}》`,
+                    `＋《${epithetDef(ep)?.name ?? ep}》`,
                     () => choose({ kind: 'inscribe', ep }),
                     {
                       ...chosen({ kind: 'inscribe', ep }),
-                      class: `dig-pill dig-pill--ep${sameAim(aim, { kind: 'inscribe', ep }) ? ' is-chosen' : ''}`,
+                      class: `dig-pill dig-pill--ep${sameAim(aim, { kind: 'inscribe', ep }) ? ' is-chosen' : ''}${
+                        !w.enc && !profile.hints.includes('epithet') ? ' is-fresh' : ''
+                      }`,
+                      // 触れると、貼れる札が白く浮く（押す前に、どこへ貼れるか分かる）。
+                      onmouseenter: () => {
+                        if (aim || w.enc || sameAim(hoverAim, { kind: 'inscribe', ep })) return;
+                        hoverAim = { kind: 'inscribe', ep };
+                        renderTray();
+                      },
+                      onmouseleave: () => {
+                        if (!hoverAim) return;
+                        hoverAim = null;
+                        renderTray();
+                      },
                       disabled:
                         !!w.enc ||
                         !w.you.cards.some((_, i) => aimOk(w, { kind: 'inscribe', ep }, i)),
@@ -1720,7 +1775,8 @@ export function openDig(doc: Document, onClose: () => void): void {
    * ふつうの札のまま（地図の上では、読むだけ）。
    */
   function cardState(w: World, slot: number): '' | 'is-live' | 'is-off' {
-    if (aim) return aimOk(w, aim, slot) ? 'is-live' : 'is-off';
+    const a = aim ?? hoverAim;
+    if (a) return aimOk(w, a, slot) ? 'is-live' : 'is-off';
     if (w.enc?.phase === 'act' && w.enc.who === 'you')
       return w.you.cards[slot] ? 'is-live' : 'is-off';
     return '';

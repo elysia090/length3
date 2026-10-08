@@ -67,6 +67,13 @@ export const HINTS: readonly Hint[] = [
     when: (w) => onMap(w) && w.pos !== null && reachable(w).some((n) => isBridge(w, n)),
   },
   {
+    id: 'epithet',
+    title: 'エピテット',
+    text: '下の《》は札に貼れる。押して、白くなった札を押す（札へ落としてもいい）。札の効き目と原型が変わる。',
+    when: (w) =>
+      onMap(w) && w.you.epithets.length > 0 && w.you.cards.some((c) => !!c && c.eps.length < 2),
+  },
+  {
     id: 'routes',
     title: '道の読み',
     text: '三つの道は、性格が違う。安定は勝ちやすいが得るものが少ない。高連鎖は噛み合うが崩れると大きい。あと一つは、強い構成が成立しかけている道。',

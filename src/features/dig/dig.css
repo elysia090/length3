@@ -3,6 +3,7 @@
    下に、手元のカード。色は紙・墨・琥珀と、深い青。琥珀は「あなた」と「押せるもの」、
    深い青は「いま向き合える相手」（その人の記号・計器・信頼の糸）で、必ずまばらに置く。 */
 .dig {
+  --dig-green: #2f7d4f;
   --dig-blue: #1f3d9e;
   width: 100vw;
   max-width: none;
@@ -979,4 +980,60 @@
   margin-top: 0.125rem;
   color: var(--ink-2);
   font-size: var(--font-ui-xs);
+}
+
+/* 戻るもの（体と心の回復）は緑。 */
+.dig-heal {
+  color: var(--dig-green);
+  font-weight: 700;
+}
+
+.dig-meter.is-healed .dig-meter__fill {
+  background: var(--dig-green);
+  transition: background 0.2s;
+}
+
+/* 札の目当ての印（倒す・折る・打ち解ける・暴く・守る・癒す…）。読まずに分かるように。 */
+.dig-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1875rem;
+}
+
+.dig-badge {
+  padding: 0 0.25rem;
+  border: 0.0625rem solid var(--rule);
+  font-size: 0.625rem;
+  font-style: normal;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.dig-badge--heal {
+  border-color: var(--dig-green);
+  color: var(--dig-green);
+}
+
+.dig-badge--trust,
+.dig-badge--expose {
+  border-style: dashed;
+}
+
+/* まだ貼ったことのないエピテットは、縁が静かに琥珀で息をする（貼れる、という合図）。 */
+.dig .dig-pill--ep.is-fresh:not(:disabled) {
+  animation: dig-fresh 1.6s ease-in-out infinite;
+}
+
+@keyframes dig-fresh {
+  50% {
+    border-color: var(--amber-text);
+    color: var(--amber-text);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-pill--ep.is-fresh:not(:disabled) {
+    animation: none;
+    border-color: var(--amber-text);
+  }
 }

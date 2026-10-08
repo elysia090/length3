@@ -74,5 +74,10 @@ export interface Scene {
   /** 長引いて、相手が苛立っている。 */
   stall: boolean;
   /** 跳ねる数（当たった・戻った・受け止めた）。 */
-  pops: readonly { who: 'you' | 'foe'; text: string; tone: 'ink' | 'amber' | 'blue'; at: number }[];
+  pops: readonly {
+    who: 'you' | 'foe';
+    text: string;
+    tone: 'ink' | 'amber' | 'blue' | 'green';
+    at: number;
+  }[];
 }

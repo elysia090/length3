@@ -71,6 +71,7 @@ export class Tower {
       rgba(style.getPropertyValue('--ink'), 0xff1e1915),
       rgba(style.getPropertyValue('--amber'), 0xff0c58ea),
       rgba(style.getPropertyValue('--dig-blue'), 0xff9e3d1f),
+      rgba(style.getPropertyValue('--dig-green'), 0xff4f7d2f),
     ]);
   }
 

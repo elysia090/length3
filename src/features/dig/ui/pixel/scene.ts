@@ -1,7 +1,7 @@
 import { drawText, textWidth } from '../../../../shared/pixel/font';
 import { clamp } from '../../../../shared/pixel/math';
 import { AMBER, INK, PAPER, type Raster, threshold } from '../../../../shared/pixel/raster';
-import { BLUE, H, PEER, PEER_BOSS } from './geo';
+import { BLUE, GREEN, H, PEER, PEER_BOSS } from './geo';
 import { bar, dot, K, leader, veil } from './paint';
 import type { Scene } from './types';
 
@@ -192,7 +192,8 @@ export function hud(
       (p.who === 'you' ? youX - 12 : foeX + 6) + age * (p.who === 'you' ? -4 : 4),
     );
     const py = Math.round((p.who === 'you' ? youTop : foeTop) - 2 - age * 16);
-    const c = p.tone === 'amber' ? AMBER : p.tone === 'blue' ? BLUE : INK;
+    const c =
+      p.tone === 'amber' ? AMBER : p.tone === 'blue' ? BLUE : p.tone === 'green' ? GREEN : INK;
     if (age > 1 && Math.floor(t * 20) % 2) continue;
     const w = textWidth(p.text, K);
     r.rect(px - 1 - (p.who === 'you' ? w : 0), py - 1, w + 2, 7 * K + 2, PAPER);
