@@ -7,17 +7,8 @@ import type { Scene } from './types';
 
 /** 向き合った場面：灯り・見せ場の光・計器と気配（寄ったときだけ描く）。 */
 
-/** 計器の段の間隔（数の字の高さが入るだけ）。 */
-const ROW = 8;
-
-/** 計器の横の数（棒の高さのまん中に、字の中心を合わせる）。 */
-function num(r: Raster, n: number, x: number, y: number, c: number, align: 'start' | 'end'): void {
-  const label = String(Math.max(0, Math.round(n)));
-  const w = textWidth(label);
-  const lx = align === 'end' ? x - w : x;
-  r.rect(lx - 1, y - 3, w + 2, 8, PAPER);
-  drawText(r, label, lx, y - 2, c);
-}
+/** 計器の段の間隔。 */
+const ROW = 5;
 
 /**
  * 灯り。あなたの灯りが届く輪の外は、墨の網点で沈む。輪の大きさは心の残り
@@ -164,9 +155,6 @@ export function hud(
     loss: (lossMind / Math.max(1, s.you.maxMind)) * bw,
     blink,
   });
-  // 数も添える（棒だけだと、どちらが体でどちらが心か分からない）。外側の端に、小さく。
-  num(r, s.you.hp, yx - 3, yy, AMBER, 'end');
-  num(r, s.you.mind, yx - 3, yy + ROW, AMBER, 'end');
   const fx = Math.round(foeX + off);
   const fy = Math.round(foeTop - 14);
   leader(r, foeX + 2, foeTop + 2, fx - 2, fy + 3);
@@ -174,12 +162,10 @@ export function hud(
     shield: (s.foe.guard / Math.max(1, s.foe.maxHp)) * bw,
   });
   bar(r, fx, fy + ROW, bw, s.foe.will / Math.max(1, s.foe.maxWill), BLUE, 2);
-  num(r, s.foe.hp, fx + bw * K + 4, fy, BLUE, 'start');
-  num(r, s.foe.will, fx + bw * K + 4, fy + ROW, BLUE, 'start');
   // 手がかりは小さな菱形（見つけたものは琥珀で塗る）。
   for (let i = 0; i < s.foe.clues; i++) {
     const bx = fx + i * 4 * K;
-    const by = fy + ROW * 2 + 1;
+    const by = fy + 11;
     const got = i < s.foe.shown;
     const c = got ? AMBER : INK;
     dot(r, bx + K, by - K, c);
