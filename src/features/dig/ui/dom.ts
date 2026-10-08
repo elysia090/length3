@@ -1,6 +1,10 @@
+import { tr } from '../i18n';
+
 /**
  * 小さな DOM の組み立て。属性は文字列、on* は関数、子は文字列か要素か偽。
+ * 文字列（子と、読み上げ・題の属性）は、ここで画面の言語に置き換える。
  */
+const SAID = new Set(['aria-label', 'title', 'placeholder', 'alt']);
 export type Child = Node | string | number | false | null | undefined;
 
 export function h<K extends keyof HTMLElementTagNameMap>(
@@ -13,7 +17,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(
     if (v === undefined || v === false) continue;
     if (typeof v === 'function') el.addEventListener(k.slice(2), v);
     else if (v === true) el.setAttribute(k, '');
-    else el.setAttribute(k, String(v));
+    else el.setAttribute(k, SAID.has(k) ? tr(String(v)) : String(v));
   }
   fill(el, children);
   return el;
@@ -22,7 +26,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 export function fill(el: Element, children: readonly (Child | readonly Child[])[]): void {
   for (const c of children.flat()) {
     if (c === false || c === null || c === undefined) continue;
-    el.append(typeof c === 'number' ? String(c) : c);
+    el.append(typeof c === 'number' ? String(c) : typeof c === 'string' ? tr(c) : c);
   }
 }
 
@@ -32,11 +36,26 @@ export const button = (
   attrs: Record<string, string | boolean | undefined | ((ev: Event) => void)> = {},
 ) => h('button', { type: 'button', ...attrs, onclick: on }, label);
 
-export const meter = (v: number, max: number, cls: string, label: string) =>
-  h(
+/**
+ * 目盛り。shield は今効いている守り（減る前に受け止める分）で、棒の先に点線で
+ * 伸びる。loss は次の手で失いそうな分で、棒の端が点滅する。
+ */
+export function meter(
+  v: number,
+  max: number,
+  cls: string,
+  label: string,
+  extra: { shield?: number; loss?: number } = {},
+): HTMLElement {
+  const pct = (n: number) => Math.max(0, Math.min(100, (100 * n) / Math.max(1, max)));
+  const have = Math.max(0, v);
+  const shield = Math.max(0, extra.shield ?? 0);
+  // 守りを越えた分だけが、本当に減る。
+  const loss = Math.min(have, Math.max(0, (extra.loss ?? 0) - shield));
+  return h(
     'span',
     {
-      class: `dig-meter dig-meter--${cls}`,
+      class: `dig-meter dig-meter--${cls}${loss > 0 ? ' is-threatened' : ''}`,
       role: 'meter',
       'aria-valuenow': v,
       'aria-valuemin': 0,
@@ -47,7 +66,17 @@ export const meter = (v: number, max: number, cls: string, label: string) =>
     h(
       'span',
       { class: 'dig-meter__bar' },
-      h('span', { style: `width:${Math.max(0, Math.min(100, (100 * v) / Math.max(1, max)))}%` }),
+      h('span', { class: 'dig-meter__fill', style: `width:${pct(have - loss)}%` }),
+      loss > 0 ? h('span', { class: 'dig-meter__loss', style: `width:${pct(loss)}%` }) : null,
+      shield > 0
+        ? h('span', { class: 'dig-meter__shield', style: `width:${Math.min(60, pct(shield))}%` })
+        : null,
     ),
-    h('span', { class: 'dig-meter__num' }, `${Math.max(0, v)}/${max}`),
+    h(
+      'span',
+      { class: 'dig-meter__num' },
+      `${have}/${max}`,
+      shield > 0 ? h('span', { class: 'dig-meter__guard' }, ` +${shield}`) : null,
+    ),
   );
+}

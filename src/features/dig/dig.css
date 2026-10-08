@@ -1,7 +1,9 @@
 /* DIG — 検索で 'dig' と打つと開く、底の見えない建物（features/dig/ui/app.ts） */
 /* 塔（斜めに見下ろしたフロアの積み重ね）が本体。脇に、いま起きていること。
-   下に、手元のカード。色は紙・墨・琥珀だけ。琥珀は「あなた」と「押せるもの」。 */
+   下に、手元のカード。色は紙・墨・琥珀と、深い青。琥珀は「あなた」と「押せるもの」、
+   深い青は「いま向き合える相手」（その人の記号・計器・信頼の糸）で、必ずまばらに置く。 */
 .dig {
+  --dig-blue: #1f3d9e;
   width: 100vw;
   max-width: none;
   height: 100dvh;
@@ -391,15 +393,74 @@
   border: 0.0625rem solid var(--ink);
 }
 
-.dig-meter__bar span {
+.dig-meter__bar {
+  display: flex;
+  overflow: visible;
+}
+
+.dig-meter__fill {
   display: block;
   height: 100%;
   background: var(--ink);
 }
 
-.dig-meter--hp .dig-meter__bar span,
-.dig-meter--foe-trust .dig-meter__bar span {
+.dig-meter--hp .dig-meter__fill,
+.dig-meter--foe-trust .dig-meter__fill {
   background: var(--amber-text);
+}
+
+/* 次の手で失う分。棒の端が、ゆっくり点滅する。 */
+.dig-meter__loss {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 3px);
+  color: var(--ink);
+  animation: dig-loss 1.1s steps(2, jump-none) infinite;
+}
+
+.dig-meter--hp .dig-meter__loss {
+  color: var(--amber-text);
+}
+
+/* 効いている守り。棒の先に、同じ色の点線で伸びる（減る前に受け止める分）。 */
+.dig-meter__shield {
+  display: block;
+  height: 100%;
+  margin-left: 0.0625rem;
+  background: repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 3px);
+  color: var(--ink);
+}
+
+.dig-meter--hp .dig-meter__shield {
+  color: var(--amber-text);
+}
+
+/* 相手の計器は深い青の、まばらな網点。 */
+.dig-meter--foe-hp .dig-meter__fill,
+.dig-meter--foe-will .dig-meter__fill {
+  background: radial-gradient(var(--dig-blue) 0.07rem, transparent 0.08rem) 0 0 / 0.1875rem 0.1875rem;
+  box-shadow: inset 0 0 0 0.0625rem var(--dig-blue);
+}
+
+.dig-meter--foe-hp .dig-meter__shield {
+  color: var(--dig-blue);
+}
+
+.dig-blue {
+  color: var(--dig-blue);
+}
+
+@keyframes dig-loss {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-meter__loss {
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 /* ─── 手元 ─── */
@@ -442,8 +503,50 @@
   color: var(--ink-3);
 }
 
-.dig .dig-card.is-aim {
+/* 札の状態はふたつだけ。押せば何かが起きる札は白く浮き、起きない札は灰色に沈む。
+   選択肢を選ぶと、その相手になれる札だけが白くなる（押して初めて実行）。 */
+.dig .dig-card.is-live {
+  border-width: 0.125rem;
+  border-color: var(--ink);
+  background: #fff;
+  box-shadow: 0 0.125rem 0 var(--ink);
+  transform: translateY(-0.125rem);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.dig .dig-card.is-live:hover,
+.dig .dig-card.is-live:focus-visible {
   border-color: var(--amber-text);
+  box-shadow: 0 0.1875rem 0 var(--amber-text);
+}
+
+.dig .dig-card.is-off {
+  border-color: var(--rule);
+  background: var(--bg-2);
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.dig .dig-card.is-off:hover,
+.dig .dig-card.is-off:focus-visible {
+  border-color: var(--ink-3);
+  color: var(--ink-2);
+}
+
+/* 選んでいる選択肢（押されたまま）。 */
+.dig button.is-chosen,
+.dig .dig-offer.is-chosen {
+  border-width: 0.125rem;
+  border-color: var(--amber-text);
+  background: #fff;
+  color: var(--amber-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-card.is-live {
+    transform: none;
+    transition: none;
+  }
 }
 
 .dig-card__key {

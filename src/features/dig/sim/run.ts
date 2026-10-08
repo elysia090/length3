@@ -143,7 +143,7 @@ function buildMap(tx: Tx, stratum: number): void {
     const use = uses[row] ?? sec.uses[0];
     if (!beat || !use) continue;
     // 拍子の部屋を、左右の並びだけ混ぜる（安全と冒険の位置は毎回変わる）。
-    const kinds = [...beat.rooms].sort(() => tx.rand('map') - 0.5);
+    const kinds = tx.shuffle('map', beat.rooms);
     const list: MapNode[] = [];
     kinds.forEach((k, col) => {
       let kind: MapNode['kind'] =
@@ -765,13 +765,15 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
         const d = near[Math.floor(tx.rand('loot') * near.length)];
         if (d) cards.splice(0, 1, d.id);
       }
-      const items = [...allItems()]
-        .sort(() => tx.rand('loot') - 0.5)
+      const items = tx
+        .shuffle('loot', allItems())
         .slice(0, 3)
         .map((i) => i.id);
-      const eps = allEpithets()
-        .filter((e) => !!e.card)
-        .sort(() => tx.rand('loot') - 0.5)
+      const eps = tx
+        .shuffle(
+          'loot',
+          allEpithets().filter((e) => !!e.card),
+        )
         .slice(0, 2)
         .map((e) => `ep:${e.id}`);
       const t = want?.tag;

@@ -257,7 +257,7 @@ export interface Rival {
   log: string[];
 }
 
-export type Stream = 'map' | 'enc' | 'ai' | 'story' | 'rival' | 'gossip' | 'loot';
+export type Stream = 'map' | 'enc' | 'ai' | 'story' | 'rival' | 'gossip' | 'loot' | 'flavor';
 
 export interface World {
   /** データの版（バランス変更の版）。 */

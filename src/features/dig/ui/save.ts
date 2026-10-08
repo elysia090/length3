@@ -21,6 +21,8 @@ export interface Profile {
   /** もう読んだ案内。 */
   hints: string[];
   muted: boolean;
+  /** 画面の言語（無ければ、開いたページの言語）。 */
+  lang?: 'ja' | 'en';
 }
 
 const RUN = 'dig:run:v2';

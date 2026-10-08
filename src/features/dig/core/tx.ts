@@ -85,6 +85,19 @@ export class Tx {
     return lo + Math.floor(this.rand(stream) * (hi - lo + 1));
   }
 
+  /**
+   * 混ぜる（Fisher–Yates）。並べ替えに乱数の比較を渡すと、比較の回数がエンジン
+   * ごとに違って結果がずれる（記録の再生が端末で変わる）ので、必ずこちらで。
+   */
+  shuffle<T>(stream: Stream, list: readonly T[]): T[] {
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rand(stream) * (i + 1));
+      [out[i], out[j]] = [out[j] as T, out[i] as T];
+    }
+    return out;
+  }
+
   pick<T>(stream: Stream, list: readonly T[]): T | undefined {
     return list.length ? list[Math.floor(this.rand(stream) * list.length)] : undefined;
   }

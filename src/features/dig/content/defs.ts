@@ -131,7 +131,11 @@ export type LineKind =
   | 'beaten'
   | 'uncovered'
   | 'fled'
-  | 'caught';
+  | 'caught'
+  /** 相手の手が当たったとき。 */
+  | 'taunt'
+  /** 向き合ったまま、あなたが黙っているとき（画面だけ。記録には残らない）。 */
+  | 'mutter';
 
 export interface FoeDef {
   id: string;

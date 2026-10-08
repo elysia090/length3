@@ -31,7 +31,7 @@ export function emptyWorld(): World {
   return {
     v: '',
     seed: 0,
-    rng: { map: 1, enc: 2, ai: 3, story: 4, rival: 5, gossip: 6, loot: 7 },
+    rng: { map: 1, enc: 2, ai: 3, story: 4, rival: 5, gossip: 6, loot: 7, flavor: 8 },
     depth: 0,
     stratum: 1,
     hour: 0,

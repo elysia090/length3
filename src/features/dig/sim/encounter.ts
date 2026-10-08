@@ -30,6 +30,8 @@ import {
   settle,
   statOf,
   stats,
+  strikeValue,
+  threatValue,
   trust,
   xp,
 } from './ops';
@@ -497,6 +499,15 @@ export function shownIntent(w: World) {
   const visible =
     e.foe.seen || ask(w, 'intentVisible', {}, 0) >= 1 || statOf(w, e.who, 'INT') >= e.foe.int + 3;
   return visible ? i : { kind: i.seem ?? 'wait', label: i.seemLabel ?? '……', price: i.price };
+}
+
+/** 見えている次の手で、あなたが失いそうな分（守りと落ち着きを引く前）。 */
+export function incoming(w: World): { hp: number; mind: number } {
+  const i = shownIntent(w);
+  if (!i?.power) return { hp: 0, mind: 0 };
+  if (i.kind === 'strike') return { hp: strikeValue(w, i.power), mind: 0 };
+  if (i.kind === 'threat') return { hp: 0, mind: threatValue(w, i.power) };
+  return { hp: 0, mind: 0 };
 }
 
 // ─── 決着を写す ───────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { PACE } from '../content/balance';
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
 import { SECTIONS, useOf } from '../content/floors';
 import { fxText } from '../content/fx';
@@ -18,8 +19,9 @@ import { nextTier, SURGES, tierOf } from '../content/surges';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME } from '../core/tags';
+import { getLang, setLang, tr } from '../i18n';
 import { type Advice, advise, nodeLabel, type RouteKind } from '../sim/advise';
-import { canAccept, leaveChance, resonance, shownIntent } from '../sim/encounter';
+import { canAccept, incoming, leaveChance, resonance, shownIntent } from '../sim/encounter';
 import { Game } from '../sim/game';
 import { foeHardness, hardnessLabel, nodeHardness, outmatched, youHardness } from '../sim/hardness';
 import { misses } from '../sim/near';
@@ -48,7 +50,7 @@ import { HINTS, nextHint } from './hints';
 import { bestSlot, delta, say as sayDelta, withCard, withEpithet } from './preview';
 import { loadProfile, loadRun, type Profile, saveProfile, saveRun } from './save';
 import { DigSound } from './sound';
-import { type RoomView, Tower, type TowerView } from './tower';
+import { type RoomView, type Scene, Tower, type TowerView } from './tower';
 
 /**
  * DIG の画面。底の見えない巨大な建物を、フロアごとに下りていく。
@@ -123,9 +125,21 @@ export function openDig(doc: Document, onClose: () => void): void {
     | { kind: 'rest'; action: RestAction }
     | { kind: 'buy'; id: string }
     | { kind: 'pick'; id: string }
+    | { kind: 'alter'; slot: number; to: string }
     | null = null;
   const reward: { take?: string; help?: number } = {};
   const anim = { foeHitAt: -9, youHitAt: -9, end: null as 'fall' | 'glow' | null, endAt: -9 };
+  /** 跳ねる数（遭遇の場面に、少しのあいだ浮かぶ）。 */
+  let pops: Scene['pops'][number][] = [];
+  const pop = (who: 'you' | 'foe', n: number, tone: 'ink' | 'amber' | 'blue', at: number) => {
+    if (!n) return;
+    // 同じ瞬間に同じ側で跳ねる数は、少しずつずらす。
+    const same = pops.filter((p) => p.who === who && at - p.at < 0.25).length;
+    pops = [
+      ...pops.filter((p) => at - p.at < 1.6),
+      { who, text: n > 0 ? `+${n}` : `${n}`, tone, at: at + same * 0.18 },
+    ];
+  };
   let create = { job: 'watch', ...defaultSheet('watch'), name: '', depth: 0, daily: false };
 
   const t0 = performance.now();
@@ -205,12 +219,21 @@ export function openDig(doc: Document, onClose: () => void): void {
             anim.foeHitAt = t;
             sound.hit();
           }
+          if (ev.field === 'hp' || ev.field === 'resolve') pop('foe', ev.n, 'ink', t);
+          else if (ev.field === 'trust' || ev.field === 'guard') pop('foe', ev.n, 'blue', t);
           break;
         case 'vital':
           if (ev.who === 'you' && ((ev.hp ?? 0) < 0 || (ev.mind ?? 0) < 0) && game?.world.enc) {
             anim.youHitAt = t;
             sound.hurt();
           }
+          if (ev.who === 'you' && game?.world.enc) {
+            pop('you', ev.hp ?? 0, (ev.hp ?? 0) > 0 ? 'amber' : 'ink', t);
+            pop('you', ev.mind ?? 0, (ev.mind ?? 0) > 0 ? 'amber' : 'ink', t);
+          }
+          break;
+        case 'enc.you':
+          if (ev.n > 0) pop('you', ev.n, 'blue', t);
           break;
         case 'enc.start':
           if (ev.who === 'you') {
@@ -243,14 +266,14 @@ export function openDig(doc: Document, onClose: () => void): void {
         case 'note': {
           // 重みで出し分ける：0 読み上げだけ、1 帯に一瞬、2 記録にも、3 名場面。
           const lv = ev.level ?? 1;
-          live.textContent = ev.text;
+          live.textContent = tr(ev.text);
           if (lv >= 2) log = [...log.slice(-30), ev.text];
           if (lv === 3) showMoment(ev.text);
           else if (lv >= 1) showCaption(ev.text);
           break;
         }
         case 'say':
-          live.textContent = ev.text;
+          live.textContent = tr(ev.text);
           showCaption(ev.who === 'foe' ? `「${ev.text}」` : ev.text);
           break;
         default:
@@ -261,7 +284,7 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   let captionTimer = 0;
   function showCaption(text: string): void {
-    caption.textContent = text;
+    caption.textContent = tr(text);
     caption.classList.add('is-on');
     window.clearTimeout(captionTimer);
     captionTimer = window.setTimeout(() => caption.classList.remove('is-on'), 2600);
@@ -280,7 +303,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         return;
       }
       momentBusy = true;
-      moment.textContent = m;
+      moment.textContent = tr(m);
       moment.hidden = false;
       window.setTimeout(next, 3400);
     };
@@ -463,7 +486,48 @@ export function openDig(doc: Document, onClose: () => void): void {
           : null,
       routes: w.enc || w.pending ? [] : routes.filter((r) => r.kind === (routePeek ?? routeSel)),
       focus,
-      enc: w.enc && w.enc.who === 'you' && w.pos !== null ? { room: w.pos, ...anim } : null,
+      enc:
+        w.enc && w.enc.who === 'you' && w.pos !== null
+          ? { room: w.pos, ...anim, scene: sceneOf(w) }
+          : null,
+    };
+  }
+
+  /** 向き合った場面の計器（体・心・守り・信頼・手がかり・予告）。 */
+  function sceneOf(w: World): Scene | null {
+    const e = w.enc;
+    if (!e) return null;
+    const s = stats(w, 'you');
+    const f = e.foe;
+    const i = shownIntent(w);
+    return {
+      you: {
+        hp: w.you.hp,
+        maxHp: maxHp(s),
+        mind: w.you.mind,
+        maxMind: maxMind(s),
+        guard: e.guard,
+        calm: e.calm,
+      },
+      loss: e.phase === 'act' ? incoming(w) : { hp: 0, mind: 0 },
+      foe: {
+        hp: f.hp,
+        maxHp: f.maxHp,
+        will: f.resolve,
+        maxWill: f.maxResolve,
+        trust: f.trust,
+        need: f.need,
+        guard: f.guard,
+        hostility: f.hostility,
+        clues: f.clues.length,
+        shown: f.clues.filter((c) => c.shown && !c.false).length,
+        boss: e.tier === 'boss',
+      },
+      intent: i && e.phase === 'act' ? { kind: i.kind, power: i.power ?? null } : null,
+      stage: e.stage.length > 0,
+      resonance: resonance(w).length,
+      stall: e.turn > PACE.stall,
+      pops,
     };
   }
 
@@ -588,8 +652,14 @@ export function openDig(doc: Document, onClose: () => void): void {
           ' ',
           left > 0 ? `夜明けまで ${left} 時間` : '夜が明けた',
         ),
-        meter(w.you.hp, maxHp(s), 'hp', '体力'),
-        meter(w.you.mind, maxMind(s), 'mind', '精神'),
+        meter(w.you.hp, maxHp(s), 'hp', '体力', {
+          shield: w.enc?.guard,
+          loss: w.enc?.phase === 'act' ? incoming(w).hp : 0,
+        }),
+        meter(w.you.mind, maxMind(s), 'mind', '精神', {
+          shield: w.enc?.calm,
+          loss: w.enc?.phase === 'act' ? incoming(w).mind : 0,
+        }),
         h('span', { class: 'dig-coins' }, `金 ${w.you.coins}`),
         h('span', { class: 'dig-hard', title: '総合の地力（モース硬度）' }, hardnessLabel(hard)),
         w.you.titles.length
@@ -609,6 +679,20 @@ export function openDig(doc: Document, onClose: () => void): void {
         saveProfile(profile);
         renderBar();
       }),
+      button(
+        getLang() === 'en' ? '日本語' : 'English',
+        () => {
+          const next = getLang() === 'en' ? 'ja' : 'en';
+          profile.lang = next;
+          saveProfile(profile);
+          void setLang(next).then(() => {
+            dialog.lang = next;
+            renderBar();
+            render();
+          });
+        },
+        { lang: getLang() === 'en' ? 'ja' : 'en' },
+      ),
       button('閉じる', close),
     );
     fill(bar, items);
@@ -872,7 +956,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h('span', { class: outmatched(hard, you) ? 'dig-warn' : 'dig-quiet' }, hardnessLabel(hard)),
       ),
       h('p', { class: 'dig-quiet' }, def.desc),
-      track('体力', f.hp, f.maxHp, 'foe-hp'),
+      meter(f.hp, f.maxHp, 'foe-hp', '体力', { shield: f.guard }),
       track('意志', f.resolve, f.maxResolve, 'foe-will'),
       f.need < 50
         ? track('信頼', f.trust, f.need, 'foe-trust')
@@ -1007,7 +1091,9 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (p.cards.length)
       kids.push(
         h('p', {}, 'カードを一枚拾える（拾うと決着を受け取る）：'),
-        p.cards.map((id) => cardOffer(id, () => pickCard(w, id), 'pick')),
+        p.cards.map((id) =>
+          cardOffer(id, () => pickCard(w, id), 'pick', aim?.kind === 'pick' && aim.id === id),
+        ),
       );
     kids.push(
       button(
@@ -1019,14 +1105,22 @@ export function openDig(doc: Document, onClose: () => void): void {
     return section('決着', ...kids);
   }
 
-  function pickCard(w: World, id: string): void {
-    const empty = w.you.cards.findIndex((c) => !c);
-    if (empty >= 0)
-      send({ c: 'claim', take: reward.take, help: reward.help, card: id, slot: empty });
-    else {
-      aim = { kind: 'pick', id };
-      render();
-    }
+  /**
+   * 選ぶ → 手元の札が白く（押せる）／灰色に（押せない）なる → 札を押して実行。
+   * 同じ選択肢をもう一度押すと、やめる。拾う・買う・刻む・満たす・捨てる・
+   * 変質させる、どれも同じ手順。
+   */
+  function choose(next: NonNullable<typeof aim>): void {
+    aim = sameAim(aim, next) ? null : next;
+    render();
+  }
+
+  function sameAim(a: typeof aim, b: typeof aim): boolean {
+    return !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  function pickCard(_w: World, id: string): void {
+    choose({ kind: 'pick', id });
   }
 
   /** 拾う札・買う札。押すか、枠へ落とす。決める前に、構成がどう変わるかを一行で。 */
@@ -1034,6 +1128,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     id: string,
     on: () => void,
     source: 'pick' | 'buy' | null = null,
+    picked = false,
   ): HTMLElement {
     const d = cardDef(id);
     const w = game?.world;
@@ -1048,7 +1143,9 @@ export function openDig(doc: Document, onClose: () => void): void {
       'button',
       {
         type: 'button',
-        class: 'dig-offer',
+        class: `dig-offer${picked ? ' is-chosen' : ''}`,
+        'aria-pressed': picked ? 'true' : undefined,
+        disabled: !source && !picked,
         onclick: on,
         draggable: source ? 'true' : undefined,
         ondragstart: (ev: Event) => {
@@ -1075,20 +1172,22 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (!p.used)
       kids.push(
         button('休む（全カード +1・1 時間）', () => send({ c: 'rest', action: 'rest' })),
-        button('ひと晩ここで（一枚を満たす・2 時間・次の出来事を逃す）', () => {
-          aim = { kind: 'rest', action: 'full' };
-          render();
-        }),
+        button(
+          'ひと晩ここで（一枚を満たす・2 時間・次の出来事を逃す）',
+          () => choose({ kind: 'rest', action: 'full' }),
+          chosen({ kind: 'rest', action: 'full' }),
+        ),
         button(`考えを整える（INT ${restChance(w, 'tune-int')}%）`, () =>
           send({ c: 'rest', action: 'tune-int' }),
         ),
         button(`気を落ち着ける（WIL ${restChance(w, 'tune-wil')}%）`, () =>
           send({ c: 'rest', action: 'tune-wil' }),
         ),
-        button('一枚捨てて、残りを満たす', () => {
-          aim = { kind: 'rest', action: 'discard' };
-          render();
-        }),
+        button(
+          '一枚捨てて、残りを満たす',
+          () => choose({ kind: 'rest', action: 'discard' }),
+          chosen({ kind: 'rest', action: 'discard' }),
+        ),
       );
     else kids.push(h('p', { class: 'dig-quiet' }, 'もう休んだ。'));
     if (!p.altered)
@@ -1098,8 +1197,9 @@ export function openDig(doc: Document, onClose: () => void): void {
           kids.push(
             button(
               `『${cardDef(c.id).name}』→『${cardDef(o.to).name}』（${o.need}）`,
-              () => send({ c: 'alter', slot, to: o.to }),
+              () => choose({ kind: 'alter', slot, to: o.to }),
               {
+                ...chosen({ kind: 'alter', slot, to: o.to }),
                 disabled: !o.ready,
                 title: fxText(cardDef(o.to).ready),
               },
@@ -1123,11 +1223,9 @@ export function openDig(doc: Document, onClose: () => void): void {
           cardOffer(
             id,
             () => {
-              if (sold) return;
-              aim = { kind: 'buy', id };
-              render();
+              if (!sold && w.you.coins >= cardPrice(w, id)) choose({ kind: 'buy', id });
             },
-            sold ? null : 'buy',
+            sold || w.you.coins < cardPrice(w, id) ? null : 'buy',
           ),
           h('span', { class: 'dig-price' }, sold ? '売約' : `金 ${cardPrice(w, id)}`),
         ),
@@ -1256,7 +1354,12 @@ export function openDig(doc: Document, onClose: () => void): void {
       if (!c)
         return h(
           'button',
-          { type: 'button', class: `dig-card is-empty${aim ? ' is-aim' : ''}`, onclick: onClick },
+          {
+            type: 'button',
+            class: `dig-card is-empty ${pressable(w, slot) ? 'is-live' : 'is-off'}`,
+            onclick: onClick,
+            ...drop,
+          },
           h('span', {}, '空き枠'),
         );
       const d = cardDef(c.id);
@@ -1267,7 +1370,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         'button',
         {
           type: 'button',
-          class: `dig-card${spent ? ' is-spent' : ''}${aim ? ' is-aim' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}`,
+          class: `dig-card ${pressable(w, slot) ? 'is-live' : 'is-off'}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}`,
           onclick: onClick,
           ...drop,
           title: [d.sig, d.flavor].filter(Boolean).join('\n'),
@@ -1342,11 +1445,11 @@ export function openDig(doc: Document, onClose: () => void): void {
               w.you.epithets.map((ep) =>
                 button(
                   `《${epithetDef(ep)?.name ?? ep}》`,
-                  () => {
-                    aim = { kind: 'inscribe', ep };
-                    render();
-                  },
+                  () => choose({ kind: 'inscribe', ep }),
                   {
+                    ...chosen({ kind: 'inscribe', ep }),
+                    disabled:
+                      !!w.enc || !w.you.cards.some((_, i) => aimOk(w, { kind: 'inscribe', ep }, i)),
                     title: `${epithetDef(ep)?.gloss ?? ''}\n${epithetDef(ep)?.card?.text ?? ''}\n（カードへ落としても刻める）`,
                     draggable: 'true',
                     ondragstart: (ev: Event) =>
@@ -1373,7 +1476,37 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (aim.kind === 'inscribe') return `《${epithetDef(aim.ep)?.name}》を刻むカードを選ぶ`;
     if (aim.kind === 'buy') return `『${cardDef(aim.id).name}』を入れる枠を選ぶ`;
     if (aim.kind === 'pick') return `『${cardDef(aim.id).name}』と入れ替える枠を選ぶ`;
+    if (aim.kind === 'alter') return `白いカードを押すと『${cardDef(aim.to).name}』に変わる`;
     return aim.action === 'full' ? 'ひと晩かけて満たすカードを選ぶ' : '捨てるカードを選ぶ';
+  }
+
+  /** 選んでいる選択肢のボタンは、押されたままに見せる。 */
+  function chosen(a: NonNullable<typeof aim>): Record<string, string | undefined> {
+    const on = sameAim(aim, a);
+    return { class: on ? 'is-chosen' : undefined, 'aria-pressed': on ? 'true' : 'false' };
+  }
+
+  /** その枠が、選んでいる選択肢の相手になれるか。 */
+  function aimOk(w: World, a: NonNullable<typeof aim>, slot: number): boolean {
+    const c = w.you.cards[slot];
+    switch (a.kind) {
+      case 'inscribe': {
+        const d = epithetDef(a.ep);
+        return !!c && !!d?.card && c.eps.length < 2 && !c.eps.includes(a.ep);
+      }
+      case 'rest':
+        return !!c;
+      case 'alter':
+        return slot === a.slot;
+      default:
+        return true;
+    }
+  }
+
+  /** 押せば何かが起きる札（白）か、起きない札（灰）か。 */
+  function pressable(w: World, slot: number): boolean {
+    if (aim) return aimOk(w, aim, slot);
+    return w.enc?.phase === 'act' && w.enc.who === 'you' && !!w.you.cards[slot];
   }
 
   /** 狙っている一手を、その枠でしたら構成がどう変わるか。 */
@@ -1403,6 +1536,12 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   function clickSlot(w: World, slot: number): void {
+    // 灰色の札は、押しても何も起きない（狙っている最中は、中身も開かない）。
+    if (aim && !aimOk(w, aim, slot)) return;
+    if (aim?.kind === 'alter') {
+      send({ c: 'alter', slot, to: aim.to });
+      return;
+    }
     if (aim?.kind === 'inscribe') {
       send({ c: 'inscribe', ep: aim.ep, slot });
       return;
@@ -1612,6 +1751,18 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (!game || screen !== 'play' || ev.target instanceof HTMLInputElement) return;
     const w = game.world;
     const n = Number(ev.key);
+    if (aim) {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        aim = null;
+        render();
+      } else if (n >= 1 && n <= 5) {
+        ev.preventDefault();
+        clickSlot(w, n - 1);
+      }
+      return;
+    }
     if (w.enc?.phase === 'act') {
       if (n >= 1 && n <= 5) {
         ev.preventDefault();
@@ -1653,5 +1804,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       screen = 'play';
     } else saveRun(null);
   }
-  render();
+  const first = profile.lang ?? (doc.documentElement.lang.startsWith('en') ? 'en' : 'ja');
+  dialog.lang = first;
+  void setLang(first).then(render);
 }
