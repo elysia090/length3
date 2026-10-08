@@ -2027,6 +2027,9 @@ export function openDig(doc: Document, onClose: () => void): void {
       const lc = leaveChance(w);
       const basics: Basic[] = ['press', 'brace', 'talk', 'leave'];
       if (canAccept(w)) basics.push('accept');
+      // 話がいま届くか（相手の次の手しだい）。届く量か、届かないことを釦に。
+      const told = effectOf(w, { c: 'act', a: 'talk' }).trust;
+      const talkNote = told > 0 ? ` +${told}` : f.hostility < 7 && !def.mute ? ' 届かない' : '';
       kids.push(
         h(
           'div',
@@ -2034,7 +2037,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           h('span', { class: 'dig-bare__label' }, '素手で'),
           basics.map((a, i) =>
             button(
-              `${BASIC_NAME[a]}${a === 'leave' ? ` ${lc}%` : ''}`,
+              `${BASIC_NAME[a]}${a === 'leave' ? ` ${lc}%` : a === 'talk' ? talkNote : ''}`,
               () => send({ c: 'act', a }),
               {
                 class: 'dig-bare__act',

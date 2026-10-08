@@ -42,6 +42,9 @@ import {
  * 相手の姿を作る（純粋な計算。地図の上の見積もりにも使う）。
  * late は夜明けを過ぎた分（規則 lateness を通したあと）。
  */
+
+/** 話がひとつ多く届く、相手の手（打ち明ける・待つ・繕う・持ちかける）。 */
+const TALK_OPEN: ReadonlySet<string> = new Set(['confide', 'wait', 'mend', 'bargain']);
 export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
   const def = foeDef(npc);
   const depth = w.depth + late;
@@ -304,7 +307,13 @@ export function basic(tx: Tx, a: Basic): boolean {
         hostile(tx, 2);
       } else if (f.hostility >= 7) hostile(tx, -1);
       else {
-        trust(tx, 1 + (statOf(tx.w, who, 'WIL') >= 6 ? 1 : 0));
+        // 話は、聞く耳のあるときに届く（相手の次の手を読む）。殴りかかろう、脅そうと
+        // している相手には届かず、心を開きかけている相手にはひとつ多く届く。嘘の
+        // 予告に乗せられていれば、本当の手のほうで決まる。
+        const k = f.intent?.kind;
+        const base = 1 + (statOf(tx.w, who, 'WIL') >= 6 ? 1 : 0);
+        if (k === 'strike' || k === 'threat') say(tx, 'voice', '聞いていない。');
+        else trust(tx, base + (TALK_OPEN.has(k ?? 'wait') ? 1 : 0));
         hostile(tx, -1);
       }
       break;
