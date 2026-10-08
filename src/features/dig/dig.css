@@ -1735,3 +1735,46 @@
   margin-left: 2px;
   transform: rotate(45deg);
 }
+
+/*
+ * 手番の段取り。札は枠の中で一目盛り跳ねて落ち（動きは app.ts で）、落ちた
+ * 瞬間に、上の帯・場面・脇・手元がいっしょに一度だけ沈む。
+ */
+
+/* 続ければ連鎖になる札は、手の中で少し身を乗り出す（縁の上だけ琥珀の印）。 */
+.dig .dig-card.is-live.is-lean {
+  border-top-color: var(--amber-text);
+  transform: translateY(-0.5rem);
+}
+
+.dig-app.is-kick > .dig-bar,
+.dig-app.is-kick .dig-view,
+.dig-app.is-kick .dig-side,
+.dig-app.is-kick > .dig-tray {
+  animation: dig-kick 0.22s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes dig-kick {
+  0% {
+    transform: none;
+  }
+  25% {
+    transform: translate(var(--kick-x, 0px), var(--kick-y, 2px));
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-app.is-kick > .dig-bar,
+  .dig-app.is-kick .dig-view,
+  .dig-app.is-kick .dig-side,
+  .dig-app.is-kick > .dig-tray {
+    animation: none;
+  }
+
+  .dig .dig-card.is-live.is-lean {
+    transform: none;
+  }
+}

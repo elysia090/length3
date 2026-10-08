@@ -21,6 +21,7 @@ import { buildsOf } from '../content/sources';
 import { nextTier, SURGES, tierOf } from '../content/surges';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
+import { fold } from '../core/reduce';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { clockOf, PHASE_NAME, phaseOf } from '../core/time';
 import { getLang, setLang, tr } from '../i18n';
@@ -354,12 +355,29 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   // ─── 指す ───────────────────────────────────────────────────
 
+  /**
+   * 演出のあいだ見せている世界。手番は決めた瞬間に最後まで進むが、画面は
+   * 札が当たるまで一手前の姿、当たってから相手が返すまではこちらの一手ぶん
+   * だけ進んだ姿を見せる（決まる順に、目で追えるように）。
+   */
+  let staged: World | null = null;
+  let heldView: TowerView | null = null;
+  let busy = false;
+
   function send(cmd: Cmd): boolean {
-    if (!game) return false;
+    if (!game || busy) return false;
     lastInput = now();
     // 動いたら近景に戻る（次の一手が、すぐ目の前に見えるように）。
     if (cmd.c === 'move' && tower.overview) setOverview(false);
-    const before = game.world.enc ? shownIntent(game.world)?.label : undefined;
+    const w0 = game.world;
+    const before = w0.enc ? shownIntent(w0)?.label : undefined;
+    const turn =
+      w0.enc?.who === 'you' &&
+      w0.enc.phase === 'act' &&
+      (cmd.c === 'card' || cmd.c === 'act') &&
+      !still();
+    const pre = turn ? structuredClone(w0) : null;
+    const preView = turn ? towerView(w0) : null;
     const evs = game.dispatch(cmd);
     if (cmd.c === 'card' || cmd.c === 'act') lastTurn = summarize(cmd, evs, before);
     else if (cmd.c === 'move' || cmd.c === 'close') lastTurn = [];
@@ -370,19 +388,131 @@ export function openDig(doc: Document, onClose: () => void): void {
       return false;
     }
     if (hintShown) seeHint(hintShown);
-    react(evs);
-    rise(game.world);
     aim = null;
     hoverAim = null;
     if (cmd.c === 'claim') {
       reward.take = undefined;
       reward.help = undefined;
     }
+    if (pre && preView) {
+      play(cmd, evs, pre, preView);
+      return true;
+    }
+    react(evs);
+    settle();
+    return true;
+  }
+
+  /** 手番を閉じる（地力の伸び・保存・終わり・描き直し）。 */
+  function settle(): void {
+    if (!game) return;
     const w = game.world;
+    rise(w);
     if (w.ending) finishRun(w);
     else saveRun(game.save());
     render();
-    return true;
+  }
+
+  /**
+   * 手番の段取り。打った札から手札が一枚ずつ跳ねて波になり、波が端まで届くと
+   * 手札が全部いっしょに跳ねる。その瞬間にこちらの一手の結果が出て、計器も
+   * そろって沈む。相手の返しは半拍おいてから。
+   */
+  function play(cmd: Cmd, evs: readonly Ev[], pre: World, preView: TowerView): void {
+    busy = true;
+    staged = pre;
+    heldView = preView;
+    const at = evs.findIndex((e) => e.type === 'act');
+    const mine = at < 0 ? evs : evs.slice(0, at);
+    const theirs = at < 0 ? [] : evs.slice(at);
+    const chained = mine.some((e) => e.type === 'enc.st' && e.key === 'chain' && e.n > 0);
+    const chain = chained ? streak + 1 : 0;
+    const flight = cmd.c === 'card' ? waveHand(cmd.slot) : 0;
+    window.setTimeout(() => {
+      heldView = null;
+      staged = fold(mine, pre);
+      react(mine);
+      // 計器は、こちらの一手が何であれ札といっしょに沈む（削ったときだけ連鎖の深さで）。
+      kick(mine.some((e) => e.type === 'foe' && e.n < 0) ? chain : 0, 1);
+      const done = () => {
+        staged = null;
+        busy = false;
+        settle();
+      };
+      // 一斉の跳ねは描き直したあとの札に（描き直すと動きが消えるので）。
+      if (!theirs.length) {
+        done();
+        allHop();
+        return;
+      }
+      render();
+      allHop();
+      window.setTimeout(() => {
+        staged = null;
+        react(theirs);
+        if (
+          theirs.some(
+            (e) => e.type === 'vital' && e.who === 'you' && ((e.hp ?? 0) < 0 || (e.mind ?? 0) < 0),
+          )
+        )
+          kick(0, -1);
+        done();
+      }, 480);
+    }, flight || 140);
+  }
+
+  const handCards = () => [...tray.querySelectorAll<HTMLElement>('.dig-hand > .dig-card')];
+  const hop = (el: HTMLElement, lift: number, ms: number, delay = 0) =>
+    el.animate(
+      [
+        { transform: 'translateY(0)', easing: 'cubic-bezier(.2,.8,.3,1)' },
+        { transform: `translateY(${-lift}px)`, offset: 0.45, easing: 'cubic-bezier(.7,0,1,.6)' },
+        { transform: 'translateY(0)' },
+      ],
+      // 足し合わせる（身を乗り出している札は、乗り出したところから跳ねる）。
+      { duration: ms, delay, composite: 'add' },
+    );
+
+  /**
+   * 札を打つ。打った札から両隣へ、手札が一枚ずつ少しだけ（4px）跳ねて波になる。
+   * 波が端まで届いたところが当たり（当たりの瞬間の一斉の跳ねは allHop）。
+   * 当たるまでのミリ秒を返す。
+   */
+  function waveHand(slot: number): number {
+    const cards = handCards();
+    if (!cards.length) return 0;
+    const step = 40;
+    const ms = 140;
+    let far = 0;
+    cards.forEach((el, i) => {
+      const d = Math.abs(i - slot);
+      far = Math.max(far, d);
+      hop(el, 4, ms, d * step);
+    });
+    return far * step + ms;
+  }
+
+  /** 当たりの瞬間、手札が全部いっしょに少しだけ跳ねる。 */
+  function allHop(): void {
+    if (still()) return;
+    for (const el of handCards()) hop(el, 8, 180);
+  }
+
+  /**
+   * 計器ごと揺らす（一度だけ、全部いっしょに）。dir 1 はこちらの一撃の衝撃で
+   * 沈む（連鎖が続くほど深く、それでも 3px まで）。-1 は受けた一撃で横にずれる。
+   */
+  let kickTimer = 0;
+  function kick(chain: number, dir: 1 | -1): void {
+    if (still()) return;
+    const k = 1 + Math.min(chain, 2);
+    app.style.setProperty('--kick-x', dir > 0 ? '0px' : '-2px');
+    app.style.setProperty('--kick-y', dir > 0 ? `${k}px` : '0px');
+    app.classList.remove('is-kick');
+    void app.offsetWidth;
+    app.classList.add('is-kick');
+    window.clearTimeout(kickTimer);
+    kickTimer = window.setTimeout(() => app.classList.remove('is-kick'), 600);
   }
 
   function react(evs: readonly Ev[]): void {
@@ -877,7 +1007,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         render();
       }
       // 止め（ヒットストップ）のあいだは、絵を描き替えない。
-      if (now() >= freezeUntil) tower.draw(towerView(w), now(), dt);
+      if (now() >= freezeUntil) tower.draw(heldView ?? towerView(staged ?? w), now(), dt);
       idle(w);
     }
     raf = requestAnimationFrame(frame);
@@ -1033,7 +1163,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     bar.replaceChildren();
     const items: Child[] = [h('span', { class: 'dig-logo' }, 'DIG')];
     if (game && screen === 'play') {
-      const w = game.world;
+      const w = staged ?? game.world;
       const s = stats(w, 'you');
       const row = nodeOf(w, w.pos)?.row ?? -1;
       const hard = youHardness(w);
@@ -1129,8 +1259,9 @@ export function openDig(doc: Document, onClose: () => void): void {
   function renderSide(): void {
     side.replaceChildren();
     if (!game) return;
-    renderPanel(game.world);
-    const goals = goalsPanel(game.world);
+    const sw = staged ?? game.world;
+    renderPanel(sw);
+    const goals = goalsPanel(sw);
     if (goals) fill(side, [goals]);
     // 出来事の記録は、どの画面でも同じ場所に畳んでおく（開けば読める）。
     if (log.length)
@@ -2300,7 +2431,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   function renderTray(): void {
     tray.replaceChildren();
     if (!game || screen !== 'play') return;
-    const w = game.world;
+    const w = staged ?? game.world;
     const builds = buildsOf(w.you);
     const slots = w.you.cards.map((c, slot) => {
       const onClick = () => clickSlot(w, slot);
@@ -2327,11 +2458,16 @@ export function openDig(doc: Document, onClose: () => void): void {
       const spent = c.uses <= 0;
       const ls = legendState(w.you, c.id);
       const ch = ls?.legend.chapters[ls.chapter];
+      // 続ければ連鎖になる札は、手の中で少しだけ身を乗り出す（字は出さない）。
+      const leans =
+        w.enc?.phase === 'act' &&
+        w.enc.who === 'you' &&
+        bonusOf(w, c).parts.some((p) => p.text.startsWith('連鎖'));
       return h(
         'button',
         {
           type: 'button',
-          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}`,
+          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}${leans ? ' is-lean' : ''}`,
           onclick: onClick,
           ...drop,
           onmouseenter: () => {
