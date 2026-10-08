@@ -2,6 +2,7 @@ import { allBuilds } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import { tierOf } from '../content/surges';
 import { branch } from '../core/branch';
+import type { Cmd } from '../core/events';
 import type { Card, Char, World } from '../core/model';
 import { ARCH_NAME } from '../core/tags';
 import { decide } from '../sim/decide';
@@ -99,11 +100,16 @@ const effects = new Map<string, CardEffect>();
  * 同じ局面と枠の結果は覚えておく。
  */
 export function cardEffect(w: World, slot: number): CardEffect {
-  const key = `${w.seed}:${w.seq}:${slot}`;
+  return effectOf(w, { c: 'card', slot });
+}
+
+/** 札でも素手でも：その手を、いま打ったらどうなるか（相手の番の前まで）。 */
+export function effectOf(w: World, cmd: Cmd): CardEffect {
+  const key = `${w.seed}:${w.seq}:${JSON.stringify(cmd)}`;
   const hit = effects.get(key);
   if (hit) return hit;
   const out: CardEffect = { hp: 0, resolve: 0, trust: 0, clues: 0 };
-  const evs = decide(branch(w), { c: 'card', slot }, { sim: true });
+  const evs = decide(branch(w), cmd, { sim: true });
   for (const ev of evs) {
     if (ev.type === 'turn') break;
     if (ev.type === 'foe') {

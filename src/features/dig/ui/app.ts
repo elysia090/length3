@@ -50,7 +50,15 @@ import {
 import { BADGE_NAME, badgesOf } from './badges';
 import { button, type Child, fill, h, meter } from './dom';
 import { HINTS, nextHint } from './hints';
-import { bestSlot, cardEffect, delta, say as sayDelta, withCard, withEpithet } from './preview';
+import {
+  bestSlot,
+  cardEffect,
+  delta,
+  effectOf,
+  say as sayDelta,
+  withCard,
+  withEpithet,
+} from './preview';
 import { loadProfile, loadRun, type Profile, saveProfile, saveRun } from './save';
 import { DigSound } from './sound';
 import type { TurnLine } from './state';
@@ -89,6 +97,15 @@ const KIND_NAME: Record<MapNode['kind'], string> = {
   rest: '食堂',
   shop: '古物商',
   boss: '最後の相手',
+};
+
+/** 素手の手が何をするか（触れると出る。効き目は四つの道にも映る）。 */
+const BASIC_GLOSS: Record<Basic, string> = {
+  press: '相手の体力を少し削る（信頼は 1 下がる）',
+  brace: '守りと心の構えを得る（次の一撃と脅しを受け止める）',
+  talk: '相手の信頼を少し得る',
+  leave: 'この遭遇から抜ける（うまくいけば）',
+  accept: '相手の申し出を受ける',
 };
 
 const BASIC_NAME: Record<Basic, string> = {
@@ -130,6 +147,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   let opened: number | null = null;
   /** 遭遇中に触れている札（相手の四つの道に、効き目を先に映す）。 */
   let hoverSlot: number | null = null;
+  /** 触れている素手の手（札と同じく、四つの道に先に映す）。 */
+  let hoverAct: Basic | null = null;
   /** 触れている選択肢（押す前に、相手になれる札を白く見せる）。 */
   let hoverAim: typeof aim = null;
   /** 最後に体か心が戻った時刻（上の帯の計器を、少しのあいだ緑に）。 */
@@ -233,6 +252,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (cmd.c === 'card' || cmd.c === 'act') lastTurn = summarize(cmd, evs, before);
     else if (cmd.c === 'move' || cmd.c === 'close') lastTurn = [];
     hoverSlot = null;
+    hoverAct = null;
     if (!evs.length) {
       sound.fail();
       return false;
@@ -1010,14 +1030,19 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-row' },
-          button('一服', () => send({ c: 'breather' }), {
+          act('一服', '全ての札の回数 +1・1 時間（この階で一度）', () => send({ c: 'breather' }), {
             disabled: breathed(w),
             title: '少しだけ体と心が戻る。夜明けが 1 時間近づく。',
           }),
           w.you.items.map((id, i) =>
-            button(itemDef(id)?.name ?? id, () => send({ c: 'item', index: i }), {
-              title: itemDef(id)?.text,
-            }),
+            act(
+              itemDef(id)?.name ?? id,
+              itemDef(id)?.text ?? '',
+              () => send({ c: 'item', index: i }),
+              {
+                title: itemDef(id)?.text,
+              },
+            ),
           ),
         ),
       ),
@@ -1054,6 +1079,21 @@ export function openDig(doc: Document, onClose: () => void): void {
   function heals(text: string): Child[] {
     const parts = text.split(/((?:体力|精神) \+[0-9A-Za-z+.×]+)/);
     return parts.map((p, i) => (i % 2 ? h('span', { class: 'dig-heal' }, p) : p));
+  }
+
+  /** 名前と、押すと何が起きるか（一行）の二段の釦。結果が読める選択肢はこれでそろえる。 */
+  function act(
+    name: string,
+    effect: string,
+    on: () => void,
+    attrs: Record<string, string | boolean | undefined | ((ev: Event) => void)> = {},
+  ): HTMLButtonElement {
+    return h(
+      'button',
+      { type: 'button', ...attrs, class: `dig-act ${attrs.class ?? ''}`.trim(), onclick: on },
+      h('span', { class: 'dig-act__name' }, name),
+      effect ? h('span', { class: 'dig-act__fx' }, ...heals(effect)) : null,
+    );
   }
 
   /** その道の最初の一歩（行き方と、そこにいる人・ある物）。 */
@@ -1133,9 +1173,13 @@ export function openDig(doc: Document, onClose: () => void): void {
     const shown = f.clues.filter((c) => c.shown && !c.false).length;
     // 触れている札の効き目（相手の番の前まで）。四つの道の棒の先に、点滅で映す。
     const eff =
-      hoverSlot !== null && e.phase === 'act' && w.you.cards[hoverSlot]
-        ? cardEffect(w, hoverSlot)
-        : null;
+      e.phase !== 'act'
+        ? null
+        : hoverSlot !== null && w.you.cards[hoverSlot]
+          ? cardEffect(w, hoverSlot)
+          : hoverAct
+            ? effectOf(w, { c: 'act', a: hoverAct })
+            : null;
     // 四つの決着の道。どれか一つを尽くせば終わる（これが遭遇の目当て）。
     const way = (verb: string, el: HTMLElement) =>
       h('div', { class: 'dig-way' }, h('span', { class: 'dig-way__verb' }, verb), el);
@@ -1229,7 +1273,20 @@ export function openDig(doc: Document, onClose: () => void): void {
             button(
               `${BASIC_NAME[a]}${a === 'leave' ? ` ${lc}%` : ''}`,
               () => send({ c: 'act', a }),
-              { class: 'dig-bare__act', title: `${'QWERT'[i]}` },
+              {
+                class: 'dig-bare__act',
+                title: `${BASIC_GLOSS[a]}（${'QWERT'[i]}）`,
+                onmouseenter: () => {
+                  if (hoverAct === a) return;
+                  hoverAct = a;
+                  renderSide();
+                },
+                onmouseleave: () => {
+                  if (hoverAct !== a) return;
+                  hoverAct = null;
+                  renderSide();
+                },
+              },
             ),
           ),
         ),
@@ -1402,20 +1459,30 @@ export function openDig(doc: Document, onClose: () => void): void {
     const kids: (Child | readonly Child[])[] = [];
     if (!p.used)
       kids.push(
-        button('休む（全カード +1・1 時間）', () => send({ c: 'rest', action: 'rest' })),
-        button(
-          'ひと晩ここで（一枚を満たす・2 時間・次の出来事を逃す）',
+        act(
+          '休む',
+          `体力 +${Math.round(PACE.rest * 100)}%・精神 +${Math.round(PACE.rest * 100)}%・全ての札の回数 +1・1 時間`,
+          () => send({ c: 'rest', action: 'rest' }),
+        ),
+        act(
+          'ひと晩ここで',
+          '体力 +60%・精神 +60%・選んだ一枚の回数が満ちる・2 時間・次の出来事を逃す',
           () => choose({ kind: 'rest', action: 'full' }),
           chosen({ kind: 'rest', action: 'full' }),
         ),
-        button(`考えを整える（INT ${restChance(w, 'tune-int')}%）`, () =>
-          send({ c: 'rest', action: 'tune-int' }),
+        act(
+          `考えを整える（INT ${restChance(w, 'tune-int')}%）`,
+          '成功：［視線・公開情報・私的情報］の札の回数 +1／失敗：精神 −3',
+          () => send({ c: 'rest', action: 'tune-int' }),
         ),
-        button(`気を落ち着ける（WIL ${restChance(w, 'tune-wil')}%）`, () =>
-          send({ c: 'rest', action: 'tune-wil' }),
+        act(
+          `気を落ち着ける（WIL ${restChance(w, 'tune-wil')}%）`,
+          '成功：［記憶・信頼・身体］の札の回数 +1／失敗：精神 −3',
+          () => send({ c: 'rest', action: 'tune-wil' }),
         ),
-        button(
-          '一枚捨てて、残りを満たす',
+        act(
+          '一枚捨てる',
+          '選んだ一枚を手放し、残りの札の回数がすべて満ちる',
           () => choose({ kind: 'rest', action: 'discard' }),
           chosen({ kind: 'rest', action: 'discard' }),
         ),
@@ -1465,13 +1532,11 @@ export function openDig(doc: Document, onClose: () => void): void {
       const it = ep ? undefined : itemDef(id);
       const price = ep ? epPrice(w, id.slice(3)) : priceOf(w, it?.price ?? 99);
       kids.push(
-        button(
+        act(
           `${ep ? `エピテット《${ep.name}》` : it?.name}　金 ${price}${sold ? '（売約）' : ''}`,
+          ep ? `札に貼ると：${ep.card?.text ?? ep.gloss}` : (it?.text ?? ''),
           () => send({ c: 'buy', id }),
-          {
-            disabled: sold || w.you.coins < price,
-            title: ep ? `${ep.gloss} ${ep.card?.text ?? ''}` : it?.text,
-          },
+          { disabled: sold || w.you.coins < price },
         ),
       );
     }

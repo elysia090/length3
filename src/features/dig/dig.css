@@ -1054,3 +1054,29 @@
   color: var(--amber-text);
   font-weight: 700;
 }
+
+/* 名前と、押すと何が起きるかの二段の釦（その場で・食堂の判定・古物商の品）。 */
+.dig .dig-act {
+  display: inline-grid;
+  gap: 0.125rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.625rem;
+  text-align: left;
+}
+
+.dig-act__name {
+  font-weight: 700;
+}
+
+.dig-act__fx {
+  font-size: var(--font-ui-xs);
+  color: var(--ink-2);
+}
+
+.dig .dig-act:hover:not(:disabled) .dig-act__fx {
+  color: inherit;
+}
+
+.dig-side .dig-row .dig-act {
+  max-width: 100%;
+}
