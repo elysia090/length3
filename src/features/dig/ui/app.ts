@@ -1,9 +1,10 @@
 import { PACE } from '../content/balance';
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
 import { IDLE, POSTURE, VITALS } from '../content/flavor';
-import { SECTIONS, useOf } from '../content/floors';
+import { sectionNo, sectionOf, useOf } from '../content/floors';
 import type { Fx } from '../content/fx';
 import { fxText } from '../content/fx';
+import { lawsAt } from '../content/laws';
 import { legendState } from '../content/legends';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
 import {
@@ -61,8 +62,8 @@ import {
   ROWS,
   reachable,
   restChance,
-  STRATUM_NAME,
   storyChance,
+  stratumName,
 } from '../sim/run';
 import { BADGE_NAME, badgesOf } from './badges';
 import { button, type Child, fill, h, meter } from './dom';
@@ -119,7 +120,7 @@ const KIND_NAME: Record<MapNode['kind'], string> = {
 /** 素手の手が何をするか（触れると出る。効き目は四つの道にも映る）。 */
 const BASIC_GLOSS: Record<Basic, string> = {
   press: '相手の体力を少し削る（信頼は 1 下がる）',
-  brace: '守りと心の構えを得る（次の一撃と脅しを受け止める）',
+  brace: '守りと構えを得る（次の一撃と脅しを受け止める）',
   talk: '相手の信頼を少し得る',
   leave: 'この遭遇から抜ける（うまくいけば）',
   accept: '相手の申し出を受ける',
@@ -147,7 +148,7 @@ const placeOf = (w: World, n: MapNode | undefined): Child[] =>
         h('b', {}, `B${floorNo(w, n.row)}`),
         `・${useOf(w.stratum, n.use)?.name ?? KIND_NAME[n.kind]}`,
       ]
-    : [h('b', {}, `B${floorNo(w, 0)}`), `・${STRATUM_NAME[w.stratum] ?? ''}の上`];
+    : [h('b', {}, `B${floorNo(w, 0)}`), `・${stratumName(w.stratum)}の上`];
 /** 体と心の割合を、言葉の目盛り（満ちている・擦れている・傷んでいる・尽きかけ）に。 */
 const band = (r: number): 0 | 1 | 2 | 3 => (r >= 0.75 ? 0 : r >= 0.45 ? 1 : r >= 0.2 ? 2 : 3);
 const titled = (el: HTMLElement, text: string): HTMLElement => {
@@ -876,7 +877,9 @@ export function openDig(doc: Document, onClose: () => void): void {
     idleAt = t;
     const use = nodeOf(w, w.pos)?.use;
     const pool = IDLE.filter(
-      (x) => (!x.section || x.section === w.stratum) && (!x.use || (!!use && x.use.includes(use))),
+      (x) =>
+        (!x.section || x.section === sectionNo(w.stratum)) &&
+        (!x.use || (!!use && x.use.includes(use))),
     );
     const text = pool[Math.floor(Math.random() * pool.length)]?.text;
     if (text) showCaption(text);
@@ -930,7 +933,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   function way(w: World, n: MapNode): { name: string; verb: string; hours: number } {
     const place = n.eps.reduce((a, e) => a + (epithetDef(e)?.place?.time ?? 0), 0);
     if (w.pos !== null && isBridge(w, n)) {
-      const to = n.tower ? (SECTIONS[w.stratum]?.wing.name ?? '隣の塔') : '本棟';
+      const to = n.tower ? sectionOf(w.stratum).wing.name : '本棟';
       return { name: '渡り廊下', verb: `渡り廊下で${to}へ`, hours: Math.max(0, 2 + place) };
     }
     if (isHall(w, n)) return { name: '廊下', verb: '廊下を歩く', hours: Math.max(0, 1 + place) };
@@ -1129,6 +1132,10 @@ export function openDig(doc: Document, onClose: () => void): void {
       fill(side, [restPanel(w)]);
       return;
     }
+    if (p?.kind === 'summit') {
+      fill(side, [summitPanel(w)]);
+      return;
+    }
     if (p?.kind === 'shop') {
       fill(side, [shopPanel(w)]);
       return;
@@ -1191,7 +1198,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         ? h(
             'p',
             { class: 'dig-quiet' },
-            `${SECTIONS[w.stratum]?.wing.name ?? '隣の塔'}の部屋。本棟では会わない顔と、珍しい棚。`,
+            `${sectionOf(w.stratum).wing.name}の部屋。本棟では会わない顔と、珍しい棚。`,
           )
         : null,
       h('p', { class: 'dig-quiet' }, `${way(w, n).name}で ${way(w, n).hours} 時間`),
@@ -1344,8 +1351,16 @@ export function openDig(doc: Document, onClose: () => void): void {
           { class: 'dig-row' },
           act('一服', '全ての札の回数 +1・1 時間（この階で一度）', () => send({ c: 'breather' }), {
             disabled: breathed(w),
-            title: '少しだけ体と心が戻る。夜明けが 1 時間近づく。',
+            title: '少しだけ体と心が戻る。1 時間たつ。',
           }),
+          // 抜けたあとは、いつでもここで灯りを置ける（どこまで下りたかを持ち帰る）。
+          w.flags.cleared
+            ? act(
+                '灯りを置く',
+                `B${floorNo(w, Math.max(0, nodeOf(w, w.pos)?.row ?? 0))}までを持ち帰る`,
+                () => send({ c: 'onward', go: false }),
+              )
+            : null,
           w.you.items.map((id, i) =>
             act(
               itemDef(id)?.name ?? id,
@@ -1496,6 +1511,38 @@ export function openDig(doc: Document, onClose: () => void): void {
     );
   }
 
+  /**
+   * 底の手前を抜けた。ここが挑戦の山場：抜けたことはもう決まっていて、あとは
+   * 灯りを置くか、構成がどこまで持つか、さらに下りて確かめるか。
+   */
+  function summitPanel(w: World): HTMLElement {
+    const p = w.pending;
+    if (p?.kind !== 'summit') return h('div');
+    const next = w.stratum + 1;
+    const deep = w.stratum > 3;
+    return h(
+      'div',
+      { class: 'dig-summit' },
+      h(
+        'div',
+        { class: 'dig-result' },
+        h('b', { class: 'dig-result__stamp is-in' }, deep ? `B${floorNo(w, 8)}` : '抜けた'),
+        h('span', { class: 'dig-result__who' }, OUTCOME_NAME[p.outcome]),
+      ),
+      act(
+        '灯りを置く',
+        deep ? 'ここまでを持ち帰る' : '挑戦を終える',
+        () => send({ c: 'onward', go: false }),
+        {
+          class: 'dig-go',
+        },
+      ),
+      act('さらに下りる', `${stratumName(next)}・掟は重なり、相手は一段手強い`, () =>
+        send({ c: 'onward', go: true }),
+      ),
+    );
+  }
+
   /** その道の最初の一歩（行き方と、そこにいる人・ある物）。 */
   function stepLabel(w: World, id: number): string {
     const n = nodeOf(w, id);
@@ -1552,7 +1599,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         if (ev.hp) side.push(`体力 ${sign(ev.hp)}`);
         if (ev.mind) side.push(`精神 ${sign(ev.mind)}`);
       } else if (ev.type === 'enc.you' && ev.n > 0)
-        side.push(`${ev.field === 'guard' ? '守り' : '心の構え'} +${ev.n}`);
+        side.push(`${ev.field === 'guard' ? '守り' : '構え'} +${ev.n}`);
     }
     if (chained) what += chained >= 2 ? `　連鎖 ${chained}` : '　連鎖';
     const out: TurnLine[] = [{ who: 'you', what: what || '……', effects: mine }];
@@ -1651,6 +1698,10 @@ export function openDig(doc: Document, onClose: () => void): void {
         f.hostility >= 7 ? h('span', { class: 'dig-warn' }, '荒れている') : '',
         e.stage.length ? `${f.hostility >= 7 ? '・' : ''}見せ場` : '',
         f.eps.length ? `・${f.eps.map((x) => `《${epithetDef(x)?.name ?? x}》`).join('')}` : '',
+        // 区画の掟（名前だけ。中身は触れると）。
+        lawsAt(w.stratum).map((l) =>
+          h('span', { class: 'dig-law', title: l.text }, `掟《${l.name}》`),
+        ),
       ),
     ];
     if (e.phase === 'over' && e.outcome) {
@@ -2222,7 +2273,7 @@ export function openDig(doc: Document, onClose: () => void): void {
             ? h(
                 'span',
                 { class: 'dig-pills__group' },
-                h('span', { class: 'dig-pills__label' }, 'ビルド'),
+                h('span', { class: 'dig-pills__label' }, '構成'),
                 buildLine,
               )
             : null,
@@ -2436,7 +2487,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'p',
           { class: 'dig-quiet' },
-          '底の見えない建物を、フロアごとに下りる。夜明けまでに最後の相手まで。初めのカードは 3 枚、枠は 2 つ空いている。',
+          '底の見えない建物を、フロアごとに下りる。三つ目の区画の底を抜ければ、ひとまず抜けた。その先は、構成が持つところまで。初めのカードは 3 枚、枠は 2 つ空いている。',
         ),
         saved
           ? button(

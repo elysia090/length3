@@ -57,7 +57,7 @@ export function stats(w: World, who: Who): StatBlock {
 
 export const statOf = (w: World, who: Who, s: Stat) => stats(w, who)[s];
 export const maxHp = (s: StatBlock) => 16 + 4 * s.VIT;
-export const maxMind = (s: StatBlock) => 8 + 3 * s.WIL;
+export const maxMind = (s: StatBlock) => 12 + 3 * s.WIL;
 
 /** 持っているタグ（ACTIVE の 5 枚とエピテット、PERMANENT）。 */
 export const tagsOf = (c: Char): TagCount => tagCount(c);

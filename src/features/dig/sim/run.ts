@@ -3,8 +3,18 @@ import { DATA_VERSION, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { CardDef } from '../content/defs';
 import { ARRIVE, AUTO } from '../content/flavor';
-import { BEATS, type FloorUse, SECTIONS, useOf } from '../content/floors';
+import {
+  BEATS,
+  type FloorUse,
+  LAST,
+  SECTIONS,
+  sectionName,
+  sectionNo,
+  sectionOf,
+  useOf,
+} from '../content/floors';
 import { holds } from '../content/fx';
+import { LAWS, lawsAt } from '../content/laws';
 import { LEGENDS } from '../content/legends';
 import {
   defaultSheet,
@@ -64,7 +74,8 @@ import { charOf, coins, gainPerm, losePerm, maxHp, maxMind, refill, stats, xp } 
 
 export const ROWS = PACE.rows;
 export const DAWN = PACE.dawn;
-export const STRATUM_NAME = ['', ...[1, 2, 3].map((n) => SECTIONS[n]?.name ?? '')];
+/** 区画の呼び名（三つ目より下は「深い」「底の」）。 */
+export const stratumName = sectionName;
 
 // ─── 人物を作る ───────────────────────────────────────────────
 
@@ -125,7 +136,7 @@ function statsOfChar(c: Char) {
 // ─── 地図 ─────────────────────────────────────────────────────
 
 function buildMap(tx: Tx, stratum: number): void {
-  const sec = SECTIONS[stratum] ?? SECTIONS[1];
+  const sec = sectionOf(stratum);
   if (!sec) return;
   const rows: MapNode[][] = [];
   const nodes: MapNode[] = [];
@@ -507,7 +518,7 @@ function rivalStep(tx: Tx): void {
     tx.emit({ type: 'node', id: target.id, rival: 'passed' });
   } else tx.emit({ type: 'node', id: target.id, rival: 'passed' });
   if (target.kind === 'boss') {
-    if (rv.stratum >= 3) {
+    if (rv.stratum >= LAST) {
       tx.emit({ type: 'rival', down: true, first: !w.ending });
       if (!w.ending)
         tx.emit({ type: 'note', text: `${ch.name}の灯りが、先に底のほうへ消えた。`, level: 2 });
@@ -638,7 +649,7 @@ export function move(tx: Tx, id: number): boolean {
     tx.emit({
       type: 'note',
       text: node.tower
-        ? `渡り廊下で、${SECTIONS[w.stratum]?.wing.name ?? '隣の塔'}へ。${use?.line ?? ''}`
+        ? `渡り廊下で、${sectionOf(w.stratum).wing.name}へ。${use?.line ?? ''}`
         : '渡り廊下を戻って、本棟へ。',
       level: 1,
     });
@@ -681,6 +692,8 @@ export function move(tx: Tx, id: number): boolean {
     !rv.down &&
     rv.stratum === w.stratum &&
     rv.row === node.row &&
+    // 夜の街（最初の区画）では見かけるだけで、鉢合わせない（基本を覚える区画）。
+    w.stratum >= 2 &&
     node.row >= PACE.rivalFrom &&
     (w.flags[`met${w.stratum}`] ?? 0) === 0 &&
     node.kind !== 'boss'
@@ -711,7 +724,7 @@ function happen(tx: Tx, node: MapNode): void {
   if (tx.rand('flavor') >= PACE.auto) return;
   const pool = AUTO.filter(
     (a) =>
-      (!a.section || a.section === w.stratum) &&
+      (!a.section || a.section === sectionNo(w.stratum)) &&
       (!a.use || (node.use !== undefined && a.use.includes(node.use))) &&
       !w.flags[`auto:${a.id}`],
   );
@@ -736,6 +749,18 @@ function happen(tx: Tx, node: MapNode): void {
 
 function enter(tx: Tx, node: MapNode, from: number | null = null): void {
   const w = tx.w;
+  // 最後の相手の扉の前で、一度だけ息を整える（体も心も、六割までは戻る）。
+  // 弱ったまま試験に入って、何もできずに崩れることがないように。
+  if (node.kind === 'boss' && !w.flags[`gate:${w.stratum}`]) {
+    tx.emit({ type: 'flag', key: `gate:${w.stratum}`, v: 1 });
+    const s = stats(w, 'you');
+    const dh = Math.max(0, Math.round(maxHp(s) * PACE.gate) - w.you.hp);
+    const dm = Math.max(0, Math.round(maxMind(s) * PACE.gate) - w.you.mind);
+    if (dh || dm) {
+      tx.emit({ type: 'vital', who: 'you', hp: dh, mind: dm });
+      tx.emit({ type: 'note', text: '扉の前で、息を整えた。', level: 1 });
+    }
+  }
   if (node.npc) {
     if (node.eps.some((e) => epithetDef(e)?.place?.empty) && node.kind !== 'boss') {
       tx.emit({ type: 'note', text: 'そこには、誰もいなかった。', level: 1 });
@@ -918,6 +943,11 @@ export function close(tx: Tx): boolean {
     tx.emit({ type: 'moved', node: p.back ?? null });
     passTime(tx, 1);
     tx.emit({ type: 'note', text: `退いた。${e.foe.name}は、あなたを覚えている。`, level: 2 });
+    tx.emit({
+      type: 'flag',
+      key: `retreat:${w.stratum}`,
+      v: (w.flags[`retreat:${w.stratum}`] ?? 0) + 1,
+    });
     return true;
   }
   const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];
@@ -1009,9 +1039,14 @@ export function claim(tx: Tx, take?: string, help?: number, card?: string, slot?
   }
   tx.emit({ type: 'pending', p: null });
   if (p.boss) {
-    if (w.stratum >= 3) {
+    if (w.stratum >= LAST) {
+      // 底の手前を抜けた。抜けたことは、ここで決まる（この先で倒れても消えない）。
       crown(tx);
-      finale(tx, p.outcome);
+      if (!w.flags.cleared) {
+        tx.emit({ type: 'flag', key: 'cleared', v: CLEAR_CODE[p.outcome] ?? 1 });
+        tx.emit({ type: 'note', text: `抜けた ── ${CLEAR_TITLE[p.outcome] ?? ''}`, level: 3 });
+      }
+      tx.emit({ type: 'pending', p: { kind: 'summit', outcome: p.outcome } });
     } else descend(tx);
   } else if (p.resume !== undefined) {
     const node = nodeOf(w, p.resume);
@@ -1039,9 +1074,45 @@ function crown(tx: Tx): void {
     if (f.id !== 'rival') tx.emit({ type: 'mind', npc: f.id, d: { heard: 1, ...t.mind } });
 }
 
+/** 抜けたときの結末（数で旗に残す）。 */
+const CLEAR_CODE: Partial<Record<Outcome, number>> = {
+  beaten: 1,
+  broken: 2,
+  trusted: 3,
+  uncovered: 4,
+};
+const CLEAR_OF: Record<number, Outcome> = {
+  1: 'beaten',
+  2: 'broken',
+  3: 'trusted',
+  4: 'uncovered',
+};
+const CLEAR_TITLE: Partial<Record<Outcome, string>> = {
+  beaten: '砕いた',
+  broken: '黙らせた',
+  trusted: '受け入れた',
+  uncovered: '掘り当てた',
+};
+
+/** 抜けたあと：さらに下りるか、ここで灯りを置くか。 */
+export function onward(tx: Tx, go: boolean): boolean {
+  const w = tx.w;
+  const p = w.pending;
+  // 抜けたあとは、地図の上ならいつでも灯りを置ける（壁に当たったら、そこまで）。
+  if (!p && !go && w.flags.cleared && !w.enc && !w.ending) {
+    finale(tx, CLEAR_OF[w.flags.cleared] ?? 'trusted');
+    return true;
+  }
+  if (p?.kind !== 'summit') return false;
+  tx.emit({ type: 'pending', p: null });
+  if (go) descend(tx);
+  else finale(tx, CLEAR_OF[tx.w.flags.cleared ?? 0] ?? p.outcome);
+  return true;
+}
+
 function descend(tx: Tx): void {
   const w = tx.w;
-  crown(tx);
+  if (w.stratum < LAST) crown(tx);
   const next = w.stratum + 1;
   buildMap(tx, next);
   tx.emit({ type: 'time', hours: -w.hour + (w.you.perms.includes('shaft-key') ? -1 : 0) });
@@ -1054,11 +1125,26 @@ function descend(tx: Tx): void {
   });
   if (w.rival.stratum < next && !w.rival.down)
     tx.emit({ type: 'rival', stratum: next, row: -2, node: null });
+  const sec = sectionOf(next);
   tx.emit({
     type: 'note',
-    text: `B${(next - 1) * (ROWS + 1) + 1}。${SECTIONS[next]?.open ?? ''}`,
+    text:
+      next <= LAST
+        ? `B${(next - 1) * (ROWS + 1) + 1}。${sec.open}`
+        : `B${(next - 1) * (ROWS + 1) + 1}。${sectionName(next)}。上で見たはずの${sec.name}が、もう一度ある。人も、店も。灯りの色だけが違う。`,
     level: 2,
   });
+  // 新しい掟は、着いたときに一度だけ（名場面の帯に）。
+  const law = LAWS[next];
+  if (law) tx.emit({ type: 'note', text: `掟《${law.name}》 ── ${law.text}`, level: 3 });
+  else if (next > LAST)
+    tx.emit({
+      type: 'note',
+      text: `掟は重なったまま ── ${lawsAt(next)
+        .map((l) => `《${l.name}》`)
+        .join('')}。相手は、もう一段手強い。`,
+      level: 3,
+    });
 }
 
 // ─── 出来事 ───────────────────────────────────────────────────
@@ -1381,6 +1467,10 @@ export function sync(tx: Tx): void {
 
 // ─── 終わり ───────────────────────────────────────────────────
 
+/** いまのフロアの番号（B いくつ）。 */
+const floorOf = (w: World): number =>
+  (w.stratum - 1) * (ROWS + 1) + (nodeOf(w, w.pos)?.row ?? 0) + 1;
+
 function score(w: World, won: boolean): number {
   return (
     (w.stratum - 1) * 150 +
@@ -1402,9 +1492,11 @@ function finish(tx: Tx, kind: 'dead' | 'dawn', title: string): void {
       text:
         kind === 'dawn'
           ? '朝になった。建物じゅうの灯りが一斉に落ち、階段の扉が閉まる。あなたの灯りだけが、まだ点いている。'
-          : `${STRATUM_NAME[w.stratum]}の途中で、あなたの灯りが消えた。`,
-      score: score(w, false),
-      won: false,
+          : w.flags.cleared
+            ? `一度は底の手前を抜けた。そのあと${sectionName(w.stratum)}の途中、B${floorOf(w)}で、灯りが消えた。`
+            : `${sectionName(w.stratum)}の途中で、あなたの灯りが消えた。`,
+      score: score(w, !!w.flags.cleared),
+      won: !!w.flags.cleared,
     },
   });
   tx.emit({ type: 'pending', p: { kind: 'ending' } });
@@ -1439,6 +1531,11 @@ function finale(tx: Tx, outcome: Outcome): void {
       break;
   }
   if (w.flags.soldPromise) text += ' 約束は、古物商の棚に置いてきた。';
+  // 抜けたあと、さらに下りてから置いた灯り。
+  if (w.stratum > LAST) {
+    title = `B${floorOf(w)}で置いた`;
+    text += ` そのあと、${sectionName(w.stratum)}まで下りて、B${floorOf(w)}で灯りを置いた。`;
+  }
   if (w.rival.first) text += ` ${w.rival.char.name}の灯りが、あなたより先にここを照らしていた。`;
   const won = outcome !== 'left' && outcome !== 'fled';
   tx.emit({ type: 'ending', ending: { kind: outcome, title, text, score: score(w, won), won } });

@@ -311,9 +311,30 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
   },
 };
 
+/** 底の手前までの区画の数（ここを抜けると、ひとまず抜けたことになる）。 */
+export const LAST = 3;
+
+/**
+ * 区画の中身。三つ目より下は、上の区画がもう一度現れる（もっと古い、同じ夜）。
+ * 人も用途も同じだが、相手は区画の深さのぶん手強く、掟は重なっていく。
+ */
+export function sectionOf(stratum: number): Section {
+  return SECTIONS[sectionNo(stratum)] ?? (SECTIONS[1] as Section);
+}
+
+/** 区画の中身の番号（1〜3。三つ目より下は巡る）。 */
+export const sectionNo = (stratum: number): number => ((((stratum - 1) % LAST) + LAST) % LAST) + 1;
+
+/** 区画の呼び名。三つ目より下は「深い」「底の」を冠する。 */
+export function sectionName(stratum: number): string {
+  const base = sectionOf(stratum).name;
+  if (stratum <= LAST) return base;
+  return `${stratum <= LAST * 2 ? '深い' : '底の'}${base}`;
+}
+
 /** 用途を id から（その区画の中で）。 */
 export function useOf(stratum: number, id: string | undefined): FloorUse | undefined {
-  const s = SECTIONS[stratum];
+  const s = sectionOf(stratum);
   if (!s || !id) return undefined;
   return s.boss.id === id
     ? s.boss

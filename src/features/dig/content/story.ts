@@ -418,7 +418,11 @@ export const STORY_LIST: readonly StoryDef[] = [
           return undefined;
         },
       },
-      { label: '先を急ぐ', ok: '夜明けまで、あと何時間だろう。', effect: () => undefined },
+      {
+        label: '先を急ぐ',
+        ok: '時計を見る。針がどこを指していても、下りるだけだ。',
+        effect: () => undefined,
+      },
     ],
   },
   {

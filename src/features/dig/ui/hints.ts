@@ -57,7 +57,7 @@ export const HINTS: readonly Hint[] = [
   {
     id: 'hall',
     title: '廊下',
-    text: '同じフロアの隣の部屋へは、廊下を歩いて行ける。下りずに 1 時間。出来事と人の両方を取れるが、夜明けが近づく。',
+    text: '同じフロアの隣の部屋へは、廊下を歩いて行ける。下りずに 1 時間。出来事と人の両方を取れる。そのぶん、時計は進む。',
     when: (w) => onMap(w) && lateral(w).length > 0,
   },
   {

@@ -17,6 +17,7 @@ import {
   depart,
   inscribe,
   move,
+  onward,
   rest,
   sacrifice,
   sell,
@@ -94,6 +95,9 @@ export function decide(
       break;
     case 'cure':
       ok = cure(tx, cmd.perm);
+      break;
+    case 'onward':
+      ok = onward(tx, cmd.go);
       break;
     case 'sacrifice':
       ok = sacrifice(tx, cmd.stat, cmd.slot);

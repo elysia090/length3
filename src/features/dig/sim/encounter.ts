@@ -2,6 +2,7 @@ import { PACE, POINTS } from '../content/balance';
 import { cardArch, cardTags } from '../content/cardinfo';
 import type { EpithetCtx } from '../content/defs';
 import type { CardFacet } from '../content/epithets';
+import { LAST } from '../content/floors';
 import { holds, run } from '../content/fx';
 import { allEpithets, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import { buildsOf } from '../content/sources';
@@ -45,7 +46,12 @@ export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
   const def = foeDef(npc);
   const depth = w.depth + late;
   // 夜明けを過ぎた 1 時間ごとに、深さ 2.5 段ぶん荒れる（退屈な道の代償）。
-  const grow = PACE.tough * (1 + 0.1 * w.depth + 0.25 * late + PACE.stratum * (w.stratum - 1));
+  // 底の手前より下は、区画ごとに掛け算で手強くなる（構成がどこまで持つかを試す）。
+  const deep = Math.max(0, w.stratum - LAST);
+  const grow =
+    PACE.tough *
+    (1 + 0.1 * w.depth + 0.25 * late + PACE.stratum * (w.stratum - 1)) *
+    PACE.deep ** deep;
   const f: Foe = {
     id: def.id,
     name: def.name,
@@ -54,10 +60,10 @@ export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
     resolve: Math.round(def.resolve * grow),
     maxResolve: Math.round(def.resolve * grow),
     trust: 0,
-    need: Math.round(def.need * PACE.tough) + w.stratum - 1 + Math.floor(w.depth / 3),
+    need: Math.round(def.need * PACE.tough) + w.stratum - 1 + Math.floor(w.depth / 3) + 2 * deep,
     hostility: def.hostility,
     guard: 0,
-    atk: Math.round(def.atk * (1 + 0.1 * depth) + (w.stratum - 1)),
+    atk: Math.round(def.atk * (1 + 0.1 * depth) + (w.stratum - 1) + 2 * deep),
     def: def.def,
     wil: def.wil,
     int: def.int,

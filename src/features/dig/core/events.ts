@@ -172,4 +172,6 @@ export type Cmd =
   | { c: 'sell'; perm: string }
   | { c: 'cure'; perm: string }
   | { c: 'sacrifice'; stat: Stat; slot: number }
-  | { c: 'depart' };
+  | { c: 'depart' }
+  /** 抜けたあと、さらに下りる（go）か、ここで灯りを置くか。 */
+  | { c: 'onward'; go: boolean };

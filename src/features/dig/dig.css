@@ -1651,3 +1651,17 @@
     animation: none;
   }
 }
+
+/* 区画の掟（遭遇の脇に、名前だけ）。 */
+.dig-law {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  color: var(--ink-2);
+  cursor: help;
+}
+
+/* 抜けたあとの分かれ目。 */
+.dig-summit {
+  display: grid;
+  gap: 8px;
+}

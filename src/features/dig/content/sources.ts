@@ -7,6 +7,7 @@ import { BASE_RULES, BASE_TRIGGERS, DEPTH_RULES } from './base';
 import { archCount, tagCount } from './cardinfo';
 import type { BuildDef, LinkDef, PassiveSpec, TriggerSpec } from './defs';
 import { SPILL_AURA } from './epithets';
+import { lawsAt } from './laws';
 import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './registry';
 import { SURGES, tierOf } from './surges';
 import { titleDef } from './titles';
@@ -122,6 +123,8 @@ function collect(w: World) {
   }
   for (const l of linksOf(c)) add(`link:${l.id}`, l.passive, l.triggers);
   for (const s of archSetsOf(c)) add(`arch:${s.arch}${s.at}`, s.passive, s.triggers);
+  // 区画の掟（上の区画の掟も、下では生きている）。共鳴には数えない。
+  for (const l of lawsAt(w.stratum)) add(`law:${l.id}`, l.passive);
   // 見せ場。合うタグのカードがよく効く（共鳴に数える）。
   for (const t of w.enc?.stage ?? [])
     add(`stage:${t}`, [

@@ -200,7 +200,25 @@
     "原型が相手の原型に答える +3": "Your archetype answers theirs +3",
     "連鎖 +2": "Chain +2",
     "連鎖 +1": "Chain +1",
-    "暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（+2）。": "Eyes made for the dark, and a memory that will not fade. Chains cut especially deep (+2)."
+    "暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（+2）。": "Eyes made for the dark, and a memory that will not fade. Chains cut especially deep (+2).",
+    "構成": "Build",
+    "灯りを置く": "Set down the lamp",
+    "さらに下りる": "Go further down",
+    "抜けた": "Through",
+    "ここまでを持ち帰る": "Take this far home",
+    "挑戦を終える": "End the descent",
+    "扉の前で、息を整えた。": "At the door, you steadied your breath.",
+    "守りと構えを得る（次の一撃と脅しを受け止める）": "Gain guard and composure (absorbs the next blow and threat)",
+    "底の見えない建物を、フロアごとに下りる。三つ目の区画の底を抜ければ、ひとまず抜けた。その先は、構成が持つところまで。初めのカードは 3 枚、枠は 2 つ空いている。": "Descend a bottomless building, floor by floor. Get through the bottom of the third section and you are through, for now. Beyond that, as far as your build holds. You start with 3 cards and 2 empty slots.",
+    "同じフロアの隣の部屋へは、廊下を歩いて行ける。下りずに 1 時間。出来事と人の両方を取れる。そのぶん、時計は進む。": "You can walk the corridor to the next room on the same floor. One hour, without going down. You can take both the event and the person; the clock moves on.",
+    "時計を見る。針がどこを指していても、下りるだけだ。": "You check the clock. Wherever the hands point, you only go down.",
+    "読まれる": "Read",
+    "固まる": "Set",
+    "深み": "Depths",
+    "同じ札を続けると、二度目からは読まれる。": "Play the same card twice in a row and the second is read.",
+    "守りは固まって、手番をまたぐ。そのぶん、相手の一撃も重い。": "Guard sets and carries across turns. Their blows land heavier for it.",
+    "深いほど、秘密は固く、嘘が混じる。": "The deeper, the harder secrets hold, and lies mix in.",
+    "掟《読まれる》 −3": "Law «Read» −3"
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -333,6 +351,15 @@
     "書き留め +{0}": "Noted +{0}",
     "見せ場［{0}］+{1}": "Spotlight [{0}] +{1}",
     "体力 {0}% で着く": "Arrive at {0}% body",
-    "抜ける {0}%": "Get through {0}%"
+    "抜ける {0}%": "Get through {0}%",
+    "掟《{0}》": "Law «{0}»",
+    "掟《{0}》 ── {1}": "Law «{0}» — {1}",
+    "B{0}までを持ち帰る": "Take B{0} home",
+    "B{0}で置いた": "Set down at B{0}",
+    "抜けた ── {0}": "Through — {0}",
+    "深い{0}": "Deep {0}",
+    "底の{0}": "Bottom {0}",
+    "{0}・掟は重なり、相手は一段手強い": "{0} · the laws stack, and they are a step harder",
+    "構え {0}": "Composure {0}"
   }
 }

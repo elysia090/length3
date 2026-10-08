@@ -363,7 +363,7 @@ export function fxText(list: readonly Fx[]): string {
         out.push(`守り ${numText(f[1])}`);
         break;
       case 'calm':
-        out.push(`心の構え ${numText(f[1])}`);
+        out.push(`構え ${numText(f[1])}`);
         break;
       case 'heal': {
         const hp = numText(f[1]);

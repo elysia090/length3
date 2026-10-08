@@ -237,7 +237,9 @@ export type Pending =
   | { kind: 'told'; id: string; ok: boolean; text: string; chance?: number; roll?: number }
   | { kind: 'rest'; used: boolean; altered: boolean }
   | { kind: 'shop'; cards: string[]; items: string[]; sold: string[] }
-  | { kind: 'ending' };
+  | { kind: 'ending' }
+  /** 底の手前を抜けた。ここで灯りを置くか、さらに下りるか。 */
+  | { kind: 'summit'; outcome: Outcome };
 
 export interface Ending {
   kind: 'dead' | 'dawn' | Outcome;
