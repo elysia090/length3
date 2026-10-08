@@ -48,9 +48,14 @@ const NEAR_ZOOM = 1.9;
 const FAR_ZOOM = 1;
 const ENC_ZOOM = 2.4;
 
-/** 人の大きさ（あなたを 1 として）。相手もほとんど同じ。 */
-const PEER = 1.05;
-const PEER_BOSS = 1.25;
+/**
+ * 人の大きさ（あなたを 1 として）。相手は、気づかれないぎりぎりだけ大きい
+ * （一割ほど。見比べなければ同じに見えるが、向き合うと少し圧がある）。
+ * 歯が立たない相手は、もう少しだけ。最後の相手でも 1.2 まで。
+ */
+const PEER = 1.1;
+const PEER_OVER = 1.15;
+const PEER_BOSS = 1.2;
 
 /** 部屋ごとに決まった、奥行きの揺らぎ（-1〜1）。並びが一直線にならないように。 */
 const jitter = (id: number) => ((((id + 1) * 2654435761) >>> 0) % 1000) / 500 - 1;
@@ -752,7 +757,8 @@ export class Tower {
       const far = !this.detailed(room.floor);
       // 地図の上では人を一回り大きく（誰がどこにいるかが、まず目に入るように）。
       // 相手もあなたとほとんど同じ大きさ（最後の相手だけ、わずかに大きい）。
-      const k = (room.kind === 'boss' ? PEER_BOSS : PEER) * zm * this.mapPeople();
+      const k =
+        (room.kind === 'boss' ? PEER_BOSS : room.over ? PEER_OVER : PEER) * zm * this.mapPeople();
       const e = view.enc;
       // 遠いフロアの人は、頭の点だけ（いる、ということだけ分かれば足りる）。
       if (!inEnc && far && room.kind !== 'boss') {
