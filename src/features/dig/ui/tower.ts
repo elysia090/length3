@@ -22,6 +22,32 @@ export const BLUE = 4;
 /** 縦の画素数は固定。横は、置かれた枠の縦横比に合わせて伸び縮みする（枠いっぱいに描く）。 */
 export const H = 240;
 
+/**
+ * 床の形と投影。u は左右（ほとんど水平に、少しだけ右下がり）、v は奥行き
+ * （手前が左下）。床は横に広く、奥行きは浅い板で、上下のフロアが重ならない
+ * 間隔に積む。下のフロアほど間隔も大きさも縮み（遠近）、底は闇に溶ける。
+ */
+const GEO = {
+  /** 床板の半幅と半奥行き。 */
+  U: 3,
+  V: 1.15,
+  /** u・v の 1 単位が画面で何画素動くか。 */
+  ux: 30,
+  uy: 4,
+  vx: -18,
+  vy: 10,
+  /** いま見ているフロアの、次のフロアまでの間隔。 */
+  gap: 64,
+  /** 下へ行くほどの縮み方。 */
+  shrink: 0.24,
+} as const;
+
+/** 地図の寄り（遭遇の寄りは別）。全体を少し大きく見せる。 */
+const MAP_ZOOM = 1.22;
+
+/** 部屋ごとに決まった、奥行きの揺らぎ（-1〜1）。並びが一直線にならないように。 */
+const jitter = (id: number) => ((((id + 1) * 2654435761) >>> 0) % 1000) / 500 - 1;
+
 export type RoomKind = 'person' | 'danger' | 'event' | 'rest' | 'shop' | 'boss';
 
 export interface RoomView {
@@ -121,7 +147,7 @@ export class Tower {
   private palette: Uint32Array;
   private placed: Placed[] = [];
   /** カメラ（フロアの位置と寄り）。なめらかに追う。 */
-  private cam = { floor: -0.5, zoom: 1, x: 0, y: 0 };
+  private cam = { floor: -0.5, zoom: MAP_ZOOM, x: 0, y: 0 };
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d');
@@ -158,31 +184,53 @@ export class Tower {
   // ─── 投影 ───────────────────────────────────────────────────
 
   /**
-   * 隣の塔の中心。u と v を逆向きに同じだけずらすと、画面の上では真横になる
-   * （同じフロアの高さのまま、左右に並ぶ）。
+   * 隣の塔の中心。画面の上で真横になる向き（u を動かした分だけ v を戻して、
+   * 高さが変わらない向き）へ、床一枚と少し離す。
    */
   private static wing(side: number): { u: number; v: number } {
-    return { u: side * 3.05, v: -side * 3.05 };
+    const u = side * (GEO.U * 2 + 1.2);
+    return { u, v: (-u * GEO.uy) / GEO.vy };
   }
 
   /** 部屋の床の上の位置（u は左右、v は奥行き）。 */
   private static spot(r: RoomView): { u: number; v: number } {
     if (r.tower) {
-      // 隣の床の、こちら寄りの端。
+      // 隣の床の、こちら寄りの側。
       const c = Tower.wing(r.tower);
-      return { u: c.u - r.tower * 1.2, v: c.v + r.tower * 0.5 + (r.floor % 2 ? 0.12 : -0.12) };
+      return { u: c.u - r.tower * (GEO.U - 0.9), v: c.v + jitter(r.id) * 0.35 };
     }
-    const span = r.cols <= 1 ? 0 : 2.6 / (r.cols - 1);
-    const u = r.cols <= 1 ? 0 : -1.3 + r.col * span;
-    const v = r.kind === 'boss' ? 0 : (r.col + r.floor) % 2 ? 0.28 : -0.28;
-    return { u, v };
+    if (r.kind === 'boss') return { u: 0, v: 0 };
+    const reach = GEO.U - 0.7;
+    const u = r.cols <= 1 ? 0 : -reach + (r.col * 2 * reach) / (r.cols - 1);
+    return { u, v: jitter(r.id) * (GEO.V - 0.45) };
+  }
+
+  /**
+   * そのフロアの縮みと、いま見ているフロアからの縦のずれ。下へは対数で
+   * 詰まっていき（遠近）、上へはそのまま。
+   */
+  private depth(f: number): { s: number; dy: number } {
+    const d = f - this.cam.floor;
+    if (d <= 0) return { s: 1, dy: d * GEO.gap };
+    return { s: 1 / (1 + GEO.shrink * d), dy: (GEO.gap / GEO.shrink) * Math.log1p(GEO.shrink * d) };
+  }
+
+  /** 地図の上の人の大きさの倍率（寄るほど 1 に戻る）。 */
+  private mapPeople(): number {
+    return 1 + 0.3 * clamp((2 - this.cam.zoom) / (2 - MAP_ZOOM));
+  }
+
+  /** そのフロアの物の大きさ（遠いほど小さい）。 */
+  private scale(f: number): number {
+    return this.depth(f).s;
   }
 
   private project(u: number, v: number, f: number): { x: number; y: number } {
     const z = this.cam.zoom;
+    const { s, dy } = this.depth(f);
     return {
-      x: this.W / 2 + (u - v) * 30 * z - this.cam.x * z,
-      y: H * 0.24 + (u + v) * 13 * z + (f - this.cam.floor) * 50 * z - this.cam.y * z,
+      x: this.W / 2 + (u * GEO.ux + v * GEO.vx) * z * s - this.cam.x * z,
+      y: H * 0.3 + dy * z + (u * GEO.uy + v * GEO.vy) * z * s - this.cam.y * z,
     };
   }
 
@@ -195,18 +243,15 @@ export class Tower {
     // カメラ：いる部屋のフロアを上寄りに。遭遇中はその部屋へ寄る。
     const here = view.rooms.find((x) => x.id === (view.enc?.room ?? view.you));
     const targetFloor = here ? here.floor - (view.enc ? 0 : 0.3) : -0.6;
-    const targetZoom = view.enc ? 2.4 : 1;
+    const targetZoom = view.enc ? 2.4 : MAP_ZOOM;
     const spot = here ? Tower.spot(here) : { u: 0, v: 0 };
     // 隣の塔にいるときは、そちらへ寄せる。渡れる部屋が見えているときは、少しだけ。
     const bridge = view.rooms.find((x) => x.reachable && x.tower);
     const side = here?.tower ? spot : bridge ? Tower.spot(bridge) : null;
-    const targetX = view.enc
-      ? (spot.u - spot.v) * 30
-      : side
-        ? (side.u - side.v) * 30 * (here?.tower ? 0.6 : 0.3)
-        : 0;
+    const sx = (p: { u: number; v: number }) => p.u * GEO.ux + p.v * GEO.vx;
+    const targetX = view.enc ? sx(spot) : side ? sx(side) * (here?.tower ? 0.6 : 0.3) : 0;
     // 遭遇中は、その部屋を画面のまん中より少し下へ。
-    const targetY = view.enc ? (spot.u + spot.v) * 13 - H * 0.16 : 0;
+    const targetY = view.enc ? spot.u * GEO.uy + spot.v * GEO.vy - H * 0.14 : 0;
     const k = 1 - Math.exp(-dt * 6);
     this.cam.y = lerp(this.cam.y, targetY, k);
     this.cam.floor = lerp(this.cam.floor, targetFloor, k);
@@ -227,7 +272,7 @@ export class Tower {
     this.routes(view, t);
     const scene = view.enc?.scene;
     // 寄るほど場面が立ち上がる（0 = 地図、1 = 向き合った場面）。
-    const presence = clamp((this.cam.zoom - 1.2) / 0.9);
+    const presence = clamp((this.cam.zoom - 1.5) / 0.7);
     const at = view.enc ? view.rooms.find((x) => x.id === view.enc?.room) : undefined;
     const c = at ? this.center(at) : null;
     if (scene && c && presence > 0) {
@@ -252,47 +297,54 @@ export class Tower {
     }
   }
 
-  /** フロアの床板。厚みのある斜めの板。f = -1 は区画の上（来た道）。 */
+  /**
+   * フロアの床板。いま見ているフロアと次のフロアははっきり、遠いフロアほど
+   * 塗りが薄く・縁が点線になって、底の闇に溶ける。f = -1 は区画の上（来た道）。
+   */
   private slab(view: TowerView, f: number): void {
     const r = this.raster;
-    const fade = f < 0 ? 0.35 : clamp(1 - (f - this.cam.floor - 2.5) / 4, 0.15, 1);
-    const U = 2.1;
-    const V = 0.75;
-    const p = [
+    const d = f - this.cam.floor;
+    // 0 = いちばん遠い、1 = いま見ているあたり。
+    const near = f < 0 ? 0.3 : clamp(1 - (d - 1.6) / 3.2, 0, 1);
+    const { U, V } = GEO;
+    const [a, b, c, e] = [
       this.project(-U, -V, f),
       this.project(U, -V, f),
       this.project(U, V, f),
       this.project(-U, V, f),
-    ];
-    const [a, b, c, d] = p as [
+    ] as [
       { x: number; y: number },
       { x: number; y: number },
       { x: number; y: number },
       { x: number; y: number },
     ];
-    const thick = 5 * this.cam.zoom;
+    const thick = 5 * this.cam.zoom * this.scale(f);
     const z = -f;
-    // 床の上面（紙に薄い網点）。
-    r.tri(a.x, a.y, z, b.x, b.y, z, c.x, c.y, z, 0.95 * fade + (1 - fade) * 0.55, INK, PAPER);
-    r.tri(a.x, a.y, z, c.x, c.y, z, d.x, d.y, z, 0.95 * fade + (1 - fade) * 0.55, INK, PAPER);
-    // 厚み（手前の二辺）。
-    r.tri(d.x, d.y, z, c.x, c.y, z, c.x, c.y + thick, z, 0.35, INK, PAPER);
-    r.tri(d.x, d.y, z, c.x, c.y + thick, z, d.x, d.y + thick, z, 0.35, INK, PAPER);
-    r.tri(c.x, c.y, z, b.x, b.y, z, b.x, b.y + thick, z, 0.2, INK, PAPER);
-    r.tri(c.x, c.y, z, b.x, b.y + thick, z, c.x, c.y + thick, z, 0.2, INK, PAPER);
-    for (const [s, e] of [
+    // 上面：近いほど網点がしっかり、遠いほど紙に近い。
+    const top = 0.95 + (1 - near) * 0.04;
+    r.tri(a.x, a.y, z, b.x, b.y, z, c.x, c.y, z, top, INK, PAPER);
+    r.tri(a.x, a.y, z, c.x, c.y, z, e.x, e.y, z, top, INK, PAPER);
+    // 厚み（手前と右の辺）。
+    const side = 0.35 + (1 - near) * 0.5;
+    r.tri(e.x, e.y, z, c.x, c.y, z, c.x, c.y + thick, z, side, INK, PAPER);
+    r.tri(e.x, e.y, z, c.x, c.y + thick, z, e.x, e.y + thick, z, side, INK, PAPER);
+    r.tri(c.x, c.y, z, b.x, b.y, z, b.x, b.y + thick, z, side + 0.15, INK, PAPER);
+    r.tri(c.x, c.y, z, b.x, b.y + thick, z, c.x, c.y + thick, z, side + 0.15, INK, PAPER);
+    const dash: [number, number] | undefined =
+      near > 0.7 ? undefined : near > 0.3 ? [2, 1] : [1, 2];
+    for (const [s0, e0] of [
       [a, b],
       [b, c],
-      [c, d],
-      [d, a],
+      [c, e],
+      [e, a],
     ] as const)
-      r.line(s.x, s.y, z, e.x, e.y, z, INK, false);
-    if (f < 0) return;
-    // フロアの番号（B いくつ）。
+      r.line(s0.x, s0.y, z, e0.x, e0.y, z, INK, false, 0, dash);
+    if (f < 0 || near < 0.15) return;
+    // フロアの番号（B いくつ）。床の左の縁に添える。
     const label = `B${view.top + f}`;
-    const lx = Math.round(d.x - textWidth(label) - 6);
-    const ly = Math.round(d.y - 3);
-    if (lx > 0 && ly > 0 && ly < H - 8) drawText(r, label, lx, ly, fade > 0.5 ? INK : INK);
+    const lx = Math.round(e.x - textWidth(label) - 5);
+    const ly = Math.round(e.y - 3);
+    if (lx > 0 && ly > 0 && ly < H - 8) drawText(r, label, lx, ly, INK);
   }
 
   /**
@@ -304,7 +356,6 @@ export class Tower {
     if (away > 4.2 || away < -1.6) return;
     const fade = clamp(1 - (away - 1.5) / 3, 0, 1);
     const plates: { u: number; v: number; key: string }[] = [
-      { u: 0, v: -1.8, key: 'back' },
       { ...Tower.wing(-1), key: '-1' },
       { ...Tower.wing(1), key: '1' },
     ];
@@ -312,14 +363,13 @@ export class Tower {
     // 続いて、点がまばらになって消える（同じ床が向こうにもある、という気配）。
     for (const p of plates)
       if (lit.has(`${p.key}:${f}`)) this.plate(p.u, p.v, f, fade, true, false);
-    if (this.cam.zoom < 1.2 && f >= 0) this.continues(f, fade);
+    if (this.cam.zoom < 1.5 && f >= 0) this.continues(f, fade);
   }
 
   /** 床の縁の延長。端から離れるほど点が間遠になる。 */
   private continues(f: number, fade: number): void {
     const r = this.raster;
-    const U = 2.1;
-    const V = 0.75;
+    const { U, V } = GEO;
     const run = (u0: number, v0: number, du: number, dv: number, len: number) => {
       const a = this.project(u0, v0, f);
       const b = this.project(u0 + du * len, v0 + dv * len, f);
@@ -336,12 +386,12 @@ export class Tower {
     };
     // 左右（u の向き）：手前と奥の縁を延ばす。
     for (const v of [-V, V]) {
-      run(U, v, 1, 0, 2.4);
-      run(-U, v, -1, 0, 2.4);
+      run(U, v, 1, 0, 3.2);
+      run(-U, v, -1, 0, 3.2);
     }
     // 奥（v の向き）：左右の縁を延ばす。
-    run(-U, -V, 0, -1, 1.6);
-    run(U, -V, 0, -1, 1.6);
+    run(-U, -V, 0, -1, 2);
+    run(U, -V, 0, -1, 2);
   }
 
   private plate(
@@ -354,8 +404,7 @@ export class Tower {
   ): void {
     if (fade <= 0) return;
     const r = this.raster;
-    const U = 2.1;
-    const V = 0.75;
+    const { U, V } = GEO;
     const [a, b, c, d] = [
       this.project(cu - U, cv - V, f),
       this.project(cu + U, cv - V, f),
@@ -422,6 +471,8 @@ export class Tower {
       const a = pos.get(from);
       const b = pos.get(to);
       if (!a || !b || onRoute.has(`${from}-${to}`)) continue;
+      // 先の先までは描かない（遠景の階段は、線が交差して読めなくなる）。
+      if (a.floor - this.cam.floor > 2.2) continue;
       const trail = walked(a) && walked(b);
       // 通り過ぎた枝（もう選べない道）は描かない。
       if (b.floor <= floor && !trail) continue;
@@ -438,11 +489,10 @@ export class Tower {
     const d = Math.hypot(q.x - p.x, q.y - p.y) || 1;
     const ux = (q.x - p.x) / d;
     const uy = (q.y - p.y) / d;
-    const zm = this.cam.zoom;
-    // 菱形（横 s・縦 s/2）の縁までの距離。
+    // 部屋の台の縁までの距離（台は床と同じ向きの小さな板。遠いほど小さい）。
     const cut = (room: RoomView) => {
-      const s = (room.kind === 'boss' ? 7 : 5) * zm;
-      return 1 / (Math.abs(ux) / s + Math.abs(uy) / (s / 2)) + 1;
+      const s = this.tile(room);
+      return 1 / (Math.abs(ux) / s.w + Math.abs(uy) / Math.max(1, s.h)) + 1;
     };
     const ca = cut(a);
     const cb = cut(b);
@@ -471,28 +521,59 @@ export class Tower {
     return this.project(s.u, s.v, room.floor);
   }
 
-  /** 部屋。床の上の小さな台。中身の印（人・？・灯り・硬貨）。 */
+  /** 部屋の台の大きさ（画面の画素。床の向きの小さな板の、横と縦の半分）。 */
+  private tile(room: RoomView): { w: number; h: number } {
+    const k = (room.kind === 'boss' ? 1.4 : 1) * this.cam.zoom * this.scale(room.floor);
+    return { w: 9 * k, h: 4.5 * k };
+  }
+
+  /**
+   * 部屋。床と同じ向きの小さな台と、中身の印（人・？・灯り・硬貨）。近い
+   * フロアほど細かく、遠いフロアは台と点だけ（遠景を静かに保つ）。
+   */
   private room(view: TowerView, room: RoomView, t: number): void {
     const r = this.raster;
-    const zm = this.cam.zoom;
     const { x, y } = this.center(room);
-    const s = (room.kind === 'boss' ? 7 : 5) * zm;
+    const { u, v } = Tower.spot(room);
+    const big = room.kind === 'boss' ? 1.4 : 1;
+    const du = 0.3 * big;
+    const dv = 0.24 * big;
+    const [a, b, c, d] = [
+      this.project(u - du, v - dv, room.floor),
+      this.project(u + du, v - dv, room.floor),
+      this.project(u + du, v + dv, room.floor),
+      this.project(u - du, v + dv, room.floor),
+    ] as [
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+    ];
+    const s = this.scale(room.floor);
+    const detail = s > 0.72;
     const hot = view.focus === room.id;
     const tone = room.visited ? 0.45 : 0.97;
     const z = 10 - room.floor;
-    r.tri(x - s, y, z, x, y - s / 2, z, x + s, y, z, tone, INK, PAPER);
-    r.tri(x - s, y, z, x + s, y, z, x, y + s / 2, z, tone, INK, PAPER);
+    r.tri(a.x, a.y, z, b.x, b.y, z, c.x, c.y, z, tone, INK, PAPER);
+    r.tri(a.x, a.y, z, c.x, c.y, z, d.x, d.y, z, tone, INK, PAPER);
     const edge = room.reachable && Math.floor(t * 2.5) % 2 === 0 ? AMBER : hot ? AMBER : INK;
-    r.line(x - s, y, z, x, y - s / 2, z, edge, false);
-    r.line(x, y - s / 2, z, x + s, y, z, edge, false);
-    r.line(x + s, y, z, x, y + s / 2, z, edge, false);
-    r.line(x, y + s / 2, z, x - s, y, z, edge, false);
-    if (room.stage) {
-      r.set(x - s - 2, y, AMBER);
-      r.set(x + s + 2, y, AMBER);
-    }
-    for (let i = 0; i < room.eps; i++) r.set(x - s + 2 + i * 2, y + s / 2 + 2, INK);
-    if (!room.person) this.mark(room.kind, x, y - 1, room.visited);
+    const dash: [number, number] | undefined = detail || room.reachable ? undefined : [1, 1];
+    for (const [p, q] of [
+      [a, b],
+      [b, c],
+      [c, d],
+      [d, a],
+    ] as const)
+      r.line(p.x, p.y, z, q.x, q.y, z, edge, false, 0, dash);
+    if (detail) {
+      if (room.stage) {
+        r.set(Math.round(a.x) - 2, Math.round(y), AMBER);
+        r.set(Math.round(c.x) + 2, Math.round(y), AMBER);
+      }
+      for (let i = 0; i < room.eps; i++)
+        r.set(Math.round(d.x) + 2 + i * 2, Math.round(d.y) + 2, INK);
+      if (!room.person) this.mark(room.kind, x, y - 1, room.visited);
+    } else if (!room.person && room.kind === 'rest') r.set(Math.round(x), Math.round(y), AMBER);
     this.placed.push({ id: room.id, x, y, z });
   }
 
@@ -606,8 +687,19 @@ export class Tower {
       if (room.floor - this.cam.floor > 3.2 && room.kind !== 'boss') continue;
       const inEnc = view.enc?.room === room.id;
       const { x, y } = this.center(room);
-      const k = (room.kind === 'boss' ? 1.8 : 1.25) * zm;
+      const sc = this.scale(room.floor);
+      // 地図の上では人を一回り大きく（誰がどこにいるかが、まず目に入るように）。
+      const k = (room.kind === 'boss' ? 1.8 : 1.25) * zm * sc * this.mapPeople();
       const e = view.enc;
+      // 遠いフロアの人は、頭の点だけ（いる、ということだけ分かれば足りる）。
+      if (!inEnc && sc < 0.62 && room.kind !== 'boss') {
+        if (!room.visited) {
+          const c = room.reachable ? BLUE : INK;
+          this.raster.rect(Math.round(x) - 1, Math.round(y - 6 * k), 2, 2, c);
+          this.raster.set(Math.round(x), Math.round(y - 3 * k), c);
+        }
+        continue;
+      }
       if (inEnc && e) {
         const gone = e.end && t - e.endAt > 0.3;
         if (gone && e.end === 'fall') continue;
@@ -627,7 +719,7 @@ export class Tower {
       else this.figure(x, y, k, INK);
       // 硬度（数字）。歯が立たない相手は、数字を墨の枠で囲む
       // （琥珀は「あなた」と「押せるもの」にだけ使う）。
-      if (room.hard !== null && !room.visited && !inEnc) {
+      if (room.hard !== null && !room.visited && !inEnc && sc > 0.8) {
         const label = String(room.hard);
         const lx = Math.round(x + 5 * k);
         const ly = Math.round(y - 9 * k);
@@ -666,7 +758,7 @@ export class Tower {
       if (room) {
         const { x, y } = this.center(room);
         const side = room.person ? -9 : 8;
-        this.figure(x + side * zm, y + 2, zm, INK, true);
+        this.figure(x + side * zm, y + 2, zm * this.mapPeople(), INK, true);
       }
     }
     // あなた（琥珀）。
@@ -683,7 +775,7 @@ export class Tower {
       this.figure(
         x - (e ? 7 * zm : 0) + (hurt ? Math.sin(t * 80) * 1.5 : 0),
         y + bob,
-        zm * (e ? 1 : 1),
+        zm * this.mapPeople(),
         hurt ? INK : AMBER,
         false,
         e ? 0.4 : 0,
@@ -691,7 +783,7 @@ export class Tower {
     } else {
       // 入口（区画の上）。
       const p = this.project(0, 0, -0.5);
-      this.figure(p.x, p.y, zm, AMBER);
+      this.figure(p.x, p.y, zm * this.mapPeople(), AMBER);
     }
   }
 
