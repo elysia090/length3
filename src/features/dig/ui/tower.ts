@@ -30,14 +30,14 @@ export const H = 240;
 const GEO = {
   /** 床板の半幅と半奥行き。 */
   U: 3,
-  V: 1.15,
+  V: 0.85,
   /** u・v の 1 単位が画面で何画素動くか。 */
   ux: 30,
-  uy: 4,
+  uy: 3,
   vx: -18,
   vy: 10,
   /** フロアの間隔（どの深さでも同じ）。 */
-  gap: 64,
+  gap: 42,
 } as const;
 
 /**
@@ -233,9 +233,9 @@ export class Tower {
     };
   }
 
-  /** 寄っているか（近景・遭遇）。 */
+  /** 近景か（見渡していないとき。遭遇も近景）。 */
   private closeup(): boolean {
-    return this.cam.zoom > (NEAR_ZOOM + FAR_ZOOM) / 2;
+    return !this.overview;
   }
 
   /**
@@ -777,7 +777,8 @@ export class Tower {
       else this.figure(x, y, k, INK);
       // 硬度（数字）。歯が立たない相手は、数字を墨の枠で囲む
       // （琥珀は「あなた」と「押せるもの」にだけ使う）。
-      if (room.hard !== null && !room.visited && !inEnc && !far) {
+      // 硬度の数字は見渡すときだけ（近景では脇の一覧と札に出ているので、絵には描かない）。
+      if (room.hard !== null && !room.visited && !inEnc && !far && !this.closeup()) {
         const label = String(room.hard);
         const lx = Math.round(x + 5 * k);
         const ly = Math.round(y - 9 * k);
@@ -815,7 +816,7 @@ export class Tower {
       const room = pos.get(view.rival);
       if (room) {
         const { x, y } = this.center(room);
-        const side = room.person ? -9 : 8;
+        const side = room.person ? -14 : 9;
         this.figure(x + side * zm, y + 2, zm * this.mapPeople(), INK, true);
       }
     }
