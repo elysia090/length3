@@ -75,6 +75,10 @@ export class DigSound {
       this.tone(root * k, 0.12 + 0.03 * n, 'square', 0.045, 1, i * 0.045);
     });
   }
+  /** 裏で効いたものが一つ打たれた（打つたびに少しずつ高く）。 */
+  tick(i: number): void {
+    this.tone(1400 + 90 * i, 0.03, 'square', 0.02);
+  }
   /** 共鳴の灯りが一つ増えた。 */
   resonate(n: number): void {
     this.tone(880 * 1.06 ** n, 0.18, 'sine', 0.05, 1.02);

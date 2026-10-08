@@ -39,8 +39,9 @@ export class Game {
   readonly cmds: Cmd[] = [];
 
   /** 指す。断られたら空の列。 */
-  dispatch(cmd: Cmd): Ev[] {
-    const out = decide(this.world, cmd);
+  /** why を渡すと、値を動かした規則を書き留める（画面のため。結果は変わらない）。 */
+  dispatch(cmd: Cmd, why?: { src: string; text: string; at: number }[]): Ev[] {
+    const out = decide(this.world, cmd, why ? { why } : {});
     if (!out.length) return out;
     this.cmds.push(cmd);
     for (const ev of out) this.events.push(ev);

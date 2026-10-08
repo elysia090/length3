@@ -34,11 +34,16 @@ import {
 export function decide(
   w: World,
   cmd: Cmd,
-  opts: { sim?: boolean; trace?: Map<string, number> } = {},
+  opts: {
+    sim?: boolean;
+    trace?: Map<string, number>;
+    why?: { src: string; text: string; at: number }[];
+  } = {},
 ): Ev[] {
   const tx = new Tx(w, opts.sim ?? false);
   const before = opts.sim ? null : tiersOf(w.you);
   tx.trace = opts.trace ?? null;
+  tx.why = opts.why ?? null;
   if (w.ending && cmd.c !== 'start') return [];
   let ok = true;
   switch (cmd.c) {

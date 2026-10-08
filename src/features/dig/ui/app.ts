@@ -228,6 +228,9 @@ const pips = (c: Card) =>
     ),
   );
 
+/** 裏で値を動かした規則（出どころ・一文・何番目のイベントの前か）。 */
+type Why = { src: string; text: string; at: number };
+
 export function openDig(doc: Document, onClose: () => void): void {
   const profile: Profile = loadProfile();
   const sound = new DigSound();
@@ -304,7 +307,9 @@ export function openDig(doc: Document, onClose: () => void): void {
   const moment = h('p', { class: 'dig-guide__moment', hidden: true });
   const caption = h('p', { class: 'dig-guide__line' });
   const hintBox = h('div', { class: 'dig-guide__hint' });
-  const guide = h('div', { class: 'dig-guide' }, moment, caption, hintBox);
+  // 裏で効いたもの（エピテット・記憶・構成・掟…）。案内と同じ帯に、一つずつ打たれる。
+  const whyLine = h('p', { class: 'dig-guide__why', hidden: true });
+  const guide = h('div', { class: 'dig-guide' }, moment, whyLine, caption, hintBox);
   /** 寄る／見渡す（地図の右下の ＋ − 。ホイールでも）。いまの側は押せない。 */
   const zoomIn = h(
     'button',
@@ -378,7 +383,9 @@ export function openDig(doc: Document, onClose: () => void): void {
       !still();
     const pre = turn ? structuredClone(w0) : null;
     const preView = turn ? towerView(w0) : null;
-    const evs = game.dispatch(cmd);
+    const why: Why[] = [];
+    const played = cmd.c === 'card' ? (w0.you.cards[cmd.slot] ?? undefined) : undefined;
+    const evs = game.dispatch(cmd, why);
     if (cmd.c === 'card' || cmd.c === 'act') lastTurn = summarize(cmd, evs, before);
     else if (cmd.c === 'move' || cmd.c === 'close') lastTurn = [];
     hoverSlot = null;
@@ -395,12 +402,56 @@ export function openDig(doc: Document, onClose: () => void): void {
       reward.help = undefined;
     }
     if (pre && preView) {
-      play(cmd, evs, pre, preView);
+      play(cmd, evs, pre, preView, why, played);
       return true;
     }
     react(evs);
+    showWhy(why, played);
     settle();
     return true;
+  }
+
+  /**
+   * 裏で効いたものを、案内の帯に一つずつ打つ。打った札のエピテットと、値を
+   * 実際に動かした規則（記憶・構成・連携・原型・掟・職・場所と人に刻んだもの）。
+   * 土台の規則と版の調整は出さない。同じ一文は一度だけ、多くても五つ。
+   */
+  let whyTimer = 0;
+  function showWhy(list: readonly Why[], card?: Card | null): void {
+    const out: string[] = [];
+    for (const e of card?.eps ?? []) {
+      const d = epithetDef(e);
+      const head = d?.card?.text.split('。')[0];
+      if (d && head) out.push(`《${d.name}》${head}`);
+    }
+    for (const x of list) {
+      if (/^(rule|v\d|depth\d)/.test(x.src)) continue;
+      const [kind, id] = x.src.split(':');
+      const label = kind === 'job' ? (jobDef(id ?? '')?.name ?? null) : sourceLabel(x.src);
+      const bare = label?.replace(/[《》〈〉『』]/g, '') ?? '';
+      const text = label && !x.text.includes(bare) ? `${label} ${x.text}` : x.text;
+      if (!out.includes(text)) out.push(text);
+    }
+    if (!out.length) return;
+    whyLine.replaceChildren(
+      ...out
+        .slice(0, 5)
+        .map((t, i) =>
+          h('span', { class: 'dig-why-chip', style: `animation-delay:${i * 90}ms` }, t),
+        ),
+    );
+    whyLine.hidden = false;
+    // 打たれるたびに、小さく鳴る（タイプライタの一打）。
+    out.slice(0, 5).forEach((_, i) => {
+      window.setTimeout(() => sound.tick(i), 72 + i * 90);
+    });
+    window.clearTimeout(whyTimer);
+    whyTimer = window.setTimeout(
+      () => {
+        whyLine.hidden = true;
+      },
+      3200 + out.length * 90,
+    );
   }
 
   /** 手番を閉じる（地力の伸び・保存・終わり・描き直し）。 */
@@ -418,7 +469,14 @@ export function openDig(doc: Document, onClose: () => void): void {
    * 手札が全部いっしょに跳ねる。その瞬間にこちらの一手の結果が出て、計器も
    * そろって沈む。相手の返しは半拍おいてから。
    */
-  function play(cmd: Cmd, evs: readonly Ev[], pre: World, preView: TowerView): void {
+  function play(
+    cmd: Cmd,
+    evs: readonly Ev[],
+    pre: World,
+    preView: TowerView,
+    why: readonly Why[],
+    played?: Card | null,
+  ): void {
     busy = true;
     staged = pre;
     heldView = preView;
@@ -432,6 +490,11 @@ export function openDig(doc: Document, onClose: () => void): void {
       heldView = null;
       staged = fold(mine, pre);
       react(mine);
+      // 当たりと同時に、こちらの一手で裏に効いたものを帯へ。
+      showWhy(
+        why.filter((x) => at < 0 || x.at <= at),
+        played,
+      );
       // 計器は、こちらの一手が何であれ札といっしょに沈む（削ったときだけ連鎖の深さで）。
       kick(mine.some((e) => e.type === 'foe' && e.n < 0) ? chain : 0, 1);
       const done = () => {
@@ -450,6 +513,9 @@ export function openDig(doc: Document, onClose: () => void): void {
       window.setTimeout(() => {
         staged = null;
         react(theirs);
+        // 相手の返しで効いたもの（掟や、相手に刻んだもの）。
+        const late = why.filter((x) => at >= 0 && x.at > at);
+        if (late.length) showWhy(late);
         if (
           theirs.some(
             (e) => e.type === 'vital' && e.who === 'you' && ((e.hp ?? 0) < 0 || (e.mind ?? 0) < 0),
