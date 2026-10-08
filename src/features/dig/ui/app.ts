@@ -283,14 +283,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   });
   /** 連鎖の印（決まった瞬間だけ、場面の上に大きく）。 */
   const combo = h('div', { class: 'dig-combo', hidden: true, 'aria-hidden': 'true' });
-  /** 決着の瞬間の、上下の黒い帯（画面の比が変わる＝場面が閉じる合図）。 */
-  const bars = h(
-    'div',
-    { class: 'dig-bars', 'aria-hidden': 'true' },
-    h('i', { class: 'dig-bars__top' }),
-    h('i', { class: 'dig-bars__bottom' }),
-  );
-  const view = h('div', { class: 'dig-view' }, bars, guide, canvas, tip, zoomer, combo);
+  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer, combo);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
@@ -558,9 +551,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     freezeUntil = Math.max(freezeUntil, now() + s);
   }
 
-  /** 決着：上下に帯を下ろし、ゆっくり寄って止める。解くときは帯を上げ、寄りを戻す。 */
+  /** 決着：灯りが二人のところまで絞られ（アイリス）、ゆっくり寄って止まる。 */
   function cut(on: boolean): void {
-    view.classList.toggle('is-cut', on);
     tower.settle(on && !still() ? 0.1 : 0, now());
   }
   /** 場面の上の大きな印（連鎖・会心）。 */
@@ -1169,7 +1161,10 @@ export function openDig(doc: Document, onClose: () => void): void {
         const fresh = goalAt.size === g.size && now() - goalAt.t < 2.4;
         return h(
           'li',
-          { class: `dig-goal dig-goal--${g.size}${fresh ? ' is-fresh' : ''}` },
+          {
+            class: `dig-goal dig-goal--${g.size}${fresh ? ' is-fresh' : ''}`,
+            title: `届くと：${REWARD_TEXT[g.size]}`,
+          },
           // 大きさは字ではなく、印の大きさで（上から大・中・小）。
           h('i', { class: 'dig-goal__size', role: 'img', 'aria-label': SIZE[g.size] }),
           h('span', { class: 'dig-goal__text' }, goalText(g)),
@@ -1178,7 +1173,6 @@ export function openDig(doc: Document, onClose: () => void): void {
             { class: 'dig-goal__bar', role: 'img', 'aria-label': `${got}/${g.need}` },
             h('i', { style: `width:${Math.round((got / g.need) * 100)}%` }),
           ),
-          h('span', { class: 'dig-goal__reward' }, REWARD_TEXT[g.size]),
         );
       });
     return h('section', { class: 'dig-sec dig-goals' }, h('h3', {}, '目標'), h('ol', {}, rows));
@@ -1314,7 +1308,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                   type: 'button',
                   class: `dig-chip dig-chip--${r.kind}${routeSel === r.kind ? ' is-on' : ''}`,
                   'aria-pressed': routeSel === r.kind ? 'true' : 'false',
-                  title: r.label,
+                  title: `${r.aim === 'win' ? '勝つ道' : '面白い道'}：${r.label}`,
                   onclick: () => {
                     routeSel = routeSel === r.kind ? null : r.kind;
                     render();
@@ -1326,7 +1320,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                     routePeek = null;
                   },
                 },
-                h('b', {}, `${r.aim === 'win' ? '勝つ' : '面白い'}：${short[r.kind]}`),
+                h('b', {}, short[r.kind]),
                 h('span', {}, metric(r)),
                 firstStep(w, r.path[0]),
               ),
@@ -1384,47 +1378,45 @@ export function openDig(doc: Document, onClose: () => void): void {
   function flowRows(w: World): HTMLElement {
     const e = w.enc;
     const s = e?.st.chain ?? 0;
+    const cur = ask(w, 'chain', { who: 'you' }, chainMult(s));
     const nextM = ask(w, 'chain', { who: 'you' }, chainMult(s + 1));
     const srcs = resonance(w);
     const n = srcs.length;
     const step = RES_STEPS.find(([k]) => k > n);
+    const fresh = now() - litAt < 1.2;
     return h(
-      'div',
+      'p',
       { class: 'dig-flow' },
       h(
-        'p',
+        'span',
         {
-          class: `dig-flow__row${s ? ' is-on' : ''}`,
-          title: '直前の札とタグが重なる札を続けて使うと、強くなる（三つ目まで重なる）',
+          class: `dig-flow__g${s ? ' is-on' : ''}`,
+          title: `連鎖：直前の札とタグが重なる札を続けると強くなる（三つ目まで）。次 ×${fmtMult(nextM)}`,
         },
         h('b', {}, '連鎖'),
         pipRow(Math.min(s, 3), 3, 'chain'),
-        h(
-          'span',
-          { class: 'dig-flow__next' },
-          s
-            ? `いま ×${fmtMult(ask(w, 'chain', { who: 'you' }, chainMult(s)))}・次 ×${fmtMult(nextM)}`
-            : '同じタグの札を続けると強くなる',
-        ),
+        s ? h('span', { class: 'dig-flow__x' }, `×${fmtMult(cur)}`) : null,
       ),
       h(
-        'p',
+        'span',
         {
-          class: `dig-flow__row${n ? ' is-on' : ''}${now() - litAt < 1.2 ? ' is-fresh' : ''}`,
-          title: n
-            ? `灯っている：${srcs
-                .map((x) => sourceLabel(x) ?? '')
-                .filter(Boolean)
-                .join('・')}`
-            : 'カード・記憶・ビルド・エピテットが働くたびに、灯りが一つ増える',
+          class: `dig-flow__g${n ? ' is-on' : ''}`,
+          title: [
+            '共鳴：カード・記憶・ビルド・エピテットが働くたびに一つ灯り、決着で受け取る',
+            ...RES_STEPS.map(([k, v]) => `${k}　${v}`),
+            n
+              ? `灯っている：${srcs
+                  .map((x) => sourceLabel(x) ?? '')
+                  .filter(Boolean)
+                  .join('・')}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
         },
         h('b', {}, '共鳴'),
-        pipRow(Math.min(n, 6), 6, 'res', now() - litAt < 1.2),
-        h(
-          'span',
-          { class: 'dig-flow__next' },
-          step ? `あと ${step[0] - n} で${step[1]}` : '満ちた：決着で全部受け取る',
-        ),
+        pipRow(Math.min(n, 6), 6, 'res', fresh),
+        step ? h('span', { class: 'dig-flow__x' }, `→ ${step[1]}`) : null,
       ),
     );
   }
@@ -1589,8 +1581,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         : null,
     ];
     const kids: (Child | readonly Child[])[] = [
-      h('p', { class: 'dig-place' }, ...placeOf(w, nodeOf(w, w.pos))),
-      h('p', { class: 'dig-room__name' }, f.name, '　', hardTag(hard, you)),
+      h('p', { class: 'dig-room__name', title: def.desc }, f.name, '　', hardTag(hard, you)),
       // 一巡：前の手番（あなた → 相手）と、相手の次の手。
       lastTurn.length
         ? h(
@@ -1615,25 +1606,21 @@ export function openDig(doc: Document, onClose: () => void): void {
             ),
           )
         : null,
+      // 次の手。身ぶりの一文は、触れたときだけ。
       intent && e.phase === 'act'
         ? h(
             'p',
-            { class: 'dig-intent' },
-            '相手の次の手：',
+            {
+              class: 'dig-intent',
+              title: pickBy(POSTURE[intent.kind] ?? [], `${f.id}:${e.turn}`) ?? '',
+            },
+            h('span', { class: 'dig-intent__k' }, '次の手'),
             h('b', {}, intent.label),
-            intent.power ? ` （${intent.power}）` : '',
+            intent.power ? h('span', { class: 'dig-intent__n' }, String(intent.power)) : null,
           )
         : null,
-      // 身ぶり（予告を、体の言葉でもう一度）。
-      intent && e.phase === 'act'
-        ? h(
-            'p',
-            { class: 'dig-posture' },
-            pickBy(POSTURE[intent.kind] ?? [], `${f.id}:${e.turn}`) ?? '',
-          )
-        : null,
-      e.phase === 'act' ? flowRows(w) : null,
       h('div', { class: 'dig-ways' }, ways),
+      e.phase === 'act' ? flowRows(w) : null,
       // 覚えておかなくていいものは出さない。敵意は荒れているときだけ（信頼が伸びにくく、
       // 手が重くなる）。見せ場のタグは札の印に出るので、ここでは名前だけ。
       h(
@@ -1645,10 +1632,8 @@ export function openDig(doc: Document, onClose: () => void): void {
       ),
     ];
     if (e.phase === 'over' && e.outcome) {
-      kids.push(
-        h('p', { class: 'dig-outcome' }, OUTCOME_NAME[e.outcome]),
-        button('決着を受け取る', () => send({ c: 'close' }), { class: 'dig-go' }),
-      );
+      // 結末は一巡の行（決着 倒した）に出ているので、ここは受け取る釦だけ。
+      kids.push(button('決着を受け取る', () => send({ c: 'close' }), { class: 'dig-go' }));
     } else {
       // 札を使わない手（素手）。札が主役なので、小さく下に。
       const lc = leaveChance(w);
@@ -1682,7 +1667,9 @@ export function openDig(doc: Document, onClose: () => void): void {
         ),
       );
     }
-    kids.push(h('p', { class: 'dig-quiet dig-enc__desc' }, def.desc));
+    // 人となりの一文は、向き合った最初だけ（二手目からは名前に触れれば読める）。
+    if (e.turn <= 1 && !lastTurn.length)
+      kids.push(h('p', { class: 'dig-quiet dig-enc__desc' }, def.desc));
     return h('div', { class: 'dig-enc' }, ...kids);
   }
 
@@ -1763,7 +1750,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     if (p.take.length)
       kids.push(
-        h('p', {}, '記憶を一つ持ち帰れる：'),
+        h('p', { class: 'dig-label' }, '持ち帰る記憶（一つ）'),
         p.take.map((id) =>
           button(
             `${reward.take === id ? '● ' : '○ '}${permDef(id)?.name ?? id}`,
@@ -1777,7 +1764,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       );
     if (p.help)
       kids.push(
-        h('p', {}, '頼れば、カードを一枚戻してもらえる（借りができる）：'),
+        h('p', { class: 'dig-label', title: '頼ると借りができる' }, '頼って戻す札（一枚）'),
         w.you.cards.map((c, i) =>
           c && c.uses < c.max
             ? button(`${reward.help === i ? '● ' : '○ '}${cardName(c)}`, () => {
@@ -1789,7 +1776,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       );
     if (p.cards.length)
       kids.push(
-        h('p', {}, 'カードを一枚拾える（拾うと決着を受け取る）：'),
+        h('p', { class: 'dig-label', title: '拾うと、そのまま決着を受け取る' }, '拾う札（一枚）'),
         p.cards.map((id) =>
           cardOffer(id, () => pickCard(w, id), 'pick', aim?.kind === 'pick' && aim.id === id),
         ),

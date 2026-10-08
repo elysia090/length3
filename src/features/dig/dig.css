@@ -381,7 +381,6 @@
 
 .dig-offer__sig {
   color: var(--ink-2);
-  font-style: italic;
 }
 
 .dig-offer__head {
@@ -915,8 +914,26 @@
 }
 
 .dig-enc .dig-intent {
-  margin: 0.5rem 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0;
   font-size: 0.875rem;
+}
+
+/* 「次の手」は札のような小さな見出し、強さは数だけ。 */
+.dig-intent__k {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig-intent__n {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  padding: 0 4px;
+  border: 1px solid var(--amber-text);
+  color: var(--amber-text);
 }
 
 .dig-ways {
@@ -927,7 +944,7 @@
 
 .dig-way {
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
+  grid-template-columns: 5rem minmax(0, 1fr);
   align-items: center;
   gap: 0.5rem;
 }
@@ -938,7 +955,17 @@
 }
 
 .dig-way .dig-meter {
+  grid-template-columns: 1fr 4rem;
   margin: 0;
+}
+
+/* 道の名（倒す・折る…）が棒の名を兼ねる。体力・意志…は読み上げと触れたときだけ。 */
+.dig-way .dig-meter__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 /* 増えそうな分（信頼・手がかり）：琥珀で継ぎ足して点滅。 */
@@ -1121,9 +1148,7 @@
 .dig-goal {
   display: grid;
   grid-template-columns: 14px 1fr 4.5em;
-  grid-template-areas:
-    'size text bar'
-    'size reward reward';
+  grid-template-areas: 'size text bar';
   column-gap: 0.5rem;
   align-items: center;
 }
@@ -1131,8 +1156,7 @@
 .dig-goal__size {
   grid-area: size;
   justify-self: center;
-  align-self: start;
-  margin-top: 0.3em;
+  align-self: center;
   background: var(--amber-text);
 }
 
@@ -1145,13 +1169,11 @@
 .dig-goal--M .dig-goal__size {
   width: 8px;
   height: 8px;
-  margin-top: 0.45em;
 }
 
 .dig-goal--S .dig-goal__size {
   width: 4px;
   height: 4px;
-  margin-top: 0.55em;
 }
 
 .dig-goal__text {
@@ -1169,12 +1191,6 @@
   height: 100%;
   background: var(--amber-text);
   transition: width 0.4s ease-out;
-}
-
-.dig-goal__reward {
-  grid-area: reward;
-  color: var(--ink-3);
-  font-size: 0.82em;
 }
 
 .dig-goal.is-fresh .dig-goal__text {
@@ -1223,19 +1239,18 @@
 }
 
 .dig-combo__n {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 300;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
   letter-spacing: 0.24em;
 }
 
 .dig-combo.is-2 .dig-combo__n {
-  font-size: 1.75rem;
+  font-size: 1.25rem;
 }
 
 .dig-combo.is-3 .dig-combo__n {
-  font-size: 2rem;
-  font-style: italic;
+  font-size: 1.5rem;
 }
 
 .dig-combo__x {
@@ -1276,70 +1291,37 @@
   }
 }
 
-/* 決着の帯（上下の墨）。場面が閉じる合図。 */
-.dig-bars {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.dig-bars i {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 10%;
-  background: var(--ink);
-  transform: scaleY(0);
-  transition: transform 240ms ease-out;
-}
-
-.dig-bars__top {
-  top: 0;
-  transform-origin: top;
-}
-
-.dig-bars__bottom {
-  bottom: 0;
-  transform-origin: bottom;
-}
-
-.dig-view.is-cut .dig-bars i {
-  transform: scaleY(1);
-}
-
-/* 帯のあいだは、案内の帯を帯の下へ。 */
-.dig-view.is-cut .dig-guide {
-  transform: translateY(80%);
-}
-
-/* 連鎖と共鳴の列（遭遇の脇。四角の数で、いまと次）。 */
+/* 連鎖と共鳴（一行。四角の数と、倍率・次の見返りだけ）。 */
 .dig-flow {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
   margin: 8px 0;
-  font-size: 0.75rem;
-}
-
-.dig-flow__row {
-  display: grid;
-  grid-template-columns: 3em auto 1fr;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
   color: var(--ink-3);
 }
 
-.dig-flow__row.is-on {
+.dig-flow__g {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dig-flow__g.is-on {
   color: var(--ink);
 }
 
-.dig-flow__row.is-on b {
+.dig-flow__g.is-on b {
   color: var(--amber-text);
 }
 
-.dig-flow__next {
+.dig-flow__x {
   color: var(--ink-3);
+}
+
+.dig-flow__g.is-on .dig-flow__x {
+  color: var(--amber-text);
 }
 
 .dig-pips {
@@ -1370,38 +1352,24 @@
   }
 }
 
-.dig-posture {
-  margin: -4px 0 8px;
-  font-family: var(--font-display);
-  font-size: 0.75rem;
-  font-style: italic;
-  font-weight: 300;
-  color: var(--ink-3);
-}
-
-/* 決着の字幕（受け取りの画面の頭）。名前と結末を、細い線のあいだに。 */
+/* 決着（受け取りの画面の頭）。結末を太く、相手の名を添えて、一本の線で締める。 */
 .dig-result {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  margin-bottom: 16px;
-  padding: 8px 0;
-  border-top: 1px solid var(--ink);
-  border-bottom: 1px solid var(--ink);
-}
-
-.dig-result__who {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.16em;
-  color: var(--ink-3);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
 }
 
 .dig-result__stamp {
-  font-family: var(--font-display);
-  font-size: 1.75rem;
-  font-weight: 300;
-  letter-spacing: 0.32em;
+  order: -1;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.dig-result__who {
+  color: var(--ink-3);
 }
 
 .dig-result--trusted .dig-result__stamp,
@@ -1413,7 +1381,6 @@
   animation: dig-blink-in 0.3s steps(3, jump-none) both;
 }
 
-/* 現れるときは段で（三コマで灯る）。 */
 @keyframes dig-blink-in {
   0% {
     opacity: 0;
@@ -1533,9 +1500,9 @@
 }
 
 .dig-score__n {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-size: 2rem;
-  font-weight: 300;
+  font-weight: 700;
   color: var(--ink);
 }
 
@@ -1571,9 +1538,9 @@
 
 .dig-tally dd {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 300;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1590,7 +1557,13 @@
     animation: none;
   }
 
-  .dig-bars i {
-    transition: none;
-  }
+}
+
+/* 選ぶものの小さな見出し（文ではなく名札）。 */
+.dig-label {
+  margin: 16px 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
 }

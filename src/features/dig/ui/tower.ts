@@ -246,7 +246,9 @@ export class Tower {
     const at = view.enc ? view.rooms.find((x) => x.id === view.enc?.room) : undefined;
     const c = at ? this.center(at) : null;
     if (scene && c && presence > 0) {
-      lamp(this.raster, this.W, this.cam.zoom, c.x, c.y, scene, t, presence);
+      // 決着のあとは、灯りが二人のところまで絞られていく（アイリス）。
+      const iris = this.hold.amt > 0 ? clamp((t - this.hold.at) / 0.7) : 0;
+      lamp(this.raster, this.W, this.cam.zoom, c.x, c.y, scene, t, presence, iris);
       if (scene.stage) spotlight(this.raster, this.cam.zoom, c.x, c.y, t, presence);
     }
     this.people(view, t);
