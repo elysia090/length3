@@ -633,19 +633,14 @@
   }
 }
 
-/* カードは名前・回数・主役の章だけ。タグと効き目は、触れたときに。 */
-.dig-card__tags,
-.dig-card__fx {
+/* カードは名前・回数・効き目（いつも）。タグは、触れたときに。 */
+.dig-card__tags {
   display: none;
 }
 
 .dig .dig-card.is-open .dig-card__tags,
-.dig .dig-card.is-open .dig-card__fx,
 .dig .dig-card:hover .dig-card__tags,
-.dig .dig-card:hover .dig-card__fx,
-.dig .dig-card:focus-visible .dig-card__tags,
-.dig .dig-card:focus-visible .dig-card__fx,
-.dig-enc-on .dig-card__fx {
+.dig .dig-card:focus-visible .dig-card__tags {
   display: block;
 }
 
@@ -686,23 +681,30 @@
   gap: 0.5rem;
 }
 
-/* 手元の下の一行：ビルド・エピテット・記憶を、同じ大きさの札片で。 */
+/*
+ * 手元の下の一行：ビルド・エピテット・記憶。押せるのはエピテットだけなので、
+ * 枠を持つのもエピテットだけ。ビルドと記憶は字のまま（触れると効き目）。
+ */
 .dig-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem 1.25rem;
+  gap: 8px 24px;
   align-items: center;
 }
 
 .dig-pills__group {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 4px 8px;
   align-items: center;
 }
 
+.dig-pills__group--ep {
+  gap: 4px;
+}
+
 .dig-pills__label {
-  margin-right: 0.125rem;
+  margin-right: 4px;
   font-family: var(--font-mono);
   color: var(--ink-3);
 }
@@ -711,10 +713,11 @@
 .dig-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 1.5rem;
+  gap: 4px;
+  min-height: 24px;
   margin: 0;
-  padding: 0 0.4375rem;
-  border: 0.0625rem solid var(--ink-2);
+  padding: 0 8px 0 4px;
+  border: 1px solid var(--rule);
   background: var(--bg);
   color: var(--ink);
   font-size: var(--font-ui-xs);
@@ -725,20 +728,54 @@
   cursor: grab;
 }
 
+.dig .dig-pill--ep:hover:not(:disabled),
+.dig .dig-pill--ep.is-chosen {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
 .dig .dig-pill--ep:disabled {
-  opacity: 0.38;
+  color: var(--ink-3);
   cursor: default;
 }
 
-.dig .dig-pill--memory {
-  border-style: dotted;
-  color: var(--ink-2);
+.dig-pill__plus {
+  font-style: normal;
+  color: var(--amber-text);
 }
 
-.dig .dig-pill--build.is-surge {
-  border-color: var(--amber-text);
+.dig .dig-pill--ep:disabled .dig-pill__plus {
+  color: var(--rule);
+}
+
+.dig-pill__n {
+  font-family: var(--font-mono);
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+/* ビルドと記憶は字だけ。ビルドは暴走・極みのときだけ琥珀。悪い記憶は印つき。 */
+.dig-build,
+.dig-mem {
+  color: var(--ink-2);
+  cursor: help;
+}
+
+.dig-build.is-surge {
   color: var(--amber-text);
   font-weight: 700;
+}
+
+.dig-mem + .dig-mem::before {
+  content: '・';
+  margin-right: 0;
+  color: var(--rule);
+}
+
+.dig-mem.is-bad {
+  color: var(--ink);
+  text-decoration: underline dotted var(--ink-3);
+  text-underline-offset: 3px;
 }
 
 .dig .dig-held button:not(.dig-pill) {
@@ -830,7 +867,6 @@
     min-height: 5rem;
   }
 
-  .dig-card__fx,
   .dig-card__tags {
     display: none;
   }
@@ -862,25 +898,38 @@
 }
 
 /* 見渡す／寄る：地図の左上に小さく。 */
+/* 寄る／見渡す。地図の右下に、＋ と − を縦に一つずつ（地図の約束どおり）。 */
 .dig .dig-zoom {
   position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
+  right: 16px;
+  bottom: 16px;
   z-index: 2;
   display: grid;
-  place-items: center;
-  width: 1.75rem;
-  min-height: 1.75rem;
-  padding: 0;
-  border-color: var(--rule);
+  border: 1px solid var(--rule);
   background: var(--bg);
+}
+
+.dig .dig-zoom__b {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-family: var(--font-mono);
-  font-size: var(--font-ui-xs);
+  font-size: 1rem;
   line-height: 1;
 }
 
-.dig .dig-zoom.is-on {
-  border-color: var(--ink);
+.dig .dig-zoom__b + .dig-zoom__b {
+  border-top: 1px solid var(--rule);
+}
+
+.dig .dig-zoom__b:disabled {
+  color: var(--rule);
+  cursor: default;
 }
 
 /* ─── 遭遇の脇：一巡（前の手番 → 相手の次の手）→ 四つの道 → 素手 ─── */
@@ -1210,87 +1259,6 @@
  * 強調は段で切り替える（steps）。動きの量は 8px の格子で。
  */
 
-/* 字幕（連鎖・会心）。場面の上に、細い線で挟んだ明朝の一語。 */
-.dig-combo {
-  position: absolute;
-  top: 32%;
-  left: 50%;
-  z-index: 3;
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  padding: 8px 24px;
-  background: var(--bg);
-  color: var(--amber-text);
-  pointer-events: none;
-  transform: translateX(-50%);
-}
-
-.dig-combo::before,
-.dig-combo::after {
-  content: '';
-  width: 100%;
-  height: 1px;
-  background: var(--amber-text);
-}
-
-.dig-combo::before {
-  order: -1;
-}
-
-.dig-combo__n {
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-}
-
-.dig-combo.is-2 .dig-combo__n {
-  font-size: 1.25rem;
-}
-
-.dig-combo.is-3 .dig-combo__n {
-  font-size: 1.5rem;
-}
-
-.dig-combo__x {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.16em;
-}
-
-.dig-combo.is-on {
-  animation: dig-title 1.4s linear both;
-}
-
-.dig-combo.is-on::before,
-.dig-combo.is-on::after {
-  animation: dig-rule 0.24s ease-out both;
-}
-
-/* 字幕は切って出し（フェードではなくカット）、長めに置いて、最後だけ溶かす。 */
-@keyframes dig-title {
-  0% {
-    opacity: 1;
-  }
-  80% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-/* 線は真ん中から左右へ引かれる。 */
-@keyframes dig-rule {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
 /* 連鎖と共鳴（一行。四角の数と、倍率・次の見返りだけ）。 */
 .dig-flow {
   display: flex;
@@ -1544,9 +1512,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dig-combo.is-on,
-  .dig-combo.is-on::before,
-  .dig-combo.is-on::after,
   .dig-pips i.is-new,
   .dig-result__stamp.is-in,
   .dig-spoil.is-in,
@@ -1566,4 +1531,27 @@
   font-size: var(--font-ui-xs);
   letter-spacing: 0.08em;
   color: var(--ink-3);
+}
+
+/* 連鎖できる札の印は、直前の札と繋がっていることを、灯りの明滅で（1-bit の段で）。 */
+.dig-enc-on .dig-badge--chain {
+  animation: dig-link 1.2s steps(2, jump-none) infinite;
+}
+
+@keyframes dig-link {
+  50% {
+    border-color: var(--rule);
+    color: var(--ink-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-enc-on .dig-badge--chain {
+    animation: none;
+  }
+}
+
+/* 向き合っているあいだは寄り引きできないので、＋ − も出さない。 */
+.dig-enc-on .dig-zoom {
+  display: none;
 }

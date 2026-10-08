@@ -20,14 +20,12 @@ import { buildsOf } from '../content/sources';
 import { nextTier, SURGES, tierOf } from '../content/surges';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
-import { ask } from '../core/rules';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { clockOf, PHASE_NAME, phaseOf } from '../core/time';
 import { getLang, setLang, tr } from '../i18n';
 import { type Advice, advise, nodeLabel, type RouteKind, sourceLabel } from '../sim/advise';
 import {
   canAccept,
-  chainMult,
   chainNext,
   incoming,
   leaveChance,
@@ -156,9 +154,6 @@ const titled = (el: HTMLElement, text: string): HTMLElement => {
   return el;
 };
 
-/** 倍率の書き方（×1.35、×1.5）。 */
-const fmtMult = (m: number) => String(Math.round(m * 100) / 100);
-
 /** 共鳴の段（灯りの数で、決着のときに受け取るもの）。 */
 const RES_STEPS: readonly [number, string][] = [
   [2, '金'],
@@ -243,7 +238,14 @@ export function openDig(doc: Document, onClose: () => void): void {
     | { kind: 'alter'; slot: number; to: string }
     | null = null;
   const reward: { take?: string; help?: number } = {};
-  const anim = { foeHitAt: -9, youHitAt: -9, end: null as 'fall' | 'glow' | null, endAt: -9 };
+  const anim = {
+    foeHitAt: -9,
+    youHitAt: -9,
+    end: null as 'fall' | 'glow' | null,
+    endAt: -9,
+    chain: 0,
+    chainAt: -9,
+  };
   /** 跳ねる数（遭遇の場面に、少しのあいだ浮かぶ）。 */
   let pops: Scene['pops'][number][] = [];
   const pop = (
@@ -274,16 +276,19 @@ export function openDig(doc: Document, onClose: () => void): void {
   const caption = h('p', { class: 'dig-guide__line' });
   const hintBox = h('div', { class: 'dig-guide__hint' });
   const guide = h('div', { class: 'dig-guide' }, moment, caption, hintBox);
-  /** 見渡す／寄る（地図の左上の小さな印。ホイールでも）。 */
-  const zoomer = h('button', {
-    type: 'button',
-    class: 'dig-zoom',
-    'aria-label': '見渡す',
-    title: '見渡す',
-  });
-  /** 連鎖の印（決まった瞬間だけ、場面の上に大きく）。 */
-  const combo = h('div', { class: 'dig-combo', hidden: true, 'aria-hidden': 'true' });
-  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer, combo);
+  /** 寄る／見渡す（地図の右下の ＋ − 。ホイールでも）。いまの側は押せない。 */
+  const zoomIn = h(
+    'button',
+    { type: 'button', class: 'dig-zoom__b', 'aria-label': '寄る', title: '寄る' },
+    '+',
+  );
+  const zoomOut = h(
+    'button',
+    { type: 'button', class: 'dig-zoom__b', 'aria-label': '見渡す', title: '見渡す' },
+    '−',
+  );
+  const zoomer = h('div', { class: 'dig-zoom' }, zoomIn, zoomOut);
+  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
@@ -393,6 +398,8 @@ export function openDig(doc: Document, onClose: () => void): void {
             anim.end = null;
             anim.endAt = -9;
             streak = 0;
+            anim.chain = 0;
+            anim.chainAt = -9;
             lit = 0;
             spoils = { list: [], at: -9 };
             spoilsPlayed = false;
@@ -426,6 +433,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           if (ev.key === 'chain') {
             streak = Math.max(0, streak + ev.n);
             bestStreak = Math.max(bestStreak, streak);
+            anim.chain = streak;
             // 連鎖のイベントは札を使う前に出るので、誰の遭遇かで見分ける。
             if (ev.n > 0 && (game?.world.enc?.who ?? 'you') === 'you') showCombo(streak);
           } else if (ev.key.startsWith('r:') && ev.n > 0 && game?.world.enc?.who === 'you') {
@@ -488,7 +496,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           live.textContent = tr(ev.text);
           // 会心と隠し効果は、帯の一言ではなく、場面の上で。
           if (ev.who === 'voice' && ev.text === '会心。') {
-            showStamp('会心', '×2', 3);
+            crit();
             break;
           }
           if (ev.who === 'voice' && foundNow && ev.text.startsWith('隠し効果：')) {
@@ -517,7 +525,6 @@ export function openDig(doc: Document, onClose: () => void): void {
   let streak = 0;
   let lit = 0;
   let litAt = -9;
-  let comboTimer = 0;
   /** 新しく入った札の枠・増えた金・見つけた隠し効果・決着の見返り（演出のため）。 */
   const newAt = new Map<number, number>();
   let coinGain = { n: 0, at: -9 };
@@ -534,13 +541,19 @@ export function openDig(doc: Document, onClose: () => void): void {
     newAt.delete(slot);
     return now() - t < 1.6;
   }
+  /** 連鎖：場面の中で、あなたが踏み込み、続けた数だけ波が広がる（字は出さない）。 */
   function showCombo(n: number): void {
-    const w = game?.world;
-    const m = w ? ask(w, 'chain', { who: 'you' }, chainMult(n)) : chainMult(n);
-    showStamp(n >= 2 ? `連鎖 ${n}` : '連鎖', `×${fmtMult(m)}`, n);
+    anim.chainAt = now();
     sound.chain(n);
     if (!still()) tower.punch(0.03 + 0.025 * Math.min(n, 3), now());
     stop(0.05 + 0.025 * Math.min(n, 3));
+  }
+
+  /** 会心：いちばん強い止めと寄り。 */
+  function crit(): void {
+    sound.chain(3);
+    if (!still()) tower.punch(0.1, now());
+    stop(0.12);
   }
 
   /** 止め（ヒットストップ）。s 秒だけ、場面の絵を止める。 */
@@ -555,28 +568,6 @@ export function openDig(doc: Document, onClose: () => void): void {
   function cut(on: boolean): void {
     tower.settle(on && !still() ? 0.1 : 0, now());
   }
-  /** 場面の上の大きな印（連鎖・会心）。 */
-  function showStamp(big: string, small: string, n: number): void {
-    combo.replaceChildren(
-      h('b', { class: 'dig-combo__n' }, tr(big)),
-      h('span', { class: 'dig-combo__x' }, small),
-    );
-    combo.className = `dig-combo is-${Math.min(n, 3)}`;
-    combo.hidden = false;
-    // 同じ要素の演出を、最初からかけ直す。
-    void combo.offsetWidth;
-    combo.classList.add('is-on');
-    if (big === '会心') {
-      sound.chain(3);
-      if (!still()) tower.punch(0.1, now());
-      stop(0.12);
-    }
-    window.clearTimeout(comboTimer);
-    comboTimer = window.setTimeout(() => {
-      combo.hidden = true;
-    }, 1400);
-  }
-
   /** 地力（硬度）が上がったら、名場面に（鉱物の名が一つ硬いものへ）。 */
   let hardAt = -9;
   function rise(w: World): void {
@@ -906,12 +897,11 @@ export function openDig(doc: Document, onClose: () => void): void {
   /** 見渡す（引く）／近景に戻す。ホイールの向きでも切り替わる。 */
   function setOverview(on: boolean): void {
     tower.overview = on;
-    zoomer.textContent = on ? '⊕' : '⊖';
-    zoomer.setAttribute('aria-label', tr(on ? '寄る' : '見渡す'));
-    zoomer.title = tr(on ? '寄る' : '見渡す');
-    zoomer.classList.toggle('is-on', on);
+    zoomIn.disabled = !on;
+    zoomOut.disabled = on;
   }
-  zoomer.addEventListener('click', () => setOverview(!tower.overview));
+  zoomIn.addEventListener('click', () => setOverview(false));
+  zoomOut.addEventListener('click', () => setOverview(true));
   setOverview(false);
   canvas.addEventListener(
     'wheel',
@@ -1376,10 +1366,6 @@ export function openDig(doc: Document, onClose: () => void): void {
    * 四角の列で出す。次に何が起きるかを一言で。
    */
   function flowRows(w: World): HTMLElement {
-    const e = w.enc;
-    const s = e?.st.chain ?? 0;
-    const cur = ask(w, 'chain', { who: 'you' }, chainMult(s));
-    const nextM = ask(w, 'chain', { who: 'you' }, chainMult(s + 1));
     const srcs = resonance(w);
     const n = srcs.length;
     const step = RES_STEPS.find(([k]) => k > n);
@@ -1387,16 +1373,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h(
       'p',
       { class: 'dig-flow' },
-      h(
-        'span',
-        {
-          class: `dig-flow__g${s ? ' is-on' : ''}`,
-          title: `連鎖：直前の札とタグが重なる札を続けると強くなる（三つ目まで）。次 ×${fmtMult(nextM)}`,
-        },
-        h('b', {}, '連鎖'),
-        pipRow(Math.min(s, 3), 3, 'chain'),
-        s ? h('span', { class: 'dig-flow__x' }, `×${fmtMult(cur)}`) : null,
-      ),
       h(
         'span',
         {
@@ -1441,13 +1417,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h(
       'span',
       { class: 'dig-badges' },
-      chain && w
-        ? h(
-            'i',
-            { class: `dig-badge dig-badge--boost${n >= 2 ? ' is-hot' : ''}` },
-            `${n >= 2 ? `連鎖 ${n}` : '連鎖'} ×${fmtMult(ask(w, 'chain', { who: 'you', tags: [...(tags ?? [])] }, chainMult(n)))}`,
-          )
-        : null,
+      chain ? h('i', { class: 'dig-badge dig-badge--boost dig-badge--chain' }, '連鎖') : null,
       stage ? h('i', { class: 'dig-badge dig-badge--boost' }, '見せ場') : null,
       bs.map((b) => h('i', { class: `dig-badge dig-badge--${b}` }, BADGE_NAME[b])),
     );
@@ -2165,7 +2135,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       return h(
         'span',
         {
-          class: `dig-pill dig-pill--build${t ? ' is-surge' : ''}`,
+          class: `dig-build${t ? ' is-surge' : ''}`,
           title: [b.text, t && s ? (t === 2 ? s.peakText : s.text) : '', nt ?? '']
             .filter(Boolean)
             .join('\n'),
@@ -2201,23 +2171,26 @@ export function openDig(doc: Document, onClose: () => void): void {
                 buildLine,
               )
             : null,
-          w.you.epithets.length
+          // エピテットは種類ごとに一つ（同じものは ×n）。遭遇のあいだは刻めないので出さない。
+          w.you.epithets.length && !w.enc
             ? h(
                 'span',
-                { class: 'dig-pills__group' },
+                { class: 'dig-pills__group dig-pills__group--ep' },
                 h('span', { class: 'dig-pills__label' }, 'エピテット'),
-                w.you.epithets.map((ep) =>
-                  button(
-                    `＋《${epithetDef(ep)?.name ?? ep}》`,
-                    () => choose({ kind: 'inscribe', ep }),
+                [...new Set(w.you.epithets)].map((ep) => {
+                  const n = w.you.epithets.filter((x) => x === ep).length;
+                  return h(
+                    'button',
                     {
+                      type: 'button',
+                      onclick: () => choose({ kind: 'inscribe', ep }),
                       ...chosen({ kind: 'inscribe', ep }),
                       class: `dig-pill dig-pill--ep${sameAim(aim, { kind: 'inscribe', ep }) ? ' is-chosen' : ''}${
-                        !w.enc && !profile.hints.includes('epithet') ? ' is-fresh' : ''
+                        !profile.hints.includes('epithet') ? ' is-fresh' : ''
                       }`,
                       // 触れると、貼れる札が白く浮く（押す前に、どこへ貼れるか分かる）。
                       onmouseenter: () => {
-                        if (aim || w.enc || sameAim(hoverAim, { kind: 'inscribe', ep })) return;
+                        if (aim || sameAim(hoverAim, { kind: 'inscribe', ep })) return;
                         hoverAim = { kind: 'inscribe', ep };
                         renderTray();
                       },
@@ -2226,16 +2199,17 @@ export function openDig(doc: Document, onClose: () => void): void {
                         hoverAim = null;
                         renderTray();
                       },
-                      disabled:
-                        !!w.enc ||
-                        !w.you.cards.some((_, i) => aimOk(w, { kind: 'inscribe', ep }, i)),
-                      title: `${epithetDef(ep)?.gloss ?? ''}\n${epithetDef(ep)?.card?.text ?? ''}\n（押してから札を選ぶ。札へ落としても刻める）`,
+                      disabled: !w.you.cards.some((_, i) => aimOk(w, { kind: 'inscribe', ep }, i)),
+                      title: `${epithetDef(ep)?.gloss ?? ''}\n${epithetDef(ep)?.card?.text ?? ''}`,
                       draggable: 'true',
                       ondragstart: (ev: Event) =>
                         (ev as DragEvent).dataTransfer?.setData('text/plain', `ep:${ep}`),
                     },
-                  ),
-                ),
+                    h('i', { class: 'dig-pill__plus', 'aria-hidden': 'true' }, '＋'),
+                    `《${epithetDef(ep)?.name ?? ep}》`,
+                    n > 1 ? h('i', { class: 'dig-pill__n' }, `×${n}`) : null,
+                  );
+                }),
               )
             : null,
           w.you.perms.length
@@ -2246,8 +2220,11 @@ export function openDig(doc: Document, onClose: () => void): void {
                 w.you.perms.map((p) =>
                   h(
                     'span',
-                    { class: 'dig-pill dig-pill--memory', title: permDef(p)?.text },
-                    `《${permDef(p)?.name ?? p}》`,
+                    {
+                      class: `dig-mem${permDef(p)?.bad ? ' is-bad' : ''}`,
+                      title: permDef(p)?.text,
+                    },
+                    permDef(p)?.name ?? p,
                   ),
                 ),
               )

@@ -1,6 +1,6 @@
 import { drawText, textWidth } from '../../../shared/pixel/font';
 import { clamp, lerp } from '../../../shared/pixel/math';
-import { AMBER, INK, PAPER, Raster, threshold } from '../../../shared/pixel/raster';
+import { AMBER, INK, NONE, PAPER, Raster, threshold } from '../../../shared/pixel/raster';
 import {
   BLUE,
   ENC_ZOOM,
@@ -254,11 +254,31 @@ export class Tower {
     this.people(view, t);
     if (scene && c && at && presence > 0.6)
       hud(this.raster, this.cam.zoom, c.x, c.y, at.kind === 'boss', scene, t);
+    this.vignette(view.enc ? 0 : 1);
     if (this.ctx && this.image && this.out) {
       r.present(this.out, this.palette);
       this.ctx.putImageData(this.image, 0, 0);
     }
     this.cam.zoom = base;
+  }
+
+  /**
+   * 額縁。地図の縁で床が断ち切られないように、四辺を網点で紙へ溶かす
+   * （向き合った場面は灯りが縁を作るので、そのまま）。
+   */
+  private vignette(k: number): void {
+    if (k <= 0) return;
+    const r = this.raster;
+    const mx = 28;
+    const my = 14;
+    for (let y = 0; y < H; y++) {
+      const ty = 1 - Math.min(y, H - 1 - y) / my;
+      for (let x = 0; x < this.W; x++) {
+        const tx = 1 - Math.min(x, this.W - 1 - x) / mx;
+        const t = Math.max(tx, ty) * k;
+        if (t > 0 && threshold(x, y) < t) r.set(x, y, NONE);
+      }
+    }
   }
 
   /** 底。下へ行くほど墨の網点が濃くなり、何も見えなくなる。 */
@@ -665,9 +685,11 @@ export class Tower {
       if (!(gone && e.end === 'fall')) {
         const { x, y } = this.center(encRoom);
         const hit = t - e.foeHitAt < 0.18;
+        // 連鎖で受けた手は、続くほど大きく揺れる。
+        const amp = 1.5 * (1 + 0.6 * (t - e.chainAt < 0.3 ? e.chain : 0));
         figure(
           this.raster,
-          x + 7 * zm + (hit ? Math.sin(t * 90) * 1.5 : 0),
+          x + 7 * zm + (hit ? Math.sin(t * 90) * amp : 0),
           y,
           PEER * zm,
           hit ? INK : e.end === 'glow' && gone ? AMBER : BLUE,
@@ -696,15 +718,35 @@ export class Tower {
       const e = view.enc;
       const hurt = e ? t - e.youHitAt < 0.18 : false;
       const bob = Math.round(Math.sin(t * 3) * 0.6);
+      // 連鎖：決まった瞬間に一歩踏み込み、波が続けた数だけ広がる。頭の上には続きの数。
+      const since = e ? t - e.chainAt : 99;
+      const lunge = since < 0.3 ? Math.sin((since / 0.3) * Math.PI) * 5 * zm : 0;
+      const fx = x - (e ? 7 * zm : 0) + lunge + (hurt ? Math.sin(t * 80) * 1.5 : 0);
       figure(
         this.raster,
-        x - (e ? 7 * zm : 0) + (hurt ? Math.sin(t * 80) * 1.5 : 0),
+        fx,
         y + bob,
         zm * this.mapPeople(),
         hurt ? INK : AMBER,
         false,
         e ? 0.4 : 0,
       );
+      if (e && e.chain > 0) {
+        for (let i = 0; i < Math.min(e.chain, 3); i++) {
+          const k = since - i * 0.09;
+          if (k > 0 && k < 0.45) ring(this.raster, fx, y - 6 * zm, (4 + k * 60) * zm, AMBER);
+        }
+        const n = Math.min(e.chain, 3);
+        const s = Math.max(2, Math.round(1.5 * zm));
+        const top = y - 22 * zm * this.mapPeople() + bob;
+        for (let i = 0; i < n; i++) {
+          const px = Math.round(fx - ((n - 1) * (s + 2)) / 2 + i * (s + 2) - s / 2);
+          // 決まったばかりの一つは、少しのあいだ明滅する。
+          if (i === n - 1 && since < 0.5 && Math.floor(since * 10) % 2) continue;
+          for (let dy = 0; dy < s; dy++)
+            for (let dx = 0; dx < s; dx++) this.raster.set(px + dx, Math.round(top) + dy, AMBER);
+        }
+      }
     } else {
       // 入口（区画の上の踊り場に立つ）。
       const p = this.project(0, 0, -1);
