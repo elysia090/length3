@@ -1,14 +1,15 @@
-import { PACE } from '../content/balance';
+import { PACE, POINTS } from '../content/balance';
 import { cardArch, cardTags } from '../content/cardinfo';
 import type { EpithetCtx } from '../content/defs';
 import type { CardFacet } from '../content/epithets';
+import { LAST } from '../content/floors';
 import { holds, run } from '../content/fx';
 import { allEpithets, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import { buildsOf } from '../content/sources';
 import type { Basic } from '../core/events';
 import { portrait } from '../core/mind';
 import type { Card, Char, Foe, Outcome, Who, World } from '../core/model';
-import { ask } from '../core/rules';
+import { ask, bookOf } from '../core/rules';
 import type { Tag } from '../core/tags';
 import type { Tx } from '../core/tx';
 import { planFoe } from './ai';
@@ -24,6 +25,7 @@ import {
   line,
   maxHp,
   maxMind,
+  quip,
   revealClue,
   roll,
   say,
@@ -40,11 +42,19 @@ import {
  * 相手の姿を作る（純粋な計算。地図の上の見積もりにも使う）。
  * late は夜明けを過ぎた分（規則 lateness を通したあと）。
  */
+
+/** 話がひとつ多く届く、相手の手（打ち明ける・待つ・繕う・持ちかける）。 */
+const TALK_OPEN: ReadonlySet<string> = new Set(['confide', 'wait', 'mend', 'bargain']);
 export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
   const def = foeDef(npc);
   const depth = w.depth + late;
   // 夜明けを過ぎた 1 時間ごとに、深さ 2.5 段ぶん荒れる（退屈な道の代償）。
-  const grow = PACE.tough * (1 + 0.1 * w.depth + 0.25 * late + PACE.stratum * (w.stratum - 1));
+  // 底の手前より下は、区画ごとに掛け算で手強くなる（構成がどこまで持つかを試す）。
+  const deep = Math.max(0, w.stratum - LAST);
+  const grow =
+    PACE.tough *
+    (1 + 0.1 * w.depth + 0.25 * late + PACE.stratum * (w.stratum - 1)) *
+    PACE.deep ** deep;
   const f: Foe = {
     id: def.id,
     name: def.name,
@@ -53,10 +63,10 @@ export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
     resolve: Math.round(def.resolve * grow),
     maxResolve: Math.round(def.resolve * grow),
     trust: 0,
-    need: Math.round(def.need * PACE.tough) + w.stratum - 1 + Math.floor(w.depth / 3),
+    need: Math.round(def.need * PACE.tough) + w.stratum - 1 + Math.floor(w.depth / 3) + 2 * deep,
     hostility: def.hostility,
     guard: 0,
-    atk: Math.round(def.atk * (1 + 0.1 * depth) + (w.stratum - 1)),
+    atk: Math.round(def.atk * (1 + 0.1 * depth) + (w.stratum - 1) + 2 * deep),
     def: def.def,
     wil: def.wil,
     int: def.int,
@@ -144,10 +154,7 @@ export function startEnc(
   m: Meet = {},
 ): void {
   const w = tx.w;
-  const late = Math.max(
-    0,
-    Math.round(tx.rule('lateness', { who }, w.hour >= PACE.dawn ? w.hour - PACE.dawn + 1 : 0)),
-  );
+  const late = Math.max(0, Math.round(tx.rule('lateness', { who }, 0)));
   const def = foeDef(npc);
   const f = scaleFoe(w, npc, m, late);
   const stage = [...(m.stage ?? [])];
@@ -300,7 +307,13 @@ export function basic(tx: Tx, a: Basic): boolean {
         hostile(tx, 2);
       } else if (f.hostility >= 7) hostile(tx, -1);
       else {
-        trust(tx, 1 + (statOf(tx.w, who, 'WIL') >= 6 ? 1 : 0));
+        // 話は、聞く耳のあるときに届く（相手の次の手を読む）。殴りかかろう、脅そうと
+        // している相手には届かず、心を開きかけている相手にはひとつ多く届く。嘘の
+        // 予告に乗せられていれば、本当の手のほうで決まる。
+        const k = f.intent?.kind;
+        const base = 1 + (statOf(tx.w, who, 'WIL') >= 6 ? 1 : 0);
+        if (k === 'strike' || k === 'threat') say(tx, 'voice', '聞いていない。');
+        else trust(tx, base + (TALK_OPEN.has(k ?? 'wait') ? 1 : 0));
         hostile(tx, -1);
       }
       break;
@@ -340,6 +353,55 @@ function facets(c: Char, card: Card): { list: { id: string; f: CardFacet }[]; ct
   return { list, ctx: { card, char: c, tags: cardTags(card), others } };
 }
 
+/** 続けた数ごとの、連鎖の点（規則で上乗せされる前）。 */
+export const chainPoints = (streak: number): number =>
+  POINTS.chain[Math.min(streak, POINTS.chain.length - 1)] ?? 0;
+
+/**
+ * いま札を使ったら、効き目一つ一つに足される点と、その内訳（画面に出す）。
+ * 連鎖・書き留め・見せ場・弱いタグ・守るタグ・原型の答え。
+ */
+export function bonusOf(
+  w: World,
+  card: Card,
+): { total: number; parts: { text: string; n: number }[] } {
+  const e = w.enc;
+  const parts: { text: string; n: number }[] = [];
+  if (!e) return { total: 0, parts };
+  const who = e.who;
+  const tags = cardTags(card);
+  const streak = chainNext(w, tags);
+  if (streak > 0) {
+    const n = ask(w, 'chain', { who, tags }, chainPoints(streak));
+    parts.push({ text: `連鎖 +${n}`, n });
+  }
+  if (e.st.noted) parts.push({ text: `書き留め +${POINTS.noted}`, n: POINTS.noted });
+  const ctx = {
+    w,
+    who,
+    enc: e,
+    tags,
+    arch: cardArch(card),
+    card: card.id,
+    spent: card.uses <= 0,
+  };
+  let v = 0;
+  for (const p of bookOf(w).patches.bonus ?? []) {
+    if (p.when && !p.when(ctx)) continue;
+    const next = p.fn(ctx, v);
+    if (next !== v) parts.push({ text: p.text, n: next - v });
+    v = next;
+  }
+  return { total: parts.reduce((a, x) => a + x.n, 0), parts };
+}
+
+/** いま札を使えば、何連鎖目になるか（0 なら連鎖しない）。 */
+export function chainNext(w: World, tags: readonly Tag[]): number {
+  const e = w.enc;
+  if (!e || !e.last.some((t) => tags.includes(t))) return 0;
+  return (e.st.chain ?? 0) + 1;
+}
+
 export function useCard(tx: Tx, slot: number): boolean {
   const w = tx.w;
   const e = w.enc;
@@ -356,10 +418,16 @@ export function useCard(tx: Tx, slot: number): boolean {
   const has = (k: keyof CardFacet) => list.some((x) => !!x.f[k]);
   // 倍率。規則（ビルド・職・原型・弱点）→ 連鎖 → 書き留め → エピテット。
   let mult = tx.rule('mult', { who, tags, arch, card: def.id, spent }, 1);
+  // 連鎖：直前の札とタグが重なると強くなり、続けるほど重なる（三つ目で頭打ち）。
   const chained = e.last.some((t) => tags.includes(t)) || list.some((x) => x.id === 'fervent');
-  if (chained) mult *= tx.rule('chain', { who, tags }, 1.25);
+  const streak = chained ? (e.st.chain ?? 0) + 1 : 0;
+  if (streak !== (e.st.chain ?? 0))
+    tx.emit({ type: 'enc.st', key: 'chain', n: streak - (e.st.chain ?? 0) });
+  // 点：連鎖・書き留め・見せ場・弱いタグ…（倍率とは別に、効き目ごとに足す）。
+  let bonus = chained ? tx.rule('chain', { who, tags }, chainPoints(streak)) : 0;
+  bonus += tx.rule('bonus', { who, tags, arch, card: def.id, spent }, 0);
   if (e.st.noted) {
-    mult *= 1.5;
+    bonus += POINTS.noted;
     tx.emit({ type: 'enc.st', key: 'noted', n: -(e.st.noted ?? 0) });
   }
   for (const x of list) if (x.f.mult) mult *= x.f.mult(w, ctx);
@@ -399,6 +467,7 @@ export function useCard(tx: Tx, slot: number): boolean {
   const first = (card.marks.used ?? 0) + (card.marks.spent ?? 0) <= 1;
   const fctx = {
     mult,
+    bonus,
     card: card.id,
     slot,
     first,
@@ -410,10 +479,12 @@ export function useCard(tx: Tx, slot: number): boolean {
   };
   if (mult > 0) {
     for (let i = 0; i < (twice ? 2 : 1); i++) run(tx, fx, fctx);
-    for (const x of list) if (x.f.after) run(tx, x.f.after, { ...fctx, mult: 1 });
+    for (const x of list) if (x.f.after) run(tx, x.f.after, { ...fctx, mult: 1, bonus: 0 });
     if (list.some((x) => x.id === 'echoing')) run(tx, fx, { ...fctx, mult: mult * 0.4 });
     if (list.some((x) => x.id === 'false'))
       tx.emit({ type: 'claim', about: 'harmless', truth: false });
+    // 連鎖の二つ目からは、相手がよろめく（台詞は画面だけ）。
+    if (streak >= 2) quip(tx, 'stagger');
   } else say(tx, 'voice', 'まだ、目覚めていない。');
   for (const x of list) if (x.f.host) hostile(tx, x.f.host);
   if (list.some((x) => x.id === 'borrowed') && w.enc)
@@ -422,7 +493,7 @@ export function useCard(tx: Tx, slot: number): boolean {
   // 隠し効果。条件がそろうと現れ、初めて現れたときに明らかになる。
   const h = def.hidden;
   if (h && w.enc?.phase === 'act' && holds(tx, h.when, fctx)) {
-    run(tx, h.fx, { ...fctx, mult: 1 });
+    run(tx, h.fx, { ...fctx, mult: 1, bonus: 0 });
     if (who === 'you' && !w.found.includes(h.id)) {
       tx.emit({ type: 'found', id: h.id });
       say(tx, 'voice', `隠し効果：${h.text}`);
@@ -436,7 +507,20 @@ function afterYou(tx: Tx): void {
   settle(tx);
   const e = tx.w.enc;
   if (!e || e.phase !== 'act') return;
+  wince(tx);
   foeTurn(tx);
+}
+
+/** 相手が初めて深く傷ついたとき・崩れかけたときの一言（それぞれ一度だけ）。 */
+function wince(tx: Tx): void {
+  const f = tx.w.enc?.foe;
+  if (!f || tx.sim) return;
+  const low = f.hp < f.maxHp * 0.25 || f.resolve < f.maxResolve * 0.25;
+  const hurt = f.hp < f.maxHp * 0.6;
+  const kind = low && !f.st.saidLow ? 'low' : hurt && !f.st.saidHurt ? 'hurt' : null;
+  if (!kind || !quip(tx, kind)) return;
+  tx.emit({ type: 'foe.st', key: kind === 'low' ? 'saidLow' : 'saidHurt', n: 1 });
+  if (kind === 'low' && !f.st.saidHurt) tx.emit({ type: 'foe.st', key: 'saidHurt', n: 1 });
 }
 
 // ─── 相手の手番 ───────────────────────────────────────────────
@@ -457,8 +541,12 @@ function foeTurn(tx: Tx): void {
     say(tx, 'voice', `${f.name}は動けない。`);
   } else if (move) {
     if (f.intent?.kind === 'bargain' && !f.st.dealt && !f.intent.lie) hostile(tx, 1);
+    const you = charOf(w, e.who);
+    const [hp, mind] = [you.hp, you.mind];
     tx.emit({ type: 'act', move: move.id });
     move.act(tx);
+    // 手が当たったら、ときどき一言。
+    if (you.hp < hp || you.mind < mind) quip(tx, 'taunt', 0.45);
   }
   for (const k of ['dealt', 'punish', 'cut'] as const)
     if (w.enc?.foe.st[k]) tx.emit({ type: 'foe.st', key: k, n: -(w.enc.foe.st[k] ?? 0) });

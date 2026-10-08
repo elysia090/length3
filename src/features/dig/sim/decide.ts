@@ -3,9 +3,11 @@ import type { World } from '../core/model';
 import { Tx } from '../core/tx';
 import '../content/sources';
 import { basic, useCard } from './encounter';
+import { checkGoals, initGoals } from './goals';
 import {
   alter,
   announce,
+  breathed,
   breather,
   buy,
   choose,
@@ -15,6 +17,7 @@ import {
   depart,
   inscribe,
   move,
+  onward,
   rest,
   sacrifice,
   sell,
@@ -31,22 +34,30 @@ import {
 export function decide(
   w: World,
   cmd: Cmd,
-  opts: { sim?: boolean; trace?: Map<string, number> } = {},
+  opts: {
+    sim?: boolean;
+    trace?: Map<string, number>;
+    why?: { src: string; text: string; at: number }[];
+  } = {},
 ): Ev[] {
   const tx = new Tx(w, opts.sim ?? false);
   const before = opts.sim ? null : tiersOf(w.you);
   tx.trace = opts.trace ?? null;
+  tx.why = opts.why ?? null;
   if (w.ending && cmd.c !== 'start') return [];
   let ok = true;
   switch (cmd.c) {
     case 'start':
       start(tx, cmd.seed, cmd.job, cmd.depth, cmd.carry, cmd.remembered, cmd.sheet);
+      tx.flush();
+      initGoals(tx, cmd.goals);
       break;
     case 'move':
       ok = move(tx, cmd.node);
       break;
     case 'breather':
-      ok = !w.enc && !w.pending;
+      // 一服はフロアに一度（締め切りがないぶん、際限なく休めないように）。
+      ok = !w.enc && !w.pending && !breathed(w);
       if (ok) breather(tx);
       break;
     case 'item':
@@ -79,7 +90,7 @@ export function decide(
       ok = alter(tx, cmd.slot, cmd.to);
       break;
     case 'inscribe':
-      ok = inscribe(tx, cmd.ep, cmd.slot, cmd.perm);
+      ok = inscribe(tx, cmd.ep, cmd);
       break;
     case 'buy':
       ok = buy(tx, cmd.id, cmd.slot);
@@ -90,6 +101,9 @@ export function decide(
     case 'cure':
       ok = cure(tx, cmd.perm);
       break;
+    case 'onward':
+      ok = onward(tx, cmd.go);
+      break;
     case 'sacrifice':
       ok = sacrifice(tx, cmd.stat, cmd.slot);
       break;
@@ -97,6 +111,8 @@ export function decide(
   if (!ok && !tx.out.length) return [];
   tx.flush();
   if (!w.ending) sync(tx);
+  // 目標は、試算（予告）には混ぜない。届いた見返りが札の効き目に見えないように。
+  if (!opts.sim && !w.ending) checkGoals(tx);
   if (before) announce(tx, before);
   return tx.close();
 }

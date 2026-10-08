@@ -1,4 +1,4 @@
-import type { Mind } from '../core/model';
+import type { GoalCarry, Mind } from '../core/model';
 import type { Save } from '../sim/game';
 
 /**
@@ -21,6 +21,8 @@ export interface Profile {
   /** もう読んだ案内。 */
   hints: string[];
   muted: boolean;
+  /** 届かなかった目標（次の挑戦へ持ち越す）。 */
+  goals?: GoalCarry[];
   /** 画面の言語（無ければ、開いたページの言語）。 */
   lang?: 'ja' | 'en';
 }

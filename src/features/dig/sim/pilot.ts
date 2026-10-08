@@ -7,6 +7,7 @@ import { advise, type RouteKind } from './advise';
 import { bestAction } from './ai';
 import { maxHp, stats } from './ops';
 import {
+  breathed,
   canChoose,
   cardPrice,
   epPrice,
@@ -57,23 +58,34 @@ export function pilot(w: World): Cmd | null {
         return shopping(w) ?? { c: 'depart' };
       case 'told':
         return { c: 'depart' };
+      case 'summit':
+        // 試しの遊び手は、抜けたらそこで灯りを置く（測る挑戦の長さをそろえる）。
+        return { c: 'onward', go: false };
       default:
         return null;
     }
   }
+  // 抜けたあと、最後の相手から二度退いたら、そこで灯りを置く。
+  if (w.flags.cleared && (w.flags[`retreat:${w.stratum}`] ?? 0) >= 2)
+    return { c: 'onward', go: false };
   const ins = inscription(w);
   if (ins) return ins;
   const all = reachable(w);
   if (!all.length) return null;
-  const row = nodeOf(w, w.pos)?.row ?? -1;
-  const slack = PACE.dawn - w.hour - (ROWS - row);
+  // 締め切りはないので、時間の余裕はいつもある（廊下も渡り廊下も選べる）。
+  const slack = 99;
   // 廊下は夜に余裕があるときだけ。渡り廊下は回り道のぶん（2 時間）余裕が要る。
   const roomy = all.filter((n) =>
     isBridge(w, n) && w.pos !== null ? slack >= 3 : isHall(w, n) ? slack >= 1 : true,
   );
   const next = roomy.length ? roomy : all;
   // 傷んでいて、食堂に行けず、夜にまだ余裕があるなら、その場で一服。
-  if (w.you.hp * 2 < maxHp(stats(w, 'you')) && !next.some((n) => n.kind === 'rest') && slack >= 1)
+  if (
+    w.you.hp * 2 < maxHp(stats(w, 'you')) &&
+    !next.some((n) => n.kind === 'rest') &&
+    slack >= 1 &&
+    !breathed(w)
+  )
     return { c: 'breather' };
   const tired = w.you.hp < 12 || w.you.cards.filter((c) => c && c.uses === 0).length >= 2;
   const want = (k: string) =>

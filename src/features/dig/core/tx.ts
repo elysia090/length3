@@ -17,6 +17,13 @@ export class Tx {
   private book: Rulebook | null = null;
   /** 渡すと、効いた規則とトリガの出どころを数える（ルート読み用）。 */
   trace: Map<string, number> | null = null;
+  /**
+   * 渡すと、値を実際に動かした規則を、その一文と起きた位置（何番目のイベントの
+   * 前か）ごと書き留める（画面が「いま裏で何が効いたか」を見せるため）。
+   */
+  why: { src: string; text: string; at: number }[] | null = null;
+  /** このコマンドで相手がもう口を開いたか（台詞は一つのコマンドに一つまで）。 */
+  spoke = false;
   /** この遭遇で値を動かした、構成の出どころ（共鳴）。flush で遭遇に書く。 */
   private res = new Set<string>();
 
@@ -36,7 +43,7 @@ export class Tx {
     this.depth++;
     for (const t of triggers) {
       if (t.when && !t.when(ev, this.w)) continue;
-      this.mark(t.source);
+      this.mark(t.source, t.text);
       t.run(this, ev);
     }
     this.depth--;
@@ -53,12 +60,14 @@ export class Tx {
       name,
       { w: this.w, who: 'you', enc: this.w.enc, ...ctx },
       base,
-      (p) => this.mark(p.source),
+      (p) => this.mark(p.source, p.text),
     );
   }
 
-  private mark(source: string): void {
+  private mark(source: string, text?: string): void {
     if (this.trace) this.trace.set(source, (this.trace.get(source) ?? 0) + 1);
+    if (this.why && text && !this.why.some((x) => x.src === source && x.text === text))
+      this.why.push({ src: source, text, at: this.out.length });
     if (this.w.enc && RESONANT.test(source)) this.res.add(source);
   }
 

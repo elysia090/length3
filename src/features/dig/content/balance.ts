@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.4.1';
+export const DATA_VERSION = '1.12.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -27,16 +27,31 @@ export const DATA_VERSION = '1.4.1';
  *   stall    この手番を過ぎると、相手の攻撃が毎手番上がる（膠着しない）
  *   rest     食堂の回復（最大値の割合）。同じ層の 2 度目からは restAgain 倍
  */
+/**
+ * その場の条件の点（足し算）。効き目（体力・意志・信頼を動かす一つ一つ）に足す。
+ * 倍率にしないのは、札の数字に足すだけで暗算できるように。
+ */
+export const POINTS = {
+  /** 連鎖（続けた数ごと。三つ目からは同じ）。 */
+  chain: [0, 2, 4, 6] as readonly number[],
+  stage: 3,
+  weak: 3,
+  guarded: -3,
+  answer: 3,
+  noted: 4,
+} as const;
+
 export const PACE = {
   rows: 8,
   dawn: 10,
   tough: 1.7,
   build: 1.7,
   stratum: 0.3,
+  /** 底の手前より下の区画ごとの掛け算（体・意志）。 */
+  deep: 1.3,
   rest: 0.4,
   restAgain: 0.5,
   stage: 0.5,
-  stageMult: 1.35,
   stageTough: 1.25,
   stall: 8,
   slip: 0.45,
@@ -45,7 +60,13 @@ export const PACE = {
   /** 決着のあと、体と心がこの割合を下回っていたら、ここまで息を整える（一度の遭遇で次が詰まないように）。 */
   breath: 0.35,
   /** もう一人の灯り持ちと鉢合わせるのは、このフロアから（入口で潰されないように）。 */
-  rivalFrom: 2,
+  rivalFrom: 4,
+  /** 気まぐれ（選択肢が減る・増える・妙なものが混じる）の割合。 */
+  whim: 0.06,
+  /** 最後の相手の扉の前で、体と心がここまで戻る。 */
+  gate: 0.6,
+  /** 下りた先で、選択のない小さな出来事が起きる割合。 */
+  auto: 0.22,
 } as const;
 
 export interface Release {

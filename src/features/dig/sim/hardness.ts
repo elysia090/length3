@@ -76,10 +76,7 @@ export const youHardness = (w: World, who: Who = 'you') => hardnessOf(youRaw(w, 
 /** 地図の上での見積もり（まだ会っていない相手）。 */
 export function nodeHardness(w: World, n: MapNode): number | null {
   if (!n.npc) return null;
-  const late = Math.max(
-    0,
-    Math.round(ask(w, 'lateness', {}, w.hour + 1 >= PACE.dawn ? w.hour + 2 - PACE.dawn : 0)),
-  );
+  const late = Math.max(0, Math.round(ask(w, 'lateness', {}, 0)));
   return foeHardness(scaleFoe(w, n.npc, { eps: n.eps, stage: n.stage }, late));
 }
 

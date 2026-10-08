@@ -232,12 +232,35 @@ export type Pending =
       resume?: number;
       /** 拾える札（一枚だけ選べる。選ばなくてもいい）。 */
       cards: string[];
+      /** 拾い物：棚にまぎれていた見慣れない札（主役の札）。 */
+      lucky?: string;
     }
-  | { kind: 'story'; id: string; eps: string[] }
+  | {
+      kind: 'story';
+      id: string;
+      eps: string[];
+      /** 拾い物：妙な選択肢が一つ増えている（選べば、必ず何か得る）。 */
+      odd?: boolean;
+    }
   | { kind: 'told'; id: string; ok: boolean; text: string; chance?: number; roll?: number }
-  | { kind: 'rest'; used: boolean; altered: boolean }
-  | { kind: 'shop'; cards: string[]; items: string[]; sold: string[] }
-  | { kind: 'ending' };
+  | {
+      kind: 'rest';
+      used: boolean;
+      altered: boolean;
+      /** 拾い物：店主の賭け（負けのない賭け。済んだら false）。 */
+      bet?: boolean;
+    }
+  | {
+      kind: 'shop';
+      cards: string[];
+      items: string[];
+      sold: string[];
+      /** 拾い物：半値の掘り出し物（その札の id）。 */
+      bargain?: string;
+    }
+  | { kind: 'ending' }
+  /** 底の手前を抜けた。ここで灯りを置くか、さらに下りるか。 */
+  | { kind: 'summit'; outcome: Outcome };
 
 export interface Ending {
   kind: 'dead' | 'dawn' | Outcome;
@@ -255,6 +278,26 @@ export interface Rival {
   down: boolean;
   first: boolean;
   log: string[];
+}
+
+/** 目標の大きさ（小・中・大）。 */
+export type GoalSize = 'S' | 'M' | 'L';
+/** 目標の物差し。 */
+export type GoalKind = 'settle' | 'use' | 'floor' | 'section';
+/** 目標。置いたときの物差しの値（base）から need 増えれば届く。 */
+export interface Goal {
+  size: GoalSize;
+  kind: GoalKind;
+  need: number;
+  base: number;
+}
+
+/** 挑戦をまたいで持ち越す、届かなかった目標（進んだ分ごと）。 */
+export interface GoalCarry {
+  size: GoalSize;
+  kind: GoalKind;
+  need: number;
+  got: number;
 }
 
 export type Stream = 'map' | 'enc' | 'ai' | 'story' | 'rival' | 'gossip' | 'loot' | 'flavor';
@@ -276,6 +319,8 @@ export interface World {
   enc: Enc | null;
   pending: Pending | null;
   flags: Record<string, number>;
+  /** いま見えている目標（小・中・大の三つ）。 */
+  goals: Goal[];
   unlocked: string[];
   seen: string[];
   /** この挑戦で明らかになった隠し効果。 */

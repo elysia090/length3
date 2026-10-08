@@ -99,9 +99,9 @@ export const TITLES: readonly Title[] = [
         rule: 'mult',
         when: (c) => !!c.tags?.includes('tech'),
         fn: (_c, v) => v * 1.15,
-        text: '《人工的な》',
+        text: '《作り物の》',
       },
-      { rule: 'trust', fn: (_c, v) => (v > 0 ? v * 0.85 : v), text: '《人工的な》' },
+      { rule: 'trust', fn: (_c, v) => (v > 0 ? v * 0.85 : v), text: '《作り物の》' },
     ],
   },
   {
@@ -110,8 +110,8 @@ export const TITLES: readonly Title[] = [
     mind: { violent: 3 },
     text: '血の匂いがする。体力を削る量 +2、初めの敵意 +2',
     passive: [
-      { rule: 'hit', fn: (_c, v) => (v > 0 ? v + 2 : v), text: '《血塗られた》' },
-      { rule: 'startHostility', fn: (_c, v) => v + 2, text: '《血塗られた》' },
+      { rule: 'hit', fn: (_c, v) => (v > 0 ? v + 2 : v), text: '《血塗れの》' },
+      { rule: 'startHostility', fn: (_c, v) => v + 2, text: '《血塗れの》' },
     ],
   },
   {
@@ -130,7 +130,7 @@ export const TITLES: readonly Title[] = [
     mind: { kind: 1 },
     text: '深入りしない。立ち去る +15%',
     passive: [
-      { rule: 'leaveChance', fn: (_c, v) => (v > 0 && v < 100 ? v + 15 : v), text: '《憚る》' },
+      { rule: 'leaveChance', fn: (_c, v) => (v > 0 && v < 100 ? v + 15 : v), text: '《引き際の》' },
     ],
   },
   {

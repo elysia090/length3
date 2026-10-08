@@ -1,8 +1,11 @@
 import { allBuilds } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import { tierOf } from '../content/surges';
-import type { Card, Char } from '../core/model';
+import { branch } from '../core/branch';
+import type { Cmd } from '../core/events';
+import type { Card, Char, World } from '../core/model';
 import { ARCH_NAME } from '../core/tags';
+import { decide } from '../sim/decide';
 import { misses } from '../sim/near';
 import { newCard } from '../sim/run';
 
@@ -80,3 +83,67 @@ export function say(d: Delta, after?: Char): string {
 }
 
 export const buildName = (id: string) => allBuilds().find((b) => b.id === id)?.name ?? id;
+
+/** 札を一枚使ったときの、相手の四つの道への効き（相手が応じる前まで）。 */
+export interface CardEffect {
+  hp: number;
+  resolve: number;
+  trust: number;
+  clues: number;
+  /** あなたの側（守り・心の構え・体力と精神の増減）。 */
+  guard: number;
+  calm: number;
+  youHp: number;
+  youMind: number;
+  /** この一手で決着がつくなら、その結末。 */
+  ends?: string;
+}
+
+const effects = new Map<string, CardEffect>();
+
+/**
+ * その札を、いま使ったらどうなるか。世界の写しで実際に使ってみて、相手の
+ * 手番（turn）より前に起きたことだけを数える。触れている間だけ呼ぶので、
+ * 同じ局面と枠の結果は覚えておく。
+ */
+export function cardEffect(w: World, slot: number): CardEffect {
+  return effectOf(w, { c: 'card', slot });
+}
+
+/** 札でも素手でも：その手を、いま打ったらどうなるか（相手の番の前まで）。 */
+export function effectOf(w: World, cmd: Cmd): CardEffect {
+  const key = `${w.seed}:${w.seq}:${JSON.stringify(cmd)}`;
+  const hit = effects.get(key);
+  if (hit) return hit;
+  const out: CardEffect = {
+    hp: 0,
+    resolve: 0,
+    trust: 0,
+    clues: 0,
+    guard: 0,
+    calm: 0,
+    youHp: 0,
+    youMind: 0,
+  };
+  const evs = decide(branch(w), cmd, { sim: true });
+  for (const ev of evs) {
+    // 相手の手番（act）から先は、この手の効き目ではない。
+    if (ev.type === 'turn' || ev.type === 'act') break;
+    if (ev.type === 'enc.end') out.ends = ev.outcome;
+    if (ev.type === 'foe') {
+      if (ev.field === 'hp') out.hp += ev.n;
+      else if (ev.field === 'resolve') out.resolve += ev.n;
+      else if (ev.field === 'trust') out.trust += ev.n;
+    } else if (ev.type === 'clue' && ev.shown && !ev.false) out.clues += 1;
+    else if (ev.type === 'enc.you' && ev.n > 0) {
+      if (ev.field === 'guard') out.guard += ev.n;
+      else if (ev.field === 'calm') out.calm += ev.n;
+    } else if (ev.type === 'vital' && ev.who === 'you') {
+      out.youHp += ev.hp ?? 0;
+      out.youMind += ev.mind ?? 0;
+    }
+  }
+  if (effects.size > 200) effects.clear();
+  effects.set(key, out);
+  return out;
+}

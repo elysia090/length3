@@ -1,5 +1,6 @@
 import type { Claim, Stat } from '../core/model';
 import { TAG_NAME, type Tag } from '../core/tags';
+import { deepHours, isDeep } from '../core/time';
 import type { Tx } from '../core/tx';
 import {
   actor,
@@ -20,6 +21,7 @@ import {
   hostile,
   loseItem,
   losePerm,
+  quip,
   refill,
   revealClue,
   roll,
@@ -113,9 +115,11 @@ export const OPS: Readonly<Record<Fx[0], { name: string; gloss: string }>> = {
 
 export interface FxCtx {
   mult: number;
+  /** 点（足し算）。倍率をかけたあとの、体力・意志・信頼の効き目一つ一つに足す。 */
+  bonus?: number;
   /** 逆さの: 信頼と意志を入れ替え、敵意の向きを反転する。 */
   invert?: boolean;
-  /** 誉無き: 守りを貫く。人工的な: 能力値を無視する。寒い: 信頼が伸びない。 */
+  /** 誉無き: 守りを貫く。作り物の: 能力値を無視する。寒い: 信頼が伸びない。 */
   pierce?: boolean;
   fixed?: boolean;
   cold?: boolean;
@@ -151,9 +155,10 @@ export function holds(tx: Tx, c: Cond, ctx: FxCtx): boolean {
   const ch = charOf(tx.w, who);
   switch (c[0]) {
     case 'night':
-      return tx.w.hour >= 2;
+      return isDeep(tx.w.hour);
     case 'hour':
-      return tx.w.hour >= c[1];
+      // 「何時を過ぎたら」は、深夜の中での時刻（夜が来るたびに、また効く）。
+      return deepHours(tx.w.hour) >= c[1] - 2;
     case 'foeTag':
       return !!e?.foe.tags.includes(c[1]);
     case 'hostile':
@@ -181,17 +186,19 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
     if (e && e.phase !== 'act' && f[0] !== 'perm' && f[0] !== 'coins' && f[0] !== 'refill') return;
     const m = (v: Num) =>
       Math.round((ctx.fixed && typeof v !== 'number' ? v.n : num(tx, v)) * ctx.mult);
+    // 押す効き目（体力・意志・信頼）には、その場の点を足す（0 を下回らない）。
+    const mp = (v: Num) => Math.max(0, m(v) + (ctx.bonus ?? 0));
     switch (f[0]) {
       case 'hit':
-        hitFoe(tx, m(f[1]), f[2] ?? ctx.pierce ?? false);
+        hitFoe(tx, mp(f[1]), f[2] ?? ctx.pierce ?? false);
         break;
       case 'break':
-        if (ctx.invert) trust(tx, Math.max(1, Math.round(m(f[1]) / 2)));
-        else breakFoe(tx, m(f[1]));
+        if (ctx.invert) trust(tx, Math.max(1, Math.round(mp(f[1]) / 2)));
+        else breakFoe(tx, mp(f[1]));
         break;
       case 'trust':
-        if (ctx.invert) breakFoe(tx, Math.max(1, m(f[1])));
-        else if (!ctx.cold) trust(tx, Math.max(1, m(f[1])));
+        if (ctx.invert) breakFoe(tx, Math.max(1, mp(f[1])));
+        else if (!ctx.cold) trust(tx, Math.max(1, mp(f[1])));
         break;
       case 'host':
         hostile(tx, ctx.invert ? -f[1] : f[1]);
@@ -254,7 +261,7 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
           if (b > 0) breakFoe(tx, b);
         } else {
           tx.emit({ type: 'caught', about: f[3] ?? 'harmless' });
-          say(tx, 'foe', '……嘘だな。');
+          if (!quip(tx, 'caught')) say(tx, 'foe', '……嘘だな。');
           hostile(tx, 3);
           trust(tx, -2);
         }
@@ -356,7 +363,7 @@ export function fxText(list: readonly Fx[]): string {
         out.push(`守り ${numText(f[1])}`);
         break;
       case 'calm':
-        out.push(`心の構え ${numText(f[1])}`);
+        out.push(`構え ${numText(f[1])}`);
         break;
       case 'heal': {
         const hp = numText(f[1]);

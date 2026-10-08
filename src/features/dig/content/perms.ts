@@ -90,7 +90,7 @@ export const PERM_LIST: readonly PermDef[] = [
   },
   {
     id: 'habit-observe',
-    name: '習慣的観察',
+    name: '観察癖',
     kind: 'trait',
     tags: ['gaze'],
     text: 'INT +1。区画が替わるたび、観察の回数が 1 戻る。',
@@ -158,7 +158,7 @@ export const PERM_LIST: readonly PermDef[] = [
   },
   {
     id: 'past-bound',
-    name: '過去に囚われる',
+    name: '囚われた過去',
     kind: 'state',
     tags: ['memory', 'time'],
     text: 'WIL +1、INT −1。',
@@ -230,7 +230,7 @@ export const PERM_LIST: readonly PermDef[] = [
   // ─── 人から持ち帰るもの（手がかり） ───
   {
     id: 'knee',
-    name: '古傷（左膝）',
+    name: '左膝の古傷',
     kind: 'wound',
     tags: ['body'],
     text: '左膝をかばって立つ。',
@@ -635,7 +635,7 @@ export const PERM_LIST: readonly PermDef[] = [
   },
   {
     id: 'rival-notes',
-    name: 'ライバルの手帳',
+    name: 'もう一人の手帳',
     kind: 'memory',
     tags: ['private', 'place'],
     text: 'INT +1。もう一人の灯り持ちの足取りがわかる。',

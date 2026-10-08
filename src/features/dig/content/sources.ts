@@ -2,11 +2,12 @@ import type { Char, World } from '../core/model';
 import { type Patch, setSources, type Trigger } from '../core/rules';
 import { type ArchCount, meets, TAG_NAME, type TagCount } from '../core/tags';
 import { ARCH_SETS } from './archetypes';
-import { DATA_VERSION, PACE, releaseRules } from './balance';
+import { DATA_VERSION, PACE, POINTS, releaseRules } from './balance';
 import { BASE_RULES, BASE_TRIGGERS, DEPTH_RULES } from './base';
 import { archCount, tagCount } from './cardinfo';
 import type { BuildDef, LinkDef, PassiveSpec, TriggerSpec } from './defs';
 import { SPILL_AURA } from './epithets';
+import { lawsAt } from './laws';
 import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './registry';
 import { SURGES, tierOf } from './surges';
 import { titleDef } from './titles';
@@ -122,14 +123,16 @@ function collect(w: World) {
   }
   for (const l of linksOf(c)) add(`link:${l.id}`, l.passive, l.triggers);
   for (const s of archSetsOf(c)) add(`arch:${s.arch}${s.at}`, s.passive, s.triggers);
+  // 区画の掟（上の区画の掟も、下では生きている）。共鳴には数えない。
+  for (const l of lawsAt(w.stratum)) add(`law:${l.id}`, l.passive);
   // 見せ場。合うタグのカードがよく効く（共鳴に数える）。
   for (const t of w.enc?.stage ?? [])
     add(`stage:${t}`, [
       {
-        rule: 'mult',
+        rule: 'bonus',
         when: (c) => !!c.tags?.includes(t),
-        fn: (_c, v) => v * PACE.stageMult,
-        text: `見せ場［${TAG_NAME[t]}］×${PACE.stageMult}`,
+        fn: (_c, v) => v + POINTS.stage,
+        text: `見せ場［${TAG_NAME[t]}］+${POINTS.stage}`,
       },
     ]);
   // 人物・場所・出来事に刻まれたエピテット。

@@ -1,7 +1,7 @@
 import { drawText, textWidth } from '../../../../shared/pixel/font';
 import { clamp } from '../../../../shared/pixel/math';
 import { AMBER, INK, PAPER, type Raster, threshold } from '../../../../shared/pixel/raster';
-import { BLUE, H, PEER, PEER_BOSS } from './geo';
+import { BLUE, GREEN, H, PEER, PEER_BOSS } from './geo';
 import { bar, dot, K, leader, veil } from './paint';
 import type { Scene } from './types';
 
@@ -23,11 +23,13 @@ export function lamp(
   s: Scene,
   t: number,
   presence: number,
+  /** 0〜1。決着で灯りを絞る（場面が閉じていく）。 */
+  iris = 0,
 ): void {
   const zm = zoom;
   const mind = s.you.maxMind ? s.you.mind / s.you.maxMind : 1;
   const flicker = 1 + 0.025 * Math.sin(t * 11) + 0.015 * Math.sin(t * 23.7 + 1.3);
-  const R = (30 + 26 * mind) * zm * flicker;
+  const R = (30 + 26 * mind) * zm * flicker * (1 - 0.2 * iris);
   const pulse = s.stall ? 0.12 * (0.5 + 0.5 * Math.sin(t * 4)) : 0;
   const ly = cy - 6 * zm;
   const x0 = Math.max(0, Math.floor(cx - R * 2.4));
@@ -41,7 +43,7 @@ export function lamp(
       // 見せ場の光の筋の中は、闇が落ちない。
       if (s.stage && y < cy && Math.abs(dx) < beamHalf(zoom, y, cy)) continue;
       const far = x < x0 || x >= x1 ? 1 : clamp((d - R) / (R * 1.1));
-      const tone = (0.32 * far + pulse) * presence;
+      const tone = ((0.32 + 0.2 * iris) * far + pulse) * presence;
       if (threshold(x, y) < tone) r.set(x, y, INK);
     }
   }
@@ -192,7 +194,8 @@ export function hud(
       (p.who === 'you' ? youX - 12 : foeX + 6) + age * (p.who === 'you' ? -4 : 4),
     );
     const py = Math.round((p.who === 'you' ? youTop : foeTop) - 2 - age * 16);
-    const c = p.tone === 'amber' ? AMBER : p.tone === 'blue' ? BLUE : INK;
+    const c =
+      p.tone === 'amber' ? AMBER : p.tone === 'blue' ? BLUE : p.tone === 'green' ? GREEN : INK;
     if (age > 1 && Math.floor(t * 20) % 2) continue;
     const w = textWidth(p.text, K);
     r.rect(px - 1 - (p.who === 'you' ? w : 0), py - 1, w + 2, 7 * K + 2, PAPER);

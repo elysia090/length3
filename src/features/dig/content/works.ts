@@ -1,5 +1,6 @@
 import type { Stat } from '../core/model';
 import type { Tag } from '../core/tags';
+import { isDeep } from '../core/time';
 import type { CardDef, PassiveSpec, Recover, Work } from './defs';
 import type { Cond, Fx, Num } from './fx';
 
@@ -68,7 +69,7 @@ function w(
   };
 }
 
-const night = (c: { w: { hour: number } }) => c.w.hour >= 2;
+const night = (c: { w: { hour: number } }) => isDeep(c.w.hour);
 const foeHas = (t: Tag) => (c: { enc?: { foe: { tags: readonly Tag[] } } | null }) =>
   !!c.enc?.foe.tags.includes(t);
 

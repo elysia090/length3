@@ -2,6 +2,7 @@ import type { Ev, EvType } from '../core/events';
 import type { Char, Who, World } from '../core/model';
 import type { RuleCtx } from '../core/rules';
 import { ARCH_NAME } from '../core/tags';
+import { isDeep, isMorning } from '../core/time';
 import type { Tx } from '../core/tx';
 import {
   breakFoe,
@@ -71,7 +72,7 @@ const slotOf = (w: World, id: string) => charOf(w, ownerOf(w)).cards.findIndex((
 export const chapterOf = (c: Char, id: string) => c.cards.find((x) => x?.id === id)?.marks.ch ?? 0;
 const chapterNow = (w: World, id: string) => chapterOf(charOf(w, ownerOf(w)), id);
 const ctxChar = (c: RuleCtx) => charOf(c.w, c.who);
-const night = (w: World) => w.hour >= 2;
+const night = (w: World) => isDeep(w.hour);
 const lowHp = (c: Char) => c.hp * 3 < 16 + 4 * (c.innate.VIT + c.growth.VIT);
 const foeArch = (w: World) => FOE_ARCH[w.enc?.foe.id ?? ''] ?? [];
 
@@ -132,7 +133,7 @@ export const LEGENDS: readonly Legend[] = [
         name: '閉まらない店',
         need: '夜明けを過ぎてから、誰かと向き合う',
         on: 'enc.start',
-        when: (ev, w) => ev.type === 'enc.start' && ev.who === ownerOf(w) && w.hour >= 10,
+        when: (ev, w) => ev.type === 'enc.start' && ev.who === ownerOf(w) && isMorning(w.hour),
         count: 1,
         line: 'この店は閉まらない。夜も、明けない。',
         text: '夜明けを過ぎても、相手は荒れない',
@@ -452,7 +453,7 @@ export const LEGENDS: readonly Legend[] = [
       },
       {
         name: '罠の地',
-        need: 'エピテットのある場所に着く',
+        need: 'エピテットの刻まれた場所に着く',
         on: 'moved',
         when: arrivedOdd,
         count: 3,
@@ -563,7 +564,7 @@ export const LEGENDS: readonly Legend[] = [
     chapters: [
       {
         name: '五分半の廊下',
-        need: 'エピテットのある場所に着く',
+        need: 'エピテットの刻まれた場所に着く',
         on: 'moved',
         when: arrivedOdd,
         count: 3,
@@ -1008,7 +1009,7 @@ export const LEGENDS: readonly Legend[] = [
     chapters: [
       {
         name: 'マルコの報告',
-        need: 'エピテットのある場所に着く',
+        need: 'エピテットの刻まれた場所に着く',
         on: 'moved',
         when: arrivedOdd,
         count: 4,
@@ -1056,10 +1057,8 @@ export const LEGENDS: readonly Legend[] = [
         when: (ev, w) => ev.type === 'card.use' && ev.who === ownerOf(w) && ev.card !== 'ficciones',
         count: 8,
         line: 'すべての道が、同時に選ばれている。',
-        text: '連鎖 ×1.3 以上',
-        passive: [
-          { rule: 'chain', fn: (_c, v) => (v > 1 ? Math.max(v, 1.3) : v), text: '分かれ道' },
-        ],
+        text: '連鎖 +1',
+        passive: [{ rule: 'chain', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '分かれ道' }],
       },
       {
         name: 'バベルの図書館',

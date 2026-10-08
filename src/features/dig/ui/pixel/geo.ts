@@ -3,6 +3,9 @@ import type { RoomView } from './types';
 /** 深い青（いま効いているもの：守り・落ち着き・信頼の糸・見せ場）。必ずまばらに置く。 */
 export const BLUE = 4;
 
+/** 緑（戻るもの：体と心の回復）。 */
+export const GREEN = 5;
+
 /** 縦の画素数は固定。横は、置かれた枠の縦横比に合わせて伸び縮みする（枠いっぱいに描く）。 */
 export const H = 240;
 

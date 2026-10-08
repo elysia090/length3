@@ -18,6 +18,13 @@ export type Aim =
 /** 跳ねる数（遭遇の場面に、少しのあいだ浮かぶ）。 */
 export type Pop = Scene['pops'][number];
 
+/** 一つの手番の一行（あなたの手・相手の手・決着）。何をして、何が動いたか。 */
+export interface TurnLine {
+  who: 'you' | 'foe' | 'end';
+  what: string;
+  effects: string[];
+}
+
 /** 当たった・決着した時刻（塔の絵が、そこからの経過で動く）。 */
 export interface Anim {
   foeHitAt: number;

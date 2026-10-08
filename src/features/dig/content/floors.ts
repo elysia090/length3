@@ -64,7 +64,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         name: '終夜営業の喫茶',
         people: ['counterman', 'regular'],
         danger: [],
-        eps: ['nocturnal', 'damp'],
+        eps: ['nocturnal', 'damp', 'cat-tongue'],
         stage: ['night', 'person'],
         line: 'コーヒーの匂いが、階段の下まで上がってくる。',
       },
@@ -73,7 +73,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         name: '裏路地の階',
         people: ['regular'],
         danger: ['stray-dog'],
-        eps: ['abandoned', 'torn'],
+        eps: ['abandoned', 'torn', 'known'],
         stage: ['place', 'body'],
         line: '誰かが置いていった傘が、壁に何本も掛かっている。',
       },
@@ -82,7 +82,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         name: '閉店間際の酒場',
         people: ['regular', 'counterman'],
         danger: [],
-        eps: ['crowded', 'drifting'],
+        eps: ['crowded', 'drifting', 'maudlin'],
         stage: ['public', 'memory'],
         line: '最後の一曲が、同じところで何度も針を飛ばす。',
       },
@@ -91,7 +91,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         name: 'コインランドリー',
         people: ['regular'],
         danger: ['stray-dog'],
-        eps: ['repeating', 'echoing'],
+        eps: ['repeating', 'echoing', 'stingy'],
         stage: ['time', 'private'],
         line: '乾燥機が一台だけ、誰もいないのに回っている。',
       },
@@ -114,7 +114,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
           name: '雀荘の跡',
           people: ['archivist'],
           danger: [],
-          eps: ['forgotten', 'echoing'],
+          eps: ['forgotten', 'echoing', 'rigged', 'two-faced'],
           stage: ['private', 'person'],
           line: '牌の音だけが、壁の向こうに残っている。ここにいるはずのない顔がいる。',
         },
@@ -123,7 +123,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
           name: '質屋の二階',
           people: [],
           danger: [],
-          eps: ['abandoned'],
+          eps: ['abandoned', 'stingy'],
           stage: ['public', 'memory'],
           line: '値札の付いた思い出が、天井まで積んである。',
         },
@@ -185,7 +185,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         name: '検閲室',
         people: ['usher'],
         danger: ['censor'],
-        eps: ['closed', 'false'],
+        eps: ['closed', 'false', 'two-faced'],
         stage: ['institution', 'private'],
         line: '黒く塗られた行だけが、きれいに揃っている。',
       },
@@ -311,9 +311,30 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
   },
 };
 
+/** 底の手前までの区画の数（ここを抜けると、ひとまず抜けたことになる）。 */
+export const LAST = 3;
+
+/**
+ * 区画の中身。三つ目より下は、上の区画がもう一度現れる（もっと古い、同じ夜）。
+ * 人も用途も同じだが、相手は区画の深さのぶん手強く、掟は重なっていく。
+ */
+export function sectionOf(stratum: number): Section {
+  return SECTIONS[sectionNo(stratum)] ?? (SECTIONS[1] as Section);
+}
+
+/** 区画の中身の番号（1〜3。三つ目より下は巡る）。 */
+export const sectionNo = (stratum: number): number => ((((stratum - 1) % LAST) + LAST) % LAST) + 1;
+
+/** 区画の呼び名。三つ目より下は「深い」「底の」を冠する。 */
+export function sectionName(stratum: number): string {
+  const base = sectionOf(stratum).name;
+  if (stratum <= LAST) return base;
+  return `${stratum <= LAST * 2 ? '深い' : '底の'}${base}`;
+}
+
 /** 用途を id から（その区画の中で）。 */
 export function useOf(stratum: number, id: string | undefined): FloorUse | undefined {
-  const s = SECTIONS[stratum];
+  const s = sectionOf(stratum);
   if (!s || !id) return undefined;
   return s.boss.id === id
     ? s.boss

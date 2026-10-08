@@ -357,8 +357,8 @@ export const ARCH_SETS: readonly ArchSet[] = [
   {
     arch: 'double',
     at: 2,
-    text: '連鎖 ×1.4 以上',
-    passive: [{ rule: 'chain', fn: (_c, v) => (v > 1 ? Math.max(v, 1.4) : v), text: '連鎖 ×1.4' }],
+    text: '連鎖 +1',
+    passive: [{ rule: 'chain', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '連鎖 +1' }],
   },
   {
     arch: 'double',

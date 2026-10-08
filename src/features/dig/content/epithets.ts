@@ -1,5 +1,6 @@
 import type { World } from '../core/model';
 import type { Tag } from '../core/tags';
+import { isDeep } from '../core/time';
 import type { EpithetCtx, PassiveSpec } from './defs';
 import type { Fx } from './fx';
 
@@ -198,7 +199,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'awake',
-    name: '覚醒した',
+    name: '目覚めた',
     gloss: '眠らない目。',
     rarity: 'uncommon',
     card: { text: '×1.2。使うたびに本当の予告を見る。', mult: () => 1.2, after: [['see']] },
@@ -219,7 +220,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'crowded',
-    name: '過密な',
+    name: 'ひしめく',
     gloss: '詰まっている。',
     rarity: 'common',
     card: {
@@ -246,7 +247,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'exposed',
-    name: '露出した',
+    name: '晒された',
     gloss: '隠せない。',
     rarity: 'common',
     card: {
@@ -403,7 +404,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'repeating',
-    name: '反復する',
+    name: '繰り返す',
     gloss: '何度でも、同じことが起きる。',
     rarity: 'uncommon',
     card: {
@@ -443,7 +444,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'tainted',
-    name: '汚染された',
+    name: '汚れた',
     gloss: '混ざってはいけないものが混ざった。',
     rarity: 'common',
     card: { text: '×1.4。使うたびに精神 −1。', mult: () => 1.4, after: [['cost', 0, 1]] },
@@ -459,7 +460,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'imitated',
-    name: '模倣された',
+    name: '写された',
     gloss: '誰かの写し。',
     rarity: 'uncommon',
     card: { text: '使ったあと、直前のカードの効き目を 50% で起こす。', after: [['mimic', 0.5]] },
@@ -469,7 +470,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'echoing',
-    name: '残響する',
+    name: '谺する',
     gloss: '消えたあとも響いている。',
     rarity: 'rare',
     card: { text: '使ったあと、同じ効き目を 40% でもう一度。', after: [] },
@@ -506,14 +507,14 @@ export const EPITHETS: readonly Epithet[] = [
     card: {
       text: 'タグ［夜］を足す。深夜 ×1.3、それ以外 ×0.8。',
       add: ['night'],
-      mult: (w) => (w.hour >= 2 ? 1.3 : 0.8),
+      mult: (w) => (isDeep(w.hour) ? 1.3 : 0.8),
     },
     foe: {
       text: '深夜は攻撃 +2。',
       passive: [
         {
           rule: 'strikeTaken',
-          when: (c) => c.w.hour >= 2,
+          when: (c) => isDeep(c.w.hour),
           fn: (_c, v) => (v > 0 ? v + 2 : v),
           text: '深夜、受ける傷 +2',
         },
@@ -615,7 +616,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'artificial',
-    name: '人工的な',
+    name: '作り物の',
     gloss: '誰がやっても、同じ結果になる。',
     rarity: 'uncommon',
     card: {
@@ -653,7 +654,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'reticent',
-    name: '憚る',
+    name: '引き際の',
     gloss: '遠慮しているあいだは、何度でも。',
     rarity: 'common',
     card: {
@@ -701,7 +702,7 @@ export const EPITHETS: readonly Epithet[] = [
   },
   {
     id: 'grave',
-    name: '深刻な',
+    name: '沈痛な',
     gloss: '冗談の通じない顔で。',
     rarity: 'common',
     card: {
@@ -758,6 +759,95 @@ export const EPITHETS: readonly Epithet[] = [
     place: { text: '出会う相手の敵意 +2。', hostility: 2 },
     memory: { text: '補正 ×1.5、最後に返ってくる強さ ×2。', mods: 1.5, echo: 2 },
   },
+  // ─── 人柄（癖のある語。札にも人にも場所にも、ちょっと可笑しく効く）──────
+  {
+    id: 'stingy',
+    name: 'けちな',
+    gloss: '出し惜しむ。',
+    rarity: 'common',
+    card: {
+      text: '三手番ごとに、回数を使わない。そのかわり ×0.85。',
+      free: (w) => turn(w) % 3 === 0,
+      mult: () => 0.85,
+    },
+    foe: {
+      text: '払いが渋い。取引の値段 ×0.6。',
+      passive: [
+        { rule: 'price', fn: (_c, v) => Math.round(v * 0.6), text: '《けちな》 値段 ×0.6' },
+      ],
+    },
+    place: { text: '値切れる。値段 ×0.8、休んでも ×0.8。', price: 0.8, heal: 0.8 },
+    memory: { text: '補正 ×0.75。', mods: 0.75 },
+  },
+  {
+    id: 'two-faced',
+    name: '二枚舌の',
+    gloss: '言うこととやることが違う。',
+    rarity: 'uncommon',
+    card: {
+      text: '殴ったあとで「手は出さない」と言い張る（嘘。通れば信頼 +2。次に殴ると、ばれる）。',
+      after: [['lie', 2, 10, 'harmless']],
+    },
+    foe: {
+      text: '予告はいつも嘘。そのかわり、手がかりが一つ初めから見えている。',
+      lies: 'always',
+      show: 1,
+    },
+    place: { text: '出来事の判定 +10%。', story: 10 },
+    memory: { text: '偽の記憶。補正 ×1.5。', mods: 1.5 },
+  },
+  {
+    id: 'cat-tongue',
+    name: '猫舌の',
+    gloss: '熱いものに弱い。',
+    rarity: 'common',
+    card: {
+      text: '最初の手番は ×0.5。冷めてから（二手番目から）×1.3。',
+      mult: (w) => (turn(w) <= 1 ? 0.5 : 1.3),
+    },
+    foe: { text: 'コーヒーが冷めるまで、最初の手番は動けない。', stun: true },
+    place: { text: '着くと、ひと息つける（体力 +2）。', arrive: { hp: -2 } },
+  },
+  {
+    id: 'maudlin',
+    name: '泣き上戸の',
+    gloss: '酔うと、泣く。',
+    rarity: 'uncommon',
+    foe: { text: '意志 ×0.7、初めから信頼 +2。', resolve: 0.7, trust: 2 },
+    place: { text: '着くと、少し心が軽くなる（精神 +3）。', arrive: { mind: -3 } },
+    memory: { text: '補正 ×1.25。', mods: 1.25 },
+  },
+  {
+    id: 'rigged',
+    name: '八百長の',
+    gloss: '初めから決まっている。',
+    rarity: 'rare',
+    card: { text: '効き目が能力値に左右されない。×1.1。', fixed: true, mult: () => 1.1 },
+    foe: {
+      text: '勝ち負けは決まっている。体力 ×0.8、意志 ×0.8、立ち去る +20%。',
+      hp: 0.8,
+      resolve: 0.8,
+      passive: [
+        {
+          rule: 'leaveChance',
+          fn: (_c, v) => (v > 0 && v < 100 ? v + 20 : v),
+          text: '《八百長の》 立ち去る +20%',
+        },
+      ],
+    },
+    place: { text: '出来事の判定 +15%。', story: 15 },
+    story: { text: '判定 +20%。', chance: 20 },
+  },
+  {
+    id: 'known',
+    name: '顔の利く',
+    gloss: 'どこへ行っても、顔なじみがいる。',
+    rarity: 'uncommon',
+    card: { text: '使うたびに金 +2。', after: [['coins', 2]] },
+    foe: { text: '顔なじみ。初めの敵意 −2。', hostility: -2 },
+    place: { text: '値段 ×0.9。', price: 0.9 },
+    memory: { text: '売ると高い。', value: 1.5 },
+  },
 ];
 
 /** 刻める先ごとに、意味を持つエピテット。 */
@@ -792,16 +882,16 @@ export const SPILL_AURA: Readonly<Record<string, PassiveSpec>> = {
   exposed: {
     rule: 'openSpill',
     fn: (_c, v) => v + 0.5,
-    text: '《露出した》流用：開けすぎた鍵が守りを剥がす',
+    text: '《晒された》流用：開けすぎた鍵が守りを剥がす',
   },
   awake: {
     rule: 'seenTrust',
     fn: (_c, v) => v + 1,
-    text: '《覚醒した》流用：予告を見るたび信頼 +1',
+    text: '《目覚めた》流用：予告を見るたび信頼 +1',
   },
   echoing: {
     rule: 'guardSpill',
     fn: (_c, v) => v + 0.2,
-    text: '《残響する》流用：残った守りの 2 割が信頼になる',
+    text: '《谺する》流用：残った守りの 2 割が信頼になる',
   },
 };

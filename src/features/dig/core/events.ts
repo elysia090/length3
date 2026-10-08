@@ -2,6 +2,9 @@ import type {
   Card,
   Ending,
   Foe,
+  Goal,
+  GoalCarry,
+  GoalSize,
   Intent,
   MapNode,
   Mind,
@@ -63,6 +66,8 @@ export type Ev =
   | { type: 'debt'; who: Who; npc: string; n: number }
   | { type: 'title'; who: Who; id: string }
   | { type: 'flag'; key: string; v: number }
+  | { type: 'goal.set'; goal: Goal }
+  | { type: 'goal.done'; size: GoalSize }
   | { type: 'unlock'; story: string }
   | { type: 'story.seen'; id: string }
   | { type: 'found'; id: string }
@@ -76,11 +81,28 @@ export type Ev =
   | { type: 'intent'; move: string; intent: Intent }
   | {
       type: 'foe';
-      field: 'hp' | 'resolve' | 'trust' | 'hostility' | 'guard' | 'def' | 'atk' | 'wil';
+      field:
+        | 'hp'
+        | 'resolve'
+        | 'trust'
+        | 'hostility'
+        | 'guard'
+        | 'def'
+        | 'atk'
+        | 'wil'
+        | 'int'
+        | 'agi'
+        | 'maxHp'
+        | 'maxResolve'
+        | 'need';
       n: number;
       by?: string;
     }
   | { type: 'foe.st'; key: string; n: number }
+  /** 向き合っている相手に、エピテットが刻まれた。 */
+  | { type: 'foe.ep'; ep: string }
+  /** 地図の部屋に、エピテットが刻まれた。 */
+  | { type: 'node.ep'; id: number; ep: string }
   | { type: 'enc.you'; field: 'guard' | 'calm'; n: number }
   | { type: 'enc.st'; key: string; n: number }
   | { type: 'clue'; id: string; shown: boolean; false?: boolean }
@@ -137,7 +159,7 @@ export type EvType = Ev['type'];
 export type EvOf<T extends EvType> = Extract<Ev, { type: T }>;
 
 export type Basic = 'press' | 'brace' | 'talk' | 'leave' | 'accept';
-export type RestAction = 'rest' | 'full' | 'tune-int' | 'tune-wil' | 'discard';
+export type RestAction = 'rest' | 'full' | 'tune-int' | 'tune-wil' | 'discard' | 'bet';
 
 export type Cmd =
   | {
@@ -148,6 +170,8 @@ export type Cmd =
       carry?: string;
       remembered?: Record<string, Partial<Mind>>;
       sheet?: import('../content/origins').Sheet;
+      /** 前の挑戦で届かなかった目標（進んだ分ごと引き継ぐ）。 */
+      goals?: GoalCarry[];
     }
   | { c: 'move'; node: number }
   | { c: 'breather' }
@@ -160,9 +184,22 @@ export type Cmd =
   | { c: 'ack' }
   | { c: 'rest'; action: RestAction; slot?: number }
   | { c: 'alter'; slot: number; to: string }
-  | { c: 'inscribe'; ep: string; slot?: number; perm?: string }
+  | {
+      c: 'inscribe';
+      ep: string;
+      slot?: number;
+      perm?: string;
+      /** 地図の部屋（先の部屋）。 */
+      node?: number;
+      /** 向き合っている相手。 */
+      foe?: boolean;
+      /** いま開いている出来事。 */
+      story?: boolean;
+    }
   | { c: 'buy'; id: string; slot?: number }
   | { c: 'sell'; perm: string }
   | { c: 'cure'; perm: string }
   | { c: 'sacrifice'; stat: Stat; slot: number }
-  | { c: 'depart' };
+  | { c: 'depart' }
+  /** 抜けたあと、さらに下りる（go）か、ここで灯りを置くか。 */
+  | { c: 'onward'; go: boolean };

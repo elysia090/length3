@@ -26,7 +26,7 @@ describe('scale', () => {
     expect(basics.length).toBeGreaterThanOrEqual(50);
     expect(basics.length).toBeLessThanOrEqual(100);
     expect(allEpithets().length).toBeGreaterThanOrEqual(30);
-    expect(allEpithets().length).toBeLessThanOrEqual(50);
+    expect(allEpithets().length).toBeLessThanOrEqual(60);
     expect(ARCHETYPES.length).toBeGreaterThanOrEqual(20);
     expect(ARCHETYPES.length).toBeLessThanOrEqual(30);
     const ops = Object.keys(OPS).length;

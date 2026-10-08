@@ -1,6 +1,6 @@
 import { drawText, textWidth } from '../../../shared/pixel/font';
 import { clamp, lerp } from '../../../shared/pixel/math';
-import { AMBER, INK, PAPER, Raster, threshold } from '../../../shared/pixel/raster';
+import { AMBER, INK, NONE, PAPER, Raster, threshold } from '../../../shared/pixel/raster';
 import {
   BLUE,
   ENC_ZOOM,
@@ -58,6 +58,36 @@ export class Tower {
   private placed: Placed[] = [];
   /** カメラ（フロアの位置と寄り）。なめらかに追う。 */
   private cam = { floor: -0.5, zoom: NEAR_ZOOM, x: 0, y: 0 };
+  /**
+   * カメラの演出（撮影の言葉で）。
+   *   押し込み  連鎖・会心の瞬間に、一歩だけ寄って戻る（ドリーの一打）
+   *   寄り切り  決着がついたら、ゆっくり寄って、そのまま止める
+   */
+  private kick = { at: -9, amt: 0 };
+  private hold = { at: -9, amt: 0 };
+  /**
+   * あなたの立ち位置（床の上の u・v と、フロア f）。部屋を移ると、点線の道に
+   * 沿ってそこまで歩く（一歩ずつ跳ばずに）。近景のカメラは寄りを変えずに、
+   * 歩く人を追って横と下へ流れるだけ。
+   */
+  private me = { u: 0, v: 0, f: -1 };
+  private walk = {
+    id: null as number | null,
+    from: { u: 0, v: 0, f: -1 },
+    to: { u: 0, v: 0, f: -1 },
+    at: -9,
+    dur: 0,
+  };
+
+  /** 一歩だけ寄って戻る（amt は寄る割合）。 */
+  punch(amt: number, t: number): void {
+    this.kick = { at: t, amt };
+  }
+
+  /** ゆっくり寄って止める。0 で解く。 */
+  settle(amt: number, t: number): void {
+    this.hold = { at: t, amt };
+  }
   /** 見渡す（引いて、区画をひと目に）。 */
   overview = false;
 
@@ -71,6 +101,7 @@ export class Tower {
       rgba(style.getPropertyValue('--ink'), 0xff1e1915),
       rgba(style.getPropertyValue('--amber'), 0xff0c58ea),
       rgba(style.getPropertyValue('--dig-blue'), 0xff9e3d1f),
+      rgba(style.getPropertyValue('--dig-green'), 0xff4f7d2f),
     ]);
   }
 
@@ -123,45 +154,48 @@ export class Tower {
     return !this.overview;
   }
 
+  /** 近景の寄り（一つのフロアが端から端まで入る大きさ。枠の大きさだけで決まる）。 */
+  private nearZoom(): number {
+    const span = 2 * (GEO.U * GEO.ux + GEO.V * -GEO.vx);
+    return clamp((this.W * 0.88) / span, 1.25, NEAR_ZOOM);
+  }
+
   /**
-   * 近景の構図。あなた（入口なら区画の上）・行ける部屋・触れている部屋を
-   * 包む枠を求めて、それが画面に収まる寄りと、枠の中心を返す。人の頭と
-   * 硬度の数字の分、上に余白を足す。
+   * 歩く。行き先が変わったら、いまの立ち位置からそこまで、まっすぐ（点線の
+   * 道どおりに）歩く。速さは一定で、短い道でもひと呼吸はかける。動きを減らす
+   * 設定では、すぐ着く。歩いているあいだは true。
    */
-  private frame(
-    view: TowerView,
-    here: RoomView | undefined,
-    floor: number,
-  ): { zoom: number; x: number; y: number } {
-    const pts: { x: number; y: number }[] = [];
-    const add = (u: number, v: number, f: number) =>
-      pts.push({ x: u * GEO.ux + v * GEO.vx, y: (f - floor) * GEO.gap + u * GEO.uy + v * GEO.vy });
-    if (here) {
-      const p = spot(here);
-      add(p.u, p.v, here.floor);
-    } else add(0, 0, -1);
-    // 行ける部屋。足止めされている間（食堂・古物商・出来事）は、この先の部屋。
-    const ahead = new Set(view.edges.filter(([from]) => from === view.you).map(([, to]) => to));
-    for (const r of view.rooms) {
-      if (!r.reachable && !ahead.has(r.id) && r.id !== view.focus) continue;
-      const p = spot(r);
-      add(p.u, p.v, r.floor);
+  private step(here: RoomView | undefined, t: number): boolean {
+    const id = here?.id ?? null;
+    const to = here ? { ...spot(here), f: here.floor } : { u: 0, v: 0, f: -1 };
+    const w = this.walk;
+    if (id !== w.id) {
+      const first = w.id === null && w.at < 0;
+      const still =
+        typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const du = to.u - this.me.u;
+      const dv = to.v - this.me.v;
+      const dx = du * GEO.ux + dv * GEO.vx;
+      const dy = du * GEO.uy + dv * GEO.vy + (to.f - this.me.f) * GEO.gap;
+      this.walk = {
+        id,
+        from: { ...this.me },
+        to,
+        at: t,
+        dur: first || still ? 0 : clamp(Math.hypot(dx, dy) / 150, 0.35, 0.95),
+      };
     }
-    const xs = pts.map((p) => p.x);
-    const ys = pts.map((p) => p.y);
-    const minX = Math.min(...xs) - 24;
-    const maxX = Math.max(...xs) + 24;
-    const minY = Math.min(...ys) - 34;
-    const maxY = Math.max(...ys) + 14;
-    const zoom = clamp(
-      Math.min((this.W * 0.86) / (maxX - minX), (H * 0.78) / (maxY - minY)),
-      1.25,
-      NEAR_ZOOM,
-    );
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    // 画面の縦のまん中（少し下）に、枠の中心が来るように。
-    return { zoom, x: cx, y: cy - (H * 0.24) / zoom };
+    const k = this.walk.dur > 0 ? clamp((t - this.walk.at) / this.walk.dur) : 1;
+    // 歩き出しと止まりだけ、少しやわらかく。
+    const e = k * k * (3 - 2 * k);
+    const { from } = this.walk;
+    const dest = this.walk.to;
+    this.me = {
+      u: lerp(from.u, dest.u, e),
+      v: lerp(from.v, dest.v, e),
+      f: lerp(from.f, dest.f, e),
+    };
+    return k < 1;
   }
 
   // ─── 描く ───────────────────────────────────────────────────
@@ -174,27 +208,33 @@ export class Tower {
     // 部屋と、触れている部屋がちょうど収まるように寄せて、真ん中に置く。
     // 見渡すときは引いて、区画を上から。
     const here = view.rooms.find((x) => x.id === (view.enc?.room ?? view.you));
+    const walking = this.step(here, t);
     const focusAt = here ? spot(here) : { u: 0, v: 0 };
     const sx = (p: { u: number; v: number }) => p.u * GEO.ux + p.v * GEO.vx;
     const sy = (p: { u: number; v: number }) => p.u * GEO.uy + p.v * GEO.vy;
-    let targetFloor = here ? here.floor : -0.6;
+    let targetFloor = this.me.f;
     let targetZoom = NEAR_ZOOM;
     let targetX = 0;
     let targetY = 0;
-    if (view.enc) {
+    if (view.enc && !walking) {
+      // 向き合うのは、着いてから。その部屋を画面のまん中より少し下へ。
+      targetFloor = here ? here.floor : this.me.f;
       targetZoom = ENC_ZOOM;
       targetX = sx(focusAt);
-      // その部屋を画面のまん中より少し下へ。
       targetY = sy(focusAt) - H * 0.14;
     } else if (this.overview || view.rooms.length === 0) {
       // 見渡す。人物を決めている間（まだ部屋が無い）も、建物を引きで見せる。
       targetFloor = (here?.floor ?? 0) - 0.3;
       targetZoom = FAR_ZOOM;
     } else {
-      const frame = this.frame(view, here, targetFloor);
-      targetZoom = frame.zoom;
-      targetX = frame.x;
-      targetY = frame.y;
+      // 近景。寄りは枠の大きさだけで決め（床の端から端まで入る）、中身で変えない。
+      // 横は、歩く人が画面の中ほどを出たぶんだけ追う。縦は、いまのフロアを上に、
+      // 次のフロアが下に見えるところ。
+      targetZoom = this.nearZoom();
+      const x = sx(this.me);
+      const dz = (this.W * 0.3) / targetZoom;
+      targetX = Math.sign(x) * Math.max(0, Math.abs(x) - dz);
+      targetY = -(H * 0.1) / targetZoom;
     }
     // 0.4 秒ほどで落ち着く（次の操作を待たせない）。
     const k = 1 - Math.exp(-dt * 7.5);
@@ -202,6 +242,12 @@ export class Tower {
     this.cam.floor = lerp(this.cam.floor, targetFloor, k);
     this.cam.zoom = lerp(this.cam.zoom, targetZoom, k);
     this.cam.x = lerp(this.cam.x, targetX, k);
+    // 演出の寄り。追いかけるカメラとは別に、描くあいだだけ掛ける。
+    const base = this.cam.zoom;
+    const since = t - this.kick.at;
+    const kick = since >= 0 ? this.kick.amt * Math.exp(-since * 7) : 0;
+    const hold = view.enc ? this.hold.amt * (1 - Math.exp(-(t - this.hold.at) * 2.2)) : 0;
+    this.cam.zoom = base * (1 + kick + Math.max(0, hold));
 
     this.abyss(view);
     // 深いフロアから描く（上のフロアが手前に重なる）。同じ高さの隣の床が先。
@@ -222,15 +268,38 @@ export class Tower {
     const at = view.enc ? view.rooms.find((x) => x.id === view.enc?.room) : undefined;
     const c = at ? this.center(at) : null;
     if (scene && c && presence > 0) {
-      lamp(this.raster, this.W, this.cam.zoom, c.x, c.y, scene, t, presence);
+      // 決着のあとは、灯りが二人のところまで絞られていく（アイリス）。
+      const iris = this.hold.amt > 0 ? clamp((t - this.hold.at) / 0.7) : 0;
+      lamp(this.raster, this.W, this.cam.zoom, c.x, c.y, scene, t, presence, iris);
       if (scene.stage) spotlight(this.raster, this.cam.zoom, c.x, c.y, t, presence);
     }
     this.people(view, t);
     if (scene && c && at && presence > 0.6)
       hud(this.raster, this.cam.zoom, c.x, c.y, at.kind === 'boss', scene, t);
+    this.vignette(view.enc ? 0 : 1);
     if (this.ctx && this.image && this.out) {
       r.present(this.out, this.palette);
       this.ctx.putImageData(this.image, 0, 0);
+    }
+    this.cam.zoom = base;
+  }
+
+  /**
+   * 額縁。地図の縁で床が断ち切られないように、四辺を網点で紙へ溶かす
+   * （向き合った場面は灯りが縁を作るので、そのまま）。
+   */
+  private vignette(k: number): void {
+    if (k <= 0) return;
+    const r = this.raster;
+    const mx = 28;
+    const my = 14;
+    for (let y = 0; y < H; y++) {
+      const ty = 1 - Math.min(y, H - 1 - y) / my;
+      for (let x = 0; x < this.W; x++) {
+        const tx = 1 - Math.min(x, this.W - 1 - x) / mx;
+        const t = Math.max(tx, ty) * k;
+        if (t > 0 && threshold(x, y) < t) r.set(x, y, NONE);
+      }
     }
   }
 
@@ -638,9 +707,11 @@ export class Tower {
       if (!(gone && e.end === 'fall')) {
         const { x, y } = this.center(encRoom);
         const hit = t - e.foeHitAt < 0.18;
+        // 連鎖で受けた手は、続くほど大きく揺れる。
+        const amp = 1.5 * (1 + 0.6 * (t - e.chainAt < 0.3 ? e.chain : 0));
         figure(
           this.raster,
-          x + 7 * zm + (hit ? Math.sin(t * 90) * 1.5 : 0),
+          x + 7 * zm + (hit ? Math.sin(t * 90) * amp : 0),
           y,
           PEER * zm,
           hit ? INK : e.end === 'glow' && gone ? AMBER : BLUE,
@@ -665,13 +736,23 @@ export class Tower {
         ? pos.get(view.you)
         : undefined;
     if (here) {
-      const { x, y } = this.center(here);
+      const { x, y } = this.project(this.me.u, this.me.v, this.me.f);
       const e = view.enc;
       const hurt = e ? t - e.youHitAt < 0.18 : false;
-      const bob = Math.round(Math.sin(t * 3) * 0.6);
+      // 歩いているあいだは足取りで上下し、立ち止まると息をするだけ。
+      const moving = t - this.walk.at < this.walk.dur;
+      const bob = moving
+        ? -Math.round(Math.abs(Math.sin((t - this.walk.at) * 16)) * 1.5)
+        : Math.round(Math.sin(t * 3) * 0.6);
+      // 連鎖：決まった瞬間に一歩踏み込む（続きの数は、手元の札と計器の揺れで見せる）。
+      const since = e ? t - e.chainAt : 99;
+      const lunge = since < 0.3 ? Math.sin((since / 0.3) * Math.PI) * 5 * zm : 0;
+      // 向き合うときは、着いてから半歩脇へ寄る（相手と並ぶ）。
+      const aside = e ? 7 * zm * clamp((t - this.walk.at - this.walk.dur) / 0.25) : 0;
+      const fx = x - aside + lunge + (hurt ? Math.sin(t * 80) * 1.5 : 0);
       figure(
         this.raster,
-        x - (e ? 7 * zm : 0) + (hurt ? Math.sin(t * 80) * 1.5 : 0),
+        fx,
         y + bob,
         zm * this.mapPeople(),
         hurt ? INK : AMBER,

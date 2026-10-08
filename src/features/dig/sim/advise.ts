@@ -61,6 +61,8 @@ export interface Route {
   path: number[];
   steps: string[];
   survive: number;
+  /** 最後の相手の手前に着いたときの体力（割合）。 */
+  hpEnd: number;
   links: string[];
   gain: number;
   text: string;
@@ -109,6 +111,10 @@ export function sourceLabel(src: string): string | null {
     case 'build': {
       const d = allBuilds().find((x) => x.id === a);
       return d ? `《${d.name}》` : null;
+    }
+    case 'surge': {
+      const d = allBuilds().find((x) => x.id === a);
+      return d ? `《${d.name}》暴走` : null;
     }
     case 'link': {
       const d = allLinks().find((x) => x.id === a);
@@ -264,7 +270,6 @@ function walkPath(w: World, path: number[], probes: Map<number, Probe>): Walk {
   const short = new Set<number>();
   const thin = new Set<number>();
   const caps = w.you.cards.map((c) => c?.max ?? 0);
-  let rests = w.flags[`rested${w.stratum}`] ?? 0;
   for (const id of path) {
     const p = probes.get(id);
     const node = nodeOf(w, id);
@@ -273,7 +278,7 @@ function walkPath(w: World, path: number[], probes: Map<number, Probe>): Walk {
     if (node.kind === 'boss') continue;
     if (node.kind === 'rest') {
       // 食堂は、着いたときの傷み具合で効く（試行はいまの体で測るので、ここで足す）。
-      hp = Math.min(max, hp + PACE.rest * (rests++ ? PACE.restAgain : 1) * max);
+      hp = Math.min(max, hp + PACE.rest * max);
       uses.forEach((u, slot) => {
         uses[slot] = Math.min(caps[slot] ?? 0, u + 1);
       });
@@ -312,6 +317,9 @@ function score(kind: RouteKind, x: Walk): number {
       return x.alive * 80 + x.gain * 0.6 + links * 4;
   }
 }
+
+/** 道どうしの重なりの引き算（一歩目が同じ・通る場所の割合）。点の大きさは score に合わせる。 */
+const OVERLAP = { first: 30, shared: 30 } as const;
 
 // ─── あと一つ ─────────────────────────────────────────────────
 
@@ -418,14 +426,24 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     if (p) probes.set(n.id, p);
   }
   const walks = all.map((p) => walkPath(w, p, probes));
+  /**
+   * 三つの道は、性格だけでなく歩く場所も違うほうがいい（同じ一歩目を三通りに
+   * 言い換えても、選ぶ意味がない）。すでに選んだ道と一歩目が同じなら大きく、
+   * 通る場所が重なるほど少しずつ引く。差し引いても他に道がなければ、同じ道でいい。
+   */
   const best = (kind: RouteKind, list: Walk[], avoid: number[][] = []) => {
     const same = (a: number[], b: number[]) =>
       a.length === b.length && a.every((x, i) => x === b[i]);
+    const overlap = (x: number[]) =>
+      avoid.reduce((pen, a) => {
+        const shared = x.filter((id) => a.includes(id)).length / Math.max(1, x.length);
+        return pen + (x[0] === a[0] ? OVERLAP.first : 0) + OVERLAP.shared * shared;
+      }, 0);
     let pick: Walk | undefined;
     let v = Number.NEGATIVE_INFINITY;
     for (const x of list) {
       if (avoid.some((a) => same(a, x.path))) continue;
-      const s = score(kind, x);
+      const s = score(kind, x) - overlap(x.path);
       if (s > v) {
         v = s;
         pick = x;
@@ -455,6 +473,7 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     path: x.path,
     steps: steps(x),
     survive: x.alive,
+    hpEnd: x.hpEnd,
     links: links(x),
     gain: Math.round(x.gain),
     text,
@@ -504,7 +523,11 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     const sup = supplies(w, m.lack, ahead, probes)[0];
     if (!sup) continue;
     const through = walks.filter((x) => x.path.includes(sup.node.id));
-    const x = best('almost', through);
+    const x = best(
+      'almost',
+      through,
+      [safe?.path, chain?.path].filter((p): p is number[] => !!p),
+    );
     if (!x) continue;
     out.play.push(
       route(

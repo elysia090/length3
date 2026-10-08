@@ -1,7 +1,7 @@
 import { buildsOf } from '../content/sources';
 import type { World } from '../core/model';
 import { foeHardness, nodeHardness, outmatched, youHardness } from '../sim/hardness';
-import { DAWN, isBridge, lateral, reachable } from '../sim/run';
+import { isBridge, lateral, reachable } from '../sim/run';
 
 /**
  * 案内（チュートリアルとヒント）。塔の上の帯に、いまの状況にいちばん関係する
@@ -57,7 +57,7 @@ export const HINTS: readonly Hint[] = [
   {
     id: 'hall',
     title: '廊下',
-    text: '同じフロアの隣の部屋へは、廊下を歩いて行ける。下りずに 1 時間。出来事と人の両方を取れるが、夜明けが近づく。',
+    text: '同じフロアの隣の部屋へは、廊下を歩いて行ける。下りずに 1 時間。出来事と人の両方を取れる。そのぶん、時計は進む。',
     when: (w) => onMap(w) && lateral(w).length > 0,
   },
   {
@@ -65,6 +65,13 @@ export const HINTS: readonly Hint[] = [
     title: '隣の塔',
     text: '建物は一棟ではない。渡り廊下（2 時間）で隣の塔へ渡れる部屋がある。本棟では会わない顔と、珍しい棚がある。二フロア下りると、本棟へ戻ってくる。',
     when: (w) => onMap(w) && w.pos !== null && reachable(w).some((n) => isBridge(w, n)),
+  },
+  {
+    id: 'epithet',
+    title: 'エピテット',
+    text: '下の《》はエピテット。札にも、記憶にも、先の部屋にも、向き合った相手にも刻める。同じエピテットでも、刻んだ先で意味が変わる。押してから、刻む先を押す。',
+    when: (w) =>
+      onMap(w) && w.you.epithets.length > 0 && w.you.cards.some((c) => !!c && c.eps.length < 2),
   },
   {
     id: 'routes',
@@ -113,12 +120,6 @@ export const HINTS: readonly Hint[] = [
     title: '冠',
     text: '振る舞いは噂になる。付いた冠は、会う前の相手の読みを変える。',
     when: (w) => w.you.titles.length > 0,
-  },
-  {
-    id: 'dawn',
-    title: '夜明け',
-    text: '夜明け（08:00）を過ぎると、相手は荒れる。昼（12:00）になれば区画は閉じる。下の区画は、もっと古い夜。',
-    when: (w) => w.hour >= DAWN - 2,
   },
 ];
 
