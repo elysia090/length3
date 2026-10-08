@@ -1,6 +1,26 @@
 import { drawText, textWidth } from '../../../shared/pixel/font';
 import { clamp, lerp } from '../../../shared/pixel/math';
 import { AMBER, INK, PAPER, Raster, threshold } from '../../../shared/pixel/raster';
+import {
+  BLUE,
+  ENC_ZOOM,
+  FAR_ZOOM,
+  GEO,
+  H,
+  jitter,
+  NEAR_ZOOM,
+  PEER,
+  PEER_BOSS,
+  PEER_OVER,
+  spot,
+  wing,
+} from './pixel/geo';
+import { figure, mark, ring } from './pixel/paint';
+import { hud, lamp, spotlight } from './pixel/scene';
+import type { RoomKind, RoomView, Scene, TowerView } from './pixel/types';
+
+export { BLUE, H } from './pixel/geo';
+export type { RoomKind, RoomView, Scene, TowerView } from './pixel/types';
 
 /**
  * 塔（底の見えない巨大な建物）。フロアを床板として斜めに見下ろし、下へ
@@ -15,127 +35,6 @@ import { AMBER, INK, PAPER, Raster, threshold } from '../../../shared/pixel/rast
  * 塔の、同じフロア）。渡り廊下のある階でだけ、そこに部屋が灯る（渡ると、
  * カメラもそちらへ寄る）。
  */
-
-/** 深い青（いま効いているもの：守り・落ち着き・信頼の糸・見せ場）。必ずまばらに置く。 */
-export const BLUE = 4;
-
-/** 縦の画素数は固定。横は、置かれた枠の縦横比に合わせて伸び縮みする（枠いっぱいに描く）。 */
-export const H = 240;
-
-/**
- * 床の形と投影。u は左右（ほとんど水平に、少しだけ右下がり）、v は奥行き
- * （手前が左下）。床は横に広く、奥行きは浅い板で、上下のフロアが重ならない
- * 間隔に積む。遠いフロアは細部を省いて、底の闇に溶ける。
- */
-const GEO = {
-  /** 床板の半幅と半奥行き。 */
-  U: 3,
-  V: 0.85,
-  /** u・v の 1 単位が画面で何画素動くか。 */
-  ux: 30,
-  uy: 3,
-  vx: -18,
-  vy: 10,
-  /** フロアの間隔（どの深さでも同じ）。 */
-  gap: 42,
-} as const;
-
-/**
- * 寄り。ふだんは近景（あなたと、次に行ける部屋が収まるところまで寄る）。
- * 見渡すときだけ引く。遭遇ではさらに寄る。
- */
-const NEAR_ZOOM = 1.9;
-const FAR_ZOOM = 1;
-const ENC_ZOOM = 2.4;
-
-/**
- * 人の大きさ（あなたを 1 として）。相手は、気づかれないぎりぎりだけ大きい
- * （一割ほど。見比べなければ同じに見えるが、向き合うと少し圧がある）。
- * 歯が立たない相手は、もう少しだけ。最後の相手でも 1.2 まで。
- */
-const PEER = 1.1;
-const PEER_OVER = 1.15;
-const PEER_BOSS = 1.2;
-
-/** 部屋ごとに決まった、奥行きの揺らぎ（-1〜1）。並びが一直線にならないように。 */
-const jitter = (id: number) => ((((id + 1) * 2654435761) >>> 0) % 1000) / 500 - 1;
-
-export type RoomKind = 'person' | 'danger' | 'event' | 'rest' | 'shop' | 'boss';
-
-export interface RoomView {
-  id: number;
-  /** 区画の中のフロア（0 = いちばん上）。 */
-  floor: number;
-  col: number;
-  cols: number;
-  /** 0 は本棟、-1 / 1 は左右の隣の塔。 */
-  tower: number;
-  kind: RoomKind;
-  /** 人物がいるか（遭遇の部屋）。 */
-  person: boolean;
-  hard: number | null;
-  /** 正面からは歯が立たない。 */
-  over: boolean;
-  visited: boolean;
-  reachable: boolean;
-  /** 刻まれたエピテットの数と、見せ場の有無。 */
-  eps: number;
-  stage: boolean;
-  /** もう一人が先に寄った。 */
-  rivalWas: boolean;
-}
-
-export interface TowerView {
-  /** 区画のいちばん上のフロアの番号（B いくつ）。 */
-  top: number;
-  floors: number;
-  rooms: RoomView[];
-  edges: readonly (readonly [number, number])[];
-  /** あなたのいる部屋（入口なら null）。 */
-  you: number | null;
-  /** もう一人の灯り持ちの居場所。 */
-  rival: number | null;
-  /** 推奨の道（濃さの違う三本）。 */
-  routes: readonly { kind: 'safe' | 'chain' | 'almost'; path: readonly number[]; mark?: number }[];
-  focus: number | null;
-  /** 遭遇中。 */
-  enc: {
-    room: number;
-    foeHitAt: number;
-    youHitAt: number;
-    end: 'fall' | 'glow' | null;
-    endAt: number;
-    scene?: Scene | null;
-  } | null;
-}
-
-/** 向き合っている場面（寄ったときにだけ描く、計器と気配）。 */
-export interface Scene {
-  you: { hp: number; maxHp: number; mind: number; maxMind: number; guard: number; calm: number };
-  /** 次の手で失いそうな分（守りを引く前）。 */
-  loss: { hp: number; mind: number };
-  foe: {
-    hp: number;
-    maxHp: number;
-    will: number;
-    maxWill: number;
-    trust: number;
-    need: number;
-    guard: number;
-    hostility: number;
-    clues: number;
-    shown: number;
-    boss: boolean;
-  };
-  intent: { kind: string; power: number | null } | null;
-  /** 見せ場（合うタグのカードが響いている）。 */
-  stage: boolean;
-  resonance: number;
-  /** 長引いて、相手が苛立っている。 */
-  stall: boolean;
-  /** 跳ねる数（当たった・戻った・受け止めた）。 */
-  pops: readonly { who: 'you' | 'foe'; text: string; tone: 'ink' | 'amber' | 'blue'; at: number }[];
-}
 
 interface Placed {
   id: number;
@@ -197,28 +96,6 @@ export class Tower {
 
   // ─── 投影 ───────────────────────────────────────────────────
 
-  /**
-   * 隣の塔の中心。画面の上で真横になる向き（u を動かした分だけ v を戻して、
-   * 高さが変わらない向き）へ、床一枚と少し離す。
-   */
-  private static wing(side: number): { u: number; v: number } {
-    const u = side * (GEO.U * 2 + 1.2);
-    return { u, v: (-u * GEO.uy) / GEO.vy };
-  }
-
-  /** 部屋の床の上の位置（u は左右、v は奥行き）。 */
-  private static spot(r: RoomView): { u: number; v: number } {
-    if (r.tower) {
-      // 隣の床の、こちら寄りの側。
-      const c = Tower.wing(r.tower);
-      return { u: c.u - r.tower * (GEO.U - 0.9), v: c.v + jitter(r.id) * 0.35 };
-    }
-    if (r.kind === 'boss') return { u: 0, v: 0 };
-    const reach = GEO.U - 0.7;
-    const u = r.cols <= 1 ? 0 : -reach + (r.col * 2 * reach) / (r.cols - 1);
-    return { u, v: jitter(r.id) * (GEO.V - 0.45) };
-  }
-
   /** いま見ているフロアからの隔たり（下が正）。 */
   private away(f: number): number {
     return f - this.cam.floor;
@@ -261,14 +138,14 @@ export class Tower {
     const add = (u: number, v: number, f: number) =>
       pts.push({ x: u * GEO.ux + v * GEO.vx, y: (f - floor) * GEO.gap + u * GEO.uy + v * GEO.vy });
     if (here) {
-      const p = Tower.spot(here);
+      const p = spot(here);
       add(p.u, p.v, here.floor);
     } else add(0, 0, -1);
     // 行ける部屋。足止めされている間（食堂・古物商・出来事）は、この先の部屋。
     const ahead = new Set(view.edges.filter(([from]) => from === view.you).map(([, to]) => to));
     for (const r of view.rooms) {
       if (!r.reachable && !ahead.has(r.id) && r.id !== view.focus) continue;
-      const p = Tower.spot(r);
+      const p = spot(r);
       add(p.u, p.v, r.floor);
     }
     const xs = pts.map((p) => p.x);
@@ -298,7 +175,7 @@ export class Tower {
     // 部屋と、触れている部屋がちょうど収まるように寄せて、真ん中に置く。
     // 見渡すときは引いて、区画を上から。
     const here = view.rooms.find((x) => x.id === (view.enc?.room ?? view.you));
-    const spot = here ? Tower.spot(here) : { u: 0, v: 0 };
+    const focusAt = here ? spot(here) : { u: 0, v: 0 };
     const sx = (p: { u: number; v: number }) => p.u * GEO.ux + p.v * GEO.vx;
     const sy = (p: { u: number; v: number }) => p.u * GEO.uy + p.v * GEO.vy;
     let targetFloor = here ? here.floor : -0.6;
@@ -307,9 +184,9 @@ export class Tower {
     let targetY = 0;
     if (view.enc) {
       targetZoom = ENC_ZOOM;
-      targetX = sx(spot);
+      targetX = sx(focusAt);
       // その部屋を画面のまん中より少し下へ。
-      targetY = sy(spot) - H * 0.14;
+      targetY = sy(focusAt) - H * 0.14;
     } else if (this.overview || view.rooms.length === 0) {
       // 見渡す。人物を決めている間（まだ部屋が無い）も、建物を引きで見せる。
       targetFloor = (here?.floor ?? 0) - 0.3;
@@ -332,7 +209,8 @@ export class Tower {
     const lit = new Set(view.rooms.filter((x) => x.tower).map((x) => `${x.tower}:${x.floor}`));
     for (let f = view.floors; f >= -1; f--) {
       this.neighbors(f, lit);
-      if (f >= 0 && f < view.floors) this.slab(view, f);
+      // f = -1 は区画の上の踊り場（入口に立つ場所）。
+      if (f < view.floors) this.slab(view, f);
     }
     this.stairs(view, t);
     this.placed = [];
@@ -345,11 +223,12 @@ export class Tower {
     const at = view.enc ? view.rooms.find((x) => x.id === view.enc?.room) : undefined;
     const c = at ? this.center(at) : null;
     if (scene && c && presence > 0) {
-      this.lamp(c.x, c.y, scene, t, presence);
-      if (scene.stage) this.spotlight(c.x, c.y, t, presence);
+      lamp(this.raster, this.W, this.cam.zoom, c.x, c.y, scene, t, presence);
+      if (scene.stage) spotlight(this.raster, this.cam.zoom, c.x, c.y, t, presence);
     }
     this.people(view, t);
-    if (scene && c && at && presence > 0.6) this.hud(c.x, c.y, at.kind === 'boss', scene, t);
+    if (scene && c && at && presence > 0.6)
+      hud(this.raster, this.cam.zoom, c.x, c.y, at.kind === 'boss', scene, t);
     if (this.ctx && this.image && this.out) {
       r.present(this.out, this.palette);
       this.ctx.putImageData(this.image, 0, 0);
@@ -426,8 +305,8 @@ export class Tower {
     if (away > 4.2 || away < -1.6) return;
     const fade = clamp(1 - (away - 1.5) / 3, 0, 1);
     const plates: { u: number; v: number; key: string }[] = [
-      { ...Tower.wing(-1), key: '-1' },
-      { ...Tower.wing(1), key: '1' },
+      { ...wing(-1), key: '-1' },
+      { ...wing(1), key: '1' },
     ];
     // 部屋のある隣の床だけ、床板として描く。ほかは本棟の床の縁が左右と奥へ
     // 続いて、点がまばらになって消える（同じ床が向こうにもある、という気配）。
@@ -587,7 +466,7 @@ export class Tower {
   }
 
   private center(room: RoomView): { x: number; y: number } {
-    const s = Tower.spot(room);
+    const s = spot(room);
     return this.project(s.u, s.v, room.floor);
   }
 
@@ -604,7 +483,7 @@ export class Tower {
   private room(view: TowerView, room: RoomView, t: number): void {
     const r = this.raster;
     const { x, y } = this.center(room);
-    const { u, v } = Tower.spot(room);
+    const { u, v } = spot(room);
     const big = room.kind === 'boss' ? 1.4 : 1;
     const du = 0.3 * big;
     const dv = 0.24 * big;
@@ -621,11 +500,27 @@ export class Tower {
     ];
     const detail = this.detailed(room.floor);
     const hot = view.focus === room.id;
-    const tone = room.visited ? 0.45 : 0.97;
+    // 行ける部屋は真っ白な台に琥珀の縁（網点の床から浮く）。行った部屋は沈んだ網点。
+    const tone = room.reachable ? 1 : room.visited ? 0.45 : 0.97;
     const z = 10 - room.floor;
     r.tri(a.x, a.y, z, b.x, b.y, z, c.x, c.y, z, tone, INK, PAPER);
     r.tri(a.x, a.y, z, c.x, c.y, z, d.x, d.y, z, tone, INK, PAPER);
-    const edge = room.reachable && Math.floor(t * 2.5) % 2 === 0 ? AMBER : hot ? AMBER : INK;
+    const edge = room.reachable || hot ? AMBER : INK;
+    // 行ける部屋は、外側にもう一回り、琥珀の点線が息をする（点滅より静かに目を引く）。
+    if (room.reachable && Math.sin(t * 4) > -0.2) {
+      const g = 0.09 * big;
+      const ring = [
+        this.project(u - du - g, v - dv - g, room.floor),
+        this.project(u + du + g, v - dv - g, room.floor),
+        this.project(u + du + g, v + dv + g, room.floor),
+        this.project(u - du - g, v + dv + g, room.floor),
+      ];
+      for (let i = 0; i < 4; i++) {
+        const p = ring[i] as { x: number; y: number };
+        const q = ring[(i + 1) % 4] as { x: number; y: number };
+        r.line(p.x, p.y, z, q.x, q.y, z, AMBER, false, 0, [1, 2]);
+      }
+    }
     const dash: [number, number] | undefined = detail || room.reachable ? undefined : [1, 1];
     for (const [p, q] of [
       [a, b],
@@ -641,28 +536,9 @@ export class Tower {
       }
       for (let i = 0; i < room.eps; i++)
         r.set(Math.round(d.x) + 2 + i * 2, Math.round(d.y) + 2, INK);
-      if (!room.person) this.mark(room.kind, x, y - 1, room.visited);
+      if (!room.person) mark(this.raster, room.kind, x, y - 1, room.visited);
     } else if (!room.person && room.kind === 'rest') r.set(Math.round(x), Math.round(y), AMBER);
     this.placed.push({ id: room.id, x, y, z });
-  }
-
-  /** 人のいない部屋の印。 */
-  private mark(kind: RoomKind, x: number, y: number, dim: boolean): void {
-    const r = this.raster;
-    const c = dim ? PAPER : INK;
-    const ICON: Record<string, readonly string[]> = {
-      event: ['0110', '1001', '0010', '0100', '0000', '0100'],
-      rest: ['00100', '01110', '11111', '01110', '00100'],
-      shop: ['01110', '10101', '11111', '10101', '01110'],
-    };
-    const rows = ICON[kind];
-    if (!rows) return;
-    const ox = Math.round(x - (rows[0]?.length ?? 0) / 2);
-    const oy = Math.round(y - rows.length + 1);
-    rows.forEach((row, j) => {
-      for (let i = 0; i < row.length; i++)
-        if (row[i] === '1') r.set(ox + i, oy + j, kind === 'rest' ? AMBER : c);
-    });
   }
 
   /** 推奨の道。安定は細い点線、高連鎖は琥珀の実線、未完成は琥珀の点線と目印。 */
@@ -687,65 +563,13 @@ export class Tower {
         const m = pos.get(route.mark);
         if (m && Math.floor(t * 2) % 2 === 0) {
           const c = this.center(m);
-          this.ring(c.x, c.y - 4, 9 * this.cam.zoom, AMBER);
+          ring(this.raster, c.x, c.y - 4, 9 * this.cam.zoom, AMBER);
         }
       }
     }
   }
 
-  private ring(cx: number, cy: number, rad: number, c: number): void {
-    const n = Math.max(12, Math.round(rad * 5));
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      this.raster.set(
-        Math.round(cx + Math.cos(a) * rad),
-        Math.round(cy + Math.sin(a) * rad * 0.5),
-        c,
-      );
-    }
-  }
-
   /** 人。丸と逆三角形。 */
-  /**
-   * style: solid はべた塗り（あなた）、outline は輪郭だけ（もう一人・会い終えた人）、
-   * sparse は輪郭と、まばらな網点の中身（いま向き合える相手。深い青で）。
-   */
-  private figure(
-    x: number,
-    y: number,
-    k: number,
-    fill: number,
-    style: 'solid' | 'outline' | 'sparse' | boolean = 'solid',
-    lean = 0,
-  ): void {
-    const mode = style === true ? 'outline' : style === false ? 'solid' : style;
-    const outline = mode !== 'solid';
-    const r = this.raster;
-    const hr = 2 * k;
-    const bw = 3.2 * k;
-    const bh = 7 * k;
-    const top = y - bh;
-    const hx = x + lean * k;
-    const hy = top - hr - 1;
-    // 体（逆三角形）。
-    if (outline) {
-      r.line(x - bw, top, 99, x + bw, top, 99, fill, false);
-      r.line(x - bw, top, 99, x, y, 99, fill, false);
-      r.line(x + bw, top, 99, x, y, 99, fill, false);
-      if (mode === 'sparse')
-        r.tri(x - bw + 1, top + 1, 98, x + bw - 1, top + 1, 98, x, y - 1, 98, 0.62, fill, PAPER);
-    } else r.tri(x - bw, top, 99, x + bw, top, 99, x, y, 99, 0, fill, fill);
-    // 頭（丸）。
-    for (let j = -Math.ceil(hr); j <= Math.ceil(hr); j++)
-      for (let i = -Math.ceil(hr); i <= Math.ceil(hr); i++) {
-        const d = Math.hypot(i, j);
-        const px = Math.round(hx + i);
-        const py = Math.round(hy + j);
-        if (outline ? Math.abs(d - hr) < 0.6 : d <= hr + 0.2) r.set(px, py, fill);
-        else if (mode === 'sparse' && d < hr - 0.6)
-          r.set(px, py, threshold(px, py) < 0.38 ? fill : PAPER);
-      }
-  }
 
   private people(view: TowerView, t: number): void {
     const zm = this.cam.zoom;
@@ -776,7 +600,8 @@ export class Tower {
         if (gone && e.end === 'fall') continue;
         const hit = t - e.foeHitAt < 0.18;
         const shake = hit ? Math.sin(t * 90) * 1.5 : 0;
-        this.figure(
+        figure(
+          this.raster,
           x + 7 * zm + shake,
           y,
           k,
@@ -784,10 +609,10 @@ export class Tower {
           hit ? 'solid' : 'sparse',
           -0.4,
         );
-      } else if (room.visited) this.figure(x, y, k, PAPER, 'outline');
+      } else if (room.visited) figure(this.raster, x, y, k, PAPER, 'outline');
       // いま向き合える相手は深い青のまばら、まだ遠い人は墨。
-      else if (room.reachable) this.figure(x, y, k, BLUE, 'sparse');
-      else this.figure(x, y, k, INK);
+      else if (room.reachable) figure(this.raster, x, y, k, BLUE, 'sparse');
+      else figure(this.raster, x, y, k, INK);
       // 硬度（数字）。歯が立たない相手は、数字を墨の枠で囲む
       // （琥珀は「あなた」と「押せるもの」にだけ使う）。
       // 硬度の数字は見渡すときだけ（近景では脇の一覧と札に出ているので、絵には描かない）。
@@ -814,7 +639,8 @@ export class Tower {
       if (!(gone && e.end === 'fall')) {
         const { x, y } = this.center(encRoom);
         const hit = t - e.foeHitAt < 0.18;
-        this.figure(
+        figure(
+          this.raster,
           x + 7 * zm + (hit ? Math.sin(t * 90) * 1.5 : 0),
           y,
           PEER * zm,
@@ -830,7 +656,7 @@ export class Tower {
       if (room) {
         const { x, y } = this.center(room);
         const side = room.person ? -14 : 9;
-        this.figure(x + side * zm, y + 2, zm * this.mapPeople(), INK, true);
+        figure(this.raster, x + side * zm, y + 2, zm * this.mapPeople(), INK, true);
       }
     }
     // あなた（琥珀）。
@@ -844,7 +670,8 @@ export class Tower {
       const e = view.enc;
       const hurt = e ? t - e.youHitAt < 0.18 : false;
       const bob = Math.round(Math.sin(t * 3) * 0.6);
-      this.figure(
+      figure(
+        this.raster,
         x - (e ? 7 * zm : 0) + (hurt ? Math.sin(t * 80) * 1.5 : 0),
         y + bob,
         zm * this.mapPeople(),
@@ -855,282 +682,11 @@ export class Tower {
     } else {
       // 入口（区画の上の踊り場に立つ）。
       const p = this.project(0, 0, -1);
-      this.figure(p.x, p.y, zm * this.mapPeople(), AMBER);
+      figure(this.raster, p.x, p.y, zm * this.mapPeople(), AMBER);
     }
   }
 
   // ─── 向き合った場面 ─────────────────────────────────────────
-
-  /**
-   * 灯り。あなたの灯りが届く輪の外は、墨の網点で沈む。輪の大きさは心の残り
-   * で決まり、揺らぐ。長引くと、外の闇が脈打つ。
-   */
-  private lamp(cx: number, cy: number, s: Scene, t: number, presence: number): void {
-    const r = this.raster;
-    const zm = this.cam.zoom;
-    const mind = s.you.maxMind ? s.you.mind / s.you.maxMind : 1;
-    const flicker = 1 + 0.025 * Math.sin(t * 11) + 0.015 * Math.sin(t * 23.7 + 1.3);
-    const R = (30 + 26 * mind) * zm * flicker;
-    const pulse = s.stall ? 0.12 * (0.5 + 0.5 * Math.sin(t * 4)) : 0;
-    const ly = cy - 6 * zm;
-    const x0 = Math.max(0, Math.floor(cx - R * 2.4));
-    const x1 = Math.min(this.W, Math.ceil(cx + R * 2.4));
-    for (let y = 0; y < H; y++) {
-      const dy = (y - ly) * 1.45;
-      for (let x = 0; x < this.W; x++) {
-        const dx = x - cx;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < R) continue;
-        // 見せ場の光の筋の中は、闇が落ちない。
-        if (s.stage && y < cy && Math.abs(dx) < this.beamHalf(y, cy)) continue;
-        const far = x < x0 || x >= x1 ? 1 : clamp((d - R) / (R * 1.1));
-        const tone = (0.32 * far + pulse) * presence;
-        if (threshold(x, y) < tone) r.set(x, y, INK);
-      }
-    }
-  }
-
-  /** 見せ場の光の筋の、その高さでの半幅。 */
-  private beamHalf(y: number, cy: number): number {
-    const half = 24 * this.cam.zoom;
-    return 4 + (half - 4) * clamp(y / Math.max(1, cy));
-  }
-
-  /** 見せ場。上から細い光が降りる（筋の縁と、光の中を降る埃）。 */
-  private spotlight(cx: number, cy: number, t: number, presence: number): void {
-    const r = this.raster;
-    for (let y = 0; y < cy; y++) {
-      const w = this.beamHalf(y, cy);
-      for (const x of [Math.round(cx - w), Math.round(cx + w)])
-        if (threshold(x, y) < 0.5 * presence) r.set(x, y, INK);
-    }
-    if (presence < 0.5) return;
-    for (let n = 0; n < 14; n++) {
-      const u = ((n * 0.618 + t * 0.05 * (1 + (n % 3))) % 1) * cy;
-      const sx = cx + Math.sin(n * 12.9 + t * 0.7) * this.beamHalf(u, cy) * 0.8;
-      r.set(Math.round(sx), Math.round(u), INK);
-    }
-  }
-
-  /** 円環にまばらな点（守り・落ち着き）。from〜to は角度（ラジアン）。 */
-  private veil(
-    cx: number,
-    cy: number,
-    rad: number,
-    thick: number,
-    density: number,
-    c: number,
-    from = 0,
-    to = Math.PI * 2,
-  ): void {
-    const r = this.raster;
-    for (let y = Math.floor(cy - rad - 1); y <= cy + rad + 1; y++)
-      for (let x = Math.floor(cx - rad - 1); x <= cx + rad + 1; x++) {
-        const dx = x - cx;
-        const dy = (y - cy) * 1.3;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d > rad || d < rad - thick) continue;
-        let a = Math.atan2(dy, dx);
-        if (a < 0) a += Math.PI * 2;
-        const inArc = from <= to ? a >= from && a <= to : a >= from || a <= to;
-        if (!inArc) continue;
-        // 縁は濃く、内側ほど薄く。
-        const edge = d > rad - 1.2 ? 2.2 : 1;
-        if (threshold(x, y) < density * edge) r.set(x, y, c);
-      }
-  }
-
-  /** 計器の点の大きさ（拡大して見られるので、二倍の点で描く）。 */
-  private static readonly K = 2;
-
-  private dot(x: number, y: number, c: number): void {
-    const k = Tower.K;
-    this.raster.rect(x, y, k, k, c);
-  }
-
-  /**
-   * 横棒の計器（点で描く）。w は点の数、step は点の間（1 = べた、2 = まばら）。
-   * 守りは棒の先に点線で伸び、次の手で失う分は点滅する。
-   */
-  private bar(
-    x: number,
-    y: number,
-    w: number,
-    ratio: number,
-    fill: number,
-    step: number,
-    extra: { shield?: number; loss?: number; blink?: boolean } = {},
-  ): void {
-    const k = Tower.K;
-    const n = Math.round(w * clamp(ratio));
-    const loss = Math.min(n, Math.max(0, Math.round(extra.loss ?? 0)));
-    this.raster.rect(x - 1, y - 1, w * k + 2, k + 2, PAPER);
-    for (let i = 0; i < w; i++) {
-      const px = x + i * k;
-      if (i < n - loss) {
-        if (i % step === 0) this.dot(px, y, fill);
-      } else if (i < n) {
-        if (!extra.blink) this.dot(px, y, fill);
-      } else if (i % 2 === 0) this.raster.set(px, y + k - 1, INK);
-    }
-    const sh = Math.min(w, Math.round(extra.shield ?? 0));
-    for (let i = 0; i < sh; i++) if (i % 2 === 0) this.raster.set(x + (n + i) * k, y, fill);
-  }
-
-  /** 予告の印（7×7）。 */
-  private glyph(kind: string, x: number, y: number, c: number): void {
-    const ICONS: Record<string, readonly string[]> = {
-      strike: ['0000011', '0000111', '0001110', '1011100', '0111000', '0110000', '1001000'],
-      threat: ['0000000', '1000001', '1100011', '0110110', '0011100', '0001000', '0000000'],
-      guard: ['1111111', '1000001', '1000001', '1000001', '0100010', '0010100', '0001000'],
-      call: ['0111110', '1000001', '1010101', '1000001', '0111110', '0010000', '0100000'],
-      bargain: ['0011100', '0100010', '0010000', '0001000', '0000100', '0100010', '0011100'],
-      confide: ['0111110', '1000001', '1000001', '1000001', '0111110', '0000100', '0000010'],
-      flee: ['0001000', '0000100', '1111110', '0000100', '0001000', '0000000', '0000000'],
-      wait: ['1111111', '0100010', '0010100', '0001000', '0010100', '0100010', '1111111'],
-      mend: ['0001000', '0001000', '0111110', '0001000', '0001000', '0000000', '0000000'],
-      probe: ['0000000', '0011100', '0100010', '1001001', '0100010', '0011100', '0000000'],
-    };
-    const rows = ICONS[kind] ?? ICONS.wait ?? [];
-    rows.forEach((row, j) => {
-      for (let i = 0; i < row.length; i++)
-        if (row[i] === '1') this.dot(x + i * Tower.K, y + j * Tower.K, c);
-    });
-  }
-
-  /** 頭から計器への細い点線。 */
-  private leader(x0: number, y0: number, x1: number, y1: number): void {
-    this.raster.line(x0, y0, 99, x1, y1, 99, INK, false, 0, [1, 2]);
-  }
-
-  /** 計器と気配（二人の頭の上、信頼の糸、守り、予告、跳ねる数）。 */
-  private hud(cx: number, cy: number, boss: boolean, s: Scene, t: number): void {
-    const r = this.raster;
-    const zm = this.cam.zoom;
-    const youX = cx - 7 * zm;
-    const foeX = cx + 7 * zm;
-    const fk = (boss ? PEER_BOSS : PEER) * zm;
-    const youTop = cy - 7 * zm - 4 * zm - 2;
-    const foeTop = cy - 7 * fk - 4 * fk - 2;
-    const blink = Math.floor(t * 2.2) % 2 === 0;
-    const K = Tower.K;
-    // 守り（体の前に、相手へ向けた半円）と落ち着き（頭のまわり）。あなたの側は
-    // 琥珀、相手の側は青で、どちらもまばらに。
-    if (s.you.guard > 0)
-      this.veil(
-        youX,
-        cy - 4 * zm,
-        10 * zm,
-        2.5,
-        0.1 + Math.min(0.3, s.you.guard / 30),
-        AMBER,
-        Math.PI * 1.5,
-        Math.PI * 0.5,
-      );
-    if (s.you.calm > 0)
-      this.veil(youX, cy - 9.5 * zm, 3.6 * zm, 1.6, 0.14 + Math.min(0.3, s.you.calm / 25), AMBER);
-    if (s.foe.guard > 0)
-      this.veil(
-        foeX,
-        cy - 4 * fk,
-        9 * fk,
-        2.5,
-        0.1 + Math.min(0.3, s.foe.guard / 30),
-        BLUE,
-        Math.PI * 0.5,
-        Math.PI * 1.5,
-      );
-    // 信頼の糸（頭から頭へ、相手の色で）。届きそうになるほど、点が詰まる。
-    if (s.foe.need < 50 && s.foe.trust > 0) {
-      const k = clamp(s.foe.trust / Math.max(1, s.foe.need));
-      const gap = Math.max(1, Math.round(6 - 5 * k));
-      const ax = youX + 2;
-      const ay = cy - 10 * zm;
-      const bx = foeX - 2;
-      const by = cy - 10 * fk;
-      const steps = Math.ceil(Math.hypot(bx - ax, by - ay));
-      for (let i = 0; i <= steps; i += gap) {
-        const u = i / steps;
-        const sag = Math.sin(u * Math.PI) * (4 - 3 * k);
-        r.set(Math.round(ax + (bx - ax) * u), Math.round(ay + (by - ay) * u + sag), BLUE);
-      }
-    }
-    // 計器。あなたは左へ（体＝琥珀のべた、心＝琥珀のまばら）、相手は右へ
-    // （体＝青のべた、意志＝青のまばら）。二人の間は空けておく。
-    const bw = 18;
-    // 計器は体から少し離して置き、細い点線で頭とつなぐ（体に貼りつけない）。
-    const off = 12 * zm;
-    const yx = Math.round(youX - off - bw * K);
-    const yy = Math.round(youTop - 14);
-    this.leader(youX - 2, youTop + 2, yx + bw * K, yy + 3);
-    const lossHp = Math.max(0, s.loss.hp - s.you.guard);
-    const lossMind = Math.max(0, s.loss.mind - s.you.calm);
-    this.bar(yx, yy, bw, s.you.hp / Math.max(1, s.you.maxHp), AMBER, 1, {
-      shield: (s.you.guard / Math.max(1, s.you.maxHp)) * bw,
-      loss: (lossHp / Math.max(1, s.you.maxHp)) * bw,
-      blink,
-    });
-    this.bar(yx, yy + 5, bw, s.you.mind / Math.max(1, s.you.maxMind), AMBER, 2, {
-      shield: (s.you.calm / Math.max(1, s.you.maxMind)) * bw,
-      loss: (lossMind / Math.max(1, s.you.maxMind)) * bw,
-      blink,
-    });
-    const fx = Math.round(foeX + off);
-    const fy = Math.round(foeTop - 14);
-    this.leader(foeX + 2, foeTop + 2, fx - 2, fy + 3);
-    this.bar(fx, fy, bw, s.foe.hp / Math.max(1, s.foe.maxHp), BLUE, 1, {
-      shield: (s.foe.guard / Math.max(1, s.foe.maxHp)) * bw,
-    });
-    this.bar(fx, fy + 5, bw, s.foe.will / Math.max(1, s.foe.maxWill), BLUE, 2);
-    // 手がかりは小さな菱形（見つけたものは琥珀で塗る）。
-    for (let i = 0; i < s.foe.clues; i++) {
-      const bx = fx + i * 4 * K;
-      const by = fy + 11;
-      const got = i < s.foe.shown;
-      const c = got ? AMBER : INK;
-      this.dot(bx + K, by - K, c);
-      this.dot(bx, by, c);
-      this.dot(bx + 2 * K, by, c);
-      this.dot(bx + K, by + K, c);
-      if (got) this.dot(bx + K, by, c);
-    }
-    // 予告（相手の計器の上）。
-    if (s.intent) {
-      const gx = Math.round(fx);
-      const gy = Math.round(fy - 19 + Math.sin(t * 3) * 0.8);
-      r.rect(gx - 2, gy - 2, 7 * K + 4, 7 * K + 4, PAPER);
-      this.glyph(s.intent.kind, gx, gy, INK);
-      if (s.intent.power) {
-        const label = String(s.intent.power);
-        r.rect(gx + 7 * K + 2, gy - 1, textWidth(label, K) + 3, 7 * K + 2, PAPER);
-        drawText(r, label, gx + 7 * K + 3, gy, INK, K);
-      }
-    }
-    // 敵意が高いと、頭のまわりに棘が立つ。
-    if (s.foe.hostility >= 7) {
-      const n = s.foe.hostility >= 9 ? 3 : 2;
-      for (let i = 0; i < n; i++) {
-        const a = -Math.PI / 2 + (i - (n - 1) / 2) * 0.7 + Math.sin(t * 9 + i) * 0.05;
-        const hx = foeX + Math.cos(a) * 5 * fk;
-        const hy = cy - 10 * fk + Math.sin(a) * 5 * fk;
-        r.line(hx, hy, 99, hx + Math.cos(a) * 3, hy + Math.sin(a) * 3, 99, INK, false);
-      }
-    }
-    // 跳ねる数。
-    for (const p of s.pops) {
-      const age = t - p.at;
-      if (age < 0 || age > 1.4) continue;
-      const px = Math.round(
-        (p.who === 'you' ? youX - 12 : foeX + 6) + age * (p.who === 'you' ? -4 : 4),
-      );
-      const py = Math.round((p.who === 'you' ? youTop : foeTop) - 2 - age * 16);
-      const c = p.tone === 'amber' ? AMBER : p.tone === 'blue' ? BLUE : INK;
-      if (age > 1 && Math.floor(t * 20) % 2) continue;
-      const w = textWidth(p.text, K);
-      r.rect(px - 1 - (p.who === 'you' ? w : 0), py - 1, w + 2, 7 * K + 2, PAPER);
-      drawText(r, p.text, px - (p.who === 'you' ? w : 0), py, c, K);
-    }
-  }
 
   /** 画面上の点（CSS 画素）から、その部屋を探す。 */
   pick(cssX: number, cssY: number): number | null {
