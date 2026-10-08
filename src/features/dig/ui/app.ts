@@ -283,7 +283,14 @@ export function openDig(doc: Document, onClose: () => void): void {
   });
   /** 連鎖の印（決まった瞬間だけ、場面の上に大きく）。 */
   const combo = h('div', { class: 'dig-combo', hidden: true, 'aria-hidden': 'true' });
-  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer, combo);
+  /** 決着の瞬間の、上下の黒い帯（画面の比が変わる＝場面が閉じる合図）。 */
+  const bars = h(
+    'div',
+    { class: 'dig-bars', 'aria-hidden': 'true' },
+    h('i', { class: 'dig-bars__top' }),
+    h('i', { class: 'dig-bars__bottom' }),
+  );
+  const view = h('div', { class: 'dig-view' }, bars, guide, canvas, tip, zoomer, combo);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
@@ -360,6 +367,8 @@ export function openDig(doc: Document, onClose: () => void): void {
           if ((ev.field === 'hp' || ev.field === 'resolve') && ev.n < 0 && ev.by === 'you') {
             anim.foeHitAt = t;
             sound.hit();
+            // 当たった瞬間を、ほんの少しだけ止める（重い手ほど長く）。
+            stop(0.04 + Math.min(0.05, -ev.n / 200));
           }
           if (ev.field === 'hp' || ev.field === 'resolve') pop('foe', ev.n, 'ink', t);
           else if (ev.field === 'trust' || ev.field === 'guard') pop('foe', ev.n, 'blue', t);
@@ -382,8 +391,12 @@ export function openDig(doc: Document, onClose: () => void): void {
         case 'enc.you':
           if (ev.n > 0) pop('you', ev.n, 'amber', t);
           break;
+        case 'enc.close':
+          cut(false);
+          break;
         case 'enc.start':
           if (ev.who === 'you') {
+            cut(false);
             anim.end = null;
             anim.endAt = -9;
             streak = 0;
@@ -400,13 +413,14 @@ export function openDig(doc: Document, onClose: () => void): void {
               ? 'glow'
               : null;
           anim.endAt = t;
+          if (ev.outcome !== 'left') cut(true);
           if (anim.end) sound.ok();
           else sound.fail();
           // 決着の絵を見せてから、受け取りへ（二度押しをなくす）。
           window.setTimeout(() => {
             if (game?.world.enc?.phase === 'over' && game.world.enc.who === 'you')
               send({ c: 'close' });
-          }, 750);
+          }, 1100);
           break;
         case 'clue':
           if (ev.shown) sound.clue();
@@ -532,6 +546,22 @@ export function openDig(doc: Document, onClose: () => void): void {
     const m = w ? ask(w, 'chain', { who: 'you' }, chainMult(n)) : chainMult(n);
     showStamp(n >= 2 ? `連鎖 ${n}` : '連鎖', `×${fmtMult(m)}`, n);
     sound.chain(n);
+    if (!still()) tower.punch(0.03 + 0.025 * Math.min(n, 3), now());
+    stop(0.05 + 0.025 * Math.min(n, 3));
+  }
+
+  /** 止め（ヒットストップ）。s 秒だけ、場面の絵を止める。 */
+  let freezeUntil = 0;
+  const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function stop(s: number): void {
+    if (still()) return;
+    freezeUntil = Math.max(freezeUntil, now() + s);
+  }
+
+  /** 決着：上下に帯を下ろし、ゆっくり寄って止める。解くときは帯を上げ、寄りを戻す。 */
+  function cut(on: boolean): void {
+    view.classList.toggle('is-cut', on);
+    tower.settle(on && !still() ? 0.1 : 0, now());
   }
   /** 場面の上の大きな印（連鎖・会心）。 */
   function showStamp(big: string, small: string, n: number): void {
@@ -544,7 +574,11 @@ export function openDig(doc: Document, onClose: () => void): void {
     // 同じ要素の演出を、最初からかけ直す。
     void combo.offsetWidth;
     combo.classList.add('is-on');
-    if (big === '会心') sound.chain(3);
+    if (big === '会心') {
+      sound.chain(3);
+      if (!still()) tower.punch(0.1, now());
+      stop(0.12);
+    }
     window.clearTimeout(comboTimer);
     comboTimer = window.setTimeout(() => {
       combo.hidden = true;
@@ -829,7 +863,8 @@ export function openDig(doc: Document, onClose: () => void): void {
         advice = advise(w);
         render();
       }
-      tower.draw(towerView(w), now(), dt);
+      // 止め（ヒットストップ）のあいだは、絵を描き替えない。
+      if (now() >= freezeUntil) tower.draw(towerView(w), now(), dt);
       idle(w);
     }
     raf = requestAnimationFrame(frame);
@@ -1505,7 +1540,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       } else if (ev.type === 'enc.you' && ev.n > 0)
         side.push(`${ev.field === 'guard' ? '守り' : '心の構え'} +${ev.n}`);
     }
-    if (chained) what += `　連鎖 ${chained}`;
+    if (chained) what += chained >= 2 ? `　連鎖 ${chained}` : '　連鎖';
     const out: TurnLine[] = [{ who: 'you', what: what || '……', effects: mine }];
     if (end) out.push({ who: 'end', what: end, effects: [] });
     else if (theirs.length || theirMove)

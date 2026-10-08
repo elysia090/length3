@@ -58,6 +58,23 @@ export class Tower {
   private placed: Placed[] = [];
   /** カメラ（フロアの位置と寄り）。なめらかに追う。 */
   private cam = { floor: -0.5, zoom: NEAR_ZOOM, x: 0, y: 0 };
+  /**
+   * カメラの演出（撮影の言葉で）。
+   *   押し込み  連鎖・会心の瞬間に、一歩だけ寄って戻る（ドリーの一打）
+   *   寄り切り  決着がついたら、ゆっくり寄って、そのまま止める
+   */
+  private kick = { at: -9, amt: 0 };
+  private hold = { at: -9, amt: 0 };
+
+  /** 一歩だけ寄って戻る（amt は寄る割合）。 */
+  punch(amt: number, t: number): void {
+    this.kick = { at: t, amt };
+  }
+
+  /** ゆっくり寄って止める。0 で解く。 */
+  settle(amt: number, t: number): void {
+    this.hold = { at: t, amt };
+  }
   /** 見渡す（引いて、区画をひと目に）。 */
   overview = false;
 
@@ -203,6 +220,12 @@ export class Tower {
     this.cam.floor = lerp(this.cam.floor, targetFloor, k);
     this.cam.zoom = lerp(this.cam.zoom, targetZoom, k);
     this.cam.x = lerp(this.cam.x, targetX, k);
+    // 演出の寄り。追いかけるカメラとは別に、描くあいだだけ掛ける。
+    const base = this.cam.zoom;
+    const since = t - this.kick.at;
+    const kick = since >= 0 ? this.kick.amt * Math.exp(-since * 7) : 0;
+    const hold = view.enc ? this.hold.amt * (1 - Math.exp(-(t - this.hold.at) * 2.2)) : 0;
+    this.cam.zoom = base * (1 + kick + Math.max(0, hold));
 
     this.abyss(view);
     // 深いフロアから描く（上のフロアが手前に重なる）。同じ高さの隣の床が先。
@@ -233,6 +256,7 @@ export class Tower {
       r.present(this.out, this.palette);
       this.ctx.putImageData(this.image, 0, 0);
     }
+    this.cam.zoom = base;
   }
 
   /** 底。下へ行くほど墨の網点が濃くなり、何も見えなくなる。 */

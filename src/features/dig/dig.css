@@ -1112,7 +1112,7 @@
 /* 目標（小・中・大）。 */
 .dig-goals ol {
   display: grid;
-  gap: 0.35rem;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1149,8 +1149,8 @@
 }
 
 .dig-goal--S .dig-goal__size {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   margin-top: 0.55em;
 }
 
@@ -1177,113 +1177,157 @@
   font-size: 0.82em;
 }
 
-.dig-goal.is-fresh {
-  animation: dig-goal-in 0.9s ease-out;
-}
-
-@keyframes dig-goal-in {
-  0% {
-    background: color-mix(in srgb, var(--amber-text) 35%, transparent);
-    transform: translateX(6px);
-  }
-  100% {
-    background: transparent;
-    transform: none;
-  }
+.dig-goal.is-fresh .dig-goal__text {
+  color: var(--amber-text);
+  animation: dig-blink-text 0.5s steps(2, jump-none) 3;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dig-goal.is-fresh {
+  .dig-goal.is-fresh .dig-goal__text {
     animation: none;
   }
 }
 
-/* 連鎖が決まった瞬間（場面の上に大きく。続けるほど大きく、強く）。 */
+/*
+ * 演出は撮影の言葉で：寄る・止める・帯を下ろす・字幕を出す。跳ねる・回す・
+ * 塗るはしない（琥珀は印と字にだけ。線は 1px）。1-bit の場面に合わせて、
+ * 強調は段で切り替える（steps）。動きの量は 8px の格子で。
+ */
+
+/* 字幕（連鎖・会心）。場面の上に、細い線で挟んだ明朝の一語。 */
 .dig-combo {
   position: absolute;
-  top: 34%;
+  top: 32%;
   left: 50%;
   z-index: 3;
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  padding: 0.25rem 0.75rem;
-  border: 2px solid var(--amber-text);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 24px;
   background: var(--bg);
   color: var(--amber-text);
-  font-family: var(--font-mono);
   pointer-events: none;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
+}
+
+.dig-combo::before,
+.dig-combo::after {
+  content: '';
+  width: 100%;
+  height: 1px;
+  background: var(--amber-text);
+}
+
+.dig-combo::before {
+  order: -1;
 }
 
 .dig-combo__n {
-  font-size: 1.25rem;
-  letter-spacing: 0.08em;
-}
-
-.dig-combo__x {
-  font-size: 1rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 300;
+  letter-spacing: 0.24em;
 }
 
 .dig-combo.is-2 .dig-combo__n {
-  font-size: 1.6rem;
-}
-
-.dig-combo.is-3 {
-  background: var(--amber-text);
-  color: var(--bg);
+  font-size: 1.75rem;
 }
 
 .dig-combo.is-3 .dig-combo__n {
   font-size: 2rem;
+  font-style: italic;
+}
+
+.dig-combo__x {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
 }
 
 .dig-combo.is-on {
-  animation: dig-combo-pop 1.4s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+  animation: dig-title 1.4s linear both;
 }
 
-@keyframes dig-combo-pop {
+.dig-combo.is-on::before,
+.dig-combo.is-on::after {
+  animation: dig-rule 0.24s ease-out both;
+}
+
+/* 字幕は切って出し（フェードではなくカット）、長めに置いて、最後だけ溶かす。 */
+@keyframes dig-title {
   0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.4);
-  }
-  14% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.15);
-  }
-  24% {
-    transform: translate(-50%, -50%) scale(1);
   }
   80% {
     opacity: 1;
-    transform: translate(-50%, -62%) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -80%) scale(0.96);
   }
+}
+
+/* 線は真ん中から左右へ引かれる。 */
+@keyframes dig-rule {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* 決着の帯（上下の墨）。場面が閉じる合図。 */
+.dig-bars {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.dig-bars i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 10%;
+  background: var(--ink);
+  transform: scaleY(0);
+  transition: transform 240ms ease-out;
+}
+
+.dig-bars__top {
+  top: 0;
+  transform-origin: top;
+}
+
+.dig-bars__bottom {
+  bottom: 0;
+  transform-origin: bottom;
+}
+
+.dig-view.is-cut .dig-bars i {
+  transform: scaleY(1);
+}
+
+/* 帯のあいだは、案内の帯を帯の下へ。 */
+.dig-view.is-cut .dig-guide {
+  transform: translateY(80%);
 }
 
 /* 連鎖と共鳴の列（遭遇の脇。四角の数で、いまと次）。 */
 .dig-flow {
   display: grid;
-  gap: 0.2rem;
-  margin: 0.5rem 0;
-  font-size: 0.8125rem;
+  gap: 4px;
+  margin: 8px 0;
+  font-size: 0.75rem;
 }
 
 .dig-flow__row {
   display: grid;
-  grid-template-columns: 2.6em auto 1fr;
+  grid-template-columns: 3em auto 1fr;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
   margin: 0;
   color: var(--ink-3);
-}
-
-.dig-flow__row b {
-  font-weight: 700;
 }
 
 .dig-flow__row.is-on {
@@ -1295,28 +1339,12 @@
 }
 
 .dig-flow__next {
-  font-size: 0.75rem;
   color: var(--ink-3);
-}
-
-.dig-pips i.is-new {
-  animation: dig-lit 1.2s ease-out;
-}
-
-@keyframes dig-lit {
-  0% {
-    transform: scale(2);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber-text) 40%, transparent);
-  }
-  100% {
-    transform: none;
-    box-shadow: none;
-  }
 }
 
 .dig-pips {
   display: inline-flex;
-  gap: 3px;
+  gap: 4px;
 }
 
 .dig-pips i {
@@ -1327,74 +1355,71 @@
 }
 
 .dig-pips i.is-on {
-  border-color: var(--amber-text);
-  background: var(--amber-text);
+  border-color: var(--amber);
+  background: var(--amber);
 }
 
-.dig-badge--boost.is-hot {
-  background: var(--amber-text);
-  color: var(--bg);
+/* 灯ったばかりの一つは、三度だけ明滅する（1-bit の点滅）。 */
+.dig-pips i.is-new {
+  animation: dig-blink 0.6s steps(2, jump-none) 2;
 }
 
-.dig-posture {
-  margin: -0.25rem 0 0.5rem;
-  font-size: 0.75rem;
-  font-style: italic;
-  color: var(--ink-3);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dig-combo.is-on,
-  .dig-pips i.is-new {
-    animation: none;
+@keyframes dig-blink {
+  50% {
+    background: transparent;
   }
 }
 
-/* 決着の判（受け取りの画面の頭。押印のように落ちてくる）。 */
+.dig-posture {
+  margin: -4px 0 8px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-style: italic;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+/* 決着の字幕（受け取りの画面の頭）。名前と結末を、細い線のあいだに。 */
 .dig-result {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
 }
 
 .dig-result__who {
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
 }
 
 .dig-result__stamp {
-  padding: 0.15rem 0.6rem;
-  border: 3px double var(--ink);
-  font-size: 1.25rem;
-  letter-spacing: 0.2em;
-  transform: rotate(-4deg);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 300;
+  letter-spacing: 0.32em;
 }
 
 .dig-result--trusted .dig-result__stamp,
 .dig-result--uncovered .dig-result__stamp {
-  border-color: var(--dig-blue);
   color: var(--dig-blue);
 }
 
-.dig-result--beaten .dig-result__stamp,
-.dig-result--broken .dig-result__stamp {
-  border-color: var(--amber-text);
-  color: var(--amber-text);
-}
-
 .dig-result__stamp.is-in {
-  animation: dig-stamp 0.45s cubic-bezier(0.3, 1.8, 0.5, 1) both;
+  animation: dig-blink-in 0.3s steps(3, jump-none) both;
 }
 
-@keyframes dig-stamp {
+/* 現れるときは段で（三コマで灯る）。 */
+@keyframes dig-blink-in {
   0% {
     opacity: 0;
-    transform: rotate(-12deg) scale(2.4);
   }
   100% {
     opacity: 1;
-    transform: rotate(-4deg) scale(1);
   }
 }
 
@@ -1402,34 +1427,34 @@
 .dig-spoils {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  margin: 0 0 0.75rem;
+  gap: 4px;
+  margin: 0 0 16px;
   padding: 0;
   list-style: none;
 }
 
 .dig-spoil {
-  padding: 0.1rem 0.45rem;
-  border: 1px solid var(--ink-3);
-  font-size: 0.8125rem;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  font-size: 0.75rem;
+  line-height: 24px;
 }
 
 .dig-spoil.is-key {
   border-color: var(--amber-text);
   color: var(--amber-text);
-  font-weight: 700;
 }
 
 .dig-spoil.is-in {
-  animation: dig-spoil-in 0.35s ease-out both;
+  animation: dig-spoil-in 140ms ease-out both;
 }
 
 @keyframes dig-spoil-in {
-  0% {
+  from {
     opacity: 0;
-    transform: translateY(6px) scale(0.9);
+    transform: translateY(4px);
   }
-  100% {
+  to {
     opacity: 1;
     transform: none;
   }
@@ -1442,14 +1467,12 @@
 
 .dig-coins.is-up {
   color: var(--amber-text);
-  font-weight: 700;
 }
 
 .dig-coins__up {
   position: absolute;
-  top: -0.2rem;
-  left: 100%;
-  margin-left: 0.25rem;
+  bottom: 100%;
+  left: 0;
   font-style: normal;
   font-size: 0.75rem;
   color: var(--amber-text);
@@ -1459,101 +1482,115 @@
 @keyframes dig-coin-up {
   0% {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
-  20% {
+  16% {
     opacity: 1;
-    transform: none;
+    transform: translateY(4px);
   }
   100% {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: none;
   }
 }
 
-/* 地力が上がったとき、上帯の硬度が一度ふくらむ。 */
+/* 地力が上がったとき、上帯の硬度が琥珀に切り替わって明滅する。 */
 .is-risen .dig-hard {
   color: var(--amber-text);
-  font-weight: 700;
-  animation: dig-rise 0.8s ease-out 2;
+  animation: dig-blink-text 0.5s steps(2, jump-none) 3;
 }
 
-@keyframes dig-rise {
+@keyframes dig-blink-text {
   50% {
-    transform: scale(1.3);
+    color: var(--ink-3);
   }
 }
 
-/* 新しく入った札（枠が光って、下から差し込まれる）。 */
+/* 新しく入った札（下から一段差し込まれ、縁が琥珀に）。 */
 .dig-card.is-new {
-  animation: dig-card-in 0.6s cubic-bezier(0.2, 1.5, 0.5, 1) both;
-  box-shadow: 0 0 0 2px var(--amber-text);
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+  animation: dig-card-in 140ms ease-out both;
 }
 
 @keyframes dig-card-in {
-  0% {
+  from {
     opacity: 0;
-    transform: translateY(24px) scale(0.92);
+    transform: translateY(8px);
   }
-  100% {
+  to {
     opacity: 1;
     transform: none;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dig-result__stamp.is-in,
-  .dig-spoil.is-in,
-  .dig-coins__up,
-  .is-risen .dig-hard,
-  .dig-card.is-new {
-    animation: none;
-  }
-}
-
-/* 挑戦の終わり：点（数え上げ）と、記録の判と、四つの数。 */
+/* 挑戦の終わり：点（数え上げ）と、記録の字幕と、四つの数。 */
 .dig-score {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0.5rem 0;
+  align-items: baseline;
+  gap: 16px;
+  margin: 8px 0;
 }
 
 .dig-score__n {
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-size: 2rem;
-  color: var(--amber-text);
+  font-weight: 300;
+  color: var(--ink);
 }
 
 .dig-score__best {
-  padding: 0.1rem 0.5rem;
-  border: 3px double var(--amber-text);
+  padding: 0 8px;
+  border-top: 1px solid var(--amber-text);
+  border-bottom: 1px solid var(--amber-text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.32em;
   color: var(--amber-text);
-  letter-spacing: 0.2em;
-  transform: rotate(-5deg);
-  animation: dig-stamp 0.45s cubic-bezier(0.3, 1.8, 0.5, 1) 1.3s both;
+  animation: dig-blink-in 0.3s steps(3, jump-none) 1.3s both;
 }
 
 .dig-tally {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
-  margin: 0.5rem 0 0.75rem;
+  gap: 8px;
+  margin: 8px 0 16px;
 }
 
 .dig-tally__item {
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--rule);
+  padding: 4px 8px;
+  border-top: 1px solid var(--rule);
 }
 
 .dig-tally dt {
+  font-family: var(--font-mono);
   font-size: 0.6875rem;
   color: var(--ink-3);
 }
 
 .dig-tally dd {
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: 1.125rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 300;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-combo.is-on,
+  .dig-combo.is-on::before,
+  .dig-combo.is-on::after,
+  .dig-pips i.is-new,
+  .dig-result__stamp.is-in,
+  .dig-spoil.is-in,
+  .dig-coins__up,
+  .is-risen .dig-hard,
+  .dig-card.is-new,
+  .dig-score__best {
+    animation: none;
+  }
+
+  .dig-bars i {
+    transition: none;
+  }
 }
