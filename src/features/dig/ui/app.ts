@@ -256,6 +256,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   let hoverAim: typeof aim = null;
   /** 最後に体か心が戻った時刻（上の帯の計器を、少しのあいだ緑に）。 */
   let healAt = -9;
+  /** 最後に相手へエピテットを刻んだ時刻（名の冠を押す演出）。 */
+  let inkAt = -9;
   /** 直前の手番（あなたが何をして、相手が何をしたか）。基本の一巡を見せる。 */
   let lastTurn: TurnLine[] = [];
   let advice: Advice | null = null;
@@ -671,6 +673,12 @@ export function openDig(doc: Document, onClose: () => void): void {
             newAt.set(ev.slot, t);
             sound.gain();
           }
+          break;
+        case 'foe.ep':
+          // 相手に刻んだ：名に冠が押され、計器ごと一度だけ沈む。
+          inkAt = t;
+          sound.gain();
+          kick(1, 1);
           break;
         case 'card.ep':
           // エピテットを刻んだ札も、入ったばかりの札と同じく光らせる。
@@ -1931,7 +1939,24 @@ export function openDig(doc: Document, onClose: () => void): void {
         : null,
     ];
     const kids: (Child | readonly Child[])[] = [
-      h('p', { class: 'dig-room__name', title: def.desc }, f.name, '　', hardTag(hard, you)),
+      // 刻んだエピテットは、相手の名の前に冠として付く（刻んだ直後は琥珀で押される）。
+      h(
+        'p',
+        { class: 'dig-room__name', title: def.desc },
+        f.eps.map((x, i) =>
+          h(
+            'span',
+            {
+              class: `dig-crown${i === f.eps.length - 1 && now() - inkAt < 1.2 ? ' is-in' : ''}`,
+              title: epithetDef(x)?.foe?.text,
+            },
+            `《${epithetDef(x)?.name ?? x}》`,
+          ),
+        ),
+        f.name,
+        '　',
+        hardTag(hard, you),
+      ),
       // 一巡：前の手番（あなた → 相手）と、相手の次の手。
       lastTurn.length
         ? h(
@@ -1988,7 +2013,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         { class: 'dig-quiet dig-enc__aside' },
         f.hostility >= 7 ? h('span', { class: 'dig-warn' }, '荒れている') : '',
         e.stage.length ? `${f.hostility >= 7 ? '・' : ''}見せ場` : '',
-        f.eps.length ? `・${f.eps.map((x) => `《${epithetDef(x)?.name ?? x}》`).join('')}` : '',
         // 区画の掟（名前だけ。中身は触れると）。
         lawsAt(w.stratum).map((l) =>
           h('span', { class: 'dig-law', title: l.text }, `掟《${l.name}》`),

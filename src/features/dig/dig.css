@@ -1829,3 +1829,37 @@
     animation: none;
   }
 }
+
+/* 相手に刻んだエピテット（名の前の冠）。押された直後だけ琥珀で、二度瞬いて墨に。 */
+.dig-crown {
+  color: var(--ink);
+}
+
+.dig-crown.is-in {
+  animation: dig-crown-in 0.6s steps(1, end) both;
+}
+
+@keyframes dig-crown-in {
+  0% {
+    visibility: hidden;
+  }
+  15% {
+    visibility: visible;
+    color: var(--amber-text);
+  }
+  35% {
+    color: var(--ink);
+  }
+  55% {
+    color: var(--amber-text);
+  }
+  100% {
+    color: var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-crown.is-in {
+    animation: none;
+  }
+}
