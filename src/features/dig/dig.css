@@ -829,3 +829,44 @@
     transition: none !important;
   }
 }
+
+/* 上の帯の小さな印（案内・音・言語・閉じる）。説明はしない。触れれば題が出る。 */
+.dig .dig-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  border-color: var(--rule);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  text-align: center;
+}
+
+.dig .dig-icon.is-muted {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+/* 見渡す／寄る：地図の左上に小さく。 */
+.dig .dig-zoom {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  min-height: 1.75rem;
+  padding: 0;
+  border-color: var(--rule);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  line-height: 1;
+}
+
+.dig .dig-zoom.is-on {
+  border-color: var(--ink);
+}

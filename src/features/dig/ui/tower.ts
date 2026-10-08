@@ -48,6 +48,10 @@ const NEAR_ZOOM = 1.9;
 const FAR_ZOOM = 1;
 const ENC_ZOOM = 2.4;
 
+/** 人の大きさ（あなたを 1 として）。相手もほとんど同じ。 */
+const PEER = 1.05;
+const PEER_BOSS = 1.25;
+
 /** 部屋ごとに決まった、奥行きの揺らぎ（-1〜1）。並びが一直線にならないように。 */
 const jitter = (id: number) => ((((id + 1) * 2654435761) >>> 0) % 1000) / 500 - 1;
 
@@ -747,7 +751,8 @@ export class Tower {
       const { x, y } = this.center(room);
       const far = !this.detailed(room.floor);
       // 地図の上では人を一回り大きく（誰がどこにいるかが、まず目に入るように）。
-      const k = (room.kind === 'boss' ? 1.8 : 1.25) * zm * this.mapPeople();
+      // 相手もあなたとほとんど同じ大きさ（最後の相手だけ、わずかに大きい）。
+      const k = (room.kind === 'boss' ? PEER_BOSS : PEER) * zm * this.mapPeople();
       const e = view.enc;
       // 遠いフロアの人は、頭の点だけ（いる、ということだけ分かれば足りる）。
       if (!inEnc && far && room.kind !== 'boss') {
@@ -804,7 +809,7 @@ export class Tower {
         this.figure(
           x + 7 * zm + (hit ? Math.sin(t * 90) * 1.5 : 0),
           y,
-          1.25 * zm,
+          PEER * zm,
           hit ? INK : e.end === 'glow' && gone ? AMBER : BLUE,
           hit ? 'solid' : 'sparse',
           -0.4,
@@ -996,7 +1001,7 @@ export class Tower {
     const zm = this.cam.zoom;
     const youX = cx - 7 * zm;
     const foeX = cx + 7 * zm;
-    const fk = (boss ? 1.8 : 1.25) * zm;
+    const fk = (boss ? PEER_BOSS : PEER) * zm;
     const youTop = cy - 7 * zm - 4 * zm - 2;
     const foeTop = cy - 7 * fk - 4 * fk - 2;
     const blink = Math.floor(t * 2.2) % 2 === 0;

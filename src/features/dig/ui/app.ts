@@ -162,7 +162,14 @@ export function openDig(doc: Document, onClose: () => void): void {
   const caption = h('p', { class: 'dig-guide__line' });
   const hintBox = h('div', { class: 'dig-guide__hint' });
   const guide = h('div', { class: 'dig-guide' }, moment, caption, hintBox);
-  const view = h('div', { class: 'dig-view' }, guide, canvas, tip);
+  /** 見渡す／寄る（地図の左上の小さな印。ホイールでも）。 */
+  const zoomer = h('button', {
+    type: 'button',
+    class: 'dig-zoom',
+    'aria-label': '見渡す',
+    title: '見渡す',
+  });
+  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
@@ -171,6 +178,9 @@ export function openDig(doc: Document, onClose: () => void): void {
   dialog.append(app);
   doc.body.append(dialog);
   dialog.showModal();
+  // 開いた直後は、どの印にも焦点を置かない（左上の小さな印に輪が出ないように）。
+  dialog.tabIndex = -1;
+  dialog.focus();
   const tower = new Tower(canvas);
 
   // ─── 開け閉め ───────────────────────────────────────────────
@@ -200,7 +210,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   function send(cmd: Cmd): boolean {
     if (!game) return false;
     // 動いたら近景に戻る（次の一手が、すぐ目の前に見えるように）。
-    if (cmd.c === 'move') tower.overview = false;
+    if (cmd.c === 'move' && tower.overview) setOverview(false);
     const evs = game.dispatch(cmd);
     if (!evs.length) {
       sound.fail();
@@ -576,10 +586,14 @@ export function openDig(doc: Document, onClose: () => void): void {
   });
   /** 見渡す（引く）／近景に戻す。ホイールの向きでも切り替わる。 */
   function setOverview(on: boolean): void {
-    if (tower.overview === on) return;
     tower.overview = on;
-    renderBar();
+    zoomer.textContent = on ? '⊕' : '⊖';
+    zoomer.setAttribute('aria-label', tr(on ? '寄る' : '見渡す'));
+    zoomer.title = tr(on ? '寄る' : '見渡す');
+    zoomer.classList.toggle('is-on', on);
   }
+  zoomer.addEventListener('click', () => setOverview(!tower.overview));
+  setOverview(false);
   canvas.addEventListener(
     'wheel',
     (ev) => {
@@ -700,26 +714,29 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     items.push(
       h('span', { class: 'dig-bar__end' }),
-      screen === 'play'
-        ? button('見渡す', () => setOverview(!tower.overview), {
-            'aria-pressed': tower.overview ? 'true' : 'false',
-            class: tower.overview ? 'is-chosen' : undefined,
-            title: '引いて、区画をひと目に（ホイールでも）',
-          })
-        : null,
-      button('案内', toggleGuide, {
+      button('？', toggleGuide, {
         'aria-pressed': browse !== null ? 'true' : 'false',
-        class: browse !== null ? 'is-chosen' : undefined,
-        title: '案内を一覧で読む',
-      }),
-      button(sound.muted ? '音 切' : '音 入', () => {
-        sound.muted = !sound.muted;
-        profile.muted = sound.muted;
-        saveProfile(profile);
-        renderBar();
+        class: `dig-icon${browse !== null ? ' is-chosen' : ''}`,
+        'aria-label': '案内',
+        title: '案内',
       }),
       button(
-        getLang() === 'en' ? '日本語' : 'English',
+        '♪',
+        () => {
+          sound.muted = !sound.muted;
+          profile.muted = sound.muted;
+          saveProfile(profile);
+          renderBar();
+        },
+        {
+          class: `dig-icon${sound.muted ? ' is-muted' : ''}`,
+          'aria-pressed': sound.muted ? 'false' : 'true',
+          'aria-label': sound.muted ? '音を出す' : '音を消す',
+          title: sound.muted ? '音を出す' : '音を消す',
+        },
+      ),
+      button(
+        getLang() === 'en' ? 'JA' : 'EN',
         () => {
           const next = getLang() === 'en' ? 'ja' : 'en';
           profile.lang = next;
@@ -730,9 +747,14 @@ export function openDig(doc: Document, onClose: () => void): void {
             render();
           });
         },
-        { lang: getLang() === 'en' ? 'ja' : 'en' },
+        {
+          class: 'dig-icon',
+          lang: getLang() === 'en' ? 'ja' : 'en',
+          'aria-label': getLang() === 'en' ? '日本語' : 'English',
+          title: getLang() === 'en' ? '日本語' : 'English',
+        },
       ),
-      button('閉じる', close),
+      button('×', close, { class: 'dig-icon', 'aria-label': '閉じる', title: '閉じる' }),
     );
     fill(bar, items);
   }
@@ -949,7 +971,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                     )
                   : null,
               )
-            : h('p', { class: 'dig-quiet' }, '道を押すと、見取り図にその道が描かれる。'),
+            : null,
         ),
       );
     }
@@ -959,11 +981,11 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-row' },
-          button('一服する（1 時間）', () => send({ c: 'breather' }), {
+          button('一服', () => send({ c: 'breather' }), {
             title: '少しだけ体と心が戻る。夜明けが 1 時間近づく。',
           }),
           w.you.items.map((id, i) =>
-            button(`${itemDef(id)?.name ?? id}を使う`, () => send({ c: 'item', index: i }), {
+            button(itemDef(id)?.name ?? id, () => send({ c: 'item', index: i }), {
               title: itemDef(id)?.text,
             }),
           ),
@@ -1054,7 +1076,6 @@ export function openDig(doc: Document, onClose: () => void): void {
             ),
           ),
         ),
-        h('p', { class: 'dig-quiet' }, '手元のカードを押すか、数字の 1〜5 で使う。'),
       );
     }
     return h('div', { class: 'dig-enc' }, ...kids);
