@@ -414,6 +414,9 @@ function gossip(tx: Tx): void {
 function rivalStep(tx: Tx): void {
   const w = tx.w;
   const rv = w.rival;
+  // 試行（道の読み・予告）では、もう一人の歩みは止めておく。あなたの道の見積もりには
+  // 効かないのに、相手の遭遇を丸ごと自動で戦わせると、読みの時間の四割を食う。
+  if (tx.sim) return;
   if (rv.down || rv.stratum > w.stratum) return;
   if (rv.row < -1) {
     tx.emit({ type: 'rival', row: rv.row + 1 });

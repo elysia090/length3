@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.7.0';
+export const DATA_VERSION = '1.8.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -27,8 +27,19 @@ export const DATA_VERSION = '1.7.0';
  *   stall    この手番を過ぎると、相手の攻撃が毎手番上がる（膠着しない）
  *   rest     食堂の回復（最大値の割合）。同じ層の 2 度目からは restAgain 倍
  */
-/** 連鎖の倍率（続けた数ごと。三つ目からは同じ）。 */
-export const CHAIN: readonly number[] = [1, 1.2, 1.35, 1.5];
+/**
+ * その場の条件の点（足し算）。効き目（体力・意志・信頼を動かす一つ一つ）に足す。
+ * 倍率にしないのは、札の数字に足すだけで暗算できるように。
+ */
+export const POINTS = {
+  /** 連鎖（続けた数ごと。三つ目からは同じ）。 */
+  chain: [0, 2, 4, 6] as readonly number[],
+  stage: 3,
+  weak: 3,
+  guarded: -3,
+  answer: 3,
+  noted: 4,
+} as const;
 
 export const PACE = {
   rows: 8,
@@ -39,7 +50,6 @@ export const PACE = {
   rest: 0.4,
   restAgain: 0.5,
   stage: 0.5,
-  stageMult: 1.35,
   stageTough: 1.25,
   stall: 8,
   slip: 0.45,

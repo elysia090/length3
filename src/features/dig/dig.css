@@ -1555,3 +1555,99 @@
 .dig-enc-on .dig-zoom {
   display: none;
 }
+
+/*
+ * 札の効き目（向き合っているあいだ）。いま使ったら動く数を小さな札片で、その下に
+ * 足される点の内訳を琥珀で。式（4+腕力 削る）は、その下に薄く残る。
+ */
+.dig-card__out {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.dig-outs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dig-out {
+  padding: 0 4px;
+  border: 1px solid var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-style: normal;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.dig-out.is-blue {
+  border-color: var(--dig-blue);
+  color: var(--dig-blue);
+}
+
+.dig-out.is-you {
+  border-style: dashed;
+}
+
+.dig-out.is-heal {
+  border-color: var(--dig-green);
+  color: var(--dig-green);
+}
+
+.dig-out.is-cost {
+  border-style: dotted;
+  font-weight: 400;
+}
+
+.dig-out.is-end {
+  border-color: var(--amber-text);
+  background: var(--bg);
+  color: var(--amber-text);
+}
+
+.dig-out.is-none {
+  border-color: var(--rule);
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.dig-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+}
+
+.dig-why__p {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-style: normal;
+  color: var(--amber-text);
+}
+
+.dig-why__p.is-minus {
+  color: var(--ink-3);
+}
+
+/* 連鎖の点は、直前の札と繋がっているあいだ、1-bit の段で明滅する。 */
+.dig-why__p.is-chain {
+  animation: dig-link-text 1.2s steps(2, jump-none) infinite;
+}
+
+@keyframes dig-link-text {
+  50% {
+    color: var(--ink-3);
+  }
+}
+
+/* 向き合っているあいだ、式は脇役（数は上の札片が言う）。 */
+.dig-enc-on .dig-card__fx {
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-why__p.is-chain {
+    animation: none;
+  }
+}

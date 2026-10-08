@@ -34,7 +34,7 @@
     "　見せ場": "  spotlight",
     "安定": "Steady",
     "高連鎖": "High chain",
-    "あと一つ": "Almost",
+    "あと一つ": "One short",
     "一要素": "One piece",
     "道の読み": "Route reading",
     "勝つ": "Win",
@@ -190,7 +190,17 @@
     "連鎖の倍率 +0.3": "Chain multiplier +0.3",
     "連鎖の倍率 +0.2": "Chain multiplier +0.2",
     "連鎖の倍率 +0.1": "Chain multiplier +0.1",
-    "暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（倍率 +0.3）。": "Eyes made for the dark, and a memory that will not fade. Chains cut especially deep (multiplier +0.3)."
+    "暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（倍率 +0.3）。": "Eyes made for the dark, and a memory that will not fade. Chains cut especially deep (multiplier +0.3).",
+    "倒せる": "Finishes: down",
+    "折れる": "Finishes: break",
+    "暴ける": "Finishes: expose",
+    "動かない": "Nothing moves",
+    "相手の弱いタグ +3": "Their weak tag +3",
+    "相手の守るタグ -3": "Their guarded tag -3",
+    "原型が相手の原型に答える +3": "Your archetype answers theirs +3",
+    "連鎖 +2": "Chain +2",
+    "連鎖 +1": "Chain +1",
+    "暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（+2）。": "Eyes made for the dark, and a memory that will not fade. Chains cut especially deep (+2)."
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -310,6 +320,19 @@
     "あと {0} で{1}": "{0} more: {1}",
     "灯っている：{0}": "Lit: {0}",
     "《{0}》暴走": "«{0}» overdrive",
-    "{0}　連鎖 {1}": "{0}  chain {1}"
+    "{0}　連鎖 {1}": "{0}  chain {1}",
+    "体力 {0}": "Body {0}",
+    "意志 {0}": "Will {0}",
+    "信頼 {0}": "Trust {0}",
+    "手がかり +{0}": "Clues +{0}",
+    "守り +{0}": "Guard +{0}",
+    "構え +{0}": "Composure +{0}",
+    "あなたの体力 {0}": "Your body {0}",
+    "あなたの精神 {0}": "Your mind {0}",
+    "連鎖 +{0}": "Chain +{0}",
+    "書き留め +{0}": "Noted +{0}",
+    "見せ場［{0}］+{1}": "Spotlight [{0}] +{1}",
+    "体力 {0}% で着く": "Arrive at {0}% body",
+    "抜ける {0}%": "Get through {0}%"
   }
 }

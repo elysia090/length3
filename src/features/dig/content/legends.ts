@@ -1057,8 +1057,8 @@ export const LEGENDS: readonly Legend[] = [
         when: (ev, w) => ev.type === 'card.use' && ev.who === ownerOf(w) && ev.card !== 'ficciones',
         count: 8,
         line: 'すべての道が、同時に選ばれている。',
-        text: '連鎖の倍率 +0.1',
-        passive: [{ rule: 'chain', fn: (_c, v) => (v > 1 ? v + 0.1 : v), text: '分かれ道' }],
+        text: '連鎖 +1',
+        passive: [{ rule: 'chain', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '分かれ道' }],
       },
       {
         name: 'バベルの図書館',

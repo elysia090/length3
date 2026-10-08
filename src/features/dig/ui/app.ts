@@ -25,6 +25,7 @@ import { clockOf, PHASE_NAME, phaseOf } from '../core/time';
 import { getLang, setLang, tr } from '../i18n';
 import { type Advice, advise, nodeLabel, type RouteKind, sourceLabel } from '../sim/advise';
 import {
+  bonusOf,
   canAccept,
   chainNext,
   incoming,
@@ -1278,12 +1279,12 @@ export function openDig(doc: Document, onClose: () => void): void {
       };
       const metric = (r: (typeof all)[number]) =>
         r.kind === 'safe'
-          ? `${Math.round(r.survive * 100)}%`
+          ? r.survive < 0.95
+            ? `抜ける ${Math.round(r.survive * 100)}%`
+            : `体力 ${Math.round(r.hpEnd * 100)}% で着く`
           : r.kind === 'chain'
             ? `噛み合い ${r.links.length}`
-            : r.hint
-              ? '一要素'
-              : '';
+            : '';
       const chosen = all.find((r) => r.kind === routeSel);
       kids.push(
         section(
@@ -1394,6 +1395,57 @@ export function openDig(doc: Document, onClose: () => void): void {
         pipRow(Math.min(n, 6), 6, 'res', fresh),
         step ? h('span', { class: 'dig-flow__x' }, `→ ${step[1]}`) : null,
       ),
+    );
+  }
+
+  /**
+   * いまこの札を使ったら、何がいくつ動くか（世界の写しで実際に使ってみた数）。
+   * その下に、効き目一つ一つに足される点の内訳（連鎖・見せ場・弱いタグ…）。
+   */
+  function outcome(w: World, slot: number, c: Card): HTMLElement {
+    const x = cardEffect(w, slot);
+    const b = bonusOf(w, c);
+    const chip = (text: string, cls = '') => h('i', { class: `dig-out${cls}` }, text);
+    const sign = (n: number) => (n > 0 ? `+${n}` : `−${-n}`);
+    const list: HTMLElement[] = [];
+    // この一手で決着がつくなら、それがいちばん先（倒せる・折れる・打ち解ける・暴ける）。
+    const END: Record<string, string> = {
+      beaten: '倒せる',
+      broken: '折れる',
+      trusted: '打ち解ける',
+      uncovered: '暴ける',
+    };
+    if (x.ends && END[x.ends]) list.push(chip(END[x.ends] ?? '', ' is-end'));
+    if (x.hp) list.push(chip(`体力 ${sign(x.hp)}`));
+    if (x.resolve) list.push(chip(`意志 ${sign(x.resolve)}`));
+    if (x.trust) list.push(chip(`信頼 ${sign(x.trust)}`, ' is-blue'));
+    if (x.clues) list.push(chip(`手がかり +${x.clues}`, ' is-blue'));
+    if (x.guard) list.push(chip(`守り +${x.guard}`, ' is-you'));
+    if (x.calm) list.push(chip(`構え +${x.calm}`, ' is-you'));
+    if (x.youHp)
+      list.push(chip(`あなたの体力 ${sign(x.youHp)}`, x.youHp > 0 ? ' is-heal' : ' is-cost'));
+    if (x.youMind)
+      list.push(chip(`あなたの精神 ${sign(x.youMind)}`, x.youMind > 0 ? ' is-heal' : ' is-cost'));
+    return h(
+      'span',
+      { class: 'dig-card__out' },
+      h('span', { class: 'dig-outs' }, list.length ? list : chip('動かない', ' is-none')),
+      // 点が足されるのは体力・意志・信頼を動かす札だけ（守るだけの札には出さない）。
+      b.parts.length && (x.hp || x.resolve || x.trust)
+        ? h(
+            'span',
+            { class: 'dig-why' },
+            b.parts.map((p) =>
+              h(
+                'i',
+                {
+                  class: `dig-why__p${p.text.startsWith('連鎖') ? ' is-chain' : ''}${p.n < 0 ? ' is-minus' : ''}`,
+                },
+                p.text,
+              ),
+            ),
+          )
+        : null,
     );
   }
 
@@ -2101,7 +2153,10 @@ export function openDig(doc: Document, onClose: () => void): void {
           h('span', { class: 'dig-card__key' }, String(slot + 1)),
         ),
         pips(c),
-        badges(spent ? d.spent : d.ready, w.enc?.phase === 'act' ? cardTags(c) : null, w),
+        // 向き合っているあいだは、いま使ったら動く数そのものと、足される点の内訳を。
+        w.enc?.phase === 'act' && w.enc.who === 'you'
+          ? outcome(w, slot, c)
+          : badges(spent ? d.spent : d.ready, null, w),
         peek ? h('span', { class: 'dig-card__next' }, peek) : null,
         h(
           'span',

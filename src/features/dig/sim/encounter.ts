@@ -1,4 +1,4 @@
-import { CHAIN, PACE } from '../content/balance';
+import { PACE, POINTS } from '../content/balance';
 import { cardArch, cardTags } from '../content/cardinfo';
 import type { EpithetCtx } from '../content/defs';
 import type { CardFacet } from '../content/epithets';
@@ -8,7 +8,7 @@ import { buildsOf } from '../content/sources';
 import type { Basic } from '../core/events';
 import { portrait } from '../core/mind';
 import type { Card, Char, Foe, Outcome, Who, World } from '../core/model';
-import { ask } from '../core/rules';
+import { ask, bookOf } from '../core/rules';
 import type { Tag } from '../core/tags';
 import type { Tx } from '../core/tx';
 import { planFoe } from './ai';
@@ -338,8 +338,47 @@ function facets(c: Char, card: Card): { list: { id: string; f: CardFacet }[]; ct
   return { list, ctx: { card, char: c, tags: cardTags(card), others } };
 }
 
-/** 続けた数ごとの、連鎖の倍率（規則で上乗せされる前）。 */
-export const chainMult = (streak: number): number => CHAIN[Math.min(streak, CHAIN.length - 1)] ?? 1;
+/** 続けた数ごとの、連鎖の点（規則で上乗せされる前）。 */
+export const chainPoints = (streak: number): number =>
+  POINTS.chain[Math.min(streak, POINTS.chain.length - 1)] ?? 0;
+
+/**
+ * いま札を使ったら、効き目一つ一つに足される点と、その内訳（画面に出す）。
+ * 連鎖・書き留め・見せ場・弱いタグ・守るタグ・原型の答え。
+ */
+export function bonusOf(
+  w: World,
+  card: Card,
+): { total: number; parts: { text: string; n: number }[] } {
+  const e = w.enc;
+  const parts: { text: string; n: number }[] = [];
+  if (!e) return { total: 0, parts };
+  const who = e.who;
+  const tags = cardTags(card);
+  const streak = chainNext(w, tags);
+  if (streak > 0) {
+    const n = ask(w, 'chain', { who, tags }, chainPoints(streak));
+    parts.push({ text: `連鎖 +${n}`, n });
+  }
+  if (e.st.noted) parts.push({ text: `書き留め +${POINTS.noted}`, n: POINTS.noted });
+  const ctx = {
+    w,
+    who,
+    enc: e,
+    tags,
+    arch: cardArch(card),
+    card: card.id,
+    spent: card.uses <= 0,
+  };
+  let v = 0;
+  for (const p of bookOf(w).patches.bonus ?? []) {
+    if (p.when && !p.when(ctx)) continue;
+    const next = p.fn(ctx, v);
+    if (next !== v) parts.push({ text: p.text, n: next - v });
+    v = next;
+  }
+  return { total: parts.reduce((a, x) => a + x.n, 0), parts };
+}
 
 /** いま札を使えば、何連鎖目になるか（0 なら連鎖しない）。 */
 export function chainNext(w: World, tags: readonly Tag[]): number {
@@ -369,9 +408,11 @@ export function useCard(tx: Tx, slot: number): boolean {
   const streak = chained ? (e.st.chain ?? 0) + 1 : 0;
   if (streak !== (e.st.chain ?? 0))
     tx.emit({ type: 'enc.st', key: 'chain', n: streak - (e.st.chain ?? 0) });
-  if (chained) mult *= tx.rule('chain', { who, tags }, chainMult(streak));
+  // 点：連鎖・書き留め・見せ場・弱いタグ…（倍率とは別に、効き目ごとに足す）。
+  let bonus = chained ? tx.rule('chain', { who, tags }, chainPoints(streak)) : 0;
+  bonus += tx.rule('bonus', { who, tags, arch, card: def.id, spent }, 0);
   if (e.st.noted) {
-    mult *= 1.5;
+    bonus += POINTS.noted;
     tx.emit({ type: 'enc.st', key: 'noted', n: -(e.st.noted ?? 0) });
   }
   for (const x of list) if (x.f.mult) mult *= x.f.mult(w, ctx);
@@ -411,6 +452,7 @@ export function useCard(tx: Tx, slot: number): boolean {
   const first = (card.marks.used ?? 0) + (card.marks.spent ?? 0) <= 1;
   const fctx = {
     mult,
+    bonus,
     card: card.id,
     slot,
     first,
@@ -422,7 +464,7 @@ export function useCard(tx: Tx, slot: number): boolean {
   };
   if (mult > 0) {
     for (let i = 0; i < (twice ? 2 : 1); i++) run(tx, fx, fctx);
-    for (const x of list) if (x.f.after) run(tx, x.f.after, { ...fctx, mult: 1 });
+    for (const x of list) if (x.f.after) run(tx, x.f.after, { ...fctx, mult: 1, bonus: 0 });
     if (list.some((x) => x.id === 'echoing')) run(tx, fx, { ...fctx, mult: mult * 0.4 });
     if (list.some((x) => x.id === 'false'))
       tx.emit({ type: 'claim', about: 'harmless', truth: false });
@@ -436,7 +478,7 @@ export function useCard(tx: Tx, slot: number): boolean {
   // 隠し効果。条件がそろうと現れ、初めて現れたときに明らかになる。
   const h = def.hidden;
   if (h && w.enc?.phase === 'act' && holds(tx, h.when, fctx)) {
-    run(tx, h.fx, { ...fctx, mult: 1 });
+    run(tx, h.fx, { ...fctx, mult: 1, bonus: 0 });
     if (who === 'you' && !w.found.includes(h.id)) {
       tx.emit({ type: 'found', id: h.id });
       say(tx, 'voice', `隠し効果：${h.text}`);

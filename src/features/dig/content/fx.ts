@@ -115,6 +115,8 @@ export const OPS: Readonly<Record<Fx[0], { name: string; gloss: string }>> = {
 
 export interface FxCtx {
   mult: number;
+  /** 点（足し算）。倍率をかけたあとの、体力・意志・信頼の効き目一つ一つに足す。 */
+  bonus?: number;
   /** 逆さの: 信頼と意志を入れ替え、敵意の向きを反転する。 */
   invert?: boolean;
   /** 誉無き: 守りを貫く。人工的な: 能力値を無視する。寒い: 信頼が伸びない。 */
@@ -184,17 +186,19 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
     if (e && e.phase !== 'act' && f[0] !== 'perm' && f[0] !== 'coins' && f[0] !== 'refill') return;
     const m = (v: Num) =>
       Math.round((ctx.fixed && typeof v !== 'number' ? v.n : num(tx, v)) * ctx.mult);
+    // 押す効き目（体力・意志・信頼）には、その場の点を足す（0 を下回らない）。
+    const mp = (v: Num) => Math.max(0, m(v) + (ctx.bonus ?? 0));
     switch (f[0]) {
       case 'hit':
-        hitFoe(tx, m(f[1]), f[2] ?? ctx.pierce ?? false);
+        hitFoe(tx, mp(f[1]), f[2] ?? ctx.pierce ?? false);
         break;
       case 'break':
-        if (ctx.invert) trust(tx, Math.max(1, Math.round(m(f[1]) / 2)));
-        else breakFoe(tx, m(f[1]));
+        if (ctx.invert) trust(tx, Math.max(1, Math.round(mp(f[1]) / 2)));
+        else breakFoe(tx, mp(f[1]));
         break;
       case 'trust':
-        if (ctx.invert) breakFoe(tx, Math.max(1, m(f[1])));
-        else if (!ctx.cold) trust(tx, Math.max(1, m(f[1])));
+        if (ctx.invert) breakFoe(tx, Math.max(1, mp(f[1])));
+        else if (!ctx.cold) trust(tx, Math.max(1, mp(f[1])));
         break;
       case 'host':
         hostile(tx, ctx.invert ? -f[1] : f[1]);

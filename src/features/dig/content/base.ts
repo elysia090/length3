@@ -3,6 +3,7 @@ import type { Tag } from '../core/tags';
 import { isDeep } from '../core/time';
 import { hostile, say } from '../sim/ops';
 import { ANSWERS } from './archetypes';
+import { POINTS } from './balance';
 import type { PassiveSpec, TriggerSpec } from './defs';
 import { foeDef, permDef } from './registry';
 
@@ -32,29 +33,29 @@ function exploit(key: 'press' | 'talk' | 'force' | 'lie') {
 
 export const BASE_RULES: readonly PassiveSpec[] = [
   {
-    rule: 'mult',
+    rule: 'bonus',
     prio: -10,
     when: (c) => !!c.enc && overlap(c.tags, foeDef(c.enc.foe.id).weak),
-    fn: (_c, v) => v * 1.5,
-    text: '相手の弱いタグ ×1.5',
+    fn: (_c, v) => v + POINTS.weak,
+    text: `相手の弱いタグ +${POINTS.weak}`,
   },
   {
-    rule: 'mult',
+    rule: 'bonus',
     prio: -10,
     when: (c) => !!c.enc && overlap(c.tags, foeDef(c.enc.foe.id).guarded),
-    fn: (_c, v) => v * 0.6,
-    text: '相手の守るタグ ×0.6',
+    fn: (_c, v) => v + POINTS.guarded,
+    text: `相手の守るタグ ${POINTS.guarded}`,
   },
   {
-    rule: 'mult',
+    rule: 'bonus',
     prio: -10,
     when: (c) =>
       !!c.enc &&
       !!c.arch?.some((a) =>
         (foeDef(c.enc?.foe.id ?? '').arch ?? []).some((f) => ANSWERS[f].includes(a)),
       ),
-    fn: (_c, v) => v * 1.4,
-    text: '原型が相手の原型に答える ×1.4',
+    fn: (_c, v) => v + POINTS.answer,
+    text: `原型が相手の原型に答える +${POINTS.answer}`,
   },
   {
     rule: 'hit',

@@ -90,6 +90,13 @@ export interface CardEffect {
   resolve: number;
   trust: number;
   clues: number;
+  /** あなたの側（守り・心の構え・体力と精神の増減）。 */
+  guard: number;
+  calm: number;
+  youHp: number;
+  youMind: number;
+  /** この一手で決着がつくなら、その結末。 */
+  ends?: string;
 }
 
 const effects = new Map<string, CardEffect>();
@@ -108,15 +115,33 @@ export function effectOf(w: World, cmd: Cmd): CardEffect {
   const key = `${w.seed}:${w.seq}:${JSON.stringify(cmd)}`;
   const hit = effects.get(key);
   if (hit) return hit;
-  const out: CardEffect = { hp: 0, resolve: 0, trust: 0, clues: 0 };
+  const out: CardEffect = {
+    hp: 0,
+    resolve: 0,
+    trust: 0,
+    clues: 0,
+    guard: 0,
+    calm: 0,
+    youHp: 0,
+    youMind: 0,
+  };
   const evs = decide(branch(w), cmd, { sim: true });
   for (const ev of evs) {
-    if (ev.type === 'turn') break;
+    // 相手の手番（act）から先は、この手の効き目ではない。
+    if (ev.type === 'turn' || ev.type === 'act') break;
+    if (ev.type === 'enc.end') out.ends = ev.outcome;
     if (ev.type === 'foe') {
       if (ev.field === 'hp') out.hp += ev.n;
       else if (ev.field === 'resolve') out.resolve += ev.n;
       else if (ev.field === 'trust') out.trust += ev.n;
     } else if (ev.type === 'clue' && ev.shown && !ev.false) out.clues += 1;
+    else if (ev.type === 'enc.you' && ev.n > 0) {
+      if (ev.field === 'guard') out.guard += ev.n;
+      else if (ev.field === 'calm') out.calm += ev.n;
+    } else if (ev.type === 'vital' && ev.who === 'you') {
+      out.youHp += ev.hp ?? 0;
+      out.youMind += ev.mind ?? 0;
+    }
   }
   if (effects.size > 200) effects.clear();
   effects.set(key, out);

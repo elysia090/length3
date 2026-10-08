@@ -57,11 +57,11 @@ export const JOB_LIST: readonly JobDef[] = [
   {
     id: 'projectionist',
     name: '映写技師',
-    text: '暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（倍率 +0.3）。',
+    text: '暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（+2）。',
     innate: { VIT: 2, ATK: 1, DEF: 2, WIL: 4, INT: 3, AGI: 3 },
     cards: ['bladerunner', 'morel', 'solaris', 'chirico', 'fightclub'],
     perms: ['promise', 'accident'],
-    passive: [{ rule: 'chain', fn: (_c, v) => (v > 1 ? v + 0.3 : v), text: '連鎖の倍率 +0.3' }],
+    passive: [{ rule: 'chain', fn: (_c, v) => (v > 0 ? v + 2 : v), text: '連鎖 +2' }],
   },
   {
     id: 'reporter',

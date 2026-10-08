@@ -357,8 +357,8 @@ export const ARCH_SETS: readonly ArchSet[] = [
   {
     arch: 'double',
     at: 2,
-    text: '連鎖の倍率 +0.2',
-    passive: [{ rule: 'chain', fn: (_c, v) => (v > 1 ? v + 0.2 : v), text: '連鎖の倍率 +0.2' }],
+    text: '連鎖 +1',
+    passive: [{ rule: 'chain', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '連鎖 +1' }],
   },
   {
     arch: 'double',
