@@ -1211,7 +1211,7 @@ function descend(tx: Tx): void {
     type: 'note',
     text:
       next <= LAST
-        ? `B${(next - 1) * (ROWS + 1) + 1}。${sec.open}`
+        ? `${'一二三'[next - 1] ?? next}の区画、${sec.name}。B${(next - 1) * (ROWS + 1) + 1}〜B${next * (ROWS + 1)}。${sec.open}`
         : `B${(next - 1) * (ROWS + 1) + 1}。${sectionName(next)}。上の${sec.name}と同じ造りだが、空気が古い。`,
     level: 2,
   });
@@ -1421,13 +1421,43 @@ export function alter(tx: Tx, slot: number, to: string): boolean {
 }
 
 /** エピテットを刻む（カードか記憶へ。どちらにも 2 つまで）。地図の上か、食堂で。 */
-export function inscribe(tx: Tx, ep: string, slot?: number, perm?: string): boolean {
+/**
+ * エピテットを刻む。刻める先は五つあって、同じ語でも刻んだ先で意味が変わる。
+ *   札      効き方（地図の上か、食堂で）
+ *   記憶    補正の働き方（同じ）
+ *   部屋    先の部屋。人のいる部屋なら、その人の気質に。いなければ場所の性質に
+ *   相手    向き合っている相手（遭遇に一度だけ。すぐに効く）
+ *   出来事  いま開いている出来事の、判定と実り
+ */
+export function inscribe(
+  tx: Tx,
+  ep: string,
+  to: { slot?: number; perm?: string; node?: number; foe?: boolean; story?: boolean },
+): boolean {
   const w = tx.w;
-  if (w.enc || !w.you.epithets.includes(ep)) return false;
-  if (w.pending && w.pending.kind !== 'rest') return false;
+  if (!w.you.epithets.includes(ep)) return false;
   const def = epithetDef(ep);
   if (!def) return false;
-  if (slot !== undefined) {
+  const { slot, perm } = to;
+  if (to.foe) {
+    if (!inkFoe(tx, ep)) return false;
+  } else if (to.story) {
+    const p = w.pending;
+    if (p?.kind !== 'story' || !def.story || p.eps.length >= 2 || p.eps.includes(ep)) return false;
+    tx.emit({ type: 'pending', p: { ...p, eps: [...p.eps, ep] } });
+  } else if (to.node !== undefined) {
+    const n = nodeOf(w, to.node);
+    const here = nodeOf(w, w.pos)?.row ?? -1;
+    if (w.enc || w.pending || !n || n.visited || n.row <= here) return false;
+    if (!(n.npc ? def.foe : def.place) || n.eps.length >= 2 || n.eps.includes(ep)) return false;
+    tx.emit({ type: 'node.ep', id: n.id, ep });
+    tx.emit({
+      type: 'note',
+      text: `《${def.name}》を${n.npc ? foeDef(n.npc).name : '部屋'}に刻んだ。${(n.npc ? def.foe : def.place)?.text ?? ''}`,
+      level: 1,
+    });
+  } else if (w.enc || (w.pending && w.pending.kind !== 'rest')) return false;
+  else if (slot !== undefined) {
     const card = w.you.cards[slot];
     if (!card || !def.card || card.eps.length >= 2 || card.eps.includes(ep)) return false;
     tx.emit({ type: 'card.ep', who: 'you', slot, ep, on: true });
@@ -1436,9 +1466,51 @@ export function inscribe(tx: Tx, ep: string, slot?: number, perm?: string): bool
     if (!w.you.perms.includes(perm) || !def.memory || list.length >= 2 || list.includes(ep))
       return false;
     tx.emit({ type: 'perm.ep', who: 'you', perm, ep, on: true });
-  } else return false;
+  } else if (!to.foe && !to.story && to.node === undefined) return false;
   tx.emit({ type: 'ep.held', who: 'you', ep, n: -1 });
   sync(tx);
+  return true;
+}
+
+/**
+ * 向き合っている相手にエピテットを刻む（遭遇に一度だけ、手番は使わない）。
+ * 体力や意志は割合で縮み（今の値も同じ割合で）、気質はその場で変わる。
+ */
+function inkFoe(tx: Tx, ep: string): boolean {
+  const w = tx.w;
+  const e = w.enc;
+  const ff = epithetDef(ep)?.foe;
+  if (!e || e.phase !== 'act' || e.who !== 'you' || !ff || e.st.inked) return false;
+  if (e.foe.eps.includes(ep) || e.foe.eps.length >= 3) return false;
+  const f = e.foe;
+  tx.emit({ type: 'enc.st', key: 'inked', n: 1 });
+  tx.emit({ type: 'foe.ep', ep });
+  const scale = (field: 'hp' | 'resolve', max: 'maxHp' | 'maxResolve', k: number) => {
+    const m = Math.max(1, Math.round(f[max] * k));
+    const v = Math.max(1, Math.round(f[field] * k));
+    tx.emit({ type: 'foe', field: max, n: m - f[max] });
+    tx.emit({ type: 'foe', field, n: v - f[field] });
+  };
+  if (ff.hp) scale('hp', 'maxHp', ff.hp);
+  if (ff.resolve) scale('resolve', 'maxResolve', ff.resolve);
+  if (ff.need) tx.emit({ type: 'foe', field: 'need', n: Math.max(1 - f.need, ff.need) });
+  if (ff.hostility) tx.emit({ type: 'foe', field: 'hostility', n: ff.hostility });
+  if (ff.trust) tx.emit({ type: 'foe', field: 'trust', n: ff.trust });
+  for (const k of ['atk', 'def', 'int', 'agi'] as const) {
+    const d = ff[k];
+    if (d) tx.emit({ type: 'foe', field: k, n: Math.max(-f[k], d) });
+  }
+  if (ff.stun) tx.emit({ type: 'foe.st', key: 'stun', n: 1 });
+  if (ff.lies === 'always') tx.emit({ type: 'foe.st', key: 'liar', n: 1 });
+  if (ff.lies === 'never') tx.emit({ type: 'foe.st', key: 'honest', n: 1 });
+  // 初めから見えている手がかり：刻んだ瞬間に、確かに一つ見える（漏れる・漏れないの判定なし）。
+  for (const c of f.clues.filter((x) => !x.shown && !x.false).slice(0, ff.show ?? 0))
+    tx.emit({ type: 'clue', id: c.id, shown: true });
+  tx.emit({
+    type: 'note',
+    text: `《${epithetDef(ep)?.name ?? ep}》を${f.name}に刻んだ。${ff.text}`,
+    level: 2,
+  });
   return true;
 }
 

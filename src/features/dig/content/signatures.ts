@@ -309,7 +309,7 @@ export const SIGNATURES: Readonly<Record<string, Signature>> = {
     ],
   },
   leaves: {
-    text: '内側のほうが広い：場所のエピテットと見せ場が多いほど強い（1 つにつき ×1.25）',
+    text: '内側のほうが広い：場所に刻まれたエピテットと見せ場が多いほど強い（1 つにつき ×1.25）',
     passive: [
       {
         rule: 'mult',

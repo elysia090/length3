@@ -81,11 +81,28 @@ export type Ev =
   | { type: 'intent'; move: string; intent: Intent }
   | {
       type: 'foe';
-      field: 'hp' | 'resolve' | 'trust' | 'hostility' | 'guard' | 'def' | 'atk' | 'wil';
+      field:
+        | 'hp'
+        | 'resolve'
+        | 'trust'
+        | 'hostility'
+        | 'guard'
+        | 'def'
+        | 'atk'
+        | 'wil'
+        | 'int'
+        | 'agi'
+        | 'maxHp'
+        | 'maxResolve'
+        | 'need';
       n: number;
       by?: string;
     }
   | { type: 'foe.st'; key: string; n: number }
+  /** 向き合っている相手に、エピテットが刻まれた。 */
+  | { type: 'foe.ep'; ep: string }
+  /** 地図の部屋に、エピテットが刻まれた。 */
+  | { type: 'node.ep'; id: number; ep: string }
   | { type: 'enc.you'; field: 'guard' | 'calm'; n: number }
   | { type: 'enc.st'; key: string; n: number }
   | { type: 'clue'; id: string; shown: boolean; false?: boolean }
@@ -167,7 +184,18 @@ export type Cmd =
   | { c: 'ack' }
   | { c: 'rest'; action: RestAction; slot?: number }
   | { c: 'alter'; slot: number; to: string }
-  | { c: 'inscribe'; ep: string; slot?: number; perm?: string }
+  | {
+      c: 'inscribe';
+      ep: string;
+      slot?: number;
+      perm?: string;
+      /** 地図の部屋（先の部屋）。 */
+      node?: number;
+      /** 向き合っている相手。 */
+      foe?: boolean;
+      /** いま開いている出来事。 */
+      story?: boolean;
+    }
   | { c: 'buy'; id: string; slot?: number }
   | { c: 'sell'; perm: string }
   | { c: 'cure'; perm: string }

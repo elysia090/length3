@@ -69,7 +69,7 @@ export const HINTS: readonly Hint[] = [
   {
     id: 'epithet',
     title: 'エピテット',
-    text: '下の《》は札に貼れる。押して、白くなった札を押す（札へ落としてもいい）。札の効き目と原型が変わる。',
+    text: '下の《》はエピテット。札にも、記憶にも、先の部屋にも、向き合った相手にも刻める。同じエピテットでも、刻んだ先で意味が変わる。押してから、刻む先を押す。',
     when: (w) =>
       onMap(w) && w.you.epithets.length > 0 && w.you.cards.some((c) => !!c && c.eps.length < 2),
   },

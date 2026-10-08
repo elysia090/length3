@@ -85,7 +85,7 @@ export function decide(
       ok = alter(tx, cmd.slot, cmd.to);
       break;
     case 'inscribe':
-      ok = inscribe(tx, cmd.ep, cmd.slot, cmd.perm);
+      ok = inscribe(tx, cmd.ep, cmd);
       break;
     case 'buy':
       ok = buy(tx, cmd.id, cmd.slot);

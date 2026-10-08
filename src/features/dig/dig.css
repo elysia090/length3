@@ -1691,3 +1691,47 @@
   align-items: center;
   width: 100%;
 }
+
+/* 四つの道の見出し（戦闘・交渉）。 */
+.dig-ways__k {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+/* 区画の進み（上帯）。九つの小さな四角、九つ目は最後の相手の菱形。 */
+.dig-sect {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: help;
+}
+
+.dig-sect__no {
+  margin-right: 4px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.dig-sect__c {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--ink-3);
+}
+
+.dig-sect__c.is-done {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.dig-sect__c.is-here {
+  border-color: var(--amber);
+  background: var(--amber);
+}
+
+.dig-sect__c.is-boss {
+  margin-left: 2px;
+  transform: rotate(45deg);
+}

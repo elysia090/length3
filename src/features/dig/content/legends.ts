@@ -453,7 +453,7 @@ export const LEGENDS: readonly Legend[] = [
       },
       {
         name: '罠の地',
-        need: 'エピテットのある場所に着く',
+        need: 'エピテットの刻まれた場所に着く',
         on: 'moved',
         when: arrivedOdd,
         count: 3,
@@ -564,7 +564,7 @@ export const LEGENDS: readonly Legend[] = [
     chapters: [
       {
         name: '五分半の廊下',
-        need: 'エピテットのある場所に着く',
+        need: 'エピテットの刻まれた場所に着く',
         on: 'moved',
         when: arrivedOdd,
         count: 3,
@@ -1009,7 +1009,7 @@ export const LEGENDS: readonly Legend[] = [
     chapters: [
       {
         name: 'マルコの報告',
-        need: 'エピテットのある場所に着く',
+        need: 'エピテットの刻まれた場所に着く',
         on: 'moved',
         when: arrivedOdd,
         count: 4,

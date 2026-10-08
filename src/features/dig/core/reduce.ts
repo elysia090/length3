@@ -263,6 +263,14 @@ export function apply(w: World, ev: Ev): void {
         else f[ev.field] += ev.n;
       }
       break;
+    case 'foe.ep':
+      if (w.enc && !w.enc.foe.eps.includes(ev.ep)) w.enc.foe.eps.push(ev.ep);
+      break;
+    case 'node.ep': {
+      const n = w.map.find((x) => x.id === ev.id);
+      if (n && !n.eps.includes(ev.ep)) n.eps = [...n.eps, ev.ep];
+      break;
+    }
     case 'foe.st':
       if (w.enc) {
         const st = w.enc.foe.st;
