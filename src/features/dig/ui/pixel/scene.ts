@@ -2,7 +2,7 @@ import { drawText, textWidth } from '../../../../shared/pixel/font';
 import { clamp } from '../../../../shared/pixel/math';
 import { AMBER, INK, PAPER, type Raster, threshold } from '../../../../shared/pixel/raster';
 import { BLUE, H, PEER, PEER_BOSS } from './geo';
-import { bar, dot, glyph, K, leader, veil } from './paint';
+import { bar, dot, K, leader, veil } from './paint';
 import type { Scene } from './types';
 
 /** 向き合った場面：灯り・見せ場の光・計器と気配（寄ったときだけ描く）。 */
@@ -187,18 +187,6 @@ export function hud(
     dot(r, bx + 2 * K, by, c);
     dot(r, bx + K, by + K, c);
     if (got) dot(r, bx + K, by, c);
-  }
-  // 予告（相手の計器の上）。
-  if (s.intent) {
-    const gx = Math.round(fx);
-    const gy = Math.round(fy - 19 + Math.sin(t * 3) * 0.8);
-    r.rect(gx - 2, gy - 2, 7 * K + 4, 7 * K + 4, PAPER);
-    glyph(r, s.intent.kind, gx, gy, INK);
-    if (s.intent.power) {
-      const label = String(s.intent.power);
-      r.rect(gx + 7 * K + 2, gy - 1, textWidth(label, K) + 3, 7 * K + 2, PAPER);
-      drawText(r, label, gx + 7 * K + 3, gy, INK, K);
-    }
   }
   // 敵意が高いと、頭のまわりに棘が立つ。
   if (s.foe.hostility >= 7) {

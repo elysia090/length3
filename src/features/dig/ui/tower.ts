@@ -7,7 +7,6 @@ import {
   FAR_ZOOM,
   GEO,
   H,
-  jitter,
   NEAR_ZOOM,
   PEER,
   PEER_BOSS,
@@ -17,7 +16,7 @@ import {
 } from './pixel/geo';
 import { figure, mark, ring } from './pixel/paint';
 import { hud, lamp, spotlight } from './pixel/scene';
-import type { RoomKind, RoomView, Scene, TowerView } from './pixel/types';
+import type { RoomView, TowerView } from './pixel/types';
 
 export { BLUE, H } from './pixel/geo';
 export type { RoomKind, RoomView, Scene, TowerView } from './pixel/types';
