@@ -379,11 +379,7 @@ function passTime(tx: Tx, hours: number): void {
     rivalStep(tx);
     gossip(tx);
   }
-  // 昼になれば、縦坑は閉じる（何度でも退けるが、時間は戻らない）。
-  if (tx.w.hour >= PACE.dawn + PACE.noon && !tx.w.ending) {
-    if (tx.w.enc) tx.emit({ type: 'enc.close' });
-    finish(tx, 'dawn', '夜が明けた');
-  }
+  // 締め切りはない。夜が明けて、昼が過ぎて、また夜になる。
 }
 
 /** 噂。あなたに会った人の像が、同じ層の別の人へ伝わる。 */
@@ -818,8 +814,13 @@ function pickStory(tx: Tx): string | null {
 }
 
 /** 一服。全カード +1（休ませて戻した、と数える）。逃走の系統は戻らない。1 時間。 */
+/** このフロアで、もう一服したか。 */
+export const breathed = (w: World): boolean =>
+  (w.flags[`breath:${w.stratum}:${nodeOf(w, w.pos)?.row ?? -1}`] ?? 0) > 0;
+
 export function breather(tx: Tx): void {
   const w = tx.w;
+  tx.emit({ type: 'flag', key: `breath:${w.stratum}:${nodeOf(w, w.pos)?.row ?? -1}`, v: 1 });
   refill(tx, 1 + (w.you.perms.includes('insomnia') ? 1 : 0), undefined, 'you', true);
   careBonus(tx);
   shiftAll(tx, 'you');
@@ -1107,7 +1108,7 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
       // 同じ層で休むほど、効きは薄れる（安全な道ばかりでは、夜を越えられない）。
       const again = w.flags[`rested${w.stratum}`] ?? 0;
       tx.emit({ type: 'flag', key: `rested${w.stratum}`, v: again + 1 });
-      heal(PACE.rest * (again ? PACE.restAgain : 1));
+      heal(PACE.rest);
       refill(tx, 1 + (y.perms.includes('insomnia') ? 1 : 0), undefined, 'you', true);
       careBonus(tx);
       passTime(tx, timeFor(1));

@@ -266,7 +266,7 @@ export const FOE_LIST: readonly FoeDef[] = [
     moves: [
       guard('wipe', 'カウンターを拭く', 5, { prior: () => 2 }),
       bargain('sell', '話を売る', 12, { prior: () => 3 }),
-      threat('closing', 'もう閉店だ', 3, { prior: (w) => 1 + w.hour / 3 }),
+      threat('closing', 'もう閉店だ', 3, { prior: (w) => 1 + Math.min(4, w.hour / 3) }),
       strike('out', '追い出す', 5, { cond: (w) => foe(w).hostility >= 6, prior: () => 4 }),
       confide('coffee', 'コーヒーを注ぐ', 2),
     ],

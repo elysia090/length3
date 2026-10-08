@@ -1,7 +1,7 @@
 import { buildsOf } from '../content/sources';
 import type { World } from '../core/model';
 import { foeHardness, nodeHardness, outmatched, youHardness } from '../sim/hardness';
-import { DAWN, isBridge, lateral, reachable } from '../sim/run';
+import { isBridge, lateral, reachable } from '../sim/run';
 
 /**
  * 案内（チュートリアルとヒント）。塔の上の帯に、いまの状況にいちばん関係する
@@ -120,12 +120,6 @@ export const HINTS: readonly Hint[] = [
     title: '冠',
     text: '振る舞いは噂になる。付いた冠は、会う前の相手の読みを変える。',
     when: (w) => w.you.titles.length > 0,
-  },
-  {
-    id: 'dawn',
-    title: '夜明け',
-    text: '夜明け（08:00）を過ぎると、相手は荒れる。昼（12:00）になれば区画は閉じる。下の区画は、もっと古い夜。',
-    when: (w) => w.hour >= DAWN - 2,
   },
 ];
 

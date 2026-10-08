@@ -19,7 +19,8 @@ import { buildsOf } from '../content/sources';
 import { nextTier, SURGES, tierOf } from '../content/surges';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, MapNode, World } from '../core/model';
-import { ARCH_NAME, type Archetype, TAG_NAME } from '../core/tags';
+import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
+import { clockOf, PHASE_NAME, phaseOf } from '../core/time';
 import { getLang, setLang, tr } from '../i18n';
 import { type Advice, advise, nodeLabel, type RouteKind } from '../sim/advise';
 import { canAccept, incoming, leaveChance, resonance, shownIntent } from '../sim/encounter';
@@ -29,10 +30,10 @@ import { misses } from '../sim/near';
 import { maxHp, maxMind, stats } from '../sim/ops';
 import {
   alterOptions,
+  breathed,
   canChoose,
   cardPrice,
   curePrice,
-  DAWN,
   epPrice,
   isBridge,
   isHall,
@@ -98,7 +99,7 @@ const BASIC_NAME: Record<Basic, string> = {
   accept: '応じる',
 };
 
-const clock = (hour: number) => `${String((22 + hour) % 24).padStart(2, '0')}:00`;
+const clock = (hour: number) => `${String(clockOf(hour)).padStart(2, '0')}:00`;
 const floorNo = (w: World, row: number) => (w.stratum - 1) * (ROWS + 1) + row + 1;
 /** 回数の目盛り（残り＝塗り、使った分＝枠だけ）。文字ではなく四角で、字体に左右されない。 */
 const pips = (c: Card) =>
@@ -703,7 +704,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       const w = game.world;
       const s = stats(w, 'you');
       const row = nodeOf(w, w.pos)?.row ?? -1;
-      const left = DAWN - w.hour;
       const hard = youHardness(w);
       items.push(
         h(
@@ -712,12 +712,11 @@ export function openDig(doc: Document, onClose: () => void): void {
           h('b', {}, row >= 0 ? `B${floorNo(w, row)}` : `B${floorNo(w, 0)} の上`),
           ` ${useOf(w.stratum, nodeOf(w, w.pos)?.use)?.name ?? STRATUM_NAME[w.stratum] ?? ''}`,
         ),
+        // 時刻と、いまが夜か朝か（数えなくていい。夜は、また来る）。
         h(
           'span',
-          { class: `dig-clock${left <= 1 ? ' is-late' : ''}` },
-          clock(w.hour),
-          ' ',
-          left > 0 ? `夜明けまで ${left} 時間` : '夜が明けた',
+          { class: `dig-clock is-${phaseOf(w.hour)}` },
+          `${PHASE_NAME[phaseOf(w.hour)]} ${clock(w.hour)}`,
         ),
         meter(w.you.hp, maxHp(s), `hp${now() - healAt < 1.2 ? ' is-healed' : ''}`, '体力', {
           shield: w.enc?.guard,
@@ -1012,6 +1011,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           'div',
           { class: 'dig-row' },
           button('一服', () => send({ c: 'breather' }), {
+            disabled: breathed(w),
             title: '少しだけ体と心が戻る。夜明けが 1 時間近づく。',
           }),
           w.you.items.map((id, i) =>
@@ -1026,12 +1026,26 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   /** 札の目当ての印（読まずに分かる）。癒すは緑。 */
-  function badges(list: readonly Fx[]): HTMLElement | null {
+  /**
+   * 札の目当ての印（読まずに分かる）。癒すは緑。遭遇の最中は、覚えておかなくて
+   * いいように、いま効く条件も印にする：直前の札とタグが重なれば「連鎖」、
+   * 見せ場のタグに合えば「見せ場」（どちらも強くなる）。
+   */
+  function badges(
+    list: readonly Fx[],
+    tags: readonly Tag[] | null = null,
+    w?: World,
+  ): HTMLElement | null {
     const bs = badgesOf(list);
-    if (!bs.length) return null;
+    const e = w?.enc;
+    const chain = !!tags && !!e && e.last.some((t) => tags.includes(t));
+    const stage = !!tags && !!e && e.stage.some((t) => tags.includes(t));
+    if (!bs.length && !chain && !stage) return null;
     return h(
       'span',
       { class: 'dig-badges' },
+      chain ? h('i', { class: 'dig-badge dig-badge--boost' }, '連鎖') : null,
+      stage ? h('i', { class: 'dig-badge dig-badge--boost' }, '見せ場') : null,
       bs.map((b) => h('i', { class: `dig-badge dig-badge--${b}` }, BADGE_NAME[b])),
     );
   }
@@ -1116,7 +1130,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     const hard = foeHardness(f);
     const you = youHardness(w);
     const intent = shownIntent(w);
-    const res = resonance(w);
     const shown = f.clues.filter((c) => c.shown && !c.false).length;
     // 触れている札の効き目（相手の番の前まで）。四つの道の棒の先に、点滅で映す。
     const eff =
@@ -1187,12 +1200,13 @@ export function openDig(doc: Document, onClose: () => void): void {
           )
         : null,
       h('div', { class: 'dig-ways' }, ways),
+      // 覚えておかなくていいものは出さない。敵意は荒れているときだけ（信頼が伸びにくく、
+      // 手が重くなる）。見せ場のタグは札の印に出るので、ここでは名前だけ。
       h(
         'p',
         { class: 'dig-quiet dig-enc__aside' },
-        `敵意 ${f.hostility}/10`,
-        e.stage.length ? `・見せ場［${e.stage.map((t) => TAG_NAME[t]).join('・')}］` : '',
-        res.length ? `・共鳴 ${res.length}` : '',
+        f.hostility >= 7 ? h('span', { class: 'dig-warn' }, '荒れている') : '',
+        e.stage.length ? `${f.hostility >= 7 ? '・' : ''}見せ場` : '',
         f.eps.length ? `・${f.eps.map((x) => `《${epithetDef(x)?.name ?? x}》`).join('')}` : '',
       ),
     ];
@@ -1607,7 +1621,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           h('span', { class: 'dig-card__key' }, String(slot + 1)),
         ),
         pips(c),
-        badges(spent ? d.spent : d.ready),
+        badges(spent ? d.spent : d.ready, w.enc?.phase === 'act' ? cardTags(c) : null, w),
         peek ? h('span', { class: 'dig-card__next' }, peek) : null,
         h(
           'span',

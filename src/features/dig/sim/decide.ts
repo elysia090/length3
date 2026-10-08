@@ -6,6 +6,7 @@ import { basic, useCard } from './encounter';
 import {
   alter,
   announce,
+  breathed,
   breather,
   buy,
   choose,
@@ -46,7 +47,8 @@ export function decide(
       ok = move(tx, cmd.node);
       break;
     case 'breather':
-      ok = !w.enc && !w.pending;
+      // 一服はフロアに一度（締め切りがないぶん、際限なく休めないように）。
+      ok = !w.enc && !w.pending && !breathed(w);
       if (ok) breather(tx);
       break;
     case 'item':

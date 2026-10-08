@@ -65,8 +65,8 @@ export function pilot(w: World): Cmd | null {
   if (ins) return ins;
   const all = reachable(w);
   if (!all.length) return null;
-  const row = nodeOf(w, w.pos)?.row ?? -1;
-  const slack = PACE.dawn - w.hour - (ROWS - row);
+  // 締め切りはないので、時間の余裕はいつもある（廊下も渡り廊下も選べる）。
+  const slack = 99;
   // 廊下は夜に余裕があるときだけ。渡り廊下は回り道のぶん（2 時間）余裕が要る。
   const roomy = all.filter((n) =>
     isBridge(w, n) && w.pos !== null ? slack >= 3 : isHall(w, n) ? slack >= 1 : true,

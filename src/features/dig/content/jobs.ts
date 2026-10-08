@@ -1,3 +1,4 @@
+import { isDeep } from '../core/time';
 import type { JobDef } from './defs';
 
 /**
@@ -33,13 +34,13 @@ export const JOB_LIST: readonly JobDef[] = [
     passive: [
       {
         rule: 'mult',
-        when: (c) => tagged('night')(c) && c.w.hour >= 2,
+        when: (c) => tagged('night')(c) && isDeep(c.w.hour),
         fn: (_c, v) => v * 1.3,
         text: '深夜、［夜］のカード ×1.3',
       },
       {
         rule: 'guardSpill',
-        when: (c) => c.w.hour >= 2,
+        when: (c) => isDeep(c.w.hour),
         fn: (_c, v) => v + 0.25,
         text: '夜勤：深夜、残った守りの 1/4 が信頼になる',
       },

@@ -1,4 +1,5 @@
 import type { Ev } from '../core/events';
+import { isDeep } from '../core/time';
 import { breakFoe, coins, refill, revealClue } from '../sim/ops';
 import type { BuildDef, LinkDef } from './defs';
 import { permDef } from './registry';
@@ -53,7 +54,12 @@ export const BUILD_LIST: readonly BuildDef[] = [
     need: { night: 2, gaze: 2, place: 1 },
     text: '深夜、嘘の予告がすべて見える。相手は初めから信頼 +1。毎手番 心の構え +2。',
     passive: [
-      { rule: 'intentVisible', when: (c) => c.w.hour >= 2, fn: () => 1, text: '深夜、嘘が見える' },
+      {
+        rule: 'intentVisible',
+        when: (c) => isDeep(c.w.hour),
+        fn: () => 1,
+        text: '深夜、嘘が見える',
+      },
       { rule: 'startTrust', fn: (_c, v) => v + 1, text: '初めから信頼 +1' },
       { rule: 'turnCalm', fn: (_c, v) => v + 2, text: '毎手番 心の構え +2' },
     ],

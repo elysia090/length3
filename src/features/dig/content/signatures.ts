@@ -1,6 +1,7 @@
 import type { Ev } from '../core/events';
 import type { Char, World } from '../core/model';
 import type { RuleCtx } from '../core/rules';
+import { isDeep } from '../core/time';
 import type { Tx } from '../core/tx';
 import { breakFoe, calm, coins, cut, expose, heal, hostile, revealClue, stun } from '../sim/ops';
 import { tagCount } from './cardinfo';
@@ -78,7 +79,7 @@ export const SIGNATURES: Readonly<Record<string, Signature>> = {
     passive: [
       {
         rule: 'useSpend',
-        when: (c) => is('night')(c) && c.w.hour >= 2,
+        when: (c) => is('night')(c) && isDeep(c.w.hour),
         fn: () => 0,
         text: '深夜は減らない',
       },
@@ -508,7 +509,7 @@ export const SIGNATURES: Readonly<Record<string, Signature>> = {
     triggers: [
       {
         on: 'card.use',
-        when: (ev, w) => used('cafe')(ev, w) && w.hour >= 2,
+        when: (ev, w) => used('cafe')(ev, w) && isDeep(w.hour),
         run: (tx) => calm(tx, 3),
         text: '赤と緑の部屋',
       },

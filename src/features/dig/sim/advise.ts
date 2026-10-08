@@ -264,7 +264,6 @@ function walkPath(w: World, path: number[], probes: Map<number, Probe>): Walk {
   const short = new Set<number>();
   const thin = new Set<number>();
   const caps = w.you.cards.map((c) => c?.max ?? 0);
-  let rests = w.flags[`rested${w.stratum}`] ?? 0;
   for (const id of path) {
     const p = probes.get(id);
     const node = nodeOf(w, id);
@@ -273,7 +272,7 @@ function walkPath(w: World, path: number[], probes: Map<number, Probe>): Walk {
     if (node.kind === 'boss') continue;
     if (node.kind === 'rest') {
       // 食堂は、着いたときの傷み具合で効く（試行はいまの体で測るので、ここで足す）。
-      hp = Math.min(max, hp + PACE.rest * (rests++ ? PACE.restAgain : 1) * max);
+      hp = Math.min(max, hp + PACE.rest * max);
       uses.forEach((u, slot) => {
         uses[slot] = Math.min(caps[slot] ?? 0, u + 1);
       });

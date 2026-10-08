@@ -2,6 +2,7 @@ import type { Ev, EvType } from '../core/events';
 import type { Char, Who, World } from '../core/model';
 import type { RuleCtx } from '../core/rules';
 import { ARCH_NAME } from '../core/tags';
+import { isDeep, isMorning } from '../core/time';
 import type { Tx } from '../core/tx';
 import {
   breakFoe,
@@ -71,7 +72,7 @@ const slotOf = (w: World, id: string) => charOf(w, ownerOf(w)).cards.findIndex((
 export const chapterOf = (c: Char, id: string) => c.cards.find((x) => x?.id === id)?.marks.ch ?? 0;
 const chapterNow = (w: World, id: string) => chapterOf(charOf(w, ownerOf(w)), id);
 const ctxChar = (c: RuleCtx) => charOf(c.w, c.who);
-const night = (w: World) => w.hour >= 2;
+const night = (w: World) => isDeep(w.hour);
 const lowHp = (c: Char) => c.hp * 3 < 16 + 4 * (c.innate.VIT + c.growth.VIT);
 const foeArch = (w: World) => FOE_ARCH[w.enc?.foe.id ?? ''] ?? [];
 
@@ -132,7 +133,7 @@ export const LEGENDS: readonly Legend[] = [
         name: '閉まらない店',
         need: '夜明けを過ぎてから、誰かと向き合う',
         on: 'enc.start',
-        when: (ev, w) => ev.type === 'enc.start' && ev.who === ownerOf(w) && w.hour >= 10,
+        when: (ev, w) => ev.type === 'enc.start' && ev.who === ownerOf(w) && isMorning(w.hour),
         count: 1,
         line: 'この店は閉まらない。夜も、明けない。',
         text: '夜明けを過ぎても、相手は荒れない',

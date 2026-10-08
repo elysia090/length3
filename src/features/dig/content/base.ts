@@ -1,5 +1,6 @@
 import { believes } from '../core/mind';
 import type { Tag } from '../core/tags';
+import { isDeep } from '../core/time';
 import { hostile, say } from '../sim/ops';
 import { ANSWERS } from './archetypes';
 import type { PassiveSpec, TriggerSpec } from './defs';
@@ -89,8 +90,8 @@ export const BASE_RULES: readonly PassiveSpec[] = [
   {
     rule: 'startHostility',
     prio: -10,
-    fn: (c, v) => v + Math.max(0, c.w.hour - 3) / 2 + c.w.depth / 3,
-    text: '夜が深いほど、深いほど荒れている',
+    fn: (c, v) => v + (isDeep(c.w.hour) ? 1 : 0) + c.w.depth / 3,
+    text: '深夜と、深い層ほど荒れている',
   },
   {
     rule: 'leaveChance',

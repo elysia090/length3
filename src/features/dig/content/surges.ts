@@ -2,6 +2,7 @@ import type { Ev } from '../core/events';
 import type { Char, Who, World } from '../core/model';
 import type { RuleCtx } from '../core/rules';
 import type { Archetype } from '../core/tags';
+import { isDeep } from '../core/time';
 import type { Tx } from '../core/tx';
 import { breakFoe, coins, expose, heal, hitFoe, refill, stun } from '../sim/ops';
 import { archCount } from './cardinfo';
@@ -105,7 +106,7 @@ export const SURGES: Readonly<Record<string, Surge>> = {
     triggers: (peak) => [
       {
         on: 'seen',
-        when: (_ev, w) => w.hour >= 2 && !!w.enc?.foe.intent?.lie,
+        when: (_ev, w) => isDeep(w.hour) && !!w.enc?.foe.intent?.lie,
         run: (tx) => {
           if (spend(tx, 'sv:nighthawks', 2, peak)) stun(tx);
         },

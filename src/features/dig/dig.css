@@ -47,7 +47,17 @@
   color: var(--amber-text);
 }
 
-.dig-clock.is-late,
+/* 時刻：夜と深夜は墨、朝・昼・夕は薄く（数えるものではなく、空気として）。 */
+.dig-clock.is-deep {
+  font-weight: 700;
+}
+
+.dig-clock.is-morning,
+.dig-clock.is-day,
+.dig-clock.is-evening {
+  color: var(--ink-3);
+}
+
 .dig-warn {
   font-weight: 700;
   color: var(--ink);
@@ -1036,4 +1046,11 @@
     animation: none;
     border-color: var(--amber-text);
   }
+}
+
+/* いま効く条件（連鎖・見せ場）は琥珀の印。覚えておかなくていいように、札の上に。 */
+.dig-badge--boost {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+  font-weight: 700;
 }

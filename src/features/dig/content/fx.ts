@@ -1,5 +1,6 @@
 import type { Claim, Stat } from '../core/model';
 import { TAG_NAME, type Tag } from '../core/tags';
+import { deepHours, isDeep } from '../core/time';
 import type { Tx } from '../core/tx';
 import {
   actor,
@@ -151,9 +152,10 @@ export function holds(tx: Tx, c: Cond, ctx: FxCtx): boolean {
   const ch = charOf(tx.w, who);
   switch (c[0]) {
     case 'night':
-      return tx.w.hour >= 2;
+      return isDeep(tx.w.hour);
     case 'hour':
-      return tx.w.hour >= c[1];
+      // 「何時を過ぎたら」は、深夜の中での時刻（夜が来るたびに、また効く）。
+      return deepHours(tx.w.hour) >= c[1] - 2;
     case 'foeTag':
       return !!e?.foe.tags.includes(c[1]);
     case 'hostile':

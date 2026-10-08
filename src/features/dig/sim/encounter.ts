@@ -144,10 +144,7 @@ export function startEnc(
   m: Meet = {},
 ): void {
   const w = tx.w;
-  const late = Math.max(
-    0,
-    Math.round(tx.rule('lateness', { who }, w.hour >= PACE.dawn ? w.hour - PACE.dawn + 1 : 0)),
-  );
+  const late = Math.max(0, Math.round(tx.rule('lateness', { who }, 0)));
   const def = foeDef(npc);
   const f = scaleFoe(w, npc, m, late);
   const stage = [...(m.stage ?? [])];

@@ -1,5 +1,6 @@
 import type { World } from '../core/model';
 import type { Tag } from '../core/tags';
+import { isDeep } from '../core/time';
 import type { EpithetCtx, PassiveSpec } from './defs';
 import type { Fx } from './fx';
 
@@ -506,14 +507,14 @@ export const EPITHETS: readonly Epithet[] = [
     card: {
       text: 'タグ［夜］を足す。深夜 ×1.3、それ以外 ×0.8。',
       add: ['night'],
-      mult: (w) => (w.hour >= 2 ? 1.3 : 0.8),
+      mult: (w) => (isDeep(w.hour) ? 1.3 : 0.8),
     },
     foe: {
       text: '深夜は攻撃 +2。',
       passive: [
         {
           rule: 'strikeTaken',
-          when: (c) => c.w.hour >= 2,
+          when: (c) => isDeep(c.w.hour),
           fn: (_c, v) => (v > 0 ? v + 2 : v),
           text: '深夜、受ける傷 +2',
         },
