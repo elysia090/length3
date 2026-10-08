@@ -19,7 +19,7 @@ import { AMBER, INK, PAPER, Raster, threshold } from '../../../shared/pixel/rast
 /** 深い青（いま効いているもの：守り・落ち着き・信頼の糸・見せ場）。必ずまばらに置く。 */
 export const BLUE = 4;
 
-export const W = 320;
+/** 縦の画素数は固定。横は、置かれた枠の縦横比に合わせて伸び縮みする（枠いっぱいに描く）。 */
 export const H = 240;
 
 export type RoomKind = 'person' | 'danger' | 'event' | 'rest' | 'shop' | 'boss';
@@ -125,13 +125,7 @@ export class Tower {
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d');
-    canvas.width = W;
-    canvas.height = H;
-    this.raster.resize(W, H);
-    if (this.ctx) {
-      this.image = this.ctx.createImageData(W, H);
-      this.out = new Uint32Array(this.image.data.buffer);
-    }
+    this.fit();
     const style = getComputedStyle(canvas);
     this.palette = new Uint32Array([
       0,
@@ -140,6 +134,25 @@ export class Tower {
       rgba(style.getPropertyValue('--amber'), 0xff0c58ea),
       rgba(style.getPropertyValue('--dig-blue'), 0xff9e3d1f),
     ]);
+  }
+
+  /** 横の画素数（枠の縦横比から）。 */
+  private W = 320;
+
+  /** 枠の大きさが変わっていたら、横の画素数を合わせる（帯や余白のない一枚に）。 */
+  private fit(): void {
+    const rect = this.canvas.getBoundingClientRect();
+    const aspect = rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 4 / 3;
+    const w = Math.round(clamp(H * aspect, H * 0.75, H * 2.6));
+    if (w === this.W && this.image) return;
+    this.W = w;
+    this.canvas.width = w;
+    this.canvas.height = H;
+    this.raster.resize(w, H);
+    if (this.ctx) {
+      this.image = this.ctx.createImageData(w, H);
+      this.out = new Uint32Array(this.image.data.buffer);
+    }
   }
 
   // ─── 投影 ───────────────────────────────────────────────────
@@ -168,7 +181,7 @@ export class Tower {
   private project(u: number, v: number, f: number): { x: number; y: number } {
     const z = this.cam.zoom;
     return {
-      x: W / 2 + (u - v) * 30 * z - this.cam.x * z,
+      x: this.W / 2 + (u - v) * 30 * z - this.cam.x * z,
       y: H * 0.24 + (u + v) * 13 * z + (f - this.cam.floor) * 50 * z - this.cam.y * z,
     };
   }
@@ -176,6 +189,7 @@ export class Tower {
   // ─── 描く ───────────────────────────────────────────────────
 
   draw(view: TowerView, t: number, dt: number): void {
+    this.fit();
     const r = this.raster;
     r.clear();
     // カメラ：いる部屋のフロアを上寄りに。遭遇中はその部屋へ寄る。
@@ -234,7 +248,7 @@ export class Tower {
     const bottom = this.project(0, 0, view.floors + 0.2).y;
     for (let y = Math.max(0, Math.floor(bottom - 40)); y < H; y++) {
       const tone = clamp((y - bottom + 40) / 120);
-      for (let x = 0; x < W; x++) if (threshold(x, y) < tone * 0.9) r.set(x, y, INK);
+      for (let x = 0; x < this.W; x++) if (threshold(x, y) < tone * 0.9) r.set(x, y, INK);
     }
   }
 
@@ -294,12 +308,40 @@ export class Tower {
       { ...Tower.wing(-1), key: '-1' },
       { ...Tower.wing(1), key: '1' },
     ];
-    for (const p of plates) {
-      const on = lit.has(`${p.key}:${f}`);
-      // 寄っているあいだ（遭遇中）は、部屋のある床だけ。
-      if (this.cam.zoom > 1.2 && !on) continue;
-      this.plate(p.u, p.v, f, fade, on, p.key === 'back');
+    // 部屋のある隣の床だけ、床板として描く。ほかは本棟の床の縁が左右と奥へ
+    // 続いて、点がまばらになって消える（同じ床が向こうにもある、という気配）。
+    for (const p of plates)
+      if (lit.has(`${p.key}:${f}`)) this.plate(p.u, p.v, f, fade, true, false);
+    if (this.cam.zoom < 1.2 && f >= 0) this.continues(f, fade);
+  }
+
+  /** 床の縁の延長。端から離れるほど点が間遠になる。 */
+  private continues(f: number, fade: number): void {
+    const r = this.raster;
+    const U = 2.1;
+    const V = 0.75;
+    const run = (u0: number, v0: number, du: number, dv: number, len: number) => {
+      const a = this.project(u0, v0, f);
+      const b = this.project(u0 + du * len, v0 + dv * len, f);
+      const total = Math.hypot(b.x - a.x, b.y - a.y);
+      // 点の間を 2, 3, 4… と広げていく（規則正しく間遠になって消える）。
+      let at = 3;
+      let gap = 2;
+      while (at < total * fade) {
+        const k = at / total;
+        r.set(Math.round(a.x + (b.x - a.x) * k), Math.round(a.y + (b.y - a.y) * k), INK);
+        at += gap;
+        gap += 1;
+      }
+    };
+    // 左右（u の向き）：手前と奥の縁を延ばす。
+    for (const v of [-V, V]) {
+      run(U, v, 1, 0, 2.4);
+      run(-U, v, -1, 0, 2.4);
     }
+    // 奥（v の向き）：左右の縁を延ばす。
+    run(-U, -V, 0, -1, 1.6);
+    run(U, -V, 0, -1, 1.6);
   }
 
   private plate(
@@ -350,31 +392,78 @@ export class Tower {
     for (const [s0, e0] of edges) r.line(s0.x, s0.y, z, e0.x, e0.y, z, INK, false, 0, dash);
   }
 
+  /**
+   * 道の線。一つの意味に一本の線だけ（二重にしない）：
+   *   階段（下へ）  細かい点線
+   *   廊下（横へ）  短い破線
+   *   渡り廊下      長い破線
+   *   推奨の道      その線の上を琥珀で上書き（隣に並べない）
+   * 端はどれも部屋の縁で切る（同じ端点を使うので、線が重なってずれない）。
+   * 通り過ぎたフロアには、自分が歩いた跡だけを薄く残す。
+   */
   private stairs(view: TowerView, _t: number): void {
     const r = this.raster;
     const pos = new Map(view.rooms.map((room) => [room.id, room]));
-    // 廊下（同じフロアの隣どうし）。細い実線。
+    const here = view.you !== null ? pos.get(view.you) : undefined;
+    const floor = here?.floor ?? -1;
+    const walked = (x: RoomView) => x.visited || x.id === view.you;
+    const onRoute = this.routeEdges(view);
+    // 廊下（同じフロア・同じ塔の隣どうし）。いま居るフロアと、その下だけ。
     for (const a of view.rooms) {
+      if (a.floor < floor) continue;
       const b = view.rooms.find(
         (x) => x.floor === a.floor && x.tower === a.tower && x.col === a.col + 1,
       );
-      if (!b) continue;
-      const pa = this.center(a);
-      const pb = this.center(b);
-      r.line(pa.x, pa.y, 0, pb.x, pb.y, 0, INK, false, 0, [3, 1]);
+      if (!b || onRoute.has(`${a.id}-${b.id}`) || onRoute.has(`${b.id}-${a.id}`)) continue;
+      const [p, q] = this.ends(a, b);
+      r.line(p.x, p.y, 0, q.x, q.y, 0, INK, false, 0, [2, 2]);
     }
     for (const [from, to] of view.edges) {
       const a = pos.get(from);
       const b = pos.get(to);
-      if (!a || !b) continue;
-      const pa = this.center(a);
-      const pb = this.center(b);
-      if (a.tower !== b.tower) {
-        // 渡り廊下（二本の破線）。
-        r.line(pa.x, pa.y, 0, pb.x, pb.y - 3, 0, INK, false, 0, [3, 2]);
-        r.line(pa.x, pa.y + 3, 0, pb.x, pb.y, 0, INK, false, 0, [3, 2]);
-      } else r.line(pa.x, pa.y + 2, 0, pb.x, pb.y - 2, 0, INK, false, 0, [1, 2]);
+      if (!a || !b || onRoute.has(`${from}-${to}`)) continue;
+      const trail = walked(a) && walked(b);
+      // 通り過ぎた枝（もう選べない道）は描かない。
+      if (b.floor <= floor && !trail) continue;
+      const [p, q] = this.ends(a, b);
+      const dash: [number, number] = a.tower !== b.tower ? [4, 2] : trail ? [1, 3] : [1, 2];
+      r.line(p.x, p.y, 0, q.x, q.y, 0, INK, false, 0, dash);
     }
+  }
+
+  /** 二つの部屋を結ぶ線の端（部屋の菱形の縁で切る）。 */
+  private ends(a: RoomView, b: RoomView): [{ x: number; y: number }, { x: number; y: number }] {
+    const p = this.center(a);
+    const q = this.center(b);
+    const d = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+    const ux = (q.x - p.x) / d;
+    const uy = (q.y - p.y) / d;
+    const zm = this.cam.zoom;
+    // 菱形（横 s・縦 s/2）の縁までの距離。
+    const cut = (room: RoomView) => {
+      const s = (room.kind === 'boss' ? 7 : 5) * zm;
+      return 1 / (Math.abs(ux) / s + Math.abs(uy) / (s / 2)) + 1;
+    };
+    const ca = cut(a);
+    const cb = cut(b);
+    if (ca + cb >= d) return [p, q];
+    return [
+      { x: p.x + ux * ca, y: p.y + uy * ca },
+      { x: q.x - ux * cb, y: q.y - uy * cb },
+    ];
+  }
+
+  /** 推奨の道が通る線（from-to）。 */
+  private routeEdges(view: TowerView): Set<string> {
+    const out = new Set<string>();
+    for (const route of view.routes) {
+      let prev = view.you;
+      for (const id of route.path) {
+        if (prev !== null) out.add(`${prev}-${id}`);
+        prev = id;
+      }
+    }
+    return out;
   }
 
   private center(room: RoomView): { x: number; y: number } {
@@ -436,21 +525,11 @@ export class Tower {
         const room = pos.get(id);
         if (!room) continue;
         if (prev) {
-          const a = this.center(prev);
-          const b = this.center(room);
-          const off = route.kind === 'safe' ? -2 : route.kind === 'chain' ? 0 : 2;
-          r.line(
-            a.x + off,
-            a.y,
-            20,
-            b.x + off,
-            b.y,
-            20,
-            route.kind === 'safe' ? INK : AMBER,
-            false,
-            0,
-            route.kind === 'chain' ? undefined : [2, 2],
-          );
+          // 下の線と同じ端点・同じ点の並びで、琥珀に塗り替える（二重にならない）。
+          const [p, q] = this.ends(prev, room);
+          const dash: [number, number] | undefined =
+            prev.tower !== room.tower ? [4, 2] : prev.floor === room.floor ? [2, 2] : undefined;
+          r.line(p.x, p.y, 20, q.x, q.y, 20, AMBER, false, 0, dash);
         }
         prev = room;
       }
@@ -562,12 +641,32 @@ export class Tower {
         }
       }
     }
-    // もう一人の灯り持ち（輪郭だけ）。
+    // 向き合っている相手が部屋の人物でない（もう一人の灯り持ちなど）ときも、
+    // 必ず相手の記号を立てる（計器だけが宙に浮かないように）。
+    const e = view.enc;
+    const encRoom = e ? pos.get(e.room) : undefined;
+    if (e && encRoom && !encRoom.person) {
+      const gone = e.end && t - e.endAt > 0.3;
+      if (!(gone && e.end === 'fall')) {
+        const { x, y } = this.center(encRoom);
+        const hit = t - e.foeHitAt < 0.18;
+        this.figure(
+          x + 7 * zm + (hit ? Math.sin(t * 90) * 1.5 : 0),
+          y,
+          1.25 * zm,
+          hit ? INK : e.end === 'glow' && gone ? AMBER : BLUE,
+          hit ? 'solid' : 'sparse',
+          -0.4,
+        );
+      }
+    }
+    // もう一人の灯り持ち（輪郭だけ）。人のいる部屋では、反対側に立つ。
     if (view.rival !== null) {
       const room = pos.get(view.rival);
       if (room) {
         const { x, y } = this.center(room);
-        this.figure(x + 8 * zm, y + 2, zm, INK, true);
+        const side = room.person ? -9 : 8;
+        this.figure(x + side * zm, y + 2, zm, INK, true);
       }
     }
     // あなた（琥珀）。
@@ -611,17 +710,17 @@ export class Tower {
     const pulse = s.stall ? 0.12 * (0.5 + 0.5 * Math.sin(t * 4)) : 0;
     const ly = cy - 6 * zm;
     const x0 = Math.max(0, Math.floor(cx - R * 2.4));
-    const x1 = Math.min(W, Math.ceil(cx + R * 2.4));
+    const x1 = Math.min(this.W, Math.ceil(cx + R * 2.4));
     for (let y = 0; y < H; y++) {
       const dy = (y - ly) * 1.45;
-      for (let x = 0; x < W; x++) {
+      for (let x = 0; x < this.W; x++) {
         const dx = x - cx;
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d < R) continue;
         // 見せ場の光の筋の中は、闇が落ちない。
         if (s.stage && y < cy && Math.abs(dx) < this.beamHalf(y, cy)) continue;
         const far = x < x0 || x >= x1 ? 1 : clamp((d - R) / (R * 1.1));
-        const tone = (0.5 * far + pulse) * presence;
+        const tone = (0.32 * far + pulse) * presence;
         if (threshold(x, y) < tone) r.set(x, y, INK);
       }
     }
@@ -864,7 +963,7 @@ export class Tower {
   pick(cssX: number, cssY: number): number | null {
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
-    const x = ((cssX - rect.left) / rect.width) * W;
+    const x = ((cssX - rect.left) / rect.width) * this.W;
     const y = ((cssY - rect.top) / rect.height) * H;
     let best: number | null = null;
     let d = 18 * this.cam.zoom;
