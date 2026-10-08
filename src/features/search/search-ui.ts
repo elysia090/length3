@@ -1,7 +1,7 @@
 import type { ArchiveField } from '../archive/client';
 import type { SearchCopy } from './search-copy';
 import type { SearchEngine, SearchHit } from './search-engine';
-import { isGunman, nearestTerms, type Term } from './terms';
+import { isDig, isGunman, nearestTerms, type Term } from './terms';
 
 /**
  * 検索画面の中身。巻末索引のように引く。
@@ -49,6 +49,7 @@ export interface SearchUiOptions {
   field?: ArchiveField | null;
   navigate?: (url: string, newTab: boolean) => void;
   onGunman?: () => void;
+  onDig?: () => void;
 }
 
 export type SearchView = 'terms' | 'loading' | 'results' | 'void' | 'unavailable' | 'error';
@@ -90,6 +91,7 @@ export function createSearchUi(options: SearchUiOptions): SearchUi {
   let active = -1;
   let sequence = 0;
   let gunmanOpen = false;
+  let digOpen = false;
   const listId = e.list.id || 'search-results';
   e.list.id = listId;
 
@@ -261,6 +263,11 @@ export function createSearchUi(options: SearchUiOptions): SearchUi {
       options.onGunman();
     }
     if (!isGunman(q)) gunmanOpen = false;
+    if (isDig(q) && !digOpen && options.onDig) {
+      digOpen = true;
+      options.onDig();
+    }
+    if (!isDig(q)) digOpen = false;
     void run(q);
   });
 

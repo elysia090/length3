@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupTerms, initialOf, isGunman, nearestTerms } from './terms';
+import { groupTerms, initialOf, isDig, isGunman, nearestTerms } from './terms';
 
 const terms = [
   { name: 'simd', count: 3 },
@@ -41,5 +41,12 @@ describe('isGunman', () => {
   it('opens the range only for gunman', () => {
     expect(isGunman(' Gunman ')).toBe(true);
     expect(isGunman('gunmen')).toBe(false);
+  });
+});
+
+describe('isDig', () => {
+  it('opens DIG only for dig', () => {
+    expect(isDig(' DIG ')).toBe(true);
+    expect(isDig('digging')).toBe(false);
   });
 });

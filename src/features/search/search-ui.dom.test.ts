@@ -45,6 +45,7 @@ function setup(results: Record<string, SearchHit[]>) {
   const engine: SearchEngine = { search: async (q) => results[q] ?? [] };
   const navigate = vi.fn();
   const onGunman = vi.fn();
+  const onDig = vi.fn();
   const field = { show: vi.fn(), start: vi.fn(), stop: vi.fn() };
   const ui = createSearchUi({
     elements: e,
@@ -61,6 +62,7 @@ function setup(results: Record<string, SearchHit[]>) {
     field,
     navigate,
     onGunman,
+    onDig,
   });
   const type = async (value: string) => {
     e.input.value = value;
@@ -70,7 +72,7 @@ function setup(results: Record<string, SearchHit[]>) {
   };
   const key = (k: string, init: KeyboardEventInit = {}) =>
     e.input.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...init }));
-  return { e, ui, type, key, navigate, onGunman, field };
+  return { e, ui, type, key, navigate, onGunman, onDig, field };
 }
 
 beforeEach(() => {
@@ -149,6 +151,12 @@ describe('createSearchUi', () => {
     expect(e.input.value).toBe('');
     await vi.waitFor(() => expect(ui.view).toBe('terms'));
     expect(ui.escape()).toBe(false);
+  });
+
+  it('opens DIG for dig', async () => {
+    const { type, onDig } = setup({});
+    await type('dig');
+    expect(onDig).toHaveBeenCalledTimes(1);
   });
 
   it('opens the range for gunman', async () => {

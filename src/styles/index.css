@@ -32,6 +32,7 @@
 @import '../features/search/search.css' layer(components);
 @import '../features/archive/topic-list.css' layer(components);
 @import '../features/gunman/gunman.css' layer(components);
+@import '../features/dig/dig.css' layer(components);
 @import './typography.css' layer(prose);
 /* 最後、かつ未レイヤー。環境の指示は必ず勝つ必要がある。 */
 @import './environment.css';
