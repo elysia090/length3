@@ -144,8 +144,35 @@ function translate(s: string, depth: number): string {
 }
 
 /** 画面に出す文字列。日本語のときはそのまま。 */
+/**
+ * 能力値の呼び名。エンジンとデータは 3 文字の記号（VIT ATK …）で書かれていて、
+ * 日本語の画面では日本語の呼び名にする（体力・精神・意志などと並んで読めるように。
+ * どれとも字が重ならない名前を選んである）。英語の画面では記号のまま。
+ */
+export const STAT_NAME: Readonly<Record<string, string>> = {
+  VIT: '体格',
+  ATK: '腕力',
+  DEF: '防御',
+  WIL: '胆力',
+  INT: '洞察',
+  AGI: '敏捷',
+};
+const STAT = /\b(VIT|ATK|DEF|WIL|INT|AGI)\b/g;
+const jaCache = new Map<string, string>();
+
+function jaStats(s: string): string {
+  if (!/[A-Z]{3}/.test(s)) return s;
+  const c = jaCache.get(s);
+  if (c !== undefined) return c;
+  const out = s.replace(STAT, (m) => STAT_NAME[m] ?? m);
+  if (jaCache.size > 4000) jaCache.clear();
+  jaCache.set(s, out);
+  return out;
+}
+
 export function tr(s: string): string {
-  if (lang === 'ja' || !JA.test(s)) return s;
+  if (lang === 'ja') return jaStats(s);
+  if (!JA.test(s)) return s;
   const c = cache.get(s);
   if (c !== undefined) return c;
   const out = translate(s, 0);

@@ -253,7 +253,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           }
           break;
         case 'enc.you':
-          if (ev.n > 0) pop('you', ev.n, 'blue', t);
+          if (ev.n > 0) pop('you', ev.n, 'amber', t);
           break;
         case 'enc.start':
           if (ev.who === 'you') {
@@ -1567,7 +1567,10 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (!aim) return '';
     if (aim.kind === 'inscribe') return `《${epithetDef(aim.ep)?.name}》を刻むカードを選ぶ`;
     if (aim.kind === 'buy') return `『${cardDef(aim.id).name}』を入れる枠を選ぶ`;
-    if (aim.kind === 'pick') return `『${cardDef(aim.id).name}』と入れ替える枠を選ぶ`;
+    if (aim.kind === 'pick')
+      return game?.world.you.cards.some((c) => !c)
+        ? `『${cardDef(aim.id).name}』を入れる枠を選ぶ`
+        : `『${cardDef(aim.id).name}』と入れ替える枠を選ぶ`;
     if (aim.kind === 'alter') return `白いカードを押すと『${cardDef(aim.to).name}』に変わる`;
     return aim.action === 'full' ? 'ひと晩かけて満たすカードを選ぶ' : '捨てるカードを選ぶ';
   }
@@ -1591,7 +1594,8 @@ export function openDig(doc: Document, onClose: () => void): void {
       case 'alter':
         return slot === a.slot;
       default:
-        return true;
+        // 拾う・買う：空き枠があるあいだは、空き枠だけ（うっかり入れ替えない）。
+        return w.you.cards.some((x) => !x) ? !c : true;
     }
   }
 

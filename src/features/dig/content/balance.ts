@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.4.0';
+export const DATA_VERSION = '1.4.1';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -42,6 +42,10 @@ export const PACE = {
   slip: 0.45,
   keystone: 0.7,
   noon: 4,
+  /** 決着のあと、体と心がこの割合を下回っていたら、ここまで息を整える（一度の遭遇で次が詰まないように）。 */
+  breath: 0.35,
+  /** もう一人の灯り持ちと鉢合わせるのは、このフロアから（入口で潰されないように）。 */
+  rivalFrom: 2,
 } as const;
 
 export interface Release {

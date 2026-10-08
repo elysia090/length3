@@ -115,7 +115,8 @@
   display: grid;
   gap: 0.25rem;
   max-width: 44rem;
-  padding: 0.625rem 1rem 1.25rem;
+  /* 左上の見渡す印をよけて始める。 */
+  padding: 0.625rem 1rem 1.25rem 2.75rem;
   font-size: 0.8125rem;
   line-height: 1.6;
   pointer-events: none;

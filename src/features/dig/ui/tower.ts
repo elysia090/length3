@@ -263,7 +263,7 @@ export class Tower {
     if (here) {
       const p = Tower.spot(here);
       add(p.u, p.v, here.floor);
-    } else add(0, 0, -0.5);
+    } else add(0, 0, -1);
     // 行ける部屋。足止めされている間（食堂・古物商・出来事）は、この先の部屋。
     const ahead = new Set(view.edges.filter(([from]) => from === view.you).map(([, to]) => to));
     for (const r of view.rooms) {
@@ -310,7 +310,8 @@ export class Tower {
       targetX = sx(spot);
       // その部屋を画面のまん中より少し下へ。
       targetY = sy(spot) - H * 0.14;
-    } else if (this.overview) {
+    } else if (this.overview || view.rooms.length === 0) {
+      // 見渡す。人物を決めている間（まだ部屋が無い）も、建物を引きで見せる。
       targetFloor = (here?.floor ?? 0) - 0.3;
       targetZoom = FAR_ZOOM;
     } else {
@@ -373,7 +374,8 @@ export class Tower {
     const r = this.raster;
     const d = f - this.cam.floor;
     // 0 = いちばん遠い、1 = いま見ているあたり。
-    const near = f < 0 ? 0.3 : clamp(1 - (d - 1.6) / 3.2, 0, 1);
+    // 区画の上（踊り場）は、入口に立っているあいだだけ、ふつうの床に見せる。
+    const near = f < 0 ? (view.you === null ? 1 : 0.3) : clamp(1 - (d - 1.6) / 3.2, 0, 1);
     const { U, V } = GEO;
     const [a, b, c, e] = [
       this.project(-U, -V, f),
@@ -851,8 +853,8 @@ export class Tower {
         e ? 0.4 : 0,
       );
     } else {
-      // 入口（区画の上）。
-      const p = this.project(0, 0, -0.5);
+      // 入口（区画の上の踊り場に立つ）。
+      const p = this.project(0, 0, -1);
       this.figure(p.x, p.y, zm * this.mapPeople(), AMBER);
     }
   }

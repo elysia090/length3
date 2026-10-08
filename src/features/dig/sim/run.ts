@@ -679,6 +679,7 @@ export function move(tx: Tx, id: number): boolean {
     !rv.down &&
     rv.stratum === w.stratum &&
     rv.row === node.row &&
+    node.row >= PACE.rivalFrom &&
     (w.flags[`met${w.stratum}`] ?? 0) === 0 &&
     node.kind !== 'boss'
   ) {
@@ -910,7 +911,17 @@ export function close(tx: Tx): boolean {
     finish(tx, 'dead', o === 'fallen' ? '倒れた' : '心が崩れた');
     return true;
   }
+  // 息を整える：体と心が底をついたまま次へ行かないように、少しだけ戻す。
+  const s = stats(w, 'you');
+  const hpFloor = Math.round(maxHp(s) * PACE.breath);
+  const mindFloor = Math.round(maxMind(s) * PACE.breath);
+  const dh = Math.max(0, hpFloor - w.you.hp);
+  const dm = Math.max(0, mindFloor - w.you.mind);
   if (notes.length) tx.emit({ type: 'note', text: `手に入れた：${notes.join('、')}`, level: 1 });
+  if (dh || dm) {
+    tx.emit({ type: 'vital', who: 'you', hp: dh, mind: dm });
+    tx.emit({ type: 'note', text: '壁にもたれて、息を整えた。', level: 1 });
+  }
   tx.emit({
     type: 'pending',
     p: {
