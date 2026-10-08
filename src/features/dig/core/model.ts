@@ -232,11 +232,32 @@ export type Pending =
       resume?: number;
       /** 拾える札（一枚だけ選べる。選ばなくてもいい）。 */
       cards: string[];
+      /** 拾い物：棚にまぎれていた見慣れない札（主役の札）。 */
+      lucky?: string;
     }
-  | { kind: 'story'; id: string; eps: string[] }
+  | {
+      kind: 'story';
+      id: string;
+      eps: string[];
+      /** 拾い物：妙な選択肢が一つ増えている（選べば、必ず何か得る）。 */
+      odd?: boolean;
+    }
   | { kind: 'told'; id: string; ok: boolean; text: string; chance?: number; roll?: number }
-  | { kind: 'rest'; used: boolean; altered: boolean }
-  | { kind: 'shop'; cards: string[]; items: string[]; sold: string[] }
+  | {
+      kind: 'rest';
+      used: boolean;
+      altered: boolean;
+      /** 拾い物：店主の賭け（負けのない賭け。済んだら false）。 */
+      bet?: boolean;
+    }
+  | {
+      kind: 'shop';
+      cards: string[];
+      items: string[];
+      sold: string[];
+      /** 拾い物：半値の掘り出し物（その札の id）。 */
+      bargain?: string;
+    }
   | { kind: 'ending' }
   /** 底の手前を抜けた。ここで灯りを置くか、さらに下りるか。 */
   | { kind: 'summit'; outcome: Outcome };

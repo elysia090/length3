@@ -482,6 +482,8 @@ export function openDig(doc: Document, onClose: () => void): void {
         case 'note': {
           // 重みで出し分ける：0 読み上げだけ、1 帯に一瞬、2 記録にも、3 名場面。
           const lv = ev.level ?? 1;
+          // 拾い物は、小さく鳴る（運がよかった、という合図）。
+          if (ev.text.startsWith('拾い物')) sound.clue();
           // 決着の見返りは、帯ではなく受け取りの画面に一つずつ並べる。
           if (ev.text.startsWith('手に入れた：')) {
             spoils = { list: ev.text.slice('手に入れた：'.length).split('、'), at: t };
@@ -1464,6 +1466,14 @@ export function openDig(doc: Document, onClose: () => void): void {
     );
   }
 
+  /** 拾い物の印（運がよかったぶん。失うものはない、という合図）。 */
+  const luckyTag = () =>
+    h(
+      'i',
+      { class: 'dig-lucky', title: '拾い物：運がよかったぶん。選んでも、何も失わない' },
+      '拾い物',
+    );
+
   /** 札の目当ての印（読まずに分かる）。癒すは緑。 */
   /**
    * 札の目当ての印（読まずに分かる）。癒すは緑。遭遇の最中は、覚えておかなくて
@@ -1770,6 +1780,19 @@ export function openDig(doc: Document, onClose: () => void): void {
           { disabled: !canChoose(w, i) },
         ),
       ),
+      // 拾い物：妙な選択肢が一つ増えている（選べば必ず何か得る。失うものはない）。
+      p.odd
+        ? h(
+            'button',
+            {
+              type: 'button',
+              class: 'dig-odd is-lucky',
+              onclick: () => send({ c: 'choose', option: def.options.length }),
+            },
+            luckyTag(),
+            '黙って、灯りを落として待つ',
+          )
+        : null,
     );
   }
 
@@ -1850,8 +1873,15 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (p.cards.length)
       kids.push(
         h('p', { class: 'dig-label', title: '拾うと、そのまま決着を受け取る' }, '拾う札（一枚）'),
-        p.cards.map((id) =>
-          cardOffer(id, () => pickCard(w, id), 'pick', aim?.kind === 'pick' && aim.id === id),
+        [...p.cards, ...(p.lucky ? [p.lucky] : [])].map((id) =>
+          cardOffer(
+            id,
+            () => pickCard(w, id),
+            'pick',
+            aim?.kind === 'pick' && aim.id === id,
+            undefined,
+            id === p.lucky,
+          ),
         ),
       );
     kids.push(
@@ -1890,6 +1920,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     source: 'pick' | 'buy' | null = null,
     picked = false,
     price?: string,
+    /** 拾い物（運がよかったぶんの、余分な一枚）。 */
+    lucky = false,
   ): HTMLElement {
     const d = cardDef(id);
     const w = game?.world;
@@ -1904,7 +1936,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       'button',
       {
         type: 'button',
-        class: `dig-offer${picked ? ' is-chosen' : ''}`,
+        class: `dig-offer${picked ? ' is-chosen' : ''}${lucky ? ' is-lucky' : ''}`,
         'aria-pressed': picked ? 'true' : undefined,
         disabled: !source && !picked,
         onclick: on,
@@ -1916,6 +1948,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       h(
         'span',
         { class: 'dig-offer__head' },
+        lucky ? luckyTag() : null,
         h('b', {}, d.name),
         price ? h('span', { class: 'dig-price' }, price) : null,
       ),
@@ -1967,6 +2000,16 @@ export function openDig(doc: Document, onClose: () => void): void {
         ),
       );
     else kids.push(h('p', { class: 'dig-quiet' }, 'もう休んだ。'));
+    // 気まぐれ：店主が賭けを持ちかけてくる（休んだあとでも、一度だけ）。
+    if (p.bet)
+      kids.push(
+        act(
+          '店主と賭ける',
+          '負けのない賭け。表なら金 +10、裏ならコーヒーを一杯（精神 +5）',
+          () => send({ c: 'rest', action: 'bet' }),
+          { class: 'is-lucky' },
+        ),
+      );
     if (!p.altered)
       w.you.cards.forEach((c, slot) => {
         if (!c) return;
@@ -1993,15 +2036,19 @@ export function openDig(doc: Document, onClose: () => void): void {
     const kids: (Child | readonly Child[])[] = [];
     for (const id of p.cards) {
       const sold = p.sold.includes(id);
+      // 拾い物：半値の掘り出し物（元の値段を添えて）。
+      const full = cardPrice(w, id);
+      const cost = p.bargain === id ? Math.ceil(full / 2) : full;
       kids.push(
         cardOffer(
           id,
           () => {
-            if (!sold && w.you.coins >= cardPrice(w, id)) choose({ kind: 'buy', id });
+            if (!sold && w.you.coins >= cost) choose({ kind: 'buy', id });
           },
-          sold || w.you.coins < cardPrice(w, id) ? null : 'buy',
+          sold || w.you.coins < cost ? null : 'buy',
           aim?.kind === 'buy' && aim.id === id,
-          sold ? '売約' : `金 ${cardPrice(w, id)}`,
+          sold ? '売約' : p.bargain === id ? `金 ${cost}（${full}）` : `金 ${cost}`,
+          p.bargain === id && !sold,
         ),
       );
     }
@@ -2487,7 +2534,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'p',
           { class: 'dig-quiet' },
-          '底の見えない建物を、フロアごとに下りる。三つ目の区画の底を抜ければ、ひとまず抜けた。その先は、構成が持つところまで。初めのカードは 3 枚、枠は 2 つ空いている。',
+          '底の見えない建物を下りていく。三つ目の区画の底を抜ければ、ひとまず終わり。その先は、構成が持つ限り下りられる。初めのカードは 3 枚、空き枠が 2 つ。',
         ),
         saved
           ? button(

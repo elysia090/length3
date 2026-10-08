@@ -26,14 +26,14 @@ export const STORY_LIST: readonly StoryDef[] = [
     id: 'diner-window',
     title: '閉店後の食堂',
     strata: [1],
-    text: '角の食堂の窓だけが、まだ明るい。カウンターに三人。誰も話していない。窓ガラスに、あなたの顔がうっすら重なっている。',
+    text: '角の食堂だけ明かりがついている。カウンターに客が三人、黙ってコーヒーを飲んでいる。',
     options: [
       {
         label: '窓を叩く',
         stat: 'WIL',
         diff: 10,
         ok: '給仕が顔を上げ、黙ってコーヒーを注いでくれた。',
-        fail: '誰も振り向かない。あなたはここにいないのかもしれない。',
+        fail: '誰も振り向かない。',
         effect: (tx) => {
           item(tx, 'coffee');
           adjust(tx, 0, 4);
@@ -372,7 +372,7 @@ export const STORY_LIST: readonly StoryDef[] = [
         label: '全部、黙らせる',
         stat: 'WIL',
         diff: 15,
-        ok: '静かになった。こんなに静かなのは、いつ以来だろう。',
+        ok: '静かになった。久しぶりの静けさだ。',
         fail: '声は黙ったが、眠れなくなった。',
         effect: (tx) => {
           xp(tx, 'WIL', 3, 'you');

@@ -124,7 +124,7 @@ export const JOB_LIST: readonly JobDef[] = [
   {
     id: 'welder',
     name: '溶接工',
-    text: '鉄と火。［技術］［身体］のカードがよく効き、毎手番 守り +1・心の構え +1。',
+    text: '鉄と火。［技術］［身体］のカードがよく効き、毎手番 守り +1・構え +1。',
     innate: { VIT: 4, ATK: 4, DEF: 3, WIL: 2, INT: 1, AGI: 1 },
     cards: ['rim', 'vernacular', 'hunters', 'leviathan', 'labyrinth'],
     perms: ['promise', 'scarred'],
@@ -136,7 +136,7 @@ export const JOB_LIST: readonly JobDef[] = [
         text: '［技術］［身体］のカード ×1.2',
       },
       { rule: 'turnGuard', fn: (_c, v) => v + 1, text: '毎手番 守り +1' },
-      { rule: 'turnCalm', fn: (_c, v) => v + 1, text: '毎手番 心の構え +1（火花を見つめる）' },
+      { rule: 'turnCalm', fn: (_c, v) => v + 1, text: '毎手番 構え +1（火花を見つめる）' },
     ],
   },
 ];

@@ -1665,3 +1665,29 @@
   display: grid;
   gap: 8px;
 }
+
+/*
+ * 拾い物（運がよかったぶんの、余分な一つ）。点線の琥珀の縁と、小さな名札。
+ * ほかの選択肢と同じ形のまま、足し算であることだけが見分けられる。
+ */
+.dig .is-lucky {
+  border: 1px dashed var(--amber-text);
+}
+
+.dig-lucky {
+  margin-right: 8px;
+  padding: 0 4px;
+  border: 1px dashed var(--amber-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--amber-text);
+}
+
+.dig .dig-odd {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}

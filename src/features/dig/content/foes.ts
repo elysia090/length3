@@ -1290,7 +1290,7 @@ export const FOE_LIST: readonly FoeDef[] = [
         prior: (w) => 2 + foe(w).clues.filter((c) => c.shown).length * 2,
         repeat: 1,
       },
-      lie(strike('approve', '許可の印で殴る', 9), 'wait', '許可する'),
+      lie(strike('approve', '印で打ち据える', 9), 'wait', '許可する'),
     ],
     persona: { aggression: 0.6, deceit: 0.5, pride: 0.9, fear: 0.1, warmth: 0.1, cunning: 0.9 },
     rewards: {
@@ -1777,7 +1777,7 @@ export const FOE_LIST: readonly FoeDef[] = [
     clues: ['core-sample', 'factory-smell', 'rival-notes'],
     take: ['factory-smell', 'rival-notes'],
     moves: [
-      strike('hammer', 'ハンマー', 9, { prior: (w) => 1 + angry(w) }),
+      strike('hammer', 'ハンマーを振るう', 9, { prior: (w) => 1 + angry(w) }),
       threat('lecture', '講釈を垂れる', 6, { prior: () => 2 }),
       probe('sample', 'あなたを採取する', { prior: (w) => ((w.enc?.lies ?? 0) > 0 ? 4 : 1.5) }),
       guard('dig-in', '地層に潜る', 9),

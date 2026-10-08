@@ -2,6 +2,7 @@ import { WORK_ARCH } from '../content/archetypes';
 import { DATA_VERSION, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { CardDef } from '../content/defs';
+import { EXTRA_AUTO, FLOOR_EGGS } from '../content/eggs';
 import { ARRIVE, AUTO } from '../content/flavor';
 import {
   BEATS,
@@ -65,7 +66,7 @@ import { Tx as TxClass } from '../core/tx';
 import { autoPlay } from './ai';
 import { cardsAfter, resonate, rewards, shiftAll, startEnc, transform } from './encounter';
 import { misses } from './near';
-import { charOf, coins, gainPerm, losePerm, maxHp, maxMind, refill, stats, xp } from './ops';
+import { charOf, coins, gainPerm, heal, losePerm, maxHp, maxMind, refill, stats, xp } from './ops';
 
 /**
  * 挑戦。三つの層を一夜ずつ下りる（22 時に始まり、6 時に夜が明ける）。
@@ -571,6 +572,61 @@ export function offerCards(tx: Tx, who: Who): string[] {
   return out;
 }
 
+/**
+ * 拾い物。ときどき（六分ほど）、選択肢が一つ増える。どれも足し算だけで、
+ * 何かを失うことはない（運に賭けさせるのではなく、運がよかったと思える一押し）。
+ * 画面では「拾い物」の印で、ほかの選択肢と見分けがつく。
+ */
+function luckyCard(tx: Tx, have: readonly string[]): string | undefined {
+  if (tx.rand('loot') >= PACE.whim) return undefined;
+  const odd = allCards().filter(
+    (d) => LEGENDS.some((l) => l.id === d.id) && !have.includes(d.id) && !d.retired,
+  );
+  const pick = tx.pick('loot', odd);
+  if (pick)
+    tx.emit({ type: 'note', text: '拾い物 ── 見慣れない札が一枚、まぎれている。', level: 1 });
+  return pick?.id;
+}
+
+/** 拾い物（出来事）：妙な選択肢が一つ増えている。 */
+function whimStory(tx: Tx): { odd?: boolean } {
+  return tx.rand('story') < PACE.whim ? { odd: true } : {};
+}
+
+/** 妙な選択肢：黙って、灯りを落として待つ。何が起きるかは、待ってみないとわからない。 */
+function oddChoice(tx: Tx, title: string, id: string): boolean {
+  // 必ず何かを得る（精神と金は確実、三割で札の回数も）。
+  heal(tx, 0, 4, 'you');
+  coins(tx, 4, 'you');
+  const more = tx.rand('story') < 0.3;
+  if (more) refill(tx, 1, undefined, 'you');
+  const text = more
+    ? '灯りを落として待った。足元に硬貨が転がってきた。ついでに手札を見直した。'
+    : '灯りを落として待った。足元に硬貨が転がってきた。頭も冷えた。';
+  tx.emit({ type: 'story.seen', id });
+  tx.emit({ type: 'note', text: `${title}：${text}`, level: 0 });
+  tx.emit({ type: 'pending', p: { kind: 'told', id, ok: true, text } });
+  sync(tx);
+  return true;
+}
+
+/** 食堂の気まぐれ：店主が、伏せた札の表か裏かで賭けを持ちかける（一度だけ）。 */
+function bet(tx: Tx): boolean {
+  const p = tx.w.pending;
+  if (p?.kind !== 'rest' || !p.bet) return false;
+  // 負けのない賭け：表なら金、裏ならコーヒーを一杯（店主のおごり）。
+  const win = tx.rand('loot') < 0.5;
+  tx.emit({ type: 'pending', p: { ...p, bet: false } });
+  if (win) {
+    coins(tx, 10, 'you');
+    tx.emit({ type: 'note', text: '表。店主は舌打ちして、硬貨を十枚よこした。', level: 2 });
+  } else {
+    heal(tx, 0, 5, 'you');
+    tx.emit({ type: 'note', text: '裏。店主は笑って、コーヒーを一杯おごってくれた。', level: 2 });
+  }
+  return true;
+}
+
 function rivalFight(
   tx: Tx,
   npc: string,
@@ -660,6 +716,9 @@ export function move(tx: Tx, id: number): boolean {
       text: `B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}・${use.name}。${tx.pick('flavor', [use.line, ...(ARRIVE[use.id] ?? [])]) ?? use.line}`,
       level: 1,
     });
+  // 決まった階の小ネタ（初めて着いたときだけ）。
+  const egg = FLOOR_EGGS[(w.stratum - 1) * (ROWS + 1) + node.row + 1];
+  if (egg && !hall && !node.visited) tx.emit({ type: 'note', text: egg.text, level: egg.level });
   tx.emit({ type: 'node', id: node.id, visited: true });
   // 着くのにかかる時間（場所のエピテットと、規則）。
   let hours = bridge ? 2 : 1;
@@ -722,7 +781,7 @@ export function move(tx: Tx, id: number): boolean {
 function happen(tx: Tx, node: MapNode): void {
   const w = tx.w;
   if (tx.rand('flavor') >= PACE.auto) return;
-  const pool = AUTO.filter(
+  const pool = [...AUTO, ...EXTRA_AUTO].filter(
     (a) =>
       (!a.section || a.section === sectionNo(w.stratum)) &&
       (!a.use || (node.use !== undefined && a.use.includes(node.use))) &&
@@ -790,12 +849,20 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
       if (id)
         tx.emit({
           type: 'pending',
-          p: { kind: 'story', id, eps: node.eps.filter((e) => !!epithetDef(e)?.story) },
+          p: {
+            kind: 'story',
+            id,
+            eps: node.eps.filter((e) => !!epithetDef(e)?.story),
+            ...whimStory(tx),
+          },
         });
       return;
     }
     case 'rest':
-      tx.emit({ type: 'pending', p: { kind: 'rest', used: false, altered: false } });
+      tx.emit({
+        type: 'pending',
+        p: { kind: 'rest', used: false, altered: false, bet: tx.rand('loot') < PACE.whim * 1.2 },
+      });
       return;
     case 'shop': {
       const have = new Set(w.you.cards.map((c) => c?.id));
@@ -849,7 +916,14 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
         const d = stars[Math.floor(tx.rand('loot') * stars.length)];
         if (d) cards.splice(cards.length - 1, 1, d.id);
       }
-      tx.emit({ type: 'pending', p: { kind: 'shop', cards, items: [...items, ...eps], sold: [] } });
+      // 拾い物：棚の一枚が、半値になっている。
+      const bargain = tx.rand('loot') < PACE.whim ? tx.pick('loot', cards) : undefined;
+      if (bargain)
+        tx.emit({ type: 'note', text: '拾い物 ── 棚の一枚に、半値の札が下がっている。', level: 1 });
+      tx.emit({
+        type: 'pending',
+        p: { kind: 'shop', cards, items: [...items, ...eps], sold: [], bargain },
+      });
       return;
     }
     default:
@@ -1002,6 +1076,13 @@ export function close(tx: Tx): boolean {
       boss,
       resume: p.resume,
       cards: o === 'left' || o === 'fled' ? [] : offerCards(tx, 'you'),
+      lucky:
+        o === 'left' || o === 'fled'
+          ? undefined
+          : luckyCard(
+              tx,
+              w.you.cards.flatMap((c) => (c ? [c.id] : [])),
+            ),
     },
   });
   sync(tx);
@@ -1012,7 +1093,7 @@ export function claim(tx: Tx, take?: string, help?: number, card?: string, slot?
   const w = tx.w;
   const p = w.pending;
   if (p?.kind !== 'reward') return false;
-  if (card && p.cards.includes(card)) {
+  if (card && (p.cards.includes(card) || p.lucky === card)) {
     const at = slot ?? w.you.cards.findIndex((c) => !c);
     if (at < 0 || at > 4) return false;
     tx.emit({
@@ -1131,7 +1212,7 @@ function descend(tx: Tx): void {
     text:
       next <= LAST
         ? `B${(next - 1) * (ROWS + 1) + 1}。${sec.open}`
-        : `B${(next - 1) * (ROWS + 1) + 1}。${sectionName(next)}。上で見たはずの${sec.name}が、もう一度ある。人も、店も。灯りの色だけが違う。`,
+        : `B${(next - 1) * (ROWS + 1) + 1}。${sectionName(next)}。上の${sec.name}と同じ造りだが、空気が古い。`,
     level: 2,
   });
   // 新しい掟は、着いたときに一度だけ（名場面の帯に）。
@@ -1140,9 +1221,9 @@ function descend(tx: Tx): void {
   else if (next > LAST)
     tx.emit({
       type: 'note',
-      text: `掟は重なったまま ── ${lawsAt(next)
+      text: `掟はそのまま ── ${lawsAt(next)
         .map((l) => `《${l.name}》`)
-        .join('')}。相手は、もう一段手強い。`,
+        .join('')}。相手はさらに手強い。`,
       level: 3,
     });
 }
@@ -1159,7 +1240,9 @@ export function storyChance(w: World, stat: Stat, diff: number): number {
 export function canChoose(w: World, i: number): boolean {
   const p = w.pending;
   if (p?.kind !== 'story') return false;
-  const o = storyDef(p.id)?.options[i];
+  const def = storyDef(p.id);
+  if (p.odd && def && i === def.options.length) return true;
+  const o = def?.options[i];
   if (!o) return false;
   if (o.needPerm && !w.you.perms.includes(o.needPerm)) return false;
   if (o.needItem && !w.you.items.includes(o.needItem)) return false;
@@ -1173,6 +1256,7 @@ export function choose(tx: Tx, i: number): boolean {
   const p = w.pending;
   if (p?.kind !== 'story' || !canChoose(w, i)) return false;
   const def = storyDef(p.id);
+  if (def && p.odd && i === def.options.length) return oddChoice(tx, def.title, p.id);
   const o = def?.options[i];
   if (!def || !o) return false;
   let ok = true;
@@ -1210,7 +1294,7 @@ export function restChance(w: World, a: 'tune-int' | 'tune-wil'): number {
 export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
   const w = tx.w;
   const p = w.pending;
-  if (p?.kind !== 'rest' || p.used) return false;
+  if (p?.kind !== 'rest' || (p.used && a !== 'bet')) return false;
   const y = w.you;
   const s = stats(w, 'you');
   const heal = (frac: number) => {
@@ -1227,6 +1311,7 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
     if (inverted) for (const st of STATS) xp(tx, st, 1, 'you');
   };
   const timeFor = (h: number) => Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, h)));
+  if (a === 'bet') return bet(tx);
   switch (a) {
     case 'rest': {
       // 同じ層で休むほど、効きは薄れる（安全な道ばかりでは、夜を越えられない）。
@@ -1381,7 +1466,7 @@ export function buy(tx: Tx, id: string, slot?: number): boolean {
   const p = w.pending;
   if (p?.kind !== 'shop' || p.sold.includes(id)) return false;
   if (p.cards.includes(id)) {
-    const price = cardPrice(w, id);
+    const price = p.bargain === id ? Math.ceil(cardPrice(w, id) / 2) : cardPrice(w, id);
     if (w.you.coins < price || slot === undefined || slot < 0 || slot > 4) return false;
     coins(tx, -price, 'you');
     tx.emit({ type: 'card.set', who: 'you', slot, card: newCard(w.you.uid, id), why: 'bought' });
@@ -1491,9 +1576,9 @@ function finish(tx: Tx, kind: 'dead' | 'dawn', title: string): void {
       title,
       text:
         kind === 'dawn'
-          ? '朝になった。建物じゅうの灯りが一斉に落ち、階段の扉が閉まる。あなたの灯りだけが、まだ点いている。'
+          ? '朝になった。階段の扉が閉まった。'
           : w.flags.cleared
-            ? `一度は底の手前を抜けた。そのあと${sectionName(w.stratum)}の途中、B${floorOf(w)}で、灯りが消えた。`
+            ? `底の手前を抜けたあと、B${floorOf(w)}（${sectionName(w.stratum)}）で灯りが消えた。`
             : `${sectionName(w.stratum)}の途中で、あなたの灯りが消えた。`,
       score: score(w, !!w.flags.cleared),
       won: !!w.flags.cleared,

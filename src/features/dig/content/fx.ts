@@ -119,7 +119,7 @@ export interface FxCtx {
   bonus?: number;
   /** 逆さの: 信頼と意志を入れ替え、敵意の向きを反転する。 */
   invert?: boolean;
-  /** 誉無き: 守りを貫く。人工的な: 能力値を無視する。寒い: 信頼が伸びない。 */
+  /** 誉無き: 守りを貫く。作り物の: 能力値を無視する。寒い: 信頼が伸びない。 */
   pierce?: boolean;
   fixed?: boolean;
   cold?: boolean;

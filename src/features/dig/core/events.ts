@@ -142,7 +142,7 @@ export type EvType = Ev['type'];
 export type EvOf<T extends EvType> = Extract<Ev, { type: T }>;
 
 export type Basic = 'press' | 'brace' | 'talk' | 'leave' | 'accept';
-export type RestAction = 'rest' | 'full' | 'tune-int' | 'tune-wil' | 'discard';
+export type RestAction = 'rest' | 'full' | 'tune-int' | 'tune-wil' | 'discard' | 'bet';
 
 export type Cmd =
   | {
