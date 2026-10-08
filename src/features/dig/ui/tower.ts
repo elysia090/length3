@@ -125,7 +125,7 @@ export class Tower {
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d');
-    this.fit();
+    this.match();
     const style = getComputedStyle(canvas);
     this.palette = new Uint32Array([
       0,
@@ -140,7 +140,7 @@ export class Tower {
   private W = 320;
 
   /** 枠の大きさが変わっていたら、横の画素数を合わせる（帯や余白のない一枚に）。 */
-  private fit(): void {
+  private match(): void {
     const rect = this.canvas.getBoundingClientRect();
     const aspect = rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 4 / 3;
     const w = Math.round(clamp(H * aspect, H * 0.75, H * 2.6));
@@ -189,7 +189,7 @@ export class Tower {
   // ─── 描く ───────────────────────────────────────────────────
 
   draw(view: TowerView, t: number, dt: number): void {
-    this.fit();
+    this.match();
     const r = this.raster;
     r.clear();
     // カメラ：いる部屋のフロアを上寄りに。遭遇中はその部屋へ寄る。
