@@ -274,6 +274,13 @@ export class Tower {
       if (scene.stage) spotlight(this.raster, this.cam.zoom, c.x, c.y, t, presence);
     }
     this.people(view, t);
+    // エピテットの刻む先を選んでいるあいだ、刻める部屋に琥珀の輪が明滅する。
+    if (Math.floor(t * 3) % 2 === 0)
+      for (const room of view.rooms)
+        if (room.ink) {
+          const c = this.center(room);
+          ring(this.raster, c.x, c.y - 2, 10 * this.cam.zoom, AMBER);
+        }
     if (scene && c && at && presence > 0.6)
       hud(this.raster, this.cam.zoom, c.x, c.y, at.kind === 'boss', scene, t);
     this.vignette(view.enc ? 0 : 1);

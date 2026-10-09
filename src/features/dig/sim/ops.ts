@@ -125,7 +125,7 @@ export function trust(tx: Tx, n: number): void {
   if (!e || n === 0) return;
   const d =
     n > 0
-      ? Math.max(0, Math.round(tx.rule('trust', { who: e.who }, n)))
+      ? Math.max(0, Math.round(tx.rule('trust', { who: e.who }, n))) + (e.foe.st.opened ? 1 : 0)
       : Math.max(-e.foe.trust, n);
   if (d) tx.emit({ type: 'foe', field: 'trust', n: d, by: e.who });
   settle(tx);
@@ -332,6 +332,12 @@ export function refill(tx: Tx, n: number, tag?: Tag, who: Who = actor(tx), reste
     tx.emit({ type: 'card.uses', who, slot, n });
     if (rested) tx.emit({ type: 'card.mark', who, slot, mark: 'rested', n: 1 });
   });
+  // 後ろで眠っている札にも届く。
+  charOf(tx.w, who).back.forEach((card, index) => {
+    if (card.uses >= card.max) return;
+    if (tag && !cardDef(card.id).tags.includes(tag)) return;
+    tx.emit({ type: 'deck.uses', who, index, n });
+  });
 }
 
 // ─── 決着 ─────────────────────────────────────────────────────
@@ -386,7 +392,8 @@ export function strikeValue(w: World, power: number): number {
   if (!e) return power;
   const f = e.foe;
   const backup = (f.st.backup ?? 0) * 2;
-  const punish = f.st.punish ? 2 : 0;
+  // 本気になった相手の一撃は重い。
+  const punish = (f.st.punish ? 2 : 0) + (f.st.rage ? 3 : 0);
   const cutBy = f.st.cut ?? 0;
   return Math.max(0, power + backup + punish - cutBy - Math.floor(statOf(w, e.who, 'DEF') / 2));
 }

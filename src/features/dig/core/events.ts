@@ -75,6 +75,8 @@ export type Ev =
   | { type: 'after'; after: import('./model').After }
   | { type: 'after.tick' }
   | { type: 'after.end'; kind: import('./model').AfterKind }
+  /** 疲れが溜まる・抜ける。 */
+  | { type: 'tired'; who: Who; n: number }
   /** 地力が新しい高さに届いた（持てる札 +1）。 */
   | { type: 'level'; who: Who; n: number }
   | { type: 'debt'; who: Who; npc: string; n: number }
@@ -173,7 +175,7 @@ export type EvType = Ev['type'];
 export type EvOf<T extends EvType> = Extract<Ev, { type: T }>;
 
 export type Basic = 'press' | 'brace' | 'talk' | 'leave' | 'accept';
-export type RestAction = 'rest' | 'full' | 'tune-int' | 'tune-wil' | 'discard' | 'bet';
+export type RestAction = 'rest' | 'full' | 'eat' | 'tune-int' | 'tune-wil' | 'discard' | 'bet';
 
 export type Cmd =
   | {

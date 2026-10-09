@@ -3,7 +3,7 @@ import { PACE } from '../content/balance';
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
 import { EP_TIER_NAME, epTier } from '../content/epithets';
 import { IDLE, POSTURE, VITALS } from '../content/flavor';
-import { sectionNo, sectionOf, useOf } from '../content/floors';
+import { DIFFICULTY, sectionNo, sectionOf, useOf } from '../content/floors';
 import type { Fx } from '../content/fx';
 import { fxText } from '../content/fx';
 import { gearOf } from '../content/gear';
@@ -984,6 +984,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         eps: n.eps.length,
         stage: !!n.stage?.length,
         rivalWas: !!n.rival,
+        ink: aim?.kind === 'inscribe' && nodeInkable(w, aim.ep, n),
       };
     });
     const next = new Set(reachable(w).map((n) => n.id));
@@ -1275,6 +1276,18 @@ export function openDig(doc: Document, onClose: () => void): void {
             loss: w.enc?.phase === 'act' ? incoming(w).mind : 0,
           }),
           VITALS.mind[band(w.you.mind / maxMind(s))],
+        ),
+        // 疲れ（十の目盛り）。三つで札が鈍り、四つで受ける一撃が重くなる。
+        h(
+          'span',
+          {
+            class: `dig-tired${(w.you.tired ?? 0) >= 3 ? ' is-heavy' : ''}`,
+            title: `疲れ ${w.you.tired ?? 0}／10　三つ溜まるごとに札の点 −1、四つごとに受ける一撃 +1。休み方で抜ける。`,
+          },
+          '疲れ ',
+          Array.from({ length: 10 }, (_, i) =>
+            h('i', { class: i < (w.you.tired ?? 0) ? 'is-on' : '' }),
+          ),
         ),
         h(
           'span',
@@ -1610,10 +1623,15 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-row' },
-          act('一服', '全ての札の回数 +1・1 時間（この階で一度）', () => send({ c: 'breather' }), {
-            disabled: breathed(w),
-            title: '少しだけ体と心が戻る。1 時間たつ。',
-          }),
+          act(
+            '一服',
+            '全ての札の回数 +1・疲れ −1・1 時間（この階で一度）',
+            () => send({ c: 'breather' }),
+            {
+              disabled: breathed(w),
+              title: '少しだけ体と心が戻る。1 時間たつ。',
+            },
+          ),
         ),
         gearRow(w, false),
         afterRow(w),
@@ -1684,7 +1702,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h(
       'div',
       { class: 'dig-gear' },
-      h('span', { class: 'dig-gear__label' }, used ? 'その場で（この手番は使った）' : 'その場で'),
+      h('span', { class: 'dig-gear__label' }, used ? '持ち物（この手番は使った）' : '持ち物'),
       w.you.items.map((it, i) => {
         const g = gearOf(it.id);
         if (!g) return null;
@@ -1811,12 +1829,35 @@ export function openDig(doc: Document, onClose: () => void): void {
     const here = nodeOf(w, w.pos)?.row ?? -1;
     return (
       !w.enc &&
-      !w.pending &&
       !n.visited &&
       n.row > here &&
       !!(n.npc ? d?.foe : d?.place) &&
-      n.eps.length < 2 &&
-      !n.eps.includes(ep)
+      n.eps.length < PACE.stack
+    );
+  }
+
+  /** いま向き合っている相手に、そのエピテットを刻めるか。 */
+  function foeInkable(w: World, ep: string): boolean {
+    const e = w.enc;
+    return (
+      !!e &&
+      e.phase === 'act' &&
+      e.who === 'you' &&
+      !!epithetDef(ep)?.foe &&
+      (e.st.inked ?? 0) < PACE.inkEnc &&
+      e.foe.eps.length < PACE.stackFoe
+    );
+  }
+
+  /** そのエピテットを、いまどこかに刻めるか（札・記憶・先の部屋・出来事・相手）。 */
+  function canInk(w: World, ep: string): boolean {
+    const d = epithetDef(ep);
+    return (
+      w.you.cards.some((_, i) => aimOk(w, { kind: 'inscribe', ep }, i)) ||
+      (!!d?.memory && w.you.perms.some((p) => (w.you.permEps[p] ?? []).length < PACE.stack)) ||
+      w.map.some((m) => nodeInkable(w, ep, m)) ||
+      (w.pending?.kind === 'story' && !!d?.story && w.pending.eps.length < 2) ||
+      foeInkable(w, ep)
     );
   }
 
@@ -2179,7 +2220,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                   `＋《${epithetDef(ep)?.name ?? ep}》 ${epithetDef(ep)?.story?.text ?? ''}`,
                   () => send({ c: 'inscribe', ep, story: true }),
                   {
-                    class: 'dig-pill dig-pill--ep',
+                    class: 'dig-pill dig-pill--ep is-ink-target',
                     title: '刻むと、この出来事の判定と実りが変わる',
                   },
                 ),
@@ -2472,16 +2513,23 @@ export function openDig(doc: Document, onClose: () => void): void {
     const kids: (Child | readonly Child[])[] = [];
     if (!p.used)
       kids.push(
+        // 休み方は一つだけ選べる。疲れをどこまで抜くか、何を手放すか。
         act(
           '休む',
-          `体力 +${Math.round(PACE.rest * 100)}%・精神 +${Math.round(PACE.rest * 100)}%・全ての札の回数 +1・1 時間`,
+          `体力 +${Math.round(PACE.rest * 100)}%・精神 +${Math.round(PACE.rest * 100)}%・疲れ −3・後ろの札が満ちる・1 時間`,
           () => send({ c: 'rest', action: 'rest' }),
         ),
         act(
+          `食べる（金 ${PACE.meal}）`,
+          '体力 +20%・疲れ −1・全ての札の回数 +1（後ろも）・1 時間',
+          () => send({ c: 'rest', action: 'eat' }),
+          { disabled: w.you.coins < PACE.meal },
+        ),
+        act(
           'ひと晩ここで',
-          '体力 +60%・精神 +60%・選んだ一枚の回数が満ちる・2 時間・次の出来事を逃す',
-          () => choose({ kind: 'rest', action: 'full' }),
-          chosen({ kind: 'rest', action: 'full' }),
+          `体力 +80%・精神 +80%・疲れが抜けきる・全ての札が満ちる・3 時間・次の出来事を逃す${w.after.length ? '・決着の余韻がすべて消える' : ''}`,
+          () => send({ c: 'rest', action: 'full' }),
+          { class: w.after.length ? 'is-costly' : undefined },
         ),
         act(
           `考えを整える（INT ${restChance(w, 'tune-int')}%）`,
@@ -2835,6 +2883,19 @@ export function openDig(doc: Document, onClose: () => void): void {
               { class: 'dig-amber' },
               aimText(),
               ' ',
+              // 向き合っているあいだは、相手も刻む先になる。
+              aim.kind === 'inscribe' && foeInkable(w, aim.ep)
+                ? button(
+                    `相手に刻む：${epithetDef(aim.ep)?.foe?.text ?? ''}`,
+                    () => {
+                      const ep = aim?.kind === 'inscribe' ? aim.ep : '';
+                      aim = null;
+                      send({ c: 'inscribe', ep, foe: true });
+                    },
+                    { class: 'dig-ink-foe is-live' },
+                  )
+                : null,
+              ' ',
               button('やめる', () => {
                 aim = null;
                 render();
@@ -2894,11 +2955,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                   const d = a?.kind === 'inscribe' ? epithetDef(a.ep) : undefined;
                   const list = w.you.permEps[p] ?? [];
                   const ok =
-                    !!a &&
-                    a.kind === 'inscribe' &&
-                    !!d?.memory &&
-                    list.length < 2 &&
-                    !list.includes(a.ep);
+                    !!a && a.kind === 'inscribe' && !!d?.memory && list.length < PACE.stack;
                   const eps = list.map((e) => `《${epithetDef(e)?.name ?? e}》`).join('');
                   return ok && a?.kind === 'inscribe'
                     ? h(
@@ -2933,41 +2990,30 @@ export function openDig(doc: Document, onClose: () => void): void {
   /** 手元のエピテットの列。地図の上では刻む先を選び、向き合っているあいだは相手に刻む。 */
   function epithetRow(w: World): HTMLElement | null {
     const e = w.enc;
-    const fight = !!e && e.phase === 'act' && e.who === 'you';
-    if (e && !fight) return null;
-    const kinds = [...new Set(w.you.epithets)].filter((ep) => !fight || !!epithetDef(ep)?.foe);
+    if (e && !(e.phase === 'act' && e.who === 'you')) return null;
+    const kinds = [...new Set(w.you.epithets)];
     if (!kinds.length) return null;
-    const inked = !!e?.st.inked;
-    const nodes = w.map;
     return h(
       'span',
       { class: 'dig-pills__group dig-pills__group--ep' },
-      h('span', { class: 'dig-pills__label' }, fight ? '相手に刻む' : 'エピテット'),
+      h('span', { class: 'dig-pills__label' }, 'エピテット'),
       kinds.map((ep) => {
         const n = w.you.epithets.filter((x) => x === ep).length;
         const d = epithetDef(ep);
-        const can = fight
-          ? !inked && !!e && !e.foe.eps.includes(ep) && e.foe.eps.length < 3
-          : w.you.cards.some((_, i) => aimOk(w, { kind: 'inscribe', ep }, i)) ||
-            (!!d?.memory && w.you.perms.length > 0) ||
-            nodes.some((m) => nodeInkable(w, ep, m)) ||
-            (w.pending?.kind === 'story' && !!d?.story);
+        const on = { kind: 'inscribe' as const, ep };
         return h(
           'button',
           {
             type: 'button',
-            onclick: () => {
-              if (fight) send({ c: 'inscribe', ep, foe: true });
-              else choose({ kind: 'inscribe', ep });
-            },
-            ...(fight ? {} : chosen({ kind: 'inscribe', ep })),
-            class: `dig-pill dig-pill--ep is-${d ? epTier(d) : 'plain'}${sameAim(aim, { kind: 'inscribe', ep }) ? ' is-chosen' : ''}${
-              !fight && !profile.hints.includes('epithet') ? ' is-fresh' : ''
+            // 押すと刻む先を選ぶ段になり、刻める先だけが浮いて、ほかは沈む。
+            onclick: () => choose(on),
+            ...chosen(on),
+            class: `dig-pill dig-pill--ep is-${d ? epTier(d) : 'plain'}${sameAim(aim, on) ? ' is-chosen' : ''}${
+              !profile.hints.includes('epithet') ? ' is-fresh' : ''
             }`,
-            // 触れると、貼れる札が白く浮く（押す前に、どこへ貼れるか分かる）。
             onmouseenter: () => {
-              if (fight || aim || sameAim(hoverAim, { kind: 'inscribe', ep })) return;
-              hoverAim = { kind: 'inscribe', ep };
+              if (aim || sameAim(hoverAim, on)) return;
+              hoverAim = on;
               renderTray();
             },
             onmouseleave: () => {
@@ -2975,18 +3021,15 @@ export function openDig(doc: Document, onClose: () => void): void {
               hoverAim = null;
               renderTray();
             },
-            disabled: !can,
-            title: fight
-              ? `${d?.foe?.text ?? ''}\n（いまの相手に刻む。遭遇に一度、手番は使わない）`
-              : facetLines(ep),
-            draggable: fight ? undefined : 'true',
+            disabled: !canInk(w, ep),
+            title: facetLines(ep),
+            draggable: 'true',
             ondragstart: (ev: Event) =>
               (ev as DragEvent).dataTransfer?.setData('text/plain', `ep:${ep}`),
           },
           h('i', { class: 'dig-pill__plus', 'aria-hidden': 'true' }, '＋'),
           `《${d?.name ?? ep}》`,
-          fight ? h('i', { class: 'dig-pill__n' }, d?.foe?.text ?? '') : null,
-          !fight && n > 1 ? h('i', { class: 'dig-pill__n' }, `×${n}`) : null,
+          n > 1 ? h('i', { class: 'dig-pill__n' }, `×${n}`) : null,
         );
       }),
     );
@@ -2995,7 +3038,9 @@ export function openDig(doc: Document, onClose: () => void): void {
   function aimText(): string {
     if (!aim) return '';
     if (aim.kind === 'inscribe')
-      return `《${epithetDef(aim.ep)?.name}》を刻む先を選ぶ（白い札・記憶・地図の先の部屋）`;
+      return game?.world.enc
+        ? `《${epithetDef(aim.ep)?.name}》を刻む先を選ぶ（白い札・記憶・相手）`
+        : `《${epithetDef(aim.ep)?.name}》を刻む先を選ぶ（白い札・記憶・地図の先の部屋）`;
     if (aim.kind === 'alter') return `白いカードを押すと『${cardDef(aim.to).name}』に変わる`;
     return aim.action === 'full' ? 'ひと晩かけて満たすカードを選ぶ' : '捨てるカードを選ぶ';
   }
@@ -3081,10 +3126,50 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   // ─── 人物を決める ───────────────────────────────────────────
 
+  /** 人物を決める画面の、初めの手札（押せない。遊ぶときと同じ顔）。 */
+  function previewCard(id: string, slot: number): HTMLElement {
+    const d = cardDef(id);
+    const c: Card = { uid: 0, id, uses: d.uses, max: d.uses, marks: {}, eps: [] };
+    return h(
+      'div',
+      { class: 'dig-card', title: [d.sig, d.flavor].filter(Boolean).join('\n') },
+      h(
+        'span',
+        { class: 'dig-card__head' },
+        h('b', { class: 'dig-card__name' }, d.name),
+        h('span', { class: 'dig-card__key' }, String(slot + 1)),
+      ),
+      pips(c),
+      badges(d.ready),
+      h('span', { class: 'dig-card__fx' }, heals(fxText(d.ready))),
+      d.spent.length
+        ? h('span', { class: 'dig-card__sleep' }, `眠りぎわ　${fxText(d.spent)}`)
+        : null,
+    );
+  }
+
   function renderCreate(): void {
     side.replaceChildren();
     tray.replaceChildren();
     const j = jobDef(create.job);
+    // 初めの手札は、遊ぶときと同じ場所（下の帯）に、遊ぶときと同じ顔で並べる。
+    if (j)
+      fill(tray, [
+        h(
+          'div',
+          { class: 'dig-hand is-preview' },
+          j.cards.map((id, i) => previewCard(id, i)),
+        ),
+        h(
+          'div',
+          { class: 'dig-held' },
+          h(
+            'p',
+            { class: 'dig-quiet' },
+            `初めの手札　持てる札 ${j.deck} 枚（後ろの札と道具は、入るときに配られる）`,
+          ),
+        ),
+      ]);
     const saved = loadRun();
     const pick = <T extends string>(
       label: string,
@@ -3093,35 +3178,41 @@ export function openDig(doc: Document, onClose: () => void): void {
       name: (id: T) => string,
       text: (id: T) => string,
       set: (id: T) => void,
+      /** 横に並べる数（短い選択肢は詰めて並べる）。 */
+      cols = 1,
     ) =>
       h(
         'fieldset',
-        { class: 'dig-pick' },
+        { class: `dig-pick${cols > 1 ? ` dig-pick--cols${cols}` : ''}` },
         h('legend', {}, label),
-        list.map((id) =>
-          h(
-            'button',
-            {
-              type: 'button',
-              class: id === cur ? 'is-on' : '',
-              'aria-pressed': id === cur ? 'true' : 'false',
-              onclick: () => {
-                set(id);
-                render();
+        h(
+          'div',
+          { class: 'dig-pick__list' },
+          list.map((id) =>
+            h(
+              'button',
+              {
+                type: 'button',
+                class: id === cur ? 'is-on' : '',
+                'aria-pressed': id === cur ? 'true' : 'false',
+                onclick: () => {
+                  set(id);
+                  render();
+                },
               },
-            },
-            h('b', {}, name(id)),
-            h('span', {}, text(id)),
+              h('b', {}, name(id)),
+              h('span', {}, text(id)),
+            ),
           ),
         ),
       );
     fill(side, [
       section(
-        '人物を決める',
+        '灯りを持つ者',
         h(
           'p',
           { class: 'dig-quiet' },
-          '底の見えない建物を下りる。十階で一つの区画、六つ目の区画の底（B60）を抜ければ、ひとまず抜けた。手札とエピテットと記憶で、その周回の生き方が変わる。向き合った相手とは、殴り合うか、話をつけるか、退くか。疲れたら休む。',
+          '灯りを提げて底の見えない建物を十階ずつ下り、六つ目の区画の底にあたる B60 を抜ければ、ひとまずこの夜は越えたことになる。出会う相手とは殴り合うことも話をつけることもでき、手札とエピテットと記憶の組み方しだいで、同じ建物でも周回ごとに違う夜になる。',
         ),
         saved
           ? button(
@@ -3138,61 +3229,7 @@ export function openDig(doc: Document, onClose: () => void): void {
               { class: 'dig-go' },
             )
           : null,
-        pick(
-          '職',
-          allJobs().map((x) => x.id),
-          create.job,
-          (id) => jobDef(id)?.name ?? id,
-          (id) => `〈${ARCH_NAME[JOB_ARCH[id] as Archetype] ?? ''}〉`,
-          (id) => {
-            create = { ...create, job: id, ...defaultSheet(id) };
-          },
-        ),
-        j ? h('p', {}, j.text) : null,
-        j
-          ? h(
-              'p',
-              { class: 'dig-quiet' },
-              Object.entries(j.innate)
-                .map(([k, v]) => `${k} ${v}`)
-                .join('　'),
-              '　初めのカード：',
-              j.cards
-                .slice(0, 3)
-                .map((id) => `『${cardDef(id).name}』`)
-                .join(''),
-            )
-          : null,
-        pick(
-          '経歴（最初の記憶）',
-          ORIGINS[create.job] ?? [],
-          create.origin,
-          (id) => permDef(id)?.name ?? id,
-          (id) => permDef(id)?.text ?? '',
-          (id) => {
-            create.origin = id;
-          },
-        ),
-        pick(
-          'エピテット（手元に一つ）',
-          JOB_EPITHETS[create.job] ?? [],
-          create.ep,
-          (id) => `《${epithetDef(id)?.name ?? id}》`,
-          (id) => epithetDef(id)?.card?.text ?? '',
-          (id) => {
-            create.ep = id;
-          },
-        ),
-        pick(
-          '所持品',
-          JOB_ITEMS[create.job] ?? [],
-          create.item,
-          (id) => itemDef(id)?.name ?? id,
-          (id) => itemDef(id)?.text ?? '',
-          (id) => {
-            create.item = id;
-          },
-        ),
+        // 名前と難度は最初に。難度の差は、構成ができあがる三区から効きはじめる。
         h(
           'label',
           { class: 'dig-field' },
@@ -3207,21 +3244,82 @@ export function openDig(doc: Document, onClose: () => void): void {
             },
           }),
         ),
-        h(
-          'label',
-          { class: 'dig-field' },
-          '難度 ',
-          h(
-            'select',
-            {
-              onchange: (ev: Event) => {
-                create.depth = Number((ev.target as HTMLSelectElement).value);
-              },
-            },
-            Array.from({ length: profile.depth + 1 }, (_, d) =>
-              h('option', { value: d, selected: d === create.depth }, String(d)),
-            ),
-          ),
+        pick(
+          '難度',
+          ['0', '1', '2'] as const,
+          String(create.depth),
+          (id) => DIFFICULTY[Number(id)] ?? id,
+          (id) =>
+            [
+              'ふつうに下りていけば、たいていは抜けられる',
+              '三区から相手が一段手強くなり、受ける傷も重い',
+              '三区から相手が二段手強くなり、休んでも戻りが浅い',
+            ][Number(id)] ?? '',
+          (id) => {
+            create.depth = Number(id);
+          },
+          3,
+        ),
+        pick(
+          '職',
+          allJobs().map((x) => x.id),
+          create.job,
+          (id) => jobDef(id)?.name ?? id,
+          (id) => `〈${ARCH_NAME[JOB_ARCH[id] as Archetype] ?? ''}〉`,
+          (id) => {
+            create = { ...create, job: id, ...defaultSheet(id) };
+          },
+          2,
+        ),
+        // 能力値（目盛り）→ 職の一文。初めの札は、いつもの手元（下の帯）に並ぶ。
+        j
+          ? h(
+              'div',
+              { class: 'dig-stats' },
+              Object.entries(j.innate).map(([k, v]) =>
+                h(
+                  'span',
+                  { class: 'dig-stat' },
+                  h('b', {}, k),
+                  h(
+                    'span',
+                    { class: 'dig-stat__pips', 'aria-label': String(v) },
+                    Array.from({ length: 6 }, (_, i) => h('i', { class: i < v ? 'is-on' : '' })),
+                  ),
+                ),
+              ),
+            )
+          : null,
+        j ? h('p', { class: 'dig-job-text' }, j.text) : null,
+        pick(
+          '持って入る記憶',
+          ORIGINS[create.job] ?? [],
+          create.origin,
+          (id) => permDef(id)?.name ?? id,
+          (id) => permDef(id)?.text ?? '',
+          (id) => {
+            create.origin = id;
+          },
+        ),
+        pick(
+          '持って入るエピテット',
+          JOB_EPITHETS[create.job] ?? [],
+          create.ep,
+          (id) => `《${epithetDef(id)?.name ?? id}》`,
+          (id) => epithetDef(id)?.card?.text ?? '',
+          (id) => {
+            create.ep = id;
+          },
+        ),
+        pick(
+          '持って入る品',
+          JOB_ITEMS[create.job] ?? [],
+          create.item,
+          (id) => itemDef(id)?.name ?? id,
+          (id) => itemDef(id)?.text ?? '',
+          (id) => {
+            create.item = id;
+          },
         ),
         h(
           'label',
@@ -3233,14 +3331,18 @@ export function openDig(doc: Document, onClose: () => void): void {
               create.daily = (ev.target as HTMLInputElement).checked;
             },
           }),
-          ' 今日の夜（全員同じ地図）',
+          ' 今日の夜に入る（誰が入っても同じ建物になる）',
         ),
-        button('このまま始める', () => begin(), { class: 'dig-go' }),
+        h(
+          'div',
+          { class: 'dig-start' },
+          button('この夜に入る', () => begin(), { class: 'dig-go' }),
+        ),
         profile.carry
           ? h(
               'p',
               { class: 'dig-quiet' },
-              `前の夜から持ち越す記憶：《${permDef(profile.carry)?.name ?? profile.carry}》`,
+              `前の夜から持ち越した記憶《${permDef(profile.carry)?.name ?? profile.carry}》も、一緒に入る。`,
             )
           : null,
       ),
@@ -3254,6 +3356,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     renderGuide();
     dialog.classList.toggle('is-create', screen === 'create');
     dialog.classList.toggle('dig-enc-on', !!game?.world.enc);
+    // エピテットの刻む先を選んでいるあいだ、刻めないものは沈める。
+    app.classList.toggle('is-aiming', aim?.kind === 'inscribe');
     if (screen === 'create') {
       renderCreate();
       return;

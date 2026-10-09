@@ -8,6 +8,7 @@ import { ARRIVE, AUTO } from '../content/flavor';
 import {
   BEATS,
   type FloorUse,
+  heatOf,
   LAST,
   SECTIONS,
   sectionName,
@@ -242,6 +243,7 @@ export function makeChar(job: string, name: string, carry?: string, sheet: Sheet
     }),
     back: [],
     level: 0,
+    tired: 0,
     perms: [...new Set(['promise', origin].filter(Boolean))],
     permEps: {},
     epithets: ep ? [ep] : [],
@@ -482,7 +484,7 @@ export function start(
   sheet: Sheet = {},
 ): void {
   const you = makeChar(job, sheet.name ?? 'あなた', carry, sheet);
-  if (depth >= 5 && !you.perms.includes('fear')) you.perms.push('fear');
+  if (depth >= 2 && !you.perms.includes('fear')) you.perms.push('fear');
   const others = [
     'surveyor',
     'watch',
@@ -549,7 +551,7 @@ export function start(
   buildMap(tx, 1);
   tx.emit({
     type: 'note',
-    text: `22:00。${SECTIONS[1]?.open ?? ''} 下のほうに、もう一つ灯りが揺れている。${rival.name}だ。`,
+    text: `22:00。${SECTIONS[1]?.open ?? ''}ずっと下のほうでは、${rival.name}の灯りがもう一つ揺れている。`,
     level: 2,
   });
   sync(tx);
@@ -1152,10 +1154,11 @@ export function breather(tx: Tx): void {
   const w = tx.w;
   tx.emit({ type: 'flag', key: `breath:${w.stratum}:${nodeOf(w, w.pos)?.row ?? -1}`, v: 1 });
   refill(tx, 1 + (w.you.perms.includes('insomnia') ? 1 : 0), undefined, 'you', true);
+  tx.emit({ type: 'tired', who: 'you', n: -1 });
   careBonus(tx);
   shiftAll(tx, 'you');
   passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, 1))));
-  tx.emit({ type: 'note', text: '壁にもたれて、一服した。', level: 0 });
+  tx.emit({ type: 'note', text: '壁にもたれて、一服した。疲れが少し抜けた。', level: 0 });
 }
 
 /** 古びた・未完のカードは、休ませたことを 2 倍に数える。 */
@@ -1245,6 +1248,8 @@ export function close(tx: Tx): boolean {
   }
   const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];
   if (o === 'beaten') tx.emit({ type: 'flag', key: 'beaten', v: (w.flags.beaten ?? 0) + 1 });
+  // 疲れが溜まる（最後の相手は二つ）。
+  tx.emit({ type: 'tired', who: 'you', n: p.tier === 'boss' ? 2 : 1 });
   // 決着の余韻（どう決着をつけたかが、この先に大げさに尾を引く）。
   const aft = AFTER[o];
   if (aft) {
@@ -1612,23 +1617,43 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
   if (a === 'bet') return bet(tx);
   switch (a) {
     case 'rest': {
-      // 同じ層で休むほど、効きは薄れる（安全な道ばかりでは、夜を越えられない）。
+      // 休む：体と心、疲れを少し、後ろの札は満ちる。
       const again = w.flags[`rested${w.stratum}`] ?? 0;
       tx.emit({ type: 'flag', key: `rested${w.stratum}`, v: again + 1 });
       heal(PACE.rest);
-      refill(tx, 1 + (y.perms.includes('insomnia') ? 1 : 0), undefined, 'you', true);
+      tx.emit({ type: 'tired', who: 'you', n: -3 });
+      y.back.forEach((b, index) => {
+        if (b.uses < b.max) tx.emit({ type: 'deck.uses', who: 'you', index, n: b.max - b.uses });
+      });
+      refill(tx, y.perms.includes('insomnia') ? 1 : 0, undefined, 'you', true);
       careBonus(tx);
       passTime(tx, timeFor(1));
       break;
     }
+    case 'eat': {
+      // 食べる：金を払って、疲れを少しと、全ての札の回数を一つ。
+      if (y.coins < PACE.meal) return false;
+      coins(tx, -PACE.meal, 'you');
+      heal(0.2);
+      tx.emit({ type: 'tired', who: 'you', n: -1 });
+      refill(tx, 1, undefined, 'you', true);
+      passTime(tx, timeFor(1));
+      break;
+    }
     case 'full': {
-      const card = slot !== undefined ? y.cards[slot] : null;
-      if (!card || slot === undefined) return false;
-      heal(0.6);
-      if (card.uses < card.max)
-        tx.emit({ type: 'card.uses', who: 'you', slot, n: card.max - card.uses });
-      tx.emit({ type: 'card.mark', who: 'you', slot, mark: 'rested', n: 2 });
-      passTime(tx, timeFor(2));
+      // ひと晩ここで：疲れは抜けきって全部満ちるが、夜が明けて噂も冷める
+      // （決着の余韻はすべて消える）。次の出来事も逃す。
+      heal(0.8);
+      tx.emit({ type: 'tired', who: 'you', n: -10 });
+      y.cards.forEach((card, i) => {
+        if (card && card.uses < card.max)
+          tx.emit({ type: 'card.uses', who: 'you', slot: i, n: card.max - card.uses });
+      });
+      y.back.forEach((b, index) => {
+        if (b.uses < b.max) tx.emit({ type: 'deck.uses', who: 'you', index, n: b.max - b.uses });
+      });
+      for (const af of [...w.after]) tx.emit({ type: 'after.end', kind: af.kind });
+      passTime(tx, timeFor(3));
       tx.emit({ type: 'flag', key: 'skipStory', v: 1 });
       break;
     }
@@ -1746,7 +1771,8 @@ export function inscribe(
   } else if (to.node !== undefined) {
     const n = nodeOf(w, to.node);
     const here = nodeOf(w, w.pos)?.row ?? -1;
-    if (w.enc || w.pending || !n || n.visited || n.row <= here) return false;
+    // 先の部屋へは、向き合っていなければいつでも（受け取り・店・出来事の最中でも）。
+    if (w.enc || !n || n.visited || n.row <= here) return false;
     if (!(n.npc ? def.foe : def.place) || n.eps.length >= PACE.stack) return false;
     tx.emit({ type: 'node.ep', id: n.id, ep });
     tx.emit({
@@ -1754,8 +1780,8 @@ export function inscribe(
       text: `《${def.name}》を${n.npc ? foeDef(n.npc).name : '部屋'}に刻んだ。${(n.npc ? def.foe : def.place)?.text ?? ''}`,
       level: 1,
     });
-  } else if (w.enc || (w.pending && w.pending.kind !== 'rest')) return false;
-  else if (slot !== undefined) {
+  } else if (slot !== undefined) {
+    // 札と記憶へは、どの場面でも（向き合っているあいだも、手番を使わずに）。
     const card = w.you.cards[slot];
     if (!card || !def.card || card.eps.length >= PACE.stack) return false;
     tx.emit({ type: 'card.ep', who: 'you', slot, ep, on: true });
@@ -1814,7 +1840,7 @@ function inkFoe(tx: Tx, ep: string): boolean {
 // ─── 古物商 ───────────────────────────────────────────────────
 
 export const priceOf = (w: World, base: number) =>
-  Math.round(ask(w, 'price', {}, base * (1 + 0.1 * w.depth)));
+  Math.round(ask(w, 'price', {}, base * (1 + 0.08 * heatOf(w))));
 export const cardPrice = (w: World, id: string) =>
   priceOf(w, 45 + cardDef(id).uses * 3 + (cardDef(id).rarity === 'rare' ? 25 : 0));
 export const epPrice = (w: World, id: string) =>

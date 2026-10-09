@@ -1,3 +1,4 @@
+import { PACE } from '../content/balance';
 import { gearOf } from '../content/gear';
 import { cardDef, epithetDef } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
@@ -5,6 +6,7 @@ import type { Cmd } from '../core/events';
 import type { Char, World } from '../core/model';
 import { advise, type RouteKind } from './advise';
 import { bestAction } from './ai';
+import { foeHardness, youHardness } from './hardness';
 import { maxHp, stats } from './ops';
 import {
   breathed,
@@ -30,7 +32,10 @@ export function pilot(w: World): Cmd | null {
     // 持ち物は手番を使わない。一手に一つ、効きそうなものを先に使う。
     const item = useful(w);
     if (item !== null) return { c: 'item', index: item };
-    const a = bestAction(w);
+    // 弱めるエピテットは、手強い相手に刻む（手番は使わない）。
+    const weak = foeInk(w);
+    if (weak) return { c: 'inscribe', ep: weak, foe: true };
+    const a = bestAction(w, 2);
     return a.kind === 'basic' ? { c: 'act', a: a.a } : { c: 'card', slot: a.slot };
   }
   const p = w.pending;
@@ -55,8 +60,17 @@ export function pilot(w: World): Cmd | null {
         for (let i = 0; i < 6; i++) if (canChoose(w, i)) return { c: 'choose', option: i };
         return { c: 'choose', option: 0 };
       }
-      case 'rest':
-        return p.used ? { c: 'depart' } : { c: 'rest', action: 'rest' };
+      case 'rest': {
+        if (p.used) return { c: 'depart' };
+        // 疲れが深いか、体が細いなら一晩。そうでなければ休む。金があって疲れが浅ければ食べる。
+        const s = stats(w, 'you');
+        const thin = w.you.hp * 2 < maxHp(s) || w.you.mind * 2 < s.WIL * 3 + 8;
+        if ((w.you.tired ?? 0) >= 6 || (thin && !w.after.some((a) => a.kind === 'ally')))
+          return { c: 'rest', action: 'full' };
+        if ((w.you.tired ?? 0) <= 2 && w.you.coins >= PACE.meal + 20)
+          return { c: 'rest', action: 'eat' };
+        return { c: 'rest', action: 'rest' };
+      }
       case 'shop':
         return shopping(w) ?? { c: 'depart' };
       case 'told':
@@ -170,6 +184,35 @@ function inscription(w: World): Cmd | null {
   for (const ep of w.you.epithets) {
     const b = bestInscription(w.you, ep);
     if (b) return { c: 'inscribe', ep, slot: b.slot };
+  }
+  // 札を強めるエピテット（×1.1 より上）は、回数のいちばん多い札に重ねる。
+  for (const ep of w.you.epithets) {
+    const text = epithetDef(ep)?.card?.text ?? '';
+    if (!/×1\.[1-9]|×[2-9]/.test(text) || /−|代償/.test(text)) continue;
+    let slot = -1;
+    let most = 0;
+    w.you.cards.forEach((c, i) => {
+      if (c && c.eps.length < PACE.stack && c.max > most) {
+        most = c.max;
+        slot = i;
+      }
+    });
+    if (slot >= 0) return { c: 'inscribe', ep, slot };
+  }
+  return null;
+}
+
+/** 手強い相手（最後の相手か、硬度が上）に刻む、弱めるエピテット。 */
+function foeInk(w: World): string | null {
+  const e = w.enc;
+  if (!e || e.who !== 'you' || e.phase !== 'act' || (e.st.inked ?? 0) >= PACE.inkEnc) return null;
+  if (e.foe.eps.length >= PACE.stackFoe) return null;
+  const tough = e.tier === 'boss' || foeHardness(e.foe) > youHardness(w);
+  if (!tough) return null;
+  for (const ep of w.you.epithets) {
+    const f = epithetDef(ep)?.foe;
+    if (!f) continue;
+    if ((f.hp ?? 1) < 1 || (f.resolve ?? 1) < 1 || f.stun || (f.need ?? 0) < 0) return ep;
   }
   return null;
 }

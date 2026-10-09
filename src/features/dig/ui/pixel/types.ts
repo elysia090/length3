@@ -23,6 +23,8 @@ export interface RoomView {
   stage: boolean;
   /** もう一人が先に寄った。 */
   rivalWas: boolean;
+  /** エピテットの刻む先を選んでいるとき、ここに刻める。 */
+  ink?: boolean;
 }
 
 export interface TowerView {

@@ -20,6 +20,7 @@ const blankChar = (): Char => ({
   cards: [null, null, null, null, null],
   back: [],
   level: 0,
+  tired: 0,
   perms: [],
   permEps: {},
   epithets: [],
@@ -264,6 +265,11 @@ export function apply(w: World, ev: Ev): void {
     case 'after.end':
       w.after = w.after.filter((a) => a.kind !== ev.kind);
       break;
+    case 'tired': {
+      const c = charOf(w, ev.who);
+      c.tired = Math.max(0, Math.min(10, (c.tired ?? 0) + ev.n));
+      break;
+    }
     case 'level':
       charOf(w, ev.who).level += ev.n;
       break;

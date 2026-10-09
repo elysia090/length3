@@ -826,24 +826,76 @@
 }
 
 .dig .dig-pick button.is-on {
-  border-width: 0.125rem;
   border-color: var(--amber-text);
+  box-shadow: inset 2px 0 0 var(--amber-text);
 }
 
+/* 短い選択肢（難度・職）は横に詰めて並べる。 */
+.dig-pick--cols2 .dig-pick__list,
+.dig-pick--cols3 .dig-pick__list {
+  display: grid;
+  gap: 4px;
+}
+
+.dig-pick--cols2 .dig-pick__list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dig-pick--cols3 .dig-pick__list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dig .dig-pick--cols2 button,
+.dig .dig-pick--cols3 button {
+  margin-top: 0;
+  min-height: 3rem;
+  text-align: left;
+}
+
+/* 名前：ラベルと一行で、下線だけの入力。 */
 .dig-field {
-  display: block;
-  margin-top: 0.5rem;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
 }
 
 .dig-field input[type='text'],
 .dig-field select {
+  flex: 1;
+  max-width: 16rem;
   min-height: 2rem;
-  padding: 0 0.5rem;
-  border: 0.0625rem solid var(--ink);
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 1px solid var(--ink-2);
   border-radius: 0;
-  background: var(--bg-2);
+  background: transparent;
   color: var(--ink);
-  font: inherit;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+}
+
+.dig-field input[type='text']:focus {
+  outline: none;
+  border-bottom-color: var(--amber-text);
+}
+
+.dig-field input[type='checkbox'] {
+  accent-color: var(--ink);
+}
+
+/* 始める釦は、欄の下に貼りついていつも見える。 */
+.dig-start {
+  position: sticky;
+  /* 欄の下の余白（1.5rem）ぶん下げて、下端にぴたりと貼りつける。 */
+  bottom: -1.5rem;
+  margin: 16px -1rem 0;
+  padding: 8px 1rem 1.5rem;
+  border-top: 1px solid var(--rule);
+  background: var(--bg);
 }
 
 .dig.is-create .dig-main {
@@ -2092,4 +2144,98 @@
   font-size: 0.6875rem;
   color: var(--amber-text);
   cursor: help;
+}
+
+/*
+ * エピテットの刻む先を選んでいるあいだ：刻めない札・記憶・欄は沈め、刻める先
+ * （白い札・記憶・相手・出来事・地図の部屋の輪）だけが浮く。
+ */
+.dig-app.is-aiming .dig-bar,
+.dig-app.is-aiming .dig-side > *:not(:has(.is-ink-target)),
+.dig-app.is-aiming .dig-pills__group:not(.dig-pills__group--ep):not(:has(.is-live)),
+.dig-app.is-aiming .dig-mem:not(.is-live),
+.dig-app.is-aiming .dig-pills__group--ep .dig-pill:not(.is-chosen) {
+  opacity: 0.32;
+}
+
+.dig .dig-ink-foe.is-live {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+/* 疲れ（十の目盛り。三つ溜まると字が琥珀に）。 */
+.dig-tired {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+  cursor: help;
+}
+
+.dig-tired i {
+  width: 4px;
+  height: 8px;
+  border: 1px solid var(--ink-3);
+}
+
+.dig-tired i.is-on {
+  background: var(--ink-2);
+  border-color: var(--ink-2);
+}
+
+.dig-tired.is-heavy {
+  color: var(--amber-text);
+}
+
+.dig .dig-act.is-costly .dig-act__fx {
+  color: var(--amber-text);
+}
+
+/* 人物を決める：職の一文と、能力値の目盛り。 */
+.dig-job-text {
+  margin: 8px 0 4px;
+}
+
+.dig-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 16px;
+  margin: 4px 0 8px;
+}
+
+.dig-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig-stat b {
+  font-weight: 400;
+}
+
+.dig-stat__pips {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.dig-stat__pips i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--ink-3);
+}
+
+.dig-stat__pips i.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* 初めの手札（押せない見本）。 */
+.dig-hand.is-preview .dig-card {
+  cursor: default;
 }

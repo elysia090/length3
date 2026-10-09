@@ -47,7 +47,7 @@ export interface Section {
 export const SECTIONS: Readonly<Record<number, Section>> = {
   1: {
     name: '夜の街',
-    open: '建物の上のほうは、まるごと夜の街になっている。看板の灯りが、縦坑の壁に映っている。',
+    open: '建物の上のほうはまるごと夜の街になっていて、通りの看板の灯りが、吹き抜けの縦坑の壁にぼんやりと映り込んでいる。',
     danger: 0.12,
     uses: [
       {
@@ -141,7 +141,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
   },
   2: {
     name: '記録の階',
-    open: '階段を下りきると、時計が 22 時に戻っていた。ここは、もっと古い夜だ。紙と埃の匂いがする。',
+    open: '階段を下りきると時計が 22 時に戻っていて、紙と埃の匂いのこもったこの階が、上よりもずっと古い夜だと分かる。',
     danger: 0.2,
     uses: [
       {
@@ -226,7 +226,7 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
   },
   3: {
     name: '琥珀の階',
-    open: 'さらに古い夜。空気が固まりかけている。時計はまた 22 時を指していた。',
+    open: '時計はまた 22 時を指していて、さらに古い夜の空気は、琥珀のように固まりかけたまま動かない。',
     danger: 0.3,
     uses: [
       {
@@ -312,6 +312,16 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
 };
 
 /** 底の手前までの区画の数（ここを抜けると、ひとまず抜けたことになる）。 */
+/** 難度の名（depth の 0・1・2）。 */
+export const DIFFICULTY = ['ミディアム', 'ハード', 'ナイトメア'] as const;
+
+/**
+ * 難度の効き（0〜2）。構成ができあがるまでの一区・二区はどの難度でも同じで、
+ * 三区から効きはじめ、五区で選んだ難度の重さになる。
+ */
+export const heatOf = (w: { depth: number; stratum: number }): number =>
+  w.depth * Math.min(1, Math.max(0, (w.stratum - 2) / 3));
+
 /** 区画の顔ぶれの数（夜の街・記録の階・琥珀の階。四つ目からは巡る）。 */
 export const THEMES = 3;
 /** 抜けるのは六つ目の区画の底（B60）。四つ目から六つ目は「深い」区画。 */

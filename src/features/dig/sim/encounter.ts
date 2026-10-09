@@ -2,7 +2,7 @@ import { PACE, POINTS } from '../content/balance';
 import { cardArch, cardTags } from '../content/cardinfo';
 import type { EpithetCtx } from '../content/defs';
 import type { CardFacet } from '../content/epithets';
-import { LAST } from '../content/floors';
+import { heatOf, LAST } from '../content/floors';
 import { holds, run } from '../content/fx';
 import { allEpithets, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import { buildsOf } from '../content/sources';
@@ -47,13 +47,14 @@ import {
 const TALK_OPEN: ReadonlySet<string> = new Set(['confide', 'wait', 'mend', 'bargain']);
 export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
   const def = foeDef(npc);
-  const depth = w.depth + late;
+  const heat = heatOf(w);
+  const depth = heat + late;
   // 夜明けを過ぎた 1 時間ごとに、深さ 2.5 段ぶん荒れる（退屈な道の代償）。
   // 底の手前より下は、区画ごとに掛け算で手強くなる（構成がどこまで持つかを試す）。
   const deep = Math.max(0, w.stratum - LAST);
   const grow =
     PACE.tough *
-    (1 + 0.1 * w.depth + 0.25 * late + PACE.stratum * (w.stratum - 1)) *
+    (1 + PACE.heat * heat + 0.25 * late + PACE.stratum * (w.stratum - 1)) *
     PACE.deep ** deep;
   const f: Foe = {
     id: def.id,
@@ -63,10 +64,10 @@ export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
     resolve: Math.round(def.resolve * grow),
     maxResolve: Math.round(def.resolve * grow),
     trust: 0,
-    need: Math.round(def.need * PACE.tough) + w.stratum - 1 + Math.floor(w.depth / 3) + 2 * deep,
+    need: Math.round(def.need * PACE.tough) + w.stratum - 1 + Math.round(heat) + 2 * deep,
     hostility: def.hostility,
     guard: 0,
-    atk: Math.round(def.atk * (1 + 0.1 * depth) + (w.stratum - 1) + 2 * deep),
+    atk: Math.round(def.atk * (1 + 0.1 * depth) + PACE.atkStep * (w.stratum - 1) + 2 * deep),
     def: def.def,
     wil: def.wil,
     int: def.int,
@@ -594,6 +595,8 @@ function foeTurn(tx: Tx): void {
   settle(tx);
   if (!w.enc || w.enc.phase !== 'act') return;
   tx.emit({ type: 'turn' });
+  tempo(tx);
+  if (!w.enc || w.enc.phase !== 'act') return;
   // 流用：残った守りが信頼に、開けすぎる鍵が相手の守りを剥がす。
   const spill = Math.floor(w.enc.guard * tx.rule('guardSpill', {}, 0));
   if (spill > 0) trust(tx, spill);
@@ -617,6 +620,62 @@ function foeTurn(tx: Tx): void {
   const cm = Math.floor(w.enc.calm * keepC) + Math.round(tx.rule('turnCalm', {}, 0));
   if (cm !== w.enc.calm) tx.emit({ type: 'enc.you', field: 'calm', n: cm - w.enc.calm });
   planFoe(tx);
+}
+
+/**
+ * 拍子の崩れ。戦闘と交渉で進み方を変え、遭遇の途中で調子が一度は変わる。
+ *   体力が半分を切る    相手が本気になる（敵意 +2、それからの一撃 +3）
+ *   意志が半分を切る    相手が揺らぐ（敵意 −2、信頼 +1）
+ *   信頼が半分を超える  打ち明け話（相手は次の手番に動かず、手がかりを一つ見せる。
+ *                       それからは信頼が一つずつ多く伸びる。交渉は後半で加速する）
+ *   三手目から          ときどき邪魔が入る（遭遇に一度まで）
+ */
+function tempo(tx: Tx): void {
+  const e = tx.w.enc;
+  if (!e || e.phase !== 'act') return;
+  const f = e.foe;
+  if (!f.st.rage && f.hp * 2 < f.maxHp) {
+    tx.emit({ type: 'foe.st', key: 'rage', n: 1 });
+    hostile(tx, 2);
+    say(tx, 'voice', `${f.name}が、本気になった。`);
+  }
+  if (!f.st.waver && f.resolve * 2 < f.maxResolve) {
+    tx.emit({ type: 'foe.st', key: 'waver', n: 1 });
+    hostile(tx, -2);
+    trust(tx, 1);
+    say(tx, 'voice', `${f.name}の目が泳いだ。`);
+  }
+  if (!tx.w.enc || tx.w.enc.phase !== 'act') return;
+  if (!f.st.opened && f.need < 50 && f.trust * 2 >= f.need) {
+    tx.emit({ type: 'foe.st', key: 'opened', n: 1 });
+    tx.emit({ type: 'foe.st', key: 'stun', n: 1 });
+    revealClue(tx);
+    say(tx, 'voice', `${f.name}が、ぽつりと打ち明けはじめた。`);
+  }
+  if (!tx.w.enc || tx.w.enc.phase !== 'act') return;
+  if (e.turn >= 3 && !e.st.interrupted && tx.rand('enc') < PACE.interrupt) {
+    tx.emit({ type: 'enc.st', key: 'interrupted', n: 1 });
+    switch (Math.floor(tx.rand('enc') * 4)) {
+      case 0:
+        tx.emit({ type: 'foe.st', key: 'stun', n: 1 });
+        say(tx, 'voice', 'どこかで電話が鳴った。相手が気を取られている。');
+        break;
+      case 1:
+        if (e.guard) tx.emit({ type: 'enc.you', field: 'guard', n: -e.guard });
+        if (f.guard) tx.emit({ type: 'foe', field: 'guard', n: -f.guard });
+        hostile(tx, 1);
+        say(tx, 'voice', '誰かが割って入った。どちらの構えも崩れた。');
+        break;
+      case 2:
+        tx.emit({ type: 'enc.st', key: 'noted', n: 1 });
+        say(tx, 'voice', '灯りが大きく揺れた。次の一手が冴える。');
+        break;
+      default:
+        tx.emit({ type: 'vital', who: e.who, mind: 3 });
+        say(tx, 'voice', '店の奥から、黙って水が出てきた。');
+        break;
+    }
+  }
 }
 
 /** 予告を、見せるとおりに（嘘は、見抜けていなければ見かけで）。 */
