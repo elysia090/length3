@@ -475,16 +475,21 @@ export function openDig(doc: Document, onClose: () => void): void {
       const [kind, id] = x.src.split(':');
       const label = kind === 'job' ? (jobDef(id ?? '')?.name ?? null) : sourceLabel(x.src);
       const bare = label?.replace(/[《》〈〉『』]/g, '') ?? '';
-      const text = label && !x.text.includes(bare) ? `${label} ${x.text}` : x.text;
+      // 出どころ（太字）と中身を分けて持つ。帯では「出どころ　中身」の一行に。
+      const text = label && !x.text.includes(bare) ? `${label}\t${x.text}` : x.text;
       if (!out.includes(text)) out.push(text);
     }
     if (!out.length) return;
     whyLine.replaceChildren(
-      ...out
-        .slice(0, 5)
-        .map((t, i) =>
-          h('span', { class: 'dig-why-chip', style: `animation-delay:${i * 90}ms` }, t),
-        ),
+      ...out.slice(0, 5).map((t, i) => {
+        const [src, body] = t.includes('\t') ? t.split('\t') : ['', t];
+        return h(
+          'span',
+          { class: 'dig-why-chip', style: `animation-delay:${i * 90}ms` },
+          src ? h('b', {}, src) : null,
+          body ?? '',
+        );
+      }),
     );
     whyLine.hidden = false;
     // 打たれるたびに、小さく鳴る（タイプライタの一打）。
@@ -4495,6 +4500,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     renderGuide();
     dialog.classList.toggle('is-create', screen === 'create');
     dialog.classList.toggle('dig-enc-on', !!game?.world.enc);
+    dialog.classList.toggle('dig-pend-on', !game?.world.enc && !!game?.world.pending);
     // エピテットの刻む先を選んでいるあいだ、刻めないものは沈める。
     app.classList.toggle('is-aiming', aim?.kind === 'inscribe');
     if (screen === 'create') {

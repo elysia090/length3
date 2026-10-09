@@ -124,7 +124,8 @@
   inset: 0 0 auto;
   z-index: 1;
   display: grid;
-  gap: 0.25rem;
+  justify-items: start;
+  gap: 0.375rem;
   max-width: 44rem;
   /* 左上の見渡す印をよけて始める。 */
   padding: 0.625rem 1rem 1.25rem 2.75rem;
@@ -139,7 +140,8 @@
   .dig-guide__line.is-on,
   .dig-guide__hint:not(:empty)
 ) {
-  background: linear-gradient(var(--bg) 70%, transparent);
+  /* 一言の行まで紙の地で読めるように、地の切れ目は帯の下端近くに。 */
+  background: linear-gradient(var(--bg) 84%, transparent);
 }
 
 .dig-guide > * {
@@ -147,6 +149,8 @@
 }
 
 .dig-guide__moment {
+  justify-self: start;
+  max-width: 100%;
   margin: 0;
   padding: 0.375rem 0.625rem;
   border: 0.125rem solid var(--amber-text);
@@ -1887,23 +1891,42 @@
  * すぐ墨に戻る）。読み終える前に消えないよう、数に応じて長く残る。
  */
 .dig-guide__why {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.5rem;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  max-width: 36rem;
   margin: 0;
+  padding: 1px 0 1px 8px;
+  border-left: 1px solid var(--ink-3);
   font-family: var(--font-mono);
   font-size: var(--font-ui-xs);
+}
+
+.dig-guide__why > :nth-child(n + 4) {
+  display: none;
+}
+
+.dig-why-chip b {
+  margin-right: 0.75em;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .dig-guide__why[hidden] {
   display: none;
 }
 
+/*
+ * 規則の知らせ：札片を並べず、左に一本の罫を引いた一覧に。一つずつ一行で、
+ * 出どころは太字、中身は続けて。多くて三つ（狭い画面は二つ）。
+ */
 .dig-why-chip {
-  padding: 0 0.375rem;
-  border: 1px solid var(--ink-3);
-  background: var(--bg);
-  color: var(--ink);
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
   animation: dig-why-in 0.36s steps(1, end) both;
 }
 
@@ -2570,16 +2593,25 @@
 
 
 
+/*
+ * 場面の見出し（決着・食堂…）。一段目に小さな見出し（場面の名と相手）、二段目に
+ * 一語。一語は大きくしすぎず、字間で締める（判を押したように）。周りの字の
+ * 大きさから浮かないように、22px まで。
+ */
 .dig-scene__head {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'label who'
+    'word word';
   align-items: baseline;
-  gap: 8px 16px;
-  padding-bottom: 8px;
+  gap: 2px 10px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--rule);
 }
 
 .dig-scene__label {
+  grid-area: label;
   font-family: var(--font-mono);
   font-size: var(--font-ui-xs);
   letter-spacing: 0.16em;
@@ -2587,10 +2619,11 @@
 }
 
 .dig-scene__word {
-  font-size: 2rem;
+  grid-area: word;
+  font-size: 1.375rem;
   font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: 0.04em;
+  line-height: 1.35;
+  letter-spacing: 0.24em;
   color: var(--ink);
 }
 
@@ -2599,7 +2632,14 @@
 }
 
 .dig-scene__who {
-  color: var(--ink-3);
+  grid-area: who;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
 }
 
 .dig-scene__after {
@@ -2898,7 +2938,7 @@
 }
 
 .dig-reward .dig-scene__word {
-  font-size: 1.75rem;
+  font-size: 1.375rem;
 }
 
 .dig-reward .dig-scene__choices {
@@ -3459,4 +3499,217 @@
 /* 代償の行（琥珀）と取り違えないよう、一皿の一言はいつも薄い字で。 */
 .dig .dig-scene__choice.is-costly .dig-dish {
   color: var(--ink-3);
+}
+
+/*
+ * ─── スマホ（狭い画面）───────────────────────────────────────────
+ * 縦に「上帯・地図・脇・手元」が積まれる。高さが足りないので、どの画面でも
+ * 脇（いま起きていること）が押し出されないように詰める。
+ *   上帯   二段：一段目に DIG・場所・時刻・印、二段目に体と心と金と硬度
+ *   遭遇   地図を低くし、札は三列×二段。札の顔は名前・回数・動く数だけ（内訳と
+ *          章は、触れれば出る）。規則の知らせは二つまで
+ */
+@media (max-width: 52rem) {
+  .dig-bar {
+    gap: 2px 10px;
+    padding: 6px 12px;
+  }
+
+  .dig-bar::before {
+    order: 4;
+    flex-basis: 100%;
+    height: 0;
+    content: '';
+  }
+
+  .dig-bar > .dig-logo {
+    order: 0;
+  }
+
+  .dig-bar > .dig-where {
+    order: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .dig-bar > .dig-clock {
+    order: 2;
+  }
+
+  .dig-bar > .dig-bar__end {
+    display: none;
+  }
+
+  .dig-bar > .dig-icon {
+    order: 3;
+  }
+
+  .dig .dig-bar > .dig-icon {
+    width: 1.75rem;
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+  }
+
+  .dig-bar > * {
+    order: 5;
+  }
+
+  .dig-bar .dig-meter {
+    grid-template-columns: auto 2.5rem auto;
+    gap: 4px;
+  }
+
+  /* 二段目は一行に収める（体・心・金・硬度）。 */
+  .dig-bar {
+    font-size: 0.6875rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* 遭遇：地図を低く、脇（相手の様子と次の手）に高さを残す。 */
+  .dig-enc-on .dig-main {
+    grid-template-rows: minmax(7rem, 24dvh) minmax(0, 1fr);
+  }
+
+  .dig-enc-on .dig-side {
+    padding-top: 8px;
+  }
+
+  /* 札は三列×二段。横にめくらない（勘で続けて打てるように、全部見える）。 */
+  .dig-hand {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    overflow: visible;
+  }
+
+  .dig-tray {
+    gap: 4px;
+    padding: 6px 12px 8px;
+  }
+
+  .dig .dig-card {
+    min-height: 0;
+    gap: 3px;
+    padding: 6px 8px 7px;
+  }
+
+  .dig-card__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.75rem;
+  }
+
+  .dig .dig-card .dig-why,
+  .dig .dig-card .dig-card__legend,
+  .dig .dig-card .dig-card__sleep,
+  .dig .dig-card .dig-card__next {
+    display: none;
+  }
+
+  .dig .dig-card .dig-outs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+
+  .dig .dig-card .dig-out {
+    padding: 0 4px;
+    font-size: 0.6875rem;
+    line-height: 1.5;
+  }
+
+  .dig-pills {
+    font-size: 0.6875rem;
+  }
+
+  /*
+   * 上の状況説明（地図に重なる帯）：小さく、一行ずつ。規則の知らせは二つまで、
+   * 一つずつ一行で切る。名場面の帯も、地図の三分の一を覆わない大きさに。
+   */
+  .dig-guide {
+    gap: 3px;
+    max-width: none;
+    padding: 6px 12px 8px;
+    font-size: 0.6875rem;
+    line-height: 1.5;
+  }
+
+  .dig-guide__why {
+    max-width: none;
+    font-size: 0.625rem;
+  }
+
+  .dig-guide__why > :nth-child(n + 3) {
+    display: none;
+  }
+
+  .dig-guide__line {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .dig-guide__moment {
+    padding: 4px 8px;
+    border-width: 1px;
+    font-size: 0.75rem;
+  }
+}
+
+/* スマホの遭遇：四つの道は一行ずつ（道の名・棒・尾を引くもの）。立ち去るまで、札の上に収める。 */
+@media (max-width: 52rem) {
+  .dig-ways {
+    gap: 2px;
+    margin: 2px 0 6px;
+  }
+
+  .dig-way {
+    grid-template-columns: 4.25rem minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .dig-way__after {
+    grid-column: auto;
+    margin-top: 0;
+    font-size: 0.625rem;
+    white-space: nowrap;
+    color: var(--ink-3);
+  }
+
+  .dig-way .dig-meter {
+    grid-template-columns: 1fr 3.25rem;
+  }
+
+  .dig-ways__k {
+    margin-top: 2px;
+    font-size: 0.625rem;
+  }
+
+  .dig-enc .dig-room__name {
+    margin: 0;
+  }
+
+  .dig-intent {
+    margin: 2px 0;
+  }
+
+  .dig-turn {
+    margin: 4px 0 2px;
+    padding: 4px 6px;
+    font-size: 0.6875rem;
+  }
+
+  .dig-enc__desc {
+    display: none;
+  }
+}
+
+/* スマホ：受け取り・食堂・古物商・出来事のあいだも、地図を低くして欄に高さを残す。 */
+@media (max-width: 52rem) {
+  .dig-pend-on .dig-main {
+    grid-template-rows: minmax(7rem, 22dvh) minmax(0, 1fr);
+  }
 }
