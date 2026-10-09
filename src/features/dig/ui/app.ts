@@ -102,6 +102,7 @@ import { type SpotAction, spotActions } from '../sim/spot';
 import { BADGE_NAME, badgesOf } from './badges';
 import { button, type Child, fill, h, meter } from './dom';
 import { HINTS, nextHint } from './hints';
+import { hoverTips } from './hovertip';
 import { cardEffect, delta, effectOf, say as sayDelta, withEpithet } from './preview';
 import { loadProfile, loadRun, type Profile, saveProfile, saveRun } from './save';
 import { DigSound } from './sound';
@@ -381,6 +382,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   const stepNav = h('nav', { class: 'dig-stepnav', hidden: true });
   const app = h('div', { class: 'dig-app' }, bar, foeBar, main, paneSwitch, tray, stepNav, live);
   dialog.append(app);
+  // 触れたときの説明は、どこでも同じ枠で（ブラウザの title の代わり）。
+  const tips = hoverTips(dialog);
   doc.body.append(dialog);
   dialog.showModal();
   // 開いた直後は、どの印にも焦点を置かない（左上の小さな印に輪が出ないように）。
@@ -1740,7 +1743,6 @@ export function openDig(doc: Document, onClose: () => void): void {
           type: 'button',
           class: `dig-chip dig-chip--walk${manual ? ' is-on' : ''}`,
           'aria-pressed': manual ? 'true' : 'false',
-          title: '推奨を切って、自分で選んで歩く',
           onclick: () => {
             routeSel = routeSel === 'walk' && pinned === null ? null : 'walk';
             pinned = null;
@@ -1764,7 +1766,6 @@ export function openDig(doc: Document, onClose: () => void): void {
                   type: 'button',
                   class: `dig-chip dig-chip--${r.kind}${chosen?.kind === r.kind ? ' is-on' : ''}`,
                   'aria-pressed': chosen?.kind === r.kind ? 'true' : 'false',
-                  title: `${r.aim === 'win' ? '勝つ道' : '面白い道'}：${r.label}`,
                   onclick: () => {
                     routeSel = routeSel === r.kind && pinned === null ? null : r.kind;
                     pinned = null;
@@ -4081,11 +4082,12 @@ export function openDig(doc: Document, onClose: () => void): void {
           title: [
             spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready),
             !spent && d.spent.length ? `眠りぎわ　${fxText(d.spent)}` : '',
+            d.sig,
+            d.flavor,
+            // タグは説明の最後に（札の上には浮かせない。説明と重なるので）。
             cardTags(c)
               .map((t) => `［${TAG_NAME[t]}］`)
               .join(''),
-            d.sig,
-            d.flavor,
           ]
             .filter(Boolean)
             .join('\n'),
@@ -4670,6 +4672,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   // ─── 全体 ───────────────────────────────────────────────────
 
   function render(): void {
+    // 描き直しで触れていた札が消えたら、説明も畳む。
+    queueMicrotask(() => tips.sync());
     if (screen !== 'create') {
       handView.hidden = true;
       createHint.hidden = true;

@@ -1,10 +1,29 @@
 /* DIG — 検索で 'dig' と打つと開く、底の見えない建物（features/dig/ui/app.ts） */
-/* 塔（斜めに見下ろしたフロアの積み重ね）が本体。脇に、いま起きていること。
-   下に、手元のカード。色は紙・墨・琥珀と、深い青。琥珀は「あなた」と「押せるもの」、
-   深い青は「いま向き合える相手」（その人の記号・計器・信頼の糸）で、必ずまばらに置く。 */
+/*
+ * 塔（斜めに見下ろしたフロアの積み重ね）が本体。脇に、いま起きていること。
+ * 下に、手元のカード。
+ *
+ * 色・線・字・間・動き・触れ方・改行の約束は docs/specs/dig-design-language.md。
+ * ここのトークン（--dig-*）と、触れたときの説明（ui/hovertip.ts）はその実装。
+ */
 .dig {
   --dig-green: #2f7d4f;
   --dig-blue: #1f3d9e;
+  --dig-s-1: 4px;
+  --dig-s-2: 8px;
+  --dig-s-3: 12px;
+  --dig-s-4: 16px;
+  --dig-s-5: 24px;
+  --dig-t-xs: 0.625rem;
+  --dig-t-sm: 0.6875rem;
+  --dig-t-md: 0.75rem;
+  --dig-t-base: 0.8125rem;
+  --dig-line: 1px solid var(--rule);
+  --dig-fast: 0.12s;
+  --dig-off: 0.45;
+  line-break: strict;
+  word-break: auto-phrase;
+  overflow-wrap: anywhere;
   width: 100vw;
   max-width: none;
   height: 100dvh;
@@ -85,15 +104,58 @@
   cursor: pointer;
 }
 
-.dig button:hover:not(:disabled),
+.dig button {
+  text-wrap: balance;
+  transition:
+    border-color var(--dig-fast) ease,
+    color var(--dig-fast) ease,
+    background-color var(--dig-fast) ease;
+}
+
+@media (hover: hover) {
+  .dig button:hover:not(:disabled) {
+    border-color: var(--amber-text);
+    color: var(--amber-text);
+  }
+}
+
 .dig button:focus-visible {
   border-color: var(--amber-text);
   color: var(--amber-text);
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
+.dig button:active:not(:disabled) {
+  translate: 0 1px;
 }
 
 .dig button:disabled {
-  opacity: 0.45;
+  opacity: var(--dig-off);
   cursor: default;
+}
+
+/* 文は均して折る。見出しは揃えて。 */
+.dig p,
+.dig li,
+.dig dd {
+  text-wrap: pretty;
+}
+
+.dig h2,
+.dig h3,
+.dig dt {
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig button {
+    transition: none;
+  }
+
+  .dig button:active:not(:disabled) {
+    translate: none;
+  }
 }
 
 .dig .dig-go {
@@ -225,6 +287,23 @@
 
 .dig-tip[hidden] {
   display: none;
+}
+
+/* 触れたときの説明（どこでも同じ枠）。一行目が本文、二行目からは添え書き。 */
+.dig-tip--hover {
+  position: fixed;
+  z-index: 20;
+  max-width: 20rem;
+  padding: var(--dig-s-1) var(--dig-s-2) 5px;
+  border-color: var(--ink);
+  font-size: var(--dig-t-md);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.dig-tip__sub {
+  font-size: var(--dig-t-sm);
+  color: var(--ink-3);
 }
 
 .dig-side {
@@ -527,11 +606,15 @@
   gap: 0.5rem;
 }
 
+/* 札の名は二行まで（文節で折る。省略しない）。 */
 .dig-card__name {
+  display: -webkit-box;
   overflow: hidden;
-  font-size: 0.8125rem;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  font-size: var(--dig-t-base);
+  line-height: 1.3;
+  text-wrap: balance;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .dig-card__key {
@@ -589,11 +672,23 @@
   border-style: dashed;
 }
 
-.dig .dig-card.is-live:hover,
+.dig .dig-card.is-live:focus-visible {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
 .dig .dig-card.is-live:focus-visible {
   border-color: var(--amber-text);
   box-shadow: 0 0.1875rem 0 var(--amber-text);
   color: var(--ink);
+}
+
+@media (hover: hover) {
+  .dig .dig-card.is-live:hover {
+    border-color: var(--amber-text);
+    box-shadow: 0 0.1875rem 0 var(--amber-text);
+    color: var(--ink);
+  }
 }
 
 .dig .dig-card.is-off {
@@ -626,8 +721,8 @@
 }
 
 /*
- * カードは名前・回数・効き目（いつも）。タグは、触れたときに札の上へ浮かぶ
- * （札の高さを変えない。変えると手元が上下して、触れたまま揺れる）。
+ * カードは名前・回数・効き目（いつも）。タグは、押して開いたときに札の上へ浮かぶ
+ * （札の高さを変えない）。マウスで触れたときは、共通の説明枠の最後の行に。
  */
 .dig-card__tags {
   position: absolute;
@@ -643,9 +738,8 @@
   pointer-events: none;
 }
 
-.dig .dig-card.is-open .dig-card__tags,
-.dig .dig-card:hover .dig-card__tags,
-.dig .dig-card:focus-visible .dig-card__tags {
+/* 触れたときのタグは共通の説明枠が言う。ここは、押して開いたとき（指の端末）だけ。 */
+.dig .dig-card.is-open .dig-card__tags {
   visibility: visible;
 }
 
@@ -729,10 +823,16 @@
   cursor: grab;
 }
 
-.dig .dig-pill--ep:hover:not(:disabled),
 .dig .dig-pill--ep.is-chosen {
   border-color: var(--amber-text);
   color: var(--amber-text);
+}
+
+@media (hover: hover) {
+  .dig .dig-pill--ep:hover:not(:disabled) {
+    border-color: var(--amber-text);
+    color: var(--amber-text);
+  }
 }
 
 .dig .dig-pill--ep:disabled {
@@ -1280,8 +1380,10 @@
   color: var(--ink-2);
 }
 
-.dig .dig-act:hover:not(:disabled) .dig-act__fx {
-  color: inherit;
+@media (hover: hover) {
+  .dig .dig-act:hover:not(:disabled) .dig-act__fx {
+    color: inherit;
+  }
 }
 
 .dig-side .dig-row .dig-act {
@@ -1970,11 +2072,11 @@
  * 出どころは太字、中身は続けて。多くて三つ（狭い画面は二つ）。
  */
 .dig-why-chip {
-  display: block;
+  display: -webkit-box;
   max-width: 100%;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   color: var(--ink-2);
   animation: dig-why-in 0.36s steps(1, end) both;
 }
@@ -2686,9 +2788,8 @@
   font-family: var(--font-mono);
   font-size: var(--font-ui-xs);
   letter-spacing: 0.08em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   color: var(--ink-2);
+  text-wrap: balance;
 }
 
 .dig-scene__after {
@@ -2756,9 +2857,14 @@
   cursor: pointer;
 }
 
-.dig .dig-scene__card:hover:not(:disabled),
 .dig .dig-scene__card:focus-visible {
   border-color: var(--amber-text);
+}
+
+@media (hover: hover) {
+  .dig .dig-scene__card:hover:not(:disabled) {
+    border-color: var(--amber-text);
+  }
 }
 
 .dig .dig-scene__card.is-chosen {
@@ -2806,9 +2912,14 @@
   color: var(--ink);
 }
 
-.dig .dig-scene__choice:hover,
 .dig .dig-scene__choice[aria-pressed='true'] {
   border-color: var(--amber-text);
+}
+
+@media (hover: hover) {
+  .dig .dig-scene__choice:hover {
+    border-color: var(--amber-text);
+  }
 }
 
 .dig .dig-scene__choice.is-costly span:last-child:not(.dig-dish),
@@ -3171,7 +3282,8 @@
 
 /* 3 押されている切り替えは、触れていても墨の地に紙の字（琥珀に変えない）。 */
 .dig .dig-switch__b.is-on,
-.dig .dig-switch__b.is-on:hover {
+.dig .dig-switch__b.is-on:hover,
+.dig .dig-switch__b.is-on:focus-visible {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--bg);
