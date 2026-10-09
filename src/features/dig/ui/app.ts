@@ -25,6 +25,22 @@ import {
 import { buildsOf } from '../content/sources';
 import { nextTier, SURGES, tierOf } from '../content/surges';
 import { titleDef } from '../content/titles';
+import {
+  CHEER,
+  DINER_AFTER,
+  DINER_BET,
+  DINER_FULL,
+  DINER_LEAVE,
+  DINER_LIGHT,
+  DINER_MORNING,
+  DINER_NIGHT,
+  READY,
+  SETTLED,
+  SHOP_BARGAIN,
+  SHOP_HELLO,
+  SHOP_LEAVE,
+  SHOP_SOLD,
+} from '../content/voices';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
 import { fold } from '../core/reduce';
@@ -194,6 +210,10 @@ const pickBy = <T>(list: readonly T[], key: string): T | undefined => {
   for (let i = 0; i < key.length; i++) x = (x * 31 + key.charCodeAt(i)) >>> 0;
   return list[x % Math.max(1, list.length)];
 };
+
+/** 声を一つ（種と場所と時刻から決まる。世界の乱数は使わない）。 */
+const voiceOf = (list: readonly string[], w: World, salt: string): string =>
+  pickBy(list, `${w.seed}:${w.pos}:${w.hour}:${salt}`) ?? '';
 
 /** 手持ちの中で、回数の尽きた札の数。 */
 const dryCount = (w: World) =>
@@ -777,7 +797,11 @@ export function openDig(doc: Document, onClose: () => void): void {
           }
           live.textContent = tr(ev.text);
           if (lv >= 2) log = [...log.slice(-30), ev.text];
+          // 目標に届いたら、一言添えて大袈裟に。
+          const cheer =
+            ev.text.startsWith('目標に届いた') && game ? voiceOf(CHEER, game.world, ev.text) : '';
           if (lv === 3) showMoment(ev.text);
+          else if (cheer) showCaption(`${ev.text}　${cheer}`);
           else if (lv >= 1) showCaption(ev.text);
           break;
         }
@@ -2069,7 +2093,9 @@ export function openDig(doc: Document, onClose: () => void): void {
       cost
         ? h(
             'span',
-            { class: `dig-spot__cost${cost.startsWith('-') ? ' is-worse' : ''}` },
+            {
+              class: `dig-spot__cost${cost.startsWith('-') ? ' is-worse' : cost.startsWith('+') ? ' is-better' : ''}`,
+            },
             cost.slice(1),
           )
         : null,
@@ -2095,7 +2121,10 @@ export function openDig(doc: Document, onClose: () => void): void {
         if (Math.abs(dh) >= 0.01)
           parts.push(`着いて体力 ${pct(route.hpEnd)}% → ${pct(route.hpEnd + dh)}%`);
         if (!parts.length) parts.push('見込みは変わらない');
-        v = `${da < -0.005 || dh < -0.005 ? '-' : '+'}この道：${parts.join('・')}`;
+        // 先頭の一字で良し悪し（悪くなる -、良くなる +、変わらない =）。
+        const worse = da < -0.005 || dh < -0.005;
+        const better = !worse && (da > 0.005 || dh > 0.005);
+        v = `${worse ? '-' : better ? '+' : '='}この道：${parts.join('・')}`;
       } else v = '';
       if (costCache.size > 40) costCache.clear();
       costCache.set(k, v);
@@ -2157,6 +2186,7 @@ export function openDig(doc: Document, onClose: () => void): void {
             )
           : null
         : null,
+      finished ? h('p', { class: 'dig-ready' }, voiceOf(READY, w, 'ready')) : null,
       shown.length
         ? shown.map(({ a, fit }, i) =>
             gauge && gauge.key === a.id
@@ -3365,6 +3395,13 @@ export function openDig(doc: Document, onClose: () => void): void {
             h('span', {}, aft.text),
           )
         : null,
+      SETTLED[p.outcome]
+        ? h(
+            'p',
+            { class: `dig-host dig-host--aside${after.cls}`, style: after.style },
+            voiceOf(SETTLED[p.outcome] ?? [], w, `settled:${p.npc}`),
+          )
+        : null,
       list.length
         ? h(
             'div',
@@ -3556,13 +3593,19 @@ export function openDig(doc: Document, onClose: () => void): void {
   function restPanel(w: World): HTMLElement {
     const p = w.pending;
     if (p?.kind !== 'rest') return h('div');
-    const choice = (name: string, lines: string[], on: () => void, cls = '') =>
+    const choice = (name: string, lines: string[], on: () => void, cls = '', dish = '') =>
       h(
         'button',
         { type: 'button', class: `dig-scene__choice ${cls}`.trim(), onclick: on },
         h('b', {}, name),
         lines.map((l) => h('span', {}, ...heals(l))),
+        dish ? h('span', { class: 'dig-dish' }, dish) : null,
       );
+    // 主人の一言：食べる前は挨拶（夜か朝か）、食べたあとは見送りの前の一言。
+    const morning = phaseOf(w.hour) === 'morning' || phaseOf(w.hour) === 'day';
+    const host = p.used
+      ? voiceOf(DINER_AFTER, w, 'after')
+      : voiceOf(morning ? DINER_MORNING : DINER_NIGHT, w, 'hello');
     const alters = p.altered
       ? []
       : w.you.cards.flatMap((c, slot) =>
@@ -3592,6 +3635,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h('span', { class: 'dig-scene__label' }, '食堂'),
         h('b', { class: 'dig-scene__word' }, p.used ? '休んだ' : 'どう休む'),
       ),
+      host ? h('p', { class: 'dig-host' }, `「${host}」`) : null,
       p.used
         ? null
         : h(
@@ -3605,6 +3649,8 @@ export function openDig(doc: Document, onClose: () => void): void {
                 '1 時間',
               ],
               () => send({ c: 'rest', action: 'rest' }),
+              '',
+              voiceOf(DINER_LIGHT, w, 'light'),
             ),
             choice(
               'ひと晩ここで',
@@ -3615,6 +3661,7 @@ export function openDig(doc: Document, onClose: () => void): void {
               ],
               () => send({ c: 'rest', action: 'full' }),
               w.after.length ? 'is-costly' : '',
+              voiceOf(DINER_FULL, w, 'full'),
             ),
           ),
       alters.length
@@ -3629,6 +3676,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         ? h(
             'div',
             { class: 'dig-scene__row' },
+            h('span', { class: 'dig-host dig-host--aside' }, voiceOf(DINER_BET, w, 'bet')),
             button('店主と賭ける', () => send({ c: 'rest', action: 'bet' }), {
               class: 'dig-scene__pick is-lucky',
               title: '負けのない賭け。表なら金 +10、裏ならコーヒーを一杯（精神 +5）',
@@ -3638,7 +3686,14 @@ export function openDig(doc: Document, onClose: () => void): void {
       h(
         'div',
         { class: 'dig-scene__foot' },
-        button('出る', () => send({ c: 'depart' }), { class: p.used ? 'dig-go' : '' }),
+        button(
+          '出る',
+          () => {
+            const bye = voiceOf(DINER_LEAVE, w, 'leave');
+            if (send({ c: 'depart' }) && bye) showCaption(bye);
+          },
+          { class: p.used ? 'dig-go' : '' },
+        ),
       ),
     );
   }
@@ -3711,8 +3766,23 @@ export function openDig(doc: Document, onClose: () => void): void {
           ),
         );
     }
-    kids.push(button('出る', () => send({ c: 'depart' }), { class: 'dig-go' }));
-    return section('古物商', ...kids);
+    kids.push(
+      button(
+        '出る',
+        () => {
+          const bye = voiceOf(SHOP_LEAVE, w, 'leave');
+          if (send({ c: 'depart' }) && bye) showCaption(bye);
+        },
+        { class: 'dig-go' },
+      ),
+    );
+    // 古物商の一言：買ったあと／掘り出し物があるとき／ふだん。
+    const talk = p.sold.length
+      ? voiceOf(SHOP_SOLD, w, `sold${p.sold.length}`)
+      : p.bargain && !p.sold.includes(p.bargain)
+        ? voiceOf(SHOP_BARGAIN, w, 'bargain')
+        : voiceOf(SHOP_HELLO, w, 'hello');
+    return section('古物商', talk ? h('p', { class: 'dig-host' }, `「${talk}」`) : null, ...kids);
   }
 
   // ─── 終わり ─────────────────────────────────────────────────

@@ -2722,7 +2722,8 @@
   border-color: var(--amber-text);
 }
 
-.dig .dig-scene__choice.is-costly span:last-child {
+.dig .dig-scene__choice.is-costly span:last-child:not(.dig-dish),
+.dig .dig-scene__choice.is-costly span:has(+ .dig-dish) {
   color: var(--amber-text);
 }
 
@@ -3415,10 +3416,47 @@
   color: var(--amber-text);
 }
 
+/* 道の見込み：良くなるなら緑（戻るものの色）、悪くなる・変わらないなら灰。 */
 .dig-spot__cost {
+  color: var(--ink-3);
+}
+
+.dig-spot__cost.is-better {
+  color: var(--dig-green);
+}
+
+/*
+ * 声：食堂の主人・古物商の一言、決着のあとの一言、整ったときの一言。どれも数を
+ * 持たないので、薄い字で一行。主人と古物商の言葉は鉤括弧で。
+ */
+.dig-host {
+  margin: 8px 0 4px;
+  font-size: 0.8125rem;
+  line-height: 1.7;
   color: var(--ink-2);
 }
 
-.dig-spot__cost.is-worse {
-  color: var(--amber-text);
+.dig-host--aside {
+  margin: 4px 0;
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig .dig-scene__choice .dig-dish {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dotted var(--rule);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig-ready {
+  margin: 0;
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+/* 代償の行（琥珀）と取り違えないよう、一皿の一言はいつも薄い字で。 */
+.dig .dig-scene__choice.is-costly .dig-dish {
+  color: var(--ink-3);
 }

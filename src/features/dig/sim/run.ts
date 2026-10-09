@@ -50,6 +50,7 @@ import {
 import { buildsOf } from '../content/sources';
 import { SURGES, tierOf } from '../content/surges';
 import { earnTitle, titleDef } from '../content/titles';
+import { BREATH_LINES, lineAt, USE_LINES } from '../content/voices';
 import { branch } from '../core/branch';
 import type { RestAction } from '../core/events';
 import {
@@ -1144,7 +1145,7 @@ export function breather(tx: Tx, q?: number): void {
   careBonus(tx);
   shiftAll(tx, 'you');
   passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, 1))));
-  tx.emit({ type: 'note', text: '壁にもたれて、一服した。', level: 0 });
+  tx.emit({ type: 'note', text: lineAt(BREATH_LINES, w.hour * 7 + (w.pos ?? 0)), level: 0 });
 }
 
 /**
@@ -1207,7 +1208,12 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
   if (g.kind === 'prep') {
     const mult = k * (1 + (o?.boost.mult ?? 0));
     tx.emit({ type: 'prep', who: 'you', name: g.name, fx: [...(g.prep ?? [])], mult });
-    tx.emit({ type: 'note', text: `${how}${g.name}を手に、次の相手に備える。${left}`, level: 1 });
+    const say = USE_LINES[g.id];
+    tx.emit({
+      type: 'note',
+      text: `${how}${say ? lineAt(say, w.hour + held.uses) : `${g.name}を手に、`}次の相手に備える。${left}`,
+      level: 1,
+    });
     return true;
   }
   if (g.kind === 'seek') {
@@ -1232,16 +1238,18 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
     if (g.refill.tags.length === 0) refill(tx, n, undefined, 'you');
     else for (const t of g.refill.tags) if (refill(tx, n, t as Tag, 'you')) break;
   }
+  // 品ごとの一文（無ければ名前だけ）。時刻と残りの回数で、言い方が替わる。
+  const line = USE_LINES[g.id] ? lineAt(USE_LINES[g.id] ?? [], w.hour + held.uses) : '';
   if (g.cost) {
     tx.emit({ type: 'after', after: { kind: 'crash', npc: '', left: g.cost } });
     tx.emit({
       type: 'note',
-      text: `${how}${g.name}で持ち直した。次の ${g.cost} 戦、反動が残る。${left}`,
+      text: `${how}${line || `${g.name}で持ち直した。`}次の ${g.cost} 戦、反動が残る。${left}`,
       level: 1,
     });
     return true;
   }
-  tx.emit({ type: 'note', text: `${how}${g.name}を使った。${left}`, level: 1 });
+  tx.emit({ type: 'note', text: `${how}${line || `${g.name}を使った。`}${left}`, level: 1 });
   return true;
 }
 
