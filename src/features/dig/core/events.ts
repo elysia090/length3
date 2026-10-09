@@ -46,6 +46,9 @@ export type Ev =
   | { type: 'item'; who: Who; id: string; n: 1 | -1; uses?: number }
   /** 持ち物を一回使う（尽きたら手放す）。 */
   | { type: 'item.use'; who: Who; index: number }
+  /** 備えを一つ足す（次の遭遇の初めに起きる）。 */
+  | { type: 'prep'; who: Who; name: string; fx: import('../content/fx').Fx[] }
+  | { type: 'prep.clear'; who: Who }
   | { type: 'xp'; who: Who; stat: Stat; n: number }
   | { type: 'grew'; who: Who; stat: Stat; n?: number; innate?: boolean }
   | { type: 'perm'; who: Who; id: string; gain: boolean; why: string }
@@ -68,8 +71,13 @@ export type Ev =
   | { type: 'card.set'; who: Who; slot: number; card: Card | null; why: string }
   /** 後ろの札（手持ち）に加える・枠と入れ替える・回数を戻す・手放す。 */
   | { type: 'deck.add'; who: Who; card: Card }
-  | { type: 'deck.swap'; who: Who; slot: number; index: number }
+  /** 尽きた枠の札と、後ろの札を入れ替える（out・inn は知らせるための札の id）。 */
+  | { type: 'deck.swap'; who: Who; slot: number; index: number; out?: string; inn?: string }
+  /** 遭遇の初めに、手持ちから五枚を配り直す（uids の順に枠へ、残りは後ろへ）。 */
+  | { type: 'deck.deal'; who: Who; uids: number[] }
   | { type: 'deck.uses'; who: Who; index: number; n: number }
+  | { type: 'deck.ep'; who: Who; index: number; ep: string; on: boolean }
+  | { type: 'deck.max'; who: Who; index: number; n: number }
   | { type: 'deck.drop'; who: Who; index: number }
   /** 決着の余韻が付く・遭遇ごとに一つ減る・使い切る。 */
   | { type: 'after'; after: import('./model').After }
@@ -213,6 +221,8 @@ export type Cmd =
       c: 'inscribe';
       ep: string;
       slot?: number;
+      /** 手持ちの札（枠でも後ろでも）。 */
+      uid?: number;
       perm?: string;
       /** 地図の部屋（先の部屋）。 */
       node?: number;
@@ -221,6 +231,8 @@ export type Cmd =
       /** いま開いている出来事。 */
       story?: boolean;
     }
+  /** 札からエピテットを剥がして手に戻す（向き合っていないとき）。 */
+  | { c: 'peel'; uid: number; ep: string }
   | { c: 'sell'; perm: string }
   | { c: 'cure'; perm: string }
   | { c: 'sacrifice'; stat: Stat; slot: number }

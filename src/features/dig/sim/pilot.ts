@@ -3,7 +3,7 @@ import { gearOf } from '../content/gear';
 import { cardDef, epithetDef } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import type { Cmd } from '../core/events';
-import type { Char, World } from '../core/model';
+import type { Card, Char, World } from '../core/model';
 import { advise, type RouteKind } from './advise';
 import { bestAction } from './ai';
 import { foeHardness, youHardness } from './hardness';
@@ -29,9 +29,6 @@ export function pilot(w: World): Cmd | null {
   const e = w.enc;
   if (e) {
     if (e.phase === 'over') return { c: 'close' };
-    // 持ち物は手番を使わない。一手に一つ、効きそうなものを先に使う。
-    const item = useful(w);
-    if (item !== null) return { c: 'item', index: item };
     // 弱めるエピテットは、手強い相手に刻む（手番は使わない）。
     const weak = foeInk(w);
     if (weak) return { c: 'inscribe', ep: weak, foe: true };
@@ -52,9 +49,16 @@ export function pilot(w: World): Cmd | null {
             }
           });
         }
-        const pick = pickCard(w, p.cards);
+        const pick = pickCard(w, p.cards, p.inked);
         const tool = !pick && w.you.items.length < ITEM_CAP ? p.tools[0] : undefined;
-        return { c: 'claim', take: p.take[0], help, card: pick ?? undefined, tool };
+        return {
+          c: 'claim',
+          take: p.take[0],
+          help,
+          card: pick?.id,
+          drop: pick?.drop,
+          tool,
+        };
       }
       case 'story': {
         for (let i = 0; i < 6; i++) if (canChoose(w, i)) return { c: 'choose', option: i };
@@ -89,6 +93,8 @@ export function pilot(w: World): Cmd | null {
   if (ins) return ins;
   const all = reachable(w);
   if (!all.length) return null;
+  const gear = fieldItem(w, all);
+  if (gear !== null) return { c: 'item', index: gear };
   // 締め切りはないので、時間の余裕はいつもある（廊下も渡り廊下も選べる）。
   const slack = 99;
   // 廊下は夜に余裕があるときだけ。渡り廊下は回り道のぶん（2 時間）余裕が要る。
@@ -181,6 +187,15 @@ function bestInscription(you: Char, ep: string): { slot: number; gain: number } 
 }
 
 function inscription(w: World): Cmd | null {
+  // 回数を増やすエピテットは、尽きた札（無ければ、いちばん減っている札）に刻む。
+  for (const ep of w.you.epithets) {
+    if (!epithetDef(ep)?.card?.uses) continue;
+    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back].filter(
+      (c) => c.eps.length < PACE.stack,
+    );
+    const low = all.sort((a, b) => a.uses - b.uses || b.max - a.max)[0];
+    if (low && !w.enc) return { c: 'inscribe', ep, uid: low.uid };
+  }
   for (const ep of w.you.epithets) {
     const b = bestInscription(w.you, ep);
     if (b) return { c: 'inscribe', ep, slot: b.slot };
@@ -217,34 +232,53 @@ function foeInk(w: World): string | null {
   return null;
 }
 
-/** 拾う札を選ぶ。持てる余地があれば、回数の多い札を。いっぱいなら拾わない。 */
-function pickCard(w: World, offer: readonly string[]): string | null {
-  if (!deckRoom(w.you) && w.you.cards.every(Boolean)) return null;
+/**
+ * 拾う札を選ぶ。持てる余地があれば、回数の多い札を。いっぱいなら、尽きていて
+ * エピテットの無い札を手放して拾う（エピテットのある尽きた札は、宿るのを待って残す）。
+ */
+function pickCard(
+  w: World,
+  offer: readonly string[],
+  inked?: Record<string, string[]>,
+): { id: string; drop?: number } | null {
   let best: string | null = null;
   let most = -1;
   for (const id of offer) {
-    const n = cardDef(id).uses;
+    const n = cardDef(id).uses + (inked?.[id]?.length ?? 0);
     if (n > most) {
       most = n;
       best = id;
     }
   }
-  return best;
+  if (!best) return null;
+  if (deckRoom(w.you) || w.you.cards.some((c) => !c)) return { id: best };
+  const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
+  const dry = all
+    .filter((c) => c.uses === 0 && c.eps.length === 0)
+    .sort((a, b) => a.max - b.max)[0];
+  return dry ? { id: best, drop: dry.uid } : null;
 }
 
-/** 向き合っているあいだに使う持ち物（体が細ければ癒やすもの、あとは効き目のあるもの）。 */
-function useful(w: World): number | null {
-  const e = w.enc;
-  if (!e || e.who !== 'you' || e.phase !== 'act' || e.st[`item:${e.turn}`]) return null;
-  const low = w.you.hp * 2 < maxHp(stats(w, 'you'));
+/**
+ * 地図の上で使う持ち物。傷んでいれば癒やし、尽きた札があれば戻し、疲れていれば
+ * 休む。次の部屋に相手がいて備えが無ければ、備える品を一つ。持ち物が溜まったら探る。
+ */
+function fieldItem(w: World, next: readonly { npc?: string }[]): number | null {
+  const s = stats(w, 'you');
+  const low = w.you.hp * 2 < maxHp(s);
+  const dry = [...w.you.cards, ...w.you.back].some((c) => c && c.uses === 0);
+  const tired = (w.you.tired ?? 0) >= 5;
+  const facing = next.some((n) => !!n.npc) && !(w.you.prep?.length ?? 0);
   let at: number | null = null;
   w.you.items.forEach((it, i) => {
     if (at !== null) return;
     const g = gearOf(it.id);
     if (!g) return;
-    if (g.heal?.hp && low) at = i;
-    else if (g.fx?.some((f) => ['hit', 'break', 'trust', 'clue', 'stun', 'cut'].includes(f[0])))
-      at = i;
+    if (g.kind === 'rest') {
+      if ((g.heal?.hp && low) || (g.refill && dry) || (g.tired && tired)) at = i;
+    } else if (g.kind === 'prep') {
+      if (facing) at = i;
+    } else if (w.you.items.length >= 6 && !low) at = i;
   });
   return at;
 }

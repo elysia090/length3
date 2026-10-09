@@ -2,9 +2,11 @@ import { PACE, POINTS } from '../content/balance';
 import { cardArch, cardTags } from '../content/cardinfo';
 import type { EpithetCtx } from '../content/defs';
 import type { CardFacet } from '../content/epithets';
+import { poolEpithets } from '../content/epithets';
 import { heatOf, LAST } from '../content/floors';
 import { holds, run } from '../content/fx';
-import { allEpithets, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
+import { gearOf } from '../content/gear';
+import { cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import { buildsOf } from '../content/sources';
 import type { Basic } from '../core/events';
 import { portrait } from '../core/mind';
@@ -17,12 +19,16 @@ import {
   chance,
   charOf,
   coins,
+  deal,
   end,
+  epUses,
   gainPerm,
+  giveItem,
   heal,
   hitFoe,
   hostile,
   line,
+  markEp,
   maxHp,
   maxMind,
   quip,
@@ -157,6 +163,8 @@ export function startEnc(
   const w = tx.w;
   const late = Math.max(0, Math.round(tx.rule('lateness', { who }, 0)));
   const def = foeDef(npc);
+  // 手持ちから五枚を配り直す（毎回ちがう五枚で向き合う）。
+  deal(tx, who);
   const f = scaleFoe(w, npc, m, late);
   const stage = [...(m.stage ?? [])];
   tx.emit({ type: 'enc.start', who, foe: f, tier: tier as 'normal', stage });
@@ -228,6 +236,16 @@ export function startEnc(
   def.init?.(tx);
   if (statOf(w, who, 'AGI') >= e.foe.agi + 3) tx.emit({ type: 'foe.st', key: 'late', n: 1 });
   planFoe(tx);
+  // 備え：その場で手にした品が、向き合った初めに効く（使ったら消える）。
+  const prep = charOf(w, who).prep ?? [];
+  if (who === 'you' && prep.length) {
+    tx.emit({ type: 'prep.clear', who });
+    for (const p of prep) {
+      run(tx, p.fx, { mult: 1, card: `prep:${p.name}`, slot: -1, first: false });
+      tx.emit({ type: 'note', text: `備えの${p.name}が効いた。`, level: 1 });
+    }
+    settle(tx);
+  }
 }
 
 /**
@@ -715,13 +733,19 @@ export function cardsAfter(
   if (outcome === 'left' && log.hostility < 7) on.push('left');
   if (log.lies > 0 && log.caught === 0) on.push('lieKept');
   if (log.cards === 0 && outcome !== 'fallen' && outcome !== 'shattered') on.push('quiet');
+  // 決着の形に合う札のうち、いちばん減っている一枚だけが一つ戻る。
   const c = charOf(tx.w, who);
+  let at = -1;
+  let gap = 0;
   c.cards.forEach((card, slot) => {
-    if (!card) return;
-    const def = cardDef(card.id);
-    if (def.recover.on.some((t) => on.includes(t)) && card.uses < card.max)
-      tx.emit({ type: 'card.uses', who, slot, n: 1 });
+    if (!card || card.uses >= card.max) return;
+    if (!cardDef(card.id).recover.on.some((t) => on.includes(t))) return;
+    if (card.max - card.uses > gap) {
+      gap = card.max - card.uses;
+      at = slot;
+    }
   });
+  if (at >= 0) tx.emit({ type: 'card.uses', who, slot: at, n: 1 });
   shiftAll(tx, who);
   overuse(tx, who);
 }
@@ -748,6 +772,7 @@ export function transform(tx: Tx, who: Who, slot: number, to: string, why: strin
   const old = c.cards[slot];
   if (!old) return;
   const def = cardDef(to);
+  const more = epUses(old.eps ?? []);
   tx.emit({
     type: 'card.set',
     who,
@@ -755,8 +780,8 @@ export function transform(tx: Tx, who: Who, slot: number, to: string, why: strin
     card: {
       uid: c.uid,
       id: to,
-      uses: def.uses,
-      max: def.uses,
+      uses: def.uses + more,
+      max: def.uses + more,
       marks: {},
       eps: [...(old.eps ?? [])],
     },
@@ -784,10 +809,7 @@ export function rewards(tx: Tx, who: Who, npc: string, outcome: Outcome, after?:
     coins(tx, r.coins, who);
     notes.push(`金 ${r.coins}`);
   }
-  if (r.item) {
-    tx.emit({ type: 'item', who, id: r.item, n: 1 });
-    notes.push(r.item);
-  }
+  if (r.item && giveItem(tx, r.item, who)) notes.push(gearOf(r.item)?.name ?? r.item);
   if (r.perm && !(after === 'trusted' && outcome === 'trusted')) gainPerm(tx, r.perm, npc, who);
   return notes;
 }
@@ -835,12 +857,21 @@ export function resonate(tx: Tx, who: Who): string[] {
       notes.push(`『${cardDef(id).name}』の回数 +1`);
     }
   }
-  if (n >= 4) {
-    const pool = allEpithets();
-    const ep = pool[Math.floor(tx.rand('loot') * pool.length)];
-    if (ep) {
-      tx.emit({ type: 'ep.held', who, ep: ep.id, n: 1 });
-      notes.push(`エピテット《${ep.name}》`);
+  if (n >= 4 && tx.rand('loot') < PACE.epGlow) {
+    // 大きく共鳴すると、ときどき、輝いた札の一枚にエピテットが宿る（拾える語から）。
+    const ch = charOf(tx.w, who);
+    const lit = list.flatMap((src) => {
+      const [kind, slot] = src.split(':');
+      const i = Number(slot);
+      const card = ch.cards[i];
+      return kind === 'card' && card && card.eps.length < PACE.stack ? [i] : [];
+    });
+    const i = tx.pick('loot', lit);
+    const ep = tx.pick('loot', poolEpithets());
+    const card = i !== undefined ? ch.cards[i] : undefined;
+    if (i !== undefined && ep && card) {
+      markEp(tx, who, { slot: i }, ep.id, true);
+      notes.push(`『${cardDef(card.id).name}』に《${ep.name}》`);
     }
   }
   if (n >= 6) {

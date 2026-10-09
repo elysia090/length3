@@ -18,6 +18,7 @@ const blankChar = (): Char => ({
   coins: 0,
   items: [],
   cards: [null, null, null, null, null],
+  prep: [],
   back: [],
   level: 0,
   tired: 0,
@@ -132,13 +133,25 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'item': {
       const c = charOf(w, ev.who);
-      if (ev.n > 0) c.items.push({ id: ev.id, uses: Math.max(1, ev.uses ?? 1) });
-      else {
+      if (ev.n > 0) {
+        // 同じ品は重ねて持つ（回数が足される。持ち物の欄は一つのまま）。
+        const same = c.items.find((x) => x.id === ev.id);
+        if (same) same.uses += Math.max(1, ev.uses ?? 1);
+        else c.items.push({ id: ev.id, uses: Math.max(1, ev.uses ?? 1) });
+      } else {
         const i = c.items.findIndex((x) => x.id === ev.id);
         if (i >= 0) c.items.splice(i, 1);
       }
       break;
     }
+    case 'prep': {
+      const c = charOf(w, ev.who);
+      c.prep = [...(c.prep ?? []), { name: ev.name, fx: structuredClone(ev.fx) }];
+      break;
+    }
+    case 'prep.clear':
+      charOf(w, ev.who).prep = [];
+      break;
     case 'item.use': {
       const c = charOf(w, ev.who);
       const it = c.items[ev.index];
@@ -210,7 +223,10 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'card.max': {
       const card = charOf(w, ev.who).cards[ev.slot];
-      if (card) card.max = Math.max(1, card.max + ev.n);
+      if (card) {
+        card.max = Math.max(1, card.max + ev.n);
+        card.uses = Math.min(card.uses, card.max);
+      }
       break;
     }
     case 'card.mark': {
@@ -239,9 +255,36 @@ export function apply(w: World, ev: Ev): void {
       }
       break;
     }
+    case 'deck.deal': {
+      const c = charOf(w, ev.who);
+      const all = [...c.cards.filter((x): x is NonNullable<typeof x> => !!x), ...c.back];
+      const hand = ev.uids.flatMap((u) => all.filter((x) => x.uid === u).slice(0, 1));
+      c.cards = [0, 1, 2, 3, 4].map((i) => hand[i] ?? null);
+      c.back = all.filter((x) => !hand.includes(x));
+      break;
+    }
     case 'deck.uses': {
       const card = charOf(w, ev.who).back[ev.index];
       if (card) card.uses = Math.max(0, Math.min(card.max, card.uses + ev.n));
+      break;
+    }
+    case 'deck.ep': {
+      const card = charOf(w, ev.who).back[ev.index];
+      if (card) {
+        if (ev.on) card.eps = [...card.eps, ev.ep];
+        else {
+          const i = card.eps.indexOf(ev.ep);
+          if (i >= 0) card.eps = card.eps.filter((_, k) => k !== i);
+        }
+      }
+      break;
+    }
+    case 'deck.max': {
+      const card = charOf(w, ev.who).back[ev.index];
+      if (card) {
+        card.max = Math.max(1, card.max + ev.n);
+        card.uses = Math.min(card.uses, card.max);
+      }
       break;
     }
     case 'deck.drop':

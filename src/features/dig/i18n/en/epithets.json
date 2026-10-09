@@ -284,7 +284,22 @@
     "《偽りの》流用：嘘の信頼の半分が相手を崩す": "«False» spill: half of false trust unsettles them",
     "《晒された》流用：開けすぎた鍵が守りを剥がす": "«Exposed» spill: an overopened lock strips their guard",
     "《目覚めた》流用：予告を見るたび信頼 +1": "«Awakened» spill: trust +1 each time you see a tell",
-    "《谺する》流用：残った守りの 2 割が信頼になる": "«Echoing» spill: 20% of leftover guard becomes trust"
+    "《谺する》流用：残った守りの 2 割が信頼になる": "«Echoing» spill: 20% of leftover guard becomes trust",
+    "擦り切れない": "Unworn",
+    "何度めくっても、角が丸くならない。": "However often it's turned, the corners never round.",
+    "最大回数 +2。": "Max uses +2.",
+    "売ると少し高い。": "Sells for a little more.",
+    "使い込まれた": "Thumbed",
+    "手の脂で、紙がやわらかくなっている。": "The paper has gone soft with handling.",
+    "最大回数 +3。": "Max uses +3.",
+    "補正 ×1.2。": "Modifier ×1.2.",
+    "重版の": "Reprinted",
+    "同じものが、どこかでまだ刷られている。": "Somewhere, the same thing is still being printed.",
+    "最大回数 +5。×0.9。": "Max uses +5. ×0.9.",
+    "売ると高い。": "Sells high.",
+    "底なしの": "Bottomless",
+    "汲んでも汲んでも、底に届かない。": "However much you draw, you never reach the bottom.",
+    "最大回数 +9。": "Max uses +9."
   },
   "templates": {}
 }

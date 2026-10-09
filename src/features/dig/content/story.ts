@@ -1,5 +1,5 @@
 import type { Tx } from '../core/tx';
-import { coins, gainPerm, losePerm, refill, xp } from '../sim/ops';
+import { coins, gainPerm, giveItem, losePerm, refill, xp } from '../sim/ops';
 import type { StoryDef } from './defs';
 
 /** 体と心を直に動かす（出来事の中。0 にはしない）。 */
@@ -12,7 +12,7 @@ function adjust(tx: Tx, hp: number, mind = 0): void {
   const m = Math.max(1 - y.mind, Math.min(mind, maxMind - y.mind));
   if (h || m) tx.emit({ type: 'vital', who: 'you', hp: h, mind: m });
 }
-const item = (tx: Tx, id: string) => tx.emit({ type: 'item', who: 'you', id, n: 1 });
+const item = (tx: Tx, id: string) => giveItem(tx, id, 'you');
 const has = (tx: Tx, p: string) => tx.w.you.perms.includes(p);
 const time = (tx: Tx, h: number) => tx.emit({ type: 'time', hours: h });
 

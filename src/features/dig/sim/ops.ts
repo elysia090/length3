@@ -1,8 +1,20 @@
 import { PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { LineKind } from '../content/defs';
-import { cardDef, foeDef, permDef } from '../content/registry';
-import type { Char, Claim, Enc, Foe, Outcome, Stat, StatBlock, Who, World } from '../core/model';
+import { gearOf, ITEM_CAP } from '../content/gear';
+import { cardDef, epithetDef, foeDef, permDef } from '../content/registry';
+import type {
+  Card,
+  Char,
+  Claim,
+  Enc,
+  Foe,
+  Outcome,
+  Stat,
+  StatBlock,
+  Who,
+  World,
+} from '../core/model';
 import { STATS, zeroStats } from '../core/model';
 import type { Tag, TagCount } from '../core/tags';
 import type { Tx } from '../core/tx';
@@ -287,6 +299,29 @@ export function losePerm(tx: Tx, id: string, why: string, who: Who = actor(tx)):
   tx.emit({ type: 'perm', who, id, gain: false, why });
 }
 
+/**
+ * 品を一つ持つ。同じ品は重ねて持てる（回数が足される）。持ちきれなければ、
+ * 黙って捨てずに金に換えて知らせる。持てたら true。
+ */
+export function giveItem(tx: Tx, id: string, who: Who = 'you'): boolean {
+  const c = charOf(tx.w, who);
+  const g = gearOf(id);
+  if (!g) return false;
+  if (!c.items.some((x) => x.id === id) && c.items.length >= ITEM_CAP) {
+    const n = Math.max(4, Math.round(g.price / 3));
+    coins(tx, n, who);
+    if (who === 'you')
+      tx.emit({ type: 'note', text: `${g.name}は持ちきれず、金 ${n} に換えた。`, level: 1 });
+    return false;
+  }
+  tx.emit({ type: 'item', who, id, n: 1, uses: g.uses });
+  return true;
+}
+
+/** もう一つ持てるか（同じ品なら重ねられる）。 */
+export const itemRoom = (c: Char, id: string): boolean =>
+  c.items.some((x) => x.id === id) || c.items.length < ITEM_CAP;
+
 export function loseItem(tx: Tx, who: Who = actor(tx)): void {
   const c = charOf(tx.w, who);
   const item = tx.pick('enc', c.items);
@@ -323,20 +358,117 @@ export function quip(tx: Tx, kind: LineKind, p = 1): boolean {
 // ─── カードの回数 ─────────────────────────────────────────────
 
 /** タグを持つカードの回数を戻す（tag が無ければ全部）。 */
-export function refill(tx: Tx, n: number, tag?: Tag, who: Who = actor(tx), rested = false): void {
-  charOf(tx.w, who).cards.forEach((card, slot) => {
-    if (!card || card.uses >= card.max) return;
-    const def = cardDef(card.id);
-    if (tag && !def.tags.includes(tag)) return;
-    if (rested && def.recover.restOnly) return;
-    tx.emit({ type: 'card.uses', who, slot, n });
-    if (rested) tx.emit({ type: 'card.mark', who, slot, mark: 'rested', n: 1 });
+/**
+ * 札の回数を戻す。戻るのは一枚だけ：タグの合う札のうち、いちばん減っている札
+ * （同じなら枠の札）。戻ったら true。
+ */
+export function refill(
+  tx: Tx,
+  n: number,
+  tag?: Tag,
+  who: Who = actor(tx),
+  rested = false,
+): boolean {
+  if (n <= 0) return false;
+  const c = charOf(tx.w, who);
+  const fits = (card: Card) =>
+    card.uses < card.max &&
+    (!tag || cardDef(card.id).tags.includes(tag)) &&
+    !(rested && cardDef(card.id).recover.restOnly);
+  let best: { slot: number; index: number; gap: number } | null = null;
+  c.cards.forEach((card, slot) => {
+    if (!card || !fits(card)) return;
+    const gap = card.max - card.uses;
+    if (!best || gap > best.gap) best = { slot, index: -1, gap };
   });
-  // 後ろで眠っている札にも届く。
-  charOf(tx.w, who).back.forEach((card, index) => {
-    if (card.uses >= card.max) return;
-    if (tag && !cardDef(card.id).tags.includes(tag)) return;
-    tx.emit({ type: 'deck.uses', who, index, n });
+  c.back.forEach((card, index) => {
+    if (!fits(card)) return;
+    const gap = card.max - card.uses;
+    if (!best || gap > best.gap) best = { slot: -1, index, gap };
+  });
+  const b = best as { slot: number; index: number; gap: number } | null;
+  if (!b) return false;
+  if (b.slot >= 0) {
+    tx.emit({ type: 'card.uses', who, slot: b.slot, n });
+    if (rested) tx.emit({ type: 'card.mark', who, slot: b.slot, mark: 'rested', n: 1 });
+  } else tx.emit({ type: 'deck.uses', who, index: b.index, n });
+  return true;
+}
+
+/** 札を一枚、満タンまで戻す（いちばん減っている札）。 */
+export const refillOne = (tx: Tx, who: Who = 'you'): boolean =>
+  refill(tx, 99, undefined, who, true);
+
+/** 刻まれたエピテットが増やす最大回数の合計。 */
+export const epUses = (eps: readonly string[]): number =>
+  eps.reduce((n, e) => n + (epithetDef(e)?.card?.uses ?? 0), 0);
+
+/** 札の居場所：枠（slot）か、後ろ（index）。 */
+export type CardAt = { slot: number } | { index: number };
+
+/** uid から札の居場所を探す。 */
+export function findCard(c: Char, uid: number): CardAt | null {
+  const slot = c.cards.findIndex((x) => x?.uid === uid);
+  if (slot >= 0) return { slot };
+  const index = c.back.findIndex((x) => x.uid === uid);
+  return index >= 0 ? { index } : null;
+}
+
+export const cardAt = (c: Char, at: CardAt): Card | undefined =>
+  'slot' in at ? (c.cards[at.slot] ?? undefined) : c.back[at.index];
+
+/**
+ * 札にエピテットを刻む・剥がす。回数を増やす語なら、最大回数も同じだけ動く
+ * （刻めば回数も増え、剥がせば最大に合わせて削れる）。
+ */
+export function markEp(tx: Tx, who: Who, at: CardAt, ep: string, on: boolean): void {
+  if ('slot' in at) tx.emit({ type: 'card.ep', who, slot: at.slot, ep, on });
+  else tx.emit({ type: 'deck.ep', who, index: at.index, ep, on });
+  const u = epithetDef(ep)?.card?.uses ?? 0;
+  if (!u) return;
+  const n = on ? u : -u;
+  if ('slot' in at) {
+    tx.emit({ type: 'card.max', who, slot: at.slot, n });
+    if (on) tx.emit({ type: 'card.uses', who, slot: at.slot, n });
+  } else {
+    tx.emit({ type: 'deck.max', who, index: at.index, n });
+    if (on) tx.emit({ type: 'deck.uses', who, index: at.index, n });
+  }
+}
+
+/**
+ * 遭遇の初めに、手持ち（枠と後ろ）から五枚を配り直す。回数の残っている札から
+ * 無作為に選び、足りなければ尽きた札で埋める。眠っていた札が前へ出るときは、
+ * 刻まれたエピテットが一つ剥がれる。
+ */
+export function deal(tx: Tx, who: Who): void {
+  const c = charOf(tx.w, who);
+  const all = [...c.cards.filter((x): x is Card => !!x), ...c.back];
+  if (!all.length) return;
+  const live = tx.shuffle(
+    'enc',
+    all.filter((x) => x.uses > 0),
+  );
+  const dry = tx.shuffle(
+    'enc',
+    all.filter((x) => x.uses <= 0),
+  );
+  const uids = [...live, ...dry].slice(0, 5).map((x) => x.uid);
+  tx.emit({ type: 'deck.deal', who, uids });
+  charOf(tx.w, who).cards.forEach((card, slot) => {
+    if (!card || !(card.marks.slept ?? 0)) return;
+    tx.emit({ type: 'card.mark', who, slot, mark: 'slept', n: -(card.marks.slept ?? 0) });
+    const ep = card.eps.length
+      ? card.eps[Math.floor(tx.rand('loot') * card.eps.length)]
+      : undefined;
+    if (!ep) return;
+    markEp(tx, who, { slot }, ep, false);
+    if (who === 'you')
+      tx.emit({
+        type: 'note',
+        text: `眠っていた『${cardDef(card.id).name}』から《${epithetDef(ep)?.name ?? ep}》が剥がれた。`,
+        level: 1,
+      });
   });
 }
 

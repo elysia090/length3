@@ -18,6 +18,7 @@ import {
   inscribe,
   move,
   onward,
+  peel,
   rest,
   sacrifice,
   sell,
@@ -61,8 +62,8 @@ export function decide(
       if (ok) breather(tx);
       break;
     case 'item':
-      ok = !w.pending || w.pending.kind === 'rest' || w.pending.kind === 'encounter';
-      if (ok) ok = useItem(tx, cmd.index);
+      // 持ち物は、向き合っていないときに使う（探る品は、手の空いているときだけ）。
+      ok = !w.enc && useItem(tx, cmd.index);
       break;
     case 'act':
       // 素手の手（押す・構える・話す）は無い。立ち去るか、取引に応じるだけ。
@@ -92,6 +93,9 @@ export function decide(
       break;
     case 'inscribe':
       ok = inscribe(tx, cmd.ep, cmd);
+      break;
+    case 'peel':
+      ok = peel(tx, cmd.uid, cmd.ep);
       break;
     case 'buy':
       ok = buy(tx, cmd.id, cmd.drop);

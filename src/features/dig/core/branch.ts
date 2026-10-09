@@ -31,6 +31,7 @@ export function copyChar(c: Char): Char {
     items: c.items.map((x) => ({ ...x })),
     cards: c.cards.map(copyCard),
     back: c.back.map((x) => copyCard(x) as Card),
+    prep: c.prep?.map((p) => ({ ...p, fx: [...p.fx] })),
     perms: [...c.perms],
     permEps,
     epithets: [...c.epithets],

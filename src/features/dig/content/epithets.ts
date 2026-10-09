@@ -33,6 +33,8 @@ export interface CardFacet {
   care?: boolean;
   /** 遭遇で 1 度目は何も起きず、2 度目から ×2（眠った）。 */
   dormant?: boolean;
+  /** 最大回数の増減（刻むと回数も同じだけ増え、剥がすと戻る）。 */
+  uses?: number;
   host?: number;
   variance?: readonly [number, number];
   after?: readonly Fx[];
@@ -848,7 +850,74 @@ export const EPITHETS: readonly Epithet[] = [
     place: { text: '値段 ×0.9。', price: 0.9 },
     memory: { text: '売ると高い。', value: 1.5 },
   },
+  // ─── 回数を増やす（剥がすと戻る） ─────────────────────────────
+  {
+    id: 'unworn',
+    name: '擦り切れない',
+    gloss: '何度めくっても、角が丸くならない。',
+    rarity: 'common',
+    card: { text: '最大回数 +2。', uses: 2 },
+    memory: { text: '売ると少し高い。', value: 1.2 },
+  },
+  {
+    id: 'thumbed',
+    name: '使い込まれた',
+    gloss: '手の脂で、紙がやわらかくなっている。',
+    rarity: 'uncommon',
+    card: { text: '最大回数 +3。', uses: 3 },
+    memory: { text: '補正 ×1.2。', mods: 1.2 },
+  },
+  {
+    id: 'reprinted',
+    name: '重版の',
+    gloss: '同じものが、どこかでまだ刷られている。',
+    rarity: 'uncommon',
+    card: { text: '最大回数 +5。×0.9。', uses: 5, mult: () => 0.9 },
+    memory: { text: '売ると高い。', value: 1.4 },
+  },
+  {
+    id: 'bottomless',
+    name: '底なしの',
+    gloss: '汲んでも汲んでも、底に届かない。',
+    rarity: 'rare',
+    card: { text: '最大回数 +9。', uses: 9 },
+    memory: { text: '補正 ×1.5。', mods: 1.5 },
+  },
 ];
+
+/**
+ * 拾えるエピテット。落とし物・刻まれた札・ひとりでに宿るもの・古物商の品は、
+ * どれもこの中から出る（種類を絞って、覚えられる数にする）。ほかの語は、
+ * 人物や部屋や出来事に、はじめから刻まれて出てくる。
+ */
+export const EP_POOL: readonly string[] = [
+  // 回数を増やす
+  'unworn',
+  'thumbed',
+  'reprinted',
+  'bottomless',
+  // 強める（銅・銀）
+  'heavy',
+  'sharp',
+  'early',
+  'crowded',
+  'nocturnal',
+  'grave',
+  // 形を変える
+  'awake',
+  'repeating',
+  'relentless',
+  'stingy',
+  'taciturn',
+  'amber',
+  // 稀なもの
+  'echoing',
+  'double',
+  'blessed',
+];
+
+/** 拾えるエピテット（重みは格で：金は稀に）。 */
+export const poolEpithets = (): Epithet[] => EPITHETS.filter((e) => EP_POOL.includes(e.id));
 
 /** 刻める先ごとに、意味を持つエピテット。 */
 export const epithetsFor = (kind: 'card' | 'foe' | 'place' | 'story' | 'memory') =>
@@ -915,5 +984,7 @@ export const EP_TIER_NAME: Readonly<Record<EpTier, string>> = {
 export function epTier(e: Epithet): EpTier {
   if (e.rarity === 'rare') return 'gold';
   if (e.rarity === 'uncommon') return 'silver';
-  return /×1\.[1-9]|×[2-9]/.test(e.card?.text ?? '') ? 'bronze' : 'plain';
+  return /×1\.[1-9]|×[2-9]/.test(e.card?.text ?? '') || (e.card?.uses ?? 0) > 0
+    ? 'bronze'
+    : 'plain';
 }

@@ -1526,6 +1526,32 @@
   }
 }
 
+/* 遭遇の初めに配り直した五枚：左から一枚ずつ差し込む。 */
+.dig-card.is-dealt {
+  animation: dig-card-in 140ms ease-out both;
+  animation-delay: calc(var(--deal, 0) * 70ms);
+}
+
+/*
+ * 尽きた札と入れ替わった札。札の上に「『…』と入れ替え」の名札をしばらく残す
+ * （黙って替わらない）。差し込みの動きは is-new と同じ。
+ */
+.dig-card.is-swapped {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
+.dig-card__swap {
+  align-self: flex-start;
+  padding: 0 4px;
+  border: 1px solid var(--amber-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.04em;
+  color: var(--amber-text);
+  background: var(--bg);
+}
+
 /* 挑戦の終わり：点（数え上げ）と、記録の字幕と、四つの数。 */
 .dig-score {
   display: flex;
@@ -1585,6 +1611,7 @@
   .dig-coins__up,
   .is-risen .dig-hard,
   .dig-card.is-new,
+  .dig-card.is-dealt,
   .dig-score__best {
     animation: none;
   }
@@ -2444,4 +2471,92 @@
   .dig-hand.is-preview {
     grid-template-columns: repeat(5, minmax(10rem, 1fr));
   }
+}
+
+/*
+ * その場で：休む・備える・探るの三つの列。名札（mono）と、その列で使えるもの。
+ * 向き合っているあいだに使う品は無いので、この三つが持ち物のすべての居場所。
+ */
+.dig-places {
+  display: grid;
+  gap: 8px;
+}
+
+.dig-place {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.dig-place__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.dig-place__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.dig .dig-gear__item.is-on {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+.dig-prep {
+  font-size: var(--font-ui-xs);
+  color: var(--amber-text);
+}
+
+/* 整える：手持ちの札を全部広げた画面。剥がす釦は小さく、刻める札だけが浮く。 */
+.dig-deck__held {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin: 0;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-deck__held .dig-pills__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.dig-deck__eps {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--rule);
+}
+
+.dig-deck__ep {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+}
+
+.dig .dig-deck__ep button {
+  min-height: 1.5rem;
+  margin-left: auto;
+  padding: 0 8px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-deckview .dig-card.is-live {
+  border-color: var(--amber-text);
+  cursor: pointer;
+}
+
+.dig-deckview .dig-card.is-dim {
+  opacity: 0.32;
 }
