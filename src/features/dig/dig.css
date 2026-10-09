@@ -4175,3 +4175,35 @@
   padding: var(--dig-s-1) var(--dig-s-2);
   font-size: var(--dig-t-md);
 }
+
+/* 出来事の受け取りの一行（品・金・体と心）。等幅で、本文の下に。 */
+.dig-got {
+  margin: 0;
+  padding: var(--dig-s-1) var(--dig-s-2);
+  border: var(--dig-line);
+  font-family: var(--font-mono);
+  font-size: var(--dig-t-sm);
+  letter-spacing: 0.02em;
+}
+
+/* 指で触る広い画面（タブレット）でも、構えた札の中身は手札の下に開く。 */
+@media (min-width: 52.001rem) and (hover: none) and (pointer: coarse) {
+  .dig-armdetail {
+    display: grid;
+    gap: var(--dig-s-1);
+    margin-top: var(--dig-s-2);
+    padding: var(--dig-s-2) var(--dig-s-3);
+    border: var(--dig-line);
+    box-shadow: inset 2px 0 0 var(--amber-text);
+    font-size: var(--dig-t-md);
+  }
+
+  .dig-armdetail p {
+    margin: 0;
+  }
+
+  .dig .dig-card.is-armed {
+    border-color: var(--amber-text);
+    box-shadow: inset 0 0 0 1px var(--amber-text);
+  }
+}

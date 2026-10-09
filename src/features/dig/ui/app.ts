@@ -56,6 +56,7 @@ import {
   sourceLabel,
 } from '../sim/advise';
 import {
+  acceptPrice,
   bonusOf,
   canAccept,
   chainNext,
@@ -85,7 +86,6 @@ import {
   deckRoom,
   deckSize,
   epPrice,
-  ITEM_CAP,
   isBridge,
   isHall,
   nodeOf,
@@ -263,7 +263,9 @@ export function openDig(doc: Document, onClose: () => void): void {
   let hoverSlot: number | null = null;
   /** 狭い画面で、一度押して構えた札（もう一度押すと切る）。 */
   let armedSlot: number | null = null;
-  const narrow = () => window.matchMedia('(max-width: 52rem)').matches;
+  /** 札を二度押しで切る端末（狭い画面か、指で触る端末）。一度目は構えて中身を読む。 */
+  const narrow = () =>
+    window.matchMedia('(max-width: 52rem), (hover: none) and (pointer: coarse)').matches;
   /** 触れている札以外の手（札と同じく、四つの道に先に映す）。 */
   let hoverAct: Basic | null = null;
   /** 触れている選択肢（押す前に、相手になれる札を白く見せる）。 */
@@ -2948,8 +2950,63 @@ export function openDig(doc: Document, onClose: () => void): void {
           );
         }),
       ),
+      // 受け取る前に整える：手放す札からエピテットを剥がしておく、持ち物を使って枠を空ける。
+      // （受け取りは保留のまま。整えたら、同じ受け取りに戻る）
+      peelRows(st.all),
+      w.you.items.length
+        ? h(
+            'div',
+            { class: 'dig-deck__sec' },
+            h('h3', {}, '持ち物（使って枠を空けられる）'),
+            gearRows(w),
+          )
+        : null,
       confirmBar(w),
     ];
+  }
+
+  /** 記憶への刻み先（向き合っているあいだは手札の一覧が開かないので、手元の帯に出す）。 */
+  function memoryTargets(w: World, ep: string): HTMLElement[] {
+    const d = epithetDef(ep);
+    if (!d?.memory) return [];
+    return w.you.perms
+      .filter((pid) => (w.you.permEps[pid] ?? []).length < PACE.stack)
+      .map((pid) =>
+        button(
+          `記憶《${permDef(pid)?.name ?? pid}》に刻む：${d.memory?.text ?? ''}`,
+          () => {
+            aim = null;
+            send({ c: 'inscribe', ep, perm: pid });
+          },
+          { class: 'dig-ink-foe is-live' },
+        ),
+      );
+  }
+
+  /** 受け取りのあいだに、札のエピテットを剥がして手元に戻す（手放す前に、語だけ残す）。 */
+  function peelRows(all: readonly Card[]): HTMLElement | null {
+    const inked = all.filter((c) => c.eps.length);
+    if (!inked.length) return null;
+    return h(
+      'div',
+      { class: 'dig-deck__sec' },
+      h('h3', {}, '剥がして残す'),
+      h(
+        'div',
+        { class: 'dig-deck__eps' },
+        inked.flatMap((c) =>
+          c.eps.map((e) =>
+            h(
+              'span',
+              { class: 'dig-deck__ep' },
+              h('span', {}, `『${cardDef(c.id).name}』`),
+              epChip(e),
+              button('剥がす', () => send({ c: 'peel', uid: c.uid, ep: e })),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   /**
@@ -3425,7 +3482,9 @@ export function openDig(doc: Document, onClose: () => void): void {
               h(
                 'span',
                 {},
-                a === 'leave' ? `抜け出せる見込み ${lc}%・決着はつかない` : BASIC_GLOSS[a],
+                a === 'leave'
+                  ? `抜け出せる見込み ${lc}%・決着はつかない`
+                  : `金 ${acceptPrice(w)} を払って、${BASIC_GLOSS[a]}`,
               ),
             ),
           ),
@@ -3503,6 +3562,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     return section(
       storyDef(p.id)?.title ?? '',
       h('p', {}, p.text),
+      // 何が出て、何を払ったか（選んだあとに確かめられる）。
+      p.got ? h('p', { class: 'dig-got' }, p.got) : null,
       p.chance !== undefined
         ? h('p', { class: 'dig-quiet' }, `判定 ${p.roll} / ${p.chance}%`)
         : null,
@@ -4253,6 +4314,8 @@ export function openDig(doc: Document, onClose: () => void): void {
                     { class: 'dig-ink-foe is-live' },
                   )
                 : null,
+              // 記憶へも、向き合っているあいだに刻める（手番は使わない）。案内と同じ場所に。
+              aim.kind === 'inscribe' && w.enc ? memoryTargets(w, aim.ep) : null,
               ' ',
               button('やめる', () => {
                 aim = null;

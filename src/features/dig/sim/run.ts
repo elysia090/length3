@@ -52,7 +52,7 @@ import { SURGES, tierOf } from '../content/surges';
 import { earnTitle, titleDef } from '../content/titles';
 import { BREATH_LINES, lineAt, USE_LINES } from '../content/voices';
 import { branch } from '../core/branch';
-import type { RestAction } from '../core/events';
+import type { Ev, RestAction } from '../core/events';
 import {
   blankMind,
   type Card,
@@ -1643,8 +1643,10 @@ export function choose(tx: Tx, i: number): boolean {
     xp(tx, o.stat, ok ? 2 : 1, 'you');
   }
   const twice = ok && p.eps.some((e) => epithetDef(e)?.story?.twice);
+  const from = tx.out.length;
   const extra = ok ? o.effect(tx) : o.failEffect?.(tx);
   if (twice) o.effect(tx);
+  const got = receipt(tx.out.slice(from));
   if (w.flags['clear-debt']) {
     const owed = Object.keys(w.you.debts).find((id) => (w.you.debts[id] ?? 0) > 0);
     if (owed) tx.emit({ type: 'debt', who: 'you', npc: owed, n: -1 });
@@ -1653,9 +1655,39 @@ export function choose(tx: Tx, i: number): boolean {
   tx.emit({ type: 'story.seen', id: p.id });
   const text = [ok ? o.ok : (o.fail ?? o.ok), extra || ''].filter(Boolean).join(' ');
   tx.emit({ type: 'note', text: `${def.title}：${text}`, level: 0 });
-  tx.emit({ type: 'pending', p: { kind: 'told', id: p.id, ok, text, chance, roll } });
+  tx.emit({ type: 'pending', p: { kind: 'told', id: p.id, ok, text, chance, roll, got } });
   sync(tx);
   return true;
+}
+
+/**
+ * 出来事で動いたものの、受け取りの一行（「包帯 ×1・金 −10」）。何が出たかは選んだあとに
+ * 確かめられる（選ぶ前には知らせない）。動いたものが無ければ undefined。
+ */
+function receipt(evs: readonly Ev[]): string | undefined {
+  let coin = 0;
+  let hp = 0;
+  let mind = 0;
+  const items = new Map<string, number>();
+  const parts: string[] = [];
+  for (const ev of evs) {
+    if (ev.type === 'coins' && ev.who === 'you') coin += ev.n;
+    else if (ev.type === 'vital' && ev.who === 'you') {
+      hp += ev.hp ?? 0;
+      mind += ev.mind ?? 0;
+    } else if (ev.type === 'item' && ev.who === 'you' && ev.n > 0)
+      items.set(ev.id, (items.get(ev.id) ?? 0) + ev.n);
+    else if (ev.type === 'ep.held' && ev.who === 'you' && ev.n > 0)
+      parts.push(`《${epithetDef(ev.ep)?.name ?? ev.ep}》`);
+    else if (ev.type === 'perm' && ev.who === 'you')
+      parts.push(`記憶《${permDef(ev.id)?.name ?? ev.id}》`);
+  }
+  for (const [id, n] of items) parts.unshift(`${gearOf(id)?.name ?? id} ×${n}`);
+  const sign = (n: number) => (n > 0 ? `+${n}` : `−${-n}`);
+  if (hp) parts.push(`体力 ${sign(hp)}`);
+  if (mind) parts.push(`精神 ${sign(mind)}`);
+  if (coin) parts.push(`金 ${sign(coin)}`);
+  return parts.length ? parts.join('・') : undefined;
 }
 
 // ─── 食堂 ─────────────────────────────────────────────────────

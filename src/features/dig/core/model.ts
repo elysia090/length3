@@ -281,7 +281,16 @@ export type Pending =
       /** 拾い物：妙な選択肢が一つ増えている（選べば、必ず何か得る）。 */
       odd?: boolean;
     }
-  | { kind: 'told'; id: string; ok: boolean; text: string; chance?: number; roll?: number }
+  | {
+      kind: 'told';
+      id: string;
+      ok: boolean;
+      text: string;
+      chance?: number;
+      roll?: number;
+      /** 手に入れたもの・払ったもの（品・札・エピテット・金・体と心）。結果の下に一行で。 */
+      got?: string;
+    }
   | {
       kind: 'rest';
       used: boolean;

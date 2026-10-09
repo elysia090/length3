@@ -328,6 +328,11 @@ export function leaveChance(w: World): number {
   return Math.max(5, Math.min(100, Math.round(ask(w, 'leaveChance', {}, base))));
 }
 
+/** 取引に応じたときに払う金（実際に引かれる額。補正込み）。 */
+export function acceptPrice(w: World): number {
+  return Math.round(ask(w, 'price', {}, w.enc?.foe.intent?.price ?? 0));
+}
+
 export function canAccept(w: World): boolean {
   const i = w.enc?.foe.intent;
   const who = w.enc?.who ?? 'you';
