@@ -1,8 +1,8 @@
 import { PACE } from '../content/balance';
-import { allEpithets } from '../content/registry';
+import { allItems } from '../content/registry';
 import type { Goal, GoalCarry, GoalKind, GoalSize, World } from '../core/model';
 import type { Tx } from '../core/tx';
-import { coins, heal, maxHp, maxMind, refill, stats } from './ops';
+import { coins, giveItem, heal, maxHp, maxMind, refill, stats } from './ops';
 
 /**
  * 目標（大・中・小）。いつも三つ、見えるところにある。どれも、ふつうに遊べば
@@ -74,8 +74,8 @@ export function goalText(g: Goal): string {
 /** 届いたときの見返り（言葉）。 */
 export const REWARD_TEXT: Readonly<Record<GoalSize, string>> = {
   S: '金 +6',
-  M: '全ての札の回数 +1・体力と精神 +15%',
-  L: 'エピテットを一つ・金 +12',
+  M: '札一枚の回数 +1・体力と精神 +15%',
+  L: '品を一つ・金 +12',
 };
 
 function next(w: World, size: GoalSize): Goal {
@@ -120,15 +120,15 @@ export function checkGoals(tx: Tx): void {
       const s = stats(w, 'you');
       heal(tx, Math.round(maxHp(s) * 0.15), Math.round(maxMind(s) * 0.15), 'you');
     } else {
-      const pool = allEpithets().filter((e) => !!e.card);
-      const ep = tx.pick('flavor', pool);
-      if (ep) tx.emit({ type: 'ep.held', who: 'you', ep: ep.id, n: 1 });
+      // 大きな目標は、品を一つ（持ちきれなければ金で）。エピテットは札について出回る。
+      const it = tx.pick('flavor', allItems());
+      if (it) giveItem(tx, it.id);
       coins(tx, 12, 'you');
     }
     tx.emit({
       type: 'note',
       text: `目標に届いた：${goalText(g)} ── ${REWARD_TEXT[g.size]}`,
-      level: 3,
+      level: 2,
     });
     tx.emit({ type: 'goal.set', goal: next(w, g.size) });
   }

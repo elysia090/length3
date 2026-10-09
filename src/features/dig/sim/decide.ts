@@ -18,6 +18,7 @@ import {
   inscribe,
   move,
   onward,
+  peel,
   rest,
   sacrifice,
   sell,
@@ -58,11 +59,11 @@ export function decide(
     case 'breather':
       // 一服はフロアに一度（締め切りがないぶん、際限なく休めないように）。
       ok = !w.enc && !w.pending && !breathed(w);
-      if (ok) breather(tx);
+      if (ok) breather(tx, cmd.q);
       break;
     case 'item':
-      ok = !w.pending || w.pending.kind === 'rest' || w.pending.kind === 'encounter';
-      if (ok) ok = useItem(tx, cmd.index);
+      // 持ち物は、向き合っていないときに使う（探る品は、手の空いているときだけ）。
+      ok = !w.enc && useItem(tx, cmd.index, cmd.q);
       break;
     case 'act':
       // 素手の手（押す・構える・話す）は無い。立ち去るか、取引に応じるだけ。
@@ -92,6 +93,9 @@ export function decide(
       break;
     case 'inscribe':
       ok = inscribe(tx, cmd.ep, cmd);
+      break;
+    case 'peel':
+      ok = peel(tx, cmd.uid, cmd.ep);
       break;
     case 'buy':
       ok = buy(tx, cmd.id, cmd.drop);

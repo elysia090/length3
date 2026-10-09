@@ -1,9 +1,8 @@
 import { PACE } from '../content/balance';
-import { gearOf } from '../content/gear';
 import { cardDef, epithetDef } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import type { Cmd } from '../core/events';
-import type { Char, World } from '../core/model';
+import type { Card, Char, World } from '../core/model';
 import { advise, type RouteKind } from './advise';
 import { bestAction } from './ai';
 import { foeHardness, youHardness } from './hardness';
@@ -19,23 +18,23 @@ import {
   isHall,
   reachable,
 } from './run';
+import { spotActions } from './spot';
 
 /**
  * 自動操縦。あなたの席に座る頭（ライバルと同じ 1 手読み）に、地図の上の
  * 簡単な好みを足したもの。テストと釣り合いの試算、それと「おまかせ」に使う。
  */
-export function pilot(w: World): Cmd | null {
+export function pilot(w: World, opts: { quick?: boolean } = {}): Cmd | null {
   if (w.ending) return null;
   const e = w.enc;
   if (e) {
     if (e.phase === 'over') return { c: 'close' };
-    // 持ち物は手番を使わない。一手に一つ、効きそうなものを先に使う。
-    const item = useful(w);
-    if (item !== null) return { c: 'item', index: item };
     // 弱めるエピテットは、手強い相手に刻む（手番は使わない）。
     const weak = foeInk(w);
     if (weak) return { c: 'inscribe', ep: weak, foe: true };
-    const a = bestAction(w, 2);
+    // 道の読みの試行の中では 1 手読み（2 手読みは一手ごとに世界を 7×7 回複製する。
+    // 試行は場所の数だけ回るので、ここが読みの時間のほとんどを占めていた）。
+    const a = bestAction(w, opts.quick ? 1 : 2);
     return a.kind === 'basic' ? { c: 'act', a: a.a } : { c: 'card', slot: a.slot };
   }
   const p = w.pending;
@@ -52,9 +51,16 @@ export function pilot(w: World): Cmd | null {
             }
           });
         }
-        const pick = pickCard(w, p.cards);
+        const pick = pickCard(w, p.cards, p.inked);
         const tool = !pick && w.you.items.length < ITEM_CAP ? p.tools[0] : undefined;
-        return { c: 'claim', take: p.take[0], help, card: pick ?? undefined, tool };
+        return {
+          c: 'claim',
+          take: p.take[0],
+          help,
+          card: pick?.id,
+          drop: pick?.drop,
+          tool,
+        };
       }
       case 'story': {
         for (let i = 0; i < 6; i++) if (canChoose(w, i)) return { c: 'choose', option: i };
@@ -62,13 +68,10 @@ export function pilot(w: World): Cmd | null {
       }
       case 'rest': {
         if (p.used) return { c: 'depart' };
-        // 疲れが深いか、体が細いなら一晩。そうでなければ休む。金があって疲れが浅ければ食べる。
+        // 体が細いなら一晩（味方の余韻があれば惜しんで、休むだけ）。そうでなければ休む。
         const s = stats(w, 'you');
         const thin = w.you.hp * 2 < maxHp(s) || w.you.mind * 2 < s.WIL * 3 + 8;
-        if ((w.you.tired ?? 0) >= 6 || (thin && !w.after.some((a) => a.kind === 'ally')))
-          return { c: 'rest', action: 'full' };
-        if ((w.you.tired ?? 0) <= 2 && w.you.coins >= PACE.meal + 20)
-          return { c: 'rest', action: 'eat' };
+        if (thin && !w.after.some((a) => a.kind === 'ally')) return { c: 'rest', action: 'full' };
         return { c: 'rest', action: 'rest' };
       }
       case 'shop':
@@ -89,6 +92,9 @@ export function pilot(w: World): Cmd | null {
   if (ins) return ins;
   const all = reachable(w);
   if (!all.length) return null;
+  // その場で：人に見せるのと同じ見積もりで、効き目の大きいものから使う。
+  const spot = spotActions(w)[0];
+  if (spot && spot.score >= 5) return spot.cmd;
   // 締め切りはないので、時間の余裕はいつもある（廊下も渡り廊下も選べる）。
   const slack = 99;
   // 廊下は夜に余裕があるときだけ。渡り廊下は回り道のぶん（2 時間）余裕が要る。
@@ -181,6 +187,15 @@ function bestInscription(you: Char, ep: string): { slot: number; gain: number } 
 }
 
 function inscription(w: World): Cmd | null {
+  // 回数を増やすエピテットは、尽きた札（無ければ、いちばん減っている札）に刻む。
+  for (const ep of w.you.epithets) {
+    if (!epithetDef(ep)?.card?.uses) continue;
+    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back].filter(
+      (c) => c.eps.length < PACE.stack,
+    );
+    const low = all.sort((a, b) => a.uses - b.uses || b.max - a.max)[0];
+    if (low && !w.enc) return { c: 'inscribe', ep, uid: low.uid };
+  }
   for (const ep of w.you.epithets) {
     const b = bestInscription(w.you, ep);
     if (b) return { c: 'inscribe', ep, slot: b.slot };
@@ -217,34 +232,30 @@ function foeInk(w: World): string | null {
   return null;
 }
 
-/** 拾う札を選ぶ。持てる余地があれば、回数の多い札を。いっぱいなら拾わない。 */
-function pickCard(w: World, offer: readonly string[]): string | null {
-  if (!deckRoom(w.you) && w.you.cards.every(Boolean)) return null;
+/**
+ * 拾う札を選ぶ。持てる余地があれば、回数の多い札を。いっぱいなら、尽きていて
+ * エピテットの無い札を手放して拾う（エピテットのある尽きた札は、宿るのを待って残す）。
+ */
+function pickCard(
+  w: World,
+  offer: readonly string[],
+  inked?: Record<string, string[]>,
+): { id: string; drop?: number } | null {
   let best: string | null = null;
   let most = -1;
   for (const id of offer) {
-    const n = cardDef(id).uses;
+    const n = cardDef(id).uses + (inked?.[id]?.length ?? 0);
     if (n > most) {
       most = n;
       best = id;
     }
   }
-  return best;
-}
-
-/** 向き合っているあいだに使う持ち物（体が細ければ癒やすもの、あとは効き目のあるもの）。 */
-function useful(w: World): number | null {
-  const e = w.enc;
-  if (!e || e.who !== 'you' || e.phase !== 'act' || e.st[`item:${e.turn}`]) return null;
-  const low = w.you.hp * 2 < maxHp(stats(w, 'you'));
-  let at: number | null = null;
-  w.you.items.forEach((it, i) => {
-    if (at !== null) return;
-    const g = gearOf(it.id);
-    if (!g) return;
-    if (g.heal?.hp && low) at = i;
-    else if (g.fx?.some((f) => ['hit', 'break', 'trust', 'clue', 'stun', 'cut'].includes(f[0])))
-      at = i;
-  });
-  return at;
+  if (!best) return null;
+  if (deckRoom(w.you) || w.you.cards.some((c) => !c)) return { id: best };
+  // 尽きていてエピテットの無い札から。無ければ、拾う札より二回以上少ない札を（入れ替える）。
+  const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
+  const bare = all.filter((c) => c.eps.length === 0).sort((a, b) => a.uses - b.uses);
+  const low = bare[0];
+  const drop = low && (low.uses === 0 || low.uses + 2 <= most) ? low : undefined;
+  return drop ? { id: best, drop: drop.uid } : null;
 }

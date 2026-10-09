@@ -120,6 +120,14 @@ export const DEPTH_RULES: readonly { at: number; spec: PassiveSpec }[] = [
   {
     at: 2,
     spec: {
+      rule: 'strikeTaken',
+      fn: (_c, v) => (v > 0 ? v + 1 : v),
+      text: 'ナイトメア：受ける傷がさらに +1',
+    },
+  },
+  {
+    at: 2,
+    spec: {
       rule: 'restHeal',
       fn: (_c, v) => Math.round(v * 0.8),
       text: 'ナイトメア：休んでも 2 割少ない',

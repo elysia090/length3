@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.15.0';
+export const DATA_VERSION = '1.18.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -44,11 +44,13 @@ export const POINTS = {
 export const PACE = {
   rows: 9,
   dawn: 10,
-  tough: 1.95,
+  tough: 1.5,
+  /** 相手の攻撃の倍率（勝負は短く、そのぶん一撃が重い）。 */
+  bite: 2.08,
   /** 区画ごとの相手の攻撃の伸び。 */
   atkStep: 0.6,
   /** 難度の効き 1 段あたりの、相手の体と意志の伸び。 */
-  heat: 0.18,
+  heat: 0.3,
   build: 1.7,
   stratum: 0.22,
   /** 底の手前より下の区画ごとの掛け算（体・意志）。 */
@@ -72,10 +74,20 @@ export const PACE = {
   /** 向き合った相手に刻める数（一度の遭遇で inkTurn まで、相手には stackFoe まで）。 */
   inkEnc: 2,
   stackFoe: 4,
-  /** 決着の見返りの札に、エピテットが刻まれたまま出てくる割合。 */
-  inked: 0.18,
+  /** 決着の見返りの札に、エピテットが刻まれたまま出てくる割合（二枚目はこの半分）。 */
+  inked: 0.45,
+  /** 決着のあと、手元の札の一枚に、エピテットがひとりでに宿る割合。 */
+  mark: 0.08,
+  /** 相手の名を奪ったとき（折った）、エピテットが手に落ちる割合。 */
+  epBroken: 0.15,
+  /** 打ち解けたり暴いたりしたとき、エピテットが手に落ちる割合。 */
+  epSoft: 0.06,
+  /** 大きく共鳴したとき（4 つ以上）、輝いた札にエピテットが宿る割合。 */
+  epGlow: 0.35,
   /** 決着のあと、その場で使える品が一つ手に入る割合。 */
-  loot: 0.35,
+  loot: 0.15,
+  /** 倒したとき、戦利品に品がまざる割合（金はいつも）。 */
+  lootBeaten: 0.5,
   /** 最後の相手の扉の前で、体と心がここまで戻る。 */
   gate: 0.75,
   /** 三手目から、一手ごとに邪魔が入る割合（遭遇に一度まで）。 */
@@ -210,13 +222,19 @@ export const LEGACY: readonly CardDef[] = [
 ];
 
 /** いまの版までの tune を、定義に重ねる。 */
+/**
+ * 札の回数の掛け率。手持ちは七枚なので、回数が多いと尽きずに回ってしまう。
+ * 三人と向き合えば二枚ほどが尽きるように、どの札も一律に絞る（二回は残す）。
+ */
+export const USES_SCALE = 0.55;
+
 export function tuned(def: CardDef): CardDef {
   let out = def;
   for (const r of RELEASES) {
     const t = r.tune?.[def.id];
     if (t) out = { ...out, ...t };
   }
-  return out;
+  return { ...out, uses: Math.max(2, Math.round(out.uses * USES_SCALE)) };
 }
 
 /** いまの版までの、規則への調整。 */

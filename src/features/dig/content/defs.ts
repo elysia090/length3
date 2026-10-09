@@ -203,7 +203,7 @@ export interface JobDef {
   text: string;
   innate: StatBlock;
   cards: readonly string[];
-  /** 持てる札の数（枠の五枚と後ろを合わせて）。地力が上がるたびに一枚増え、17 まで。 */
+  /** 使っていない（持てる札はどの職も七枚）。古い職の定義のために残してある。 */
   deck: number;
   perms: readonly string[];
   passive?: readonly PassiveSpec[];
@@ -234,16 +234,32 @@ export interface StoryDef {
   options: readonly StoryOption[];
 }
 
+/** 持ち物の使いどころ：休む・備える（次の遭遇の初めに）・探る（出来事を起こす）。 */
+export type GearKind = 'rest' | 'prep' | 'seek';
+
+/** 探る：出来事が起きる割合と、何かが見つかる割合（残りは何も起きないか、気づかれる）。 */
+export interface Seek {
+  story: number;
+  find: number;
+  /** 誰にも気づかれない。 */
+  quiet?: boolean;
+}
+
 export interface ItemDef {
   id: string;
+  kind: GearKind;
   name: string;
   text: string;
+  /** 札一枚の回数（タグの合う、いちばん減っている札）。 */
   refill?: { tags: readonly Tag[]; n: number };
   heal?: { hp?: number; mind?: number };
-  /** その場の効き目（向き合っているあいだ、手番を使わずに）。 */
-  fx?: readonly Fx[];
+  /** 備える：次の遭遇の初めに起きる効き目。 */
+  prep?: readonly Fx[];
+  seek?: Seek;
   /** 使える回数（無ければ一度きり）。 */
   uses?: number;
+  /** 代償：使うと、次の n 戦のあいだ反動が残る（受ける一撃と脅しが重くなる）。 */
+  cost?: number;
   price: number;
   flavor: string;
 }

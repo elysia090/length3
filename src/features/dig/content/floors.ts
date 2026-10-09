@@ -315,12 +315,15 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
 /** 難度の名（depth の 0・1・2）。 */
 export const DIFFICULTY = ['ミディアム', 'ハード', 'ナイトメア'] as const;
 
+/** 難度ごとの重さ（ミディアム・ハード・ナイトメア）。 */
+const DEPTH_WEIGHT = [0, 1.5, 2.6] as const;
+
 /**
- * 難度の効き（0〜2）。構成ができあがるまでの一区・二区はどの難度でも同じで、
+ * 難度の効き（0〜2.6）。構成ができあがるまでの一区・二区はどの難度でも同じで、
  * 三区から効きはじめ、五区で選んだ難度の重さになる。
  */
 export const heatOf = (w: { depth: number; stratum: number }): number =>
-  w.depth * Math.min(1, Math.max(0, (w.stratum - 2) / 3));
+  (DEPTH_WEIGHT[w.depth] ?? w.depth) * Math.min(1, Math.max(0, (w.stratum - 2) / 3));
 
 /** 区画の顔ぶれの数（夜の街・記録の階・琥珀の階。四つ目からは巡る）。 */
 export const THEMES = 3;

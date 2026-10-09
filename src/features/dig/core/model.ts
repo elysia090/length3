@@ -32,7 +32,7 @@ export interface Card {
 export type Who = 'you' | 'rival';
 
 /** 決着の余韻の種類（倒す・折る・打ち解ける・暴く）。 */
-export type AfterKind = 'notorious' | 'feared' | 'ally' | 'insight';
+export type AfterKind = 'notorious' | 'feared' | 'ally' | 'insight' | 'crash';
 
 /** 決着の余韻。この先の遭遇に尾を引く（left は残りの遭遇の数）。 */
 export interface After {
@@ -60,14 +60,17 @@ export interface Char {
   items: Held[];
   cards: (Card | null)[];
   /**
-   * 後ろの札（枠に入っていない手持ち）。回数が尽きた札は枠から落ちてここで休み、
-   * 部屋を移るたびに一回ずつ戻る。枠の札が尽きると、回数のある札が前へ出る。
+   * 後ろの札（枠に入っていない手持ち）。遭遇の初めに、枠と後ろを合わせた手持ち
+   * から五枚が配り直される。向き合っているあいだに枠の札が尽きると、回数のある
+   * 後ろの札と入れ替わる（尽きた札はここで眠る。回数は勝手には戻らない）。
    */
   back: Card[];
+  /** 備え（次の遭遇の初めに起きる効き目）。遭遇が始まると使われて消える。 */
+  prep?: { name: string; fx: import('../content/fx').Fx[]; mult?: number }[];
+  /** その場で、最後に使ったもの（品の id か 'breather'）と、その部屋（隠し順序のため）。 */
+  lastUse?: { id: string; at: number | null };
   /** 地力が新しい高さに届いた数（持てる札が一枚ずつ増える）。 */
   level: number;
-  /** 疲れ（0〜10）。決着のたびに溜まり、休み方で抜ける。溜まるほど札が鈍り、傷が重い。 */
-  tired: number;
   /** 手に入れた順。そのまま、この挑戦の履歴になる。 */
   perms: string[];
   /** 記憶に刻まれたエピテット。 */

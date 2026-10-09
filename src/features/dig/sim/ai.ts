@@ -176,14 +176,20 @@ function imagine(tx: Tx): Action {
   const harmless = believes(mind, 'harmless');
   // 相手が想像するあなたの手は、札と立ち去ることだけ（素手の手は無い）。見た札は
   // 重く、見ていない札は、あなたが乱暴そうか穏やかそうかで、身体の札か話の札を想像する。
-  const weights: [Action, number][] = [[{ kind: 'basic', a: 'leave' }, 0.3]];
+  // 使い切った札（この遭遇で回数が尽きるのを見た札）は、もう来ないと読む。体か心が
+  // 細っているあなたは、立ち去るかもしれないと読む（追い詰めるか、逃がすかを量る）。
+  const you = charOf(w, e.who);
+  const st = stats(w, e.who);
+  const thin = you.hp * 10 < maxHp(st) * 3 || you.mind * 10 < maxMind(st) * 3;
+  const weights: [Action, number][] = [[{ kind: 'basic', a: 'leave' }, thin ? 1.2 : 0.3]];
   const seen = new Set(mind?.cards ?? []);
-  charOf(w, e.who).cards.forEach((c, slot) => {
+  you.cards.forEach((c, slot) => {
     if (!c) return;
     const body = cardDef(c.id).tags.includes('body');
     const guess = body ? 0.5 + 2 * p.violent : 0.5 + 2 * p.kind;
     const x = seen.has(c.id) ? 2.2 : guess;
-    weights.push([{ kind: 'card', slot }, harmless && body ? 0.1 : x]);
+    const spent = c.uses <= 0 && seen.has(c.id) ? 0.25 : 1;
+    weights.push([{ kind: 'card', slot }, (harmless && body ? 0.1 : x) * spent]);
   });
   const total = weights.reduce((a, [, x]) => a + x, 0);
   let r = tx.rand('ai') * total;
@@ -240,13 +246,19 @@ function judgeFoe(base: World, s: World): number {
   v += (c0.hp - Math.max(0, c1.hp)) * 1.6 * (0.3 + p.aggression);
   v += (c0.mind - Math.max(0, c1.mind)) * 1.6 * (0.3 + p.cunning);
   v += ((f1.st.backup ?? 0) - (f0.st.backup ?? 0)) * 6 * p.cunning;
+  // 狡い相手は、あなたの札を空撃ちさせる（回数を減らさせる）のも勝ちのうちと数える。
+  c1.cards.forEach((card, i) => {
+    const old = c0.cards[i];
+    if (card && old && old.uses > card.uses) v += (old.uses - card.uses) * 2 * p.cunning;
+  });
   return v;
 }
 
-/** 硬い相手ほど、多く読む。 */
+/** 硬い相手ほど、多く読む（狡い相手は、さらに読む）。 */
 function rollouts(w: World): number {
   const f = w.enc?.foe;
-  return 3 + (f ? foeHardness(f) : 4) + Math.floor(heatOf(w));
+  const sly = f ? Math.round(2 * foeDef(f.id).persona.cunning) : 0;
+  return 4 + (f ? foeHardness(f) : 4) + Math.floor(heatOf(w)) + sly;
 }
 
 /** 相手の次の手を決め、予告する。 */
@@ -271,8 +283,9 @@ export function planFoe(tx: Tx): void {
         if (!se) continue;
         stx.emit({ type: 'intent', move: m.id, intent: m.intent(s) });
         act(stx, imagine(stx));
-        // 硬度 6 以上は、あなたの二手先まで想像する。
-        if (foeHardness(e.foe) >= 6 && s.enc?.phase === 'act') act(stx, imagine(stx));
+        // 硬度 5 以上（最後の相手はいつも）は、あなたの二手先まで想像する。
+        if ((foeHardness(e.foe) >= 5 || e.tier === 'boss') && s.enc?.phase === 'act')
+          act(stx, imagine(stx));
         total += judgeFoe(w, s);
       }
       const noise = (tx.rand('ai') - 0.5) * 10 * (1 - def.persona.cunning);

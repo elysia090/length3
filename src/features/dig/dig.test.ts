@@ -78,13 +78,17 @@ describe('conversion', () => {
     const g = Game.start(9, 'nurse');
     const w = g.world;
     w.you.cards[0] = newCard(900, 'overdose');
+    // 遭遇のたびに五枚が配り直されるので、手持ちを枠の五枚だけにしておく。
+    w.you.back = [];
     const first = w.map.find((n) => n.row === 0 && n.npc);
     expect(first).toBeDefined();
     if (!first) return;
     g.dispatch({ c: 'move', node: first.id });
     if (!g.world.enc) return;
     const hp = g.world.enc.foe.hp;
-    const out = g.dispatch({ c: 'card', slot: 0 });
+    const slot = g.world.you.cards.findIndex((c) => c?.id === 'overdose');
+    expect(slot).toBeGreaterThanOrEqual(0);
+    const out = g.dispatch({ c: 'card', slot });
     const hits = out.filter((e) => e.type === 'foe' && e.field === 'hp' && e.n < 0);
     expect(hits.length).toBeGreaterThan(0);
     expect(g.world.enc?.foe.hp ?? 0).toBeLessThan(hp);
