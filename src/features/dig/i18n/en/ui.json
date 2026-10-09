@@ -513,7 +513,17 @@
     "相手": "Opponent",
     "もう一度押すと切る": "Tap again to play",
     "眠りぎわ　{0}": "On sleep  {0}",
-    "札を一度押すと、ここに中身。相手の棒に動く分が映る。もう一度で切る。": "Tap a card once to read it here; the opponent's bars show what it would move. Tap again to play."
+    "札を一度押すと、ここに中身。相手の棒に動く分が映る。もう一度で切る。": "Tap a card once to read it here; the opponent's bars show what it would move. Tap again to play.",
+    "棒は動かない": "No bar moves",
+    "相手の手番が止まる": "Opponent loses a turn",
+    "持ち物（使って枠を空けられる）": "Items (use one to free a slot)",
+    "剥がして残す": "Peel and keep",
+    "金が足りない": "Not enough coins",
+    "手持ちがいっぱい": "Hand is full",
+    "持ち物がいっぱい": "Items are full",
+    "前の傷": "Old wound",
+    "この夜の一枚": "Tonight's card",
+    "足したぶんは使ってしまったので、刻み直しても回数は戻らない。": "The added uses were spent, so re-inscribing will not bring them back."
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -711,6 +721,20 @@
     "［{0}］が付いて、{1}が成立する": "Adds [{0}], completing {1}",
     "{0}がこの道で尽きない（最大回数 +{1}）": "{0} lasts this route (max uses +{1})",
     "館内放送：「{0}」": "PA: “{0}”",
-    "《{0}》を{1}へ": "«{0}» onto {1}"
+    "《{0}》を{1}へ": "«{0}» onto {1}",
+    "金 {0} を払って、{1}": "Pay {0} coins and {1}",
+    "相手の攻め {0}": "Opponent attack {0}",
+    "相手の守り {0}": "Opponent defence {0}",
+    "相手の敵意 {0}": "Opponent hostility {0}",
+    "記憶《{0}》に刻む：{1}": "Inscribe on memory «{0}»: {1}",
+    "{0}・一枚と入れ替え": "{0} · swap for one",
+    "手放す一枚を押すと、『{0}』と入れ替えて買う": "Press the card to let go; it is swapped for “{0}”",
+    "{0}は、あなたが付けた傷を抱えたまま待っている（体力と意志 −{1}%）": "{0} is still carrying the wound you left (HP and will −{1}%)",
+    "前の傷 体力と意志 −{0}%": "Old wound: HP and will −{0}%",
+    "『{0}』 完": "“{0}” complete",
+    "『{0}』 第{1}章まで": "“{0}” through chapter {1}",
+    "金 {0}": "Coins {0}",
+    "精神 {0}": "Mind {0}",
+    "{0} ×{1}": "{0} ×{1}"
   }
 }

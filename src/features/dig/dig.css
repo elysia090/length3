@@ -4207,3 +4207,60 @@
     box-shadow: inset 0 0 0 1px var(--amber-text);
   }
 }
+
+/* 前の傷：一度削って退いた相手の扉に。傷跡の印（斜線）を添えて、墨で（あなたが残した事実）。 */
+.dig-wound {
+  margin: 0;
+  font-size: var(--dig-t-md);
+}
+
+.dig-wound b {
+  margin-right: var(--dig-s-1);
+  padding: 0 var(--dig-s-1);
+  border: var(--dig-line);
+  background: repeating-linear-gradient(135deg, transparent 0 3px, var(--rule) 3px 4px);
+  font-family: var(--font-mono);
+  font-size: var(--dig-t-xs);
+  font-weight: 700;
+}
+
+/* この夜の一枚：終幕に、育てた主役の札を一枚だけ（押せない）。 */
+.dig-night {
+  display: grid;
+  gap: var(--dig-s-1);
+  margin: var(--dig-s-3) 0;
+  padding: var(--dig-s-3) var(--dig-s-3) var(--dig-s-3) var(--dig-s-4);
+  border: var(--dig-line);
+  box-shadow: inset 2px 0 0 var(--amber-text);
+}
+
+.dig-night__h {
+  font-family: var(--font-mono);
+  font-size: var(--dig-t-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.dig-night p {
+  margin: 0;
+}
+
+.dig-night__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--dig-s-1) var(--dig-s-2);
+  font-size: var(--dig-t-base);
+}
+
+.dig-night__ch {
+  font-family: var(--font-mono);
+  font-size: var(--dig-t-sm);
+  color: var(--amber-text);
+}
+
+.dig-night__line {
+  font-size: var(--dig-t-md);
+  line-height: 1.6;
+  color: var(--ink-2);
+}

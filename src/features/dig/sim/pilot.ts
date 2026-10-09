@@ -171,7 +171,8 @@ function shopping(w: World): Cmd | null {
   for (const it of p.items) {
     if (!it.startsWith('ep:') || p.sold.includes(it) || epPrice(w, it.slice(3)) > w.you.coins)
       continue;
-    const g = (bestCardInk(w, 'chain', [{ ep: it.slice(3) }])?.v ?? 0) * 5;
+    // 値踏みは押し（体力 1 を削るのが 1）。札一枚を買う値打ちを 10 と見る。
+    const g = bestCardInk(w, 'chain', [{ ep: it.slice(3) }])?.v ?? 0;
     if (g > gain) {
       gain = g;
       best = { c: 'buy', id: it };
@@ -200,11 +201,20 @@ function foeInk(w: World, style: Style): string | null {
   if (e.foe.eps.length >= PACE.stackFoe) return null;
   const hard = foeHardness(e.foe);
   if (e.tier !== 'boss' && hard <= youHardness(w)) return null;
+  const f = e.foe;
+  const size = {
+    hp: f.hp,
+    resolve: f.resolve,
+    need: f.need,
+    atk: f.atk,
+    def: f.def,
+    clues: f.clues.filter((c) => !c.shown).length,
+  };
   let best: string | null = null;
-  let top = 1.2;
+  let top = 5;
   for (const ep of w.you.epithets) {
     const d = epithetDef(ep);
-    const v = d ? foeValue(d, style, hard) : 0;
+    const v = d ? foeValue(w, d, style, size) : 0;
     if (v > top) {
       top = v;
       best = ep;

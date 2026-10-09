@@ -1333,6 +1333,13 @@ export function openDig(doc: Document, onClose: () => void): void {
       quirkDef(n.quirk)
         ? h('span', { class: 'dig-quiet' }, `階の癖：${quirkDef(n.quirk)?.text}`)
         : null,
+      n.npc && (w.flags[`wound:${n.npc}`] ?? 0) > 0
+        ? h(
+            'span',
+            { class: 'dig-wound' },
+            `前の傷 体力と意志 −${Math.round((w.flags[`wound:${n.npc}`] ?? 0) / 2)}%`,
+          )
+        : null,
       aim?.kind === 'inscribe' && nodeInkable(w, aim.ep, n)
         ? h(
             'span',
@@ -1697,6 +1704,7 @@ export function openDig(doc: Document, onClose: () => void): void {
             `見せ場［${n.stage.map((t) => TAG_NAME[t]).join('・')}］── 合うカードが強く、相手も手強い`,
           )
         : null,
+      woundLine(w, n),
       ...n.eps.map((e) => {
         const d = epithetDef(e);
         const facet = n.npc ? d?.foe?.text : d?.place?.text;
@@ -1715,6 +1723,22 @@ export function openDig(doc: Document, onClose: () => void): void {
             `もう一人が先に寄った（${OUTCOME_NAME[n.rival as keyof typeof OUTCOME_NAME] ?? n.rival}）`,
           )
         : null,
+    );
+  }
+
+  /**
+   * 前の傷。一度削って退いた相手の扉にだけ、残っている傷を一行で（削った体力の半分ぶん、
+   * 体力と意志が減ったまま待っている）。初めての扉には出さない。
+   */
+  function woundLine(w: World, n: MapNode): HTMLElement | null {
+    const wound = n.npc ? (w.flags[`wound:${n.npc}`] ?? 0) : 0;
+    if (wound <= 0 || !n.npc) return null;
+    const left = Math.round(wound / 2);
+    return h(
+      'p',
+      { class: 'dig-wound' },
+      h('b', {}, '前の傷'),
+      ` ${foeDef(n.npc).name}は、あなたが付けた傷を抱えたまま待っている（体力と意志 −${left}%）`,
     );
   }
 
@@ -4091,6 +4115,49 @@ export function openDig(doc: Document, onClose: () => void): void {
     return el;
   }
 
+  /**
+   * この夜の一枚。手元に残った主役の札のうち、章がいちばん進んだ一枚を、刻まれた語と
+   * 越えた章の一文とともに（押せない。次の挑戦には持ち越さない）。章が進んでいなければ出さない。
+   */
+  function nightCard(w: World): HTMLElement | null {
+    let best: { c: Card; ch: number; p: number } | null = null;
+    for (const c of w.you.cards) {
+      if (!c || !cardDef(c.id).legend) continue;
+      const ch = c.marks.ch ?? 0;
+      const p = c.marks.p ?? 0;
+      if (ch <= 0) continue;
+      if (!best || ch > best.ch || (ch === best.ch && p > best.p)) best = { c, ch, p };
+    }
+    if (!best) return null;
+    const ls = legendState(w.you, best.c.id);
+    if (!ls) return null;
+    const done = ls.legend.chapters.slice(0, best.ch);
+    const last = done[done.length - 1];
+    return h(
+      'figure',
+      { class: 'dig-night' },
+      h('figcaption', { class: 'dig-night__h' }, 'この夜の一枚'),
+      h(
+        'p',
+        { class: 'dig-night__name' },
+        h('b', {}, `『${cardDef(best.c.id).name}』`),
+        best.c.eps.length
+          ? h(
+              'span',
+              {},
+              best.c.eps.map((e) => epChip(e)),
+            )
+          : null,
+      ),
+      h(
+        'p',
+        { class: 'dig-night__ch' },
+        `『${ls.legend.title}』${best.ch >= ls.legend.chapters.length ? ' 完' : ` 第${best.ch}章まで`}`,
+      ),
+      last ? h('p', { class: 'dig-night__line' }, last.line) : null,
+    );
+  }
+
   function endPanel(w: World): HTMLElement {
     const e = w.ending;
     if (!e) return h('div');
@@ -4119,6 +4186,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         tally('目標', `${['S', 'M', 'L'].reduce((a, k) => a + (w.flags[`goal:${k}`] ?? 0), 0)} 個`),
         tally('最長の連鎖', bestStreak ? `${bestStreak}` : '―'),
       ),
+      nightCard(w),
       h('p', { class: 'dig-quiet' }, `挑戦 ${profile.runs}　踏破 ${profile.wins}`),
       near.length
         ? h(
