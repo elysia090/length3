@@ -2385,6 +2385,11 @@
   font-size: var(--font-ui-xs);
 }
 
+/* 横に脇の欄があるぶん地図の欄は狭いので、見本は四枚で折り返す。 */
+.dig-hand.is-preview {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .dig-hand.is-preview .dig-card {
   border: 1px solid var(--ink-2);
 }
@@ -2438,6 +2443,5 @@
 @media (max-width: 52rem) {
   .dig-hand.is-preview {
     grid-template-columns: repeat(5, minmax(10rem, 1fr));
-    align-items: start;
   }
 }
