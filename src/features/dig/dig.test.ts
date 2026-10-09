@@ -130,3 +130,62 @@ describe('copies', () => {
     }
   }, 60000);
 });
+
+describe('agent report #103', () => {
+  it('does not refill uses by peeling and re-inscribing the same epithet', () => {
+    const g = Game.start(5, 'surveyor');
+    const w = g.world;
+    const card = w.you.cards[0];
+    expect(card).toBeTruthy();
+    if (!card) return;
+    w.you.epithets.push('unworn');
+    g.dispatch({ c: 'inscribe', ep: 'unworn', slot: 0 });
+    const max = g.world.you.cards[0]?.max ?? 0;
+    // 使い切った状態から、剥がして刻み直すを繰り返す。
+    const c0 = g.world.you.cards[0];
+    if (c0) c0.uses = 0;
+    for (let i = 0; i < 3; i++) {
+      g.dispatch({ c: 'peel', uid: card.uid, ep: 'unworn' });
+      g.dispatch({ c: 'inscribe', ep: 'unworn', slot: 0 });
+    }
+    expect(g.world.you.cards[0]?.max).toBe(max);
+    expect(g.world.you.cards[0]?.uses).toBe(0);
+  });
+
+  it('keeps the uses an epithet carries when the card still has them', () => {
+    const g = Game.start(5, 'surveyor');
+    const card = g.world.you.cards[0];
+    if (!card) return;
+    g.world.you.epithets.push('unworn');
+    g.dispatch({ c: 'inscribe', ep: 'unworn', slot: 0 });
+    const full = g.world.you.cards[0]?.uses ?? 0;
+    g.dispatch({ c: 'peel', uid: card.uid, ep: 'unworn' });
+    g.dispatch({ c: 'inscribe', ep: 'unworn', slot: 0 });
+    expect(g.world.you.cards[0]?.uses).toBe(full);
+  });
+
+  it('lowers trust for cards whose effect lowers trust', () => {
+    const g = Game.start(9, 'watch');
+    const w = g.world;
+    w.you.cards[0] = newCard(901, 'khnopff');
+    w.you.back = [];
+    const first = w.map.find((n) => n.row === 0 && n.npc);
+    if (!first) return;
+    g.dispatch({ c: 'move', node: first.id });
+    const e = g.world.enc;
+    if (!e || e.phase !== 'act' || e.who !== 'you') return;
+    const slot = g.world.you.cards.findIndex((c) => c?.id === 'khnopff');
+    const out = g.dispatch({ c: 'card', slot });
+    const ups = out.filter((ev) => ev.type === 'foe' && ev.field === 'trust' && ev.n > 0);
+    expect(ups).toHaveLength(0);
+  });
+
+  it('finds events in the repeating sections below B30', async () => {
+    const { allStories } = await import('./content/registry');
+    const { sectionNo } = await import('./content/floors');
+    for (const stratum of [4, 5, 6]) {
+      const theme = sectionNo(stratum);
+      expect(allStories().some((s) => !s.locked && s.strata.includes(theme))).toBe(true);
+    }
+  });
+});

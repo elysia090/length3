@@ -77,6 +77,11 @@ export interface Char {
   permEps: Record<string, string[]>;
   /** まだどこにも刻んでいないエピテット。 */
   epithets: string[];
+  /**
+   * 回数を増やす語のうち、足した回数を使い切った札から剥がしたもの（手元の語と同じ数だけ）。
+   * 刻み直しても最大回数だけが戻り、いまの回数は増えない（剥がして刻み直すだけで回復しない）。
+   */
+  drained?: string[];
   debts: Record<string, number>;
   /** 振る舞いの記録（冠の元）。 */
   deeds: Record<string, number>;

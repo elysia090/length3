@@ -103,7 +103,7 @@ import { BADGE_NAME, badgesOf } from './badges';
 import { button, type Child, fill, h, meter } from './dom';
 import { HINTS, nextHint } from './hints';
 import { hoverTips } from './hovertip';
-import { cardEffect, delta, effectOf, say as sayDelta, withEpithet } from './preview';
+import { cardEffect, clearEffects, delta, effectOf, say as sayDelta, withEpithet } from './preview';
 import { loadProfile, loadRun, type Profile, saveProfile, saveRun } from './save';
 import { DigSound } from './sound';
 import type { TurnLine } from './state';
@@ -257,6 +257,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   let hintShown: string | null = null;
   /** 遭遇の外で押して開いたカード（触れられない端末でも中身を読める）。 */
   let opened: number | null = null;
+  /** 古物商で、手持ちがいっぱいのときに入れ替えで買おうとしている札。 */
+  let shopSwap: string | null = null;
   /** 遭遇中に触れている札（相手の四つの道に、効き目を先に映す）。 */
   let hoverSlot: number | null = null;
   /** 狭い画面で、一度押して構えた札（もう一度押すと切る）。 */
@@ -394,8 +396,14 @@ export function openDig(doc: Document, onClose: () => void): void {
   // ─── 開け閉め ───────────────────────────────────────────────
 
   let raf = 0;
+  /** 閉じたあとは、残った予約（目押しの後追いなど）から何も送らない。 */
+  let closed = false;
   function close(): void {
+    closed = true;
     cancelAnimationFrame(raf);
+    cancelAnimationFrame(gaugeRaf);
+    clearTimeout(gaugeTimer);
+    gauge = null;
     if (game && !game.world.ending) saveRun(game.save());
     saveProfile(profile);
     doc.removeEventListener('keydown', onKey, true);
@@ -425,7 +433,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   let busy = false;
 
   function send(cmd: Cmd): boolean {
-    if (!game || busy) return false;
+    if (!game || busy || closed) return false;
     lastInput = now();
     // 動いたら近景に戻る（次の一手が、すぐ目の前に見えるように）。
     if (cmd.c === 'move' && tower.overview) setOverview(false);
@@ -1062,6 +1070,9 @@ export function openDig(doc: Document, onClose: () => void): void {
     };
     hardSeen = 0;
     bestStreak = 0;
+    streak = 0;
+    // 前の挑戦の予測は使わない（同じ種でも人物が違えば別の局面）。
+    clearEffects();
     game = Game.start(s, create.job, create.depth, {
       carry: profile.carry ?? undefined,
       goals: profile.goals,
@@ -1963,6 +1974,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     q?: number;
   } | null = null;
   let gaugeRaf = 0;
+  let gaugeTimer = 0;
   const gaugePos = (t: number) => {
     const x = ((t - (gauge?.at ?? 0)) / GAUGE_PERIOD) % 2;
     return x < 1 ? x : 2 - x;
@@ -2012,7 +2024,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     else sound.fail();
     renderSide();
     const steps = stepsNow;
-    window.setTimeout(() => {
+    gaugeTimer = window.setTimeout(() => {
       gauge = null;
       steps?.done.add(g.key);
       send(withKnack(g.cmd, g.q ?? 1));
@@ -2059,6 +2071,21 @@ export function openDig(doc: Document, onClose: () => void): void {
         { class: 'dig-gauge__foot' },
         h('span', { class: 'dig-spot__gain' }, a.gain),
         h('span', { class: 'dig-gauge__say' }, result ?? '押して止める（Space）'),
+        // 動いているあいだだけ、取り消せる（品も時間も減らない。Esc でも同じ）。
+        g.q === undefined
+          ? h(
+              'button',
+              {
+                type: 'button',
+                class: 'dig-gauge__cancel',
+                onclick: (ev: Event) => {
+                  ev.stopPropagation();
+                  cancelGauge();
+                },
+              },
+              'やめる',
+            )
+          : null,
       ),
     );
   }
@@ -2989,10 +3016,15 @@ export function openDig(doc: Document, onClose: () => void): void {
       list.push(chip(`あなたの体力 ${sign(x.youHp)}`, x.youHp > 0 ? ' is-heal' : ' is-cost'));
     if (x.youMind)
       list.push(chip(`あなたの精神 ${sign(x.youMind)}`, x.youMind > 0 ? ' is-heal' : ' is-cost'));
+    // 棒には出ない効き目（止める・攻めと守り・敵意）も、札片で言う。
+    if (x.stun) list.push(chip('相手の手番が止まる'));
+    if (x.atk) list.push(chip(`相手の攻め ${sign(x.atk)}`));
+    if (x.def) list.push(chip(`相手の守り ${sign(x.def)}`));
+    if (x.hostility) list.push(chip(`相手の敵意 ${sign(x.hostility)}`, ' is-cost'));
     return h(
       'span',
       { class: 'dig-card__out' },
-      h('span', { class: 'dig-outs' }, list.length ? list : chip('動かない', ' is-none')),
+      h('span', { class: 'dig-outs' }, list.length ? list : chip('棒は動かない', ' is-none')),
       // 点が足されるのは体力・意志・信頼を動かす札だけ（守るだけの札には出さない）。
       b.parts.length && (x.hp || x.resolve || x.trust)
         ? h(
@@ -3684,7 +3716,13 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   /** 拾える道具・品（その場で使う。回数つき）。 */
-  function gearOffer(id: string, can: boolean, on: () => void, price?: string): HTMLElement {
+  function gearOffer(
+    id: string,
+    can: boolean,
+    on: () => void,
+    price?: string,
+    why = '持ち物がいっぱい',
+  ): HTMLElement {
     const g = gearOf(id);
     return h(
       'button',
@@ -3697,11 +3735,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         price ? h('span', { class: 'dig-price' }, price) : null,
       ),
       h('span', { class: 'dig-offer__fx' }, heals(g?.text ?? '')),
-      h(
-        'span',
-        { class: 'dig-quiet' },
-        can ? '手札の一覧で使う（向き合っていないときに）' : '持ち物がいっぱい',
-      ),
+      h('span', { class: 'dig-quiet' }, can ? '手札の一覧で使う（向き合っていないときに）' : why),
     );
   }
 
@@ -3814,9 +3848,44 @@ export function openDig(doc: Document, onClose: () => void): void {
     );
   }
 
+  /** 古物商の入れ替え：手放す一枚を押すと、入れ替えて買う。 */
+  function swapPicker(w: World, id: string): HTMLElement {
+    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
+    return h(
+      'div',
+      { class: 'dig-swap' },
+      h(
+        'p',
+        { class: 'dig-swap__ask' },
+        `手放す一枚を押すと、『${cardDef(id).name}』と入れ替えて買う`,
+      ),
+      h(
+        'div',
+        { class: 'dig-swap__list' },
+        all.map((c) =>
+          button(
+            `『${cardDef(c.id).name}』 ${c.uses}/${c.max}${c.eps.length ? `　${c.eps.map((e) => `《${epithetDef(e)?.name ?? e}》`).join('')}` : ''}`,
+            () => {
+              shopSwap = null;
+              send({ c: 'buy', id, drop: c.uid });
+            },
+            { class: 'dig-swap__b' },
+          ),
+        ),
+      ),
+      button('やめる', () => {
+        shopSwap = null;
+        render();
+      }),
+    );
+  }
+
   function shopPanel(w: World): HTMLElement {
     const p = w.pending;
-    if (p?.kind !== 'shop') return h('div');
+    if (p?.kind !== 'shop') {
+      shopSwap = null;
+      return h('div');
+    }
     const kids: (Child | readonly Child[])[] = [];
     for (const id of p.cards) {
       const sold = p.sold.includes(id);
@@ -3824,24 +3893,26 @@ export function openDig(doc: Document, onClose: () => void): void {
       const full = cardPrice(w, id);
       const cost = p.bargain === id ? Math.ceil(full / 2) : full;
       const room = deckRoom(w.you) || w.you.cards.some((c) => !c);
+      const price = p.bargain === id ? `金 ${cost}（${full}）` : `金 ${cost}`;
       kids.push(
         cardOffer(
           id,
           () => {
-            if (!sold && room && w.you.coins >= cost) send({ c: 'buy', id });
+            if (sold || w.you.coins < cost) return;
+            // 手持ちがいっぱいなら、手放す一枚を選んでから買う（選ぶまでは何も減らない）。
+            if (room) send({ c: 'buy', id });
+            else {
+              shopSwap = shopSwap === id ? null : id;
+              render();
+            }
           },
-          sold || !room || w.you.coins < cost ? null : 'buy',
-          false,
-          sold
-            ? '売約'
-            : !room
-              ? '手持ちがいっぱい'
-              : p.bargain === id
-                ? `金 ${cost}（${full}）`
-                : `金 ${cost}`,
+          sold || w.you.coins < cost ? null : 'buy',
+          shopSwap === id && !sold,
+          sold ? '売約' : room ? price : `${price}・一枚と入れ替え`,
           p.bargain === id && !sold,
         ),
       );
+      if (shopSwap === id && !sold && !room) kids.push(swapPicker(w, id));
     }
     for (const id of p.items) {
       const sold = p.sold.includes(id);
@@ -3862,9 +3933,10 @@ export function openDig(doc: Document, onClose: () => void): void {
       kids.push(
         gearOffer(
           id,
-          !sold && w.you.coins >= price && w.you.items.length < ITEM_CAP,
+          !sold && w.you.coins >= price && itemRoom(w.you, id),
           () => send({ c: 'buy', id }),
           sold ? '売約' : `金 ${price}`,
+          sold ? '売約' : !itemRoom(w.you, id) ? '持ち物がいっぱい' : '金が足りない',
         ),
       );
     }
@@ -4779,8 +4851,14 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   function onKey(ev: KeyboardEvent): void {
     if (!game || screen !== 'play' || ev.target instanceof HTMLInputElement) return;
+    // 釦・リンクの上の Enter と Space は、その釦のもの（地図の移動や目押しに奪わない）。
+    const onControl =
+      ev.target instanceof Element &&
+      !!ev.target.closest('button, a, select, textarea, [role="button"]:not(.dig-gauge)');
+    const press = ev.key === 'Enter' || ev.key === ' ';
+    if (onControl && press) return;
     if (gauge) {
-      if (ev.key === ' ' || ev.key === 'Enter') {
+      if (press) {
         ev.preventDefault();
         stopGauge();
       } else if (ev.key === 'Escape') {
@@ -4842,7 +4920,40 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (g) {
       game = g;
       screen = 'play';
+      resume(g, saved);
     } else saveRun(null);
+  }
+
+  /**
+   * 続きから再開したとき、画面だけが持っていた数を、記録から戻す。
+   * いまの連鎖と最長の連鎖（起きたことの列から数え直す）と、人物を決めた内容
+   * （「同じ夜をもう一度」が、同じ人物・難しさ・名前で始まるように）。
+   */
+  function resume(g: Game, s: { cmds: readonly Cmd[] }): void {
+    let run = 0;
+    let you = false;
+    for (const ev of g.events) {
+      if (ev.type === 'enc.start') {
+        you = ev.who === 'you';
+        run = 0;
+      } else if (ev.type === 'enc.st' && ev.key === 'chain' && you) {
+        run = Math.max(0, run + ev.n);
+        bestStreak = Math.max(bestStreak, run);
+      }
+    }
+    streak = g.world.enc?.who === 'you' ? run : 0;
+    const first = s.cmds[0];
+    if (first?.c === 'start') {
+      create = {
+        ...create,
+        job: first.job,
+        depth: first.depth ?? 0,
+        name: first.sheet?.name ?? '',
+        ...(first.sheet?.origin ? { origin: first.sheet.origin } : {}),
+        ...(first.sheet?.ep ? { ep: first.sheet.ep } : {}),
+        ...(first.sheet?.item ? { item: first.sheet.item } : {}),
+      };
+    }
   }
   const first = profile.lang ?? (doc.documentElement.lang.startsWith('en') ? 'en' : 'ja');
   dialog.lang = first;

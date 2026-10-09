@@ -639,11 +639,8 @@ function rivalStep(tx: Tx): void {
     tx.rand('rival');
   const target = options.reduce((a, b) => (want(b) > want(a) ? b : a));
   tx.emit({ type: 'rival', node: target.id, row: target.row });
-  if (
-    target.npc &&
-    (target.kind !== 'boss' || true) &&
-    !(target.visited && target.kind !== 'boss')
-  ) {
+  let lost = false;
+  if (target.npc && !(target.visited && target.kind !== 'boss')) {
     const outcome = rivalFight(
       tx,
       target.npc,
@@ -654,6 +651,7 @@ function rivalStep(tx: Tx): void {
     if (target.kind !== 'boss') tx.emit({ type: 'node', id: target.id, rival: outcome });
     tx.emit({ type: 'rival', log: `${foeDef(target.npc).name}：${OUTCOME_NAME[outcome]}` });
     if (outcome === 'fallen' || outcome === 'shattered') {
+      lost = true;
       const back = charOf(tx.w, 'rival');
       const s2 = stats(tx.w, 'rival');
       tx.emit({
@@ -680,7 +678,8 @@ function rivalStep(tx: Tx): void {
     });
     tx.emit({ type: 'node', id: target.id, rival: 'passed' });
   } else tx.emit({ type: 'node', id: target.id, rival: 'passed' });
-  if (target.kind === 'boss') {
+  // 負けて手前へ退いたなら、扉は越えていない（突破も先着も、ここでは起きない）。
+  if (target.kind === 'boss' && !lost) {
     if (rv.stratum >= LAST) {
       tx.emit({ type: 'rival', down: true, first: !w.ending });
       if (!w.ending)
@@ -1110,18 +1109,18 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
 function pickStory(tx: Tx): string | null {
   const w = tx.w;
   if (Object.values(w.you.debts).some((n) => n > 0) && tx.rand('story') < 0.35) return 'favor-due';
+  // 出来事は区画の主題で選ぶ（B31 から下は、上の三つの主題を繰り返す）。
+  const theme = sectionNo(w.stratum);
   const open = w.unlocked.find(
-    (id) => !w.seen.includes(id) && storyDef(id)?.strata.includes(w.stratum),
+    (id) => !w.seen.includes(id) && storyDef(id)?.strata.includes(theme),
   );
   if (open) return open;
   const tags = tagCount(w.you);
-  const pool = allStories().filter(
-    (s) =>
-      !s.locked &&
-      s.strata.includes(w.stratum) &&
-      !w.seen.includes(s.id) &&
-      (!s.needTags || meets(tags, s.needTags)),
-  );
+  const fits = (s: ReturnType<typeof allStories>[number]) =>
+    !s.locked && s.strata.includes(theme) && (!s.needTags || meets(tags, s.needTags));
+  let pool = allStories().filter((s) => fits(s) && !w.seen.includes(s.id));
+  // 繰り返しの区画で見尽くしたら、同じ主題の出来事にもう一度立ち会う。
+  if (!pool.length && theme !== w.stratum) pool = allStories().filter(fits);
   const pick = pool[Math.floor(tx.rand('story') * pool.length)];
   return pick?.id ?? null;
 }
@@ -1831,6 +1830,8 @@ export function inscribe(
   const def = epithetDef(ep);
   if (!def) return false;
   const { slot, perm } = to;
+  // 使い切って剥がした語から先に使う（札に刻んでも、いまの回数は増えない）。
+  const drained = (w.you.drained ?? []).includes(ep);
   if (to.foe) {
     if (!inkFoe(tx, ep)) return false;
   } else if (to.story) {
@@ -1857,13 +1858,14 @@ export function inscribe(
     if (!at || ('index' in at && w.enc)) return false;
     const card = cardAt(w.you, at);
     if (!card || !def.card || card.eps.length >= PACE.stack) return false;
-    markEp(tx, 'you', at, ep, true);
+    markEp(tx, 'you', at, ep, true, !drained);
   } else if (perm) {
     const list = w.you.permEps[perm] ?? [];
     if (!w.you.perms.includes(perm) || !def.memory || list.length >= PACE.stack) return false;
     tx.emit({ type: 'perm.ep', who: 'you', perm, ep, on: true });
   } else return false;
   tx.emit({ type: 'ep.held', who: 'you', ep, n: -1 });
+  if (drained) tx.emit({ type: 'ep.drained', who: 'you', ep, n: -1 });
   sync(tx);
   return true;
 }
@@ -1878,11 +1880,12 @@ export function peel(tx: Tx, uid: number, ep: string): boolean {
   const at = findCard(w.you, uid);
   const card = at ? cardAt(w.you, at) : undefined;
   if (!at || !card?.eps.includes(ep)) return false;
-  markEp(tx, 'you', at, ep, false);
+  const empty = markEp(tx, 'you', at, ep, false);
   tx.emit({ type: 'ep.held', who: 'you', ep, n: 1 });
+  if (empty) tx.emit({ type: 'ep.drained', who: 'you', ep, n: 1 });
   tx.emit({
     type: 'note',
-    text: `『${cardDef(card.id).name}』から《${epithetDef(ep)?.name ?? ep}》を剥がした。`,
+    text: `『${cardDef(card.id).name}』から《${epithetDef(ep)?.name ?? ep}》を剥がした。${empty ? '足したぶんは使ってしまったので、刻み直しても回数は戻らない。' : ''}`,
     level: 0,
   });
   return true;
@@ -1947,6 +1950,8 @@ function inkFoe(tx: Tx, ep: string): boolean {
     text: `《${epithetDef(ep)?.name ?? ep}》を${f.name}に刻んだ。${ff.text}`,
     level: 2,
   });
+  // 刻んだだけで決着の条件に届いたなら（信頼が足りた・手がかりが揃った）、ここで決着。
+  settle(tx);
   return true;
 }
 

@@ -3547,6 +3547,18 @@
   color: var(--ink-3);
 }
 
+/* 動いているあいだの取り消し。止める操作（枠全体）より小さく、端に。 */
+.dig .dig-gauge__cancel {
+  min-height: 0;
+  margin-left: auto;
+  padding: 0 var(--dig-s-2);
+  border-color: var(--rule);
+  font-family: var(--font-mono);
+  font-size: var(--dig-t-xs);
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
 .dig-gauge.is-crit .dig-gauge__say {
   color: var(--dig-green);
   font-weight: 700;
@@ -4134,4 +4146,32 @@
   .dig .dig-card.is-live.is-armed {
     transform: none;
   }
+}
+
+/* 古物商の入れ替え：選んだ札の下に、手放す候補を並べる（押すまで何も減らない）。 */
+.dig-swap {
+  display: grid;
+  gap: var(--dig-s-1);
+  margin: calc(-1 * var(--dig-s-1)) 0 var(--dig-s-2);
+  padding: var(--dig-s-2) var(--dig-s-2) var(--dig-s-2) var(--dig-s-3);
+  border: var(--dig-line);
+  box-shadow: inset 2px 0 0 var(--amber-text);
+}
+
+.dig-swap__ask {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--dig-t-sm);
+  color: var(--amber-text);
+}
+
+.dig-swap__list {
+  display: grid;
+  gap: var(--dig-s-1);
+}
+
+.dig .dig-swap__b {
+  min-height: 0;
+  padding: var(--dig-s-1) var(--dig-s-2);
+  font-size: var(--dig-t-md);
 }

@@ -421,19 +421,44 @@ export const cardAt = (c: Char, at: CardAt): Card | undefined =>
  * 札にエピテットを刻む・剥がす。回数を増やす語なら、最大回数も同じだけ動く
  * （刻めば回数も増え、剥がせば最大に合わせて削れる）。
  */
-export function markEp(tx: Tx, who: Who, at: CardAt, ep: string, on: boolean): void {
+/**
+ * 札にエピテットを刻む・剥がす。回数を増やす語は、最大回数と一緒に「いまの回数」も運ぶ。
+ *   刻む    最大 +u。運んでいる回数があれば、いまの回数も +u（剥がして戻った語は運ばない）
+ *   剥がす  最大 −u。いまの回数から u を持ち帰る。足りなければ true を返す（手元に戻す
+ *           なら「使い切った語」として。次に刻んでも、いまの回数は増えない）
+ * `charge` を false にすると、刻んでも回数を運ばない。
+ */
+export function markEp(
+  tx: Tx,
+  who: Who,
+  at: CardAt,
+  ep: string,
+  on: boolean,
+  charge = true,
+): boolean {
   if ('slot' in at) tx.emit({ type: 'card.ep', who, slot: at.slot, ep, on });
   else tx.emit({ type: 'deck.ep', who, index: at.index, ep, on });
   const u = epithetDef(ep)?.card?.uses ?? 0;
-  if (!u) return;
-  const n = on ? u : -u;
-  if ('slot' in at) {
-    tx.emit({ type: 'card.max', who, slot: at.slot, n });
-    if (on) tx.emit({ type: 'card.uses', who, slot: at.slot, n });
-  } else {
-    tx.emit({ type: 'deck.max', who, index: at.index, n });
-    if (on) tx.emit({ type: 'deck.uses', who, index: at.index, n });
+  if (!u) return false;
+  const card = cardAt(charOf(tx.w, who), at);
+  const max = (n: number) =>
+    'slot' in at
+      ? tx.emit({ type: 'card.max', who, slot: at.slot, n })
+      : tx.emit({ type: 'deck.max', who, index: at.index, n });
+  const uses = (n: number) =>
+    'slot' in at
+      ? tx.emit({ type: 'card.uses', who, slot: at.slot, n })
+      : tx.emit({ type: 'deck.uses', who, index: at.index, n });
+  if (on) {
+    max(u);
+    if (charge) uses(u);
+    return false;
   }
+  // 持ち帰れる回数（いまの回数のうち、この語が足したぶんまで）。
+  const back = Math.min(u, Math.max(0, card?.uses ?? 0));
+  if (back) uses(-back);
+  max(-u);
+  return back < u;
 }
 
 /**
@@ -479,6 +504,8 @@ export function end(tx: Tx, outcome: Outcome): void {
   if (!e || e.phase !== 'act') return;
   if (['beaten', 'broken', 'trusted', 'uncovered', 'fled'].includes(outcome))
     line(tx, outcome as LineKind);
+  // 余韻は、この遭遇が終わるときに一つ減る（この決着で新しく付く余韻は、このあと付く）。
+  if (tx.w.after.length) tx.emit({ type: 'after.tick' });
   tx.emit({ type: 'enc.end', outcome });
 }
 

@@ -196,10 +196,17 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
         if (ctx.invert) trust(tx, Math.max(1, Math.round(mp(f[1]) / 2)));
         else breakFoe(tx, mp(f[1]));
         break;
-      case 'trust':
+      case 'trust': {
+        // 信頼を減らす効き目は、点も最低値も足さずに、そのまま減らす（増える側へ裏返さない）。
+        const base = m(f[1]);
+        if (base < 0) {
+          if (!ctx.invert) trust(tx, base);
+          break;
+        }
         if (ctx.invert) breakFoe(tx, Math.max(1, mp(f[1])));
         else if (!ctx.cold) trust(tx, Math.max(1, mp(f[1])));
         break;
+      }
       case 'host':
         hostile(tx, ctx.invert ? -f[1] : f[1]);
         break;

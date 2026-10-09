@@ -65,6 +65,7 @@ export type Ev =
   | { type: 'card.ep'; who: Who; slot: number; ep: string; on: boolean }
   | { type: 'perm.ep'; who: Who; perm: string; ep: string; on: boolean }
   | { type: 'ep.held'; who: Who; ep: string; n: 1 | -1 }
+  | { type: 'ep.drained'; who: Who; ep: string; n: 1 | -1 }
   | { type: 'card.uses'; who: Who; slot: number; n: number }
   | { type: 'card.max'; who: Who; slot: number; n: number }
   | { type: 'card.mark'; who: Who; slot: number; mark: string; n: number }

@@ -206,6 +206,16 @@ export function apply(w: World, ev: Ev): void {
       }
       break;
     }
+    case 'ep.drained': {
+      const c = charOf(w, ev.who);
+      const list = c.drained ?? [];
+      if (ev.n > 0) c.drained = [...list, ev.ep];
+      else {
+        const i = list.indexOf(ev.ep);
+        c.drained = i >= 0 ? list.filter((_, k) => k !== i) : list;
+      }
+      break;
+    }
     case 'card.ep': {
       const card = charOf(w, ev.who).cards[ev.slot];
       if (card) {
