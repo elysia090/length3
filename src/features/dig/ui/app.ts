@@ -272,6 +272,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   const reward: { take?: string; help?: number } = {};
   /** 手持ちがいっぱいのときに拾おうとしている札（手放す札を選んでいる）。 */
   let dropFor: string | null = null;
+  /** 人物を決める画面で、初めの手札を開いているか。 */
+  let handOpen = false;
   const anim = {
     foeHitAt: -9,
     youHitAt: -9,
@@ -3152,23 +3154,33 @@ export function openDig(doc: Document, onClose: () => void): void {
     side.replaceChildren();
     tray.replaceChildren();
     const j = jobDef(create.job);
-    // 初めの手札は、遊ぶときと同じ場所（下の帯）に、遊ぶときと同じ顔で並べる。
+    // 初めの手札は、押したときだけ遊ぶときと同じ場所（下の帯）に並べる（いつも出して
+    // おくと字が多すぎる）。導入は、その釦の下に。
     if (j)
       fill(tray, [
-        h(
-          'div',
-          { class: 'dig-hand is-preview' },
-          j.cards.map((id, i) => previewCard(id, i)),
-        ),
+        handOpen
+          ? h(
+              'div',
+              { class: 'dig-hand is-preview' },
+              j.cards.map((id, i) => previewCard(id, i)),
+            )
+          : null,
         h(
           'div',
           { class: 'dig-held' },
           h(
             'p',
-            { class: 'dig-quiet' },
-            `初めの手札　持てる札 ${j.deck} 枚（後ろの札と道具は、入るときに配られる）`,
+            { class: 'dig-create-hand' },
+            button(handOpen ? '手札を閉じる' : '手札を見る', () => {
+              handOpen = !handOpen;
+              render();
+            }),
+            h(
+              'span',
+              { class: 'dig-quiet' },
+              `初めの札 ${j.cards.length} 枚・持てる札 ${j.deck} 枚`,
+            ),
           ),
-          // 導入は、初めの手札の下に（手札を見てから、この夜の形を読む）。
           h(
             'p',
             { class: 'dig-create-intro' },

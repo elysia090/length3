@@ -2246,3 +2246,16 @@
   margin: 4px 0 0;
   color: var(--ink-2);
 }
+
+.dig-create-hand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+}
+
+.dig .dig-create-hand button {
+  min-height: 2rem;
+  padding: 0 12px;
+  font-size: var(--font-ui-xs);
+}
