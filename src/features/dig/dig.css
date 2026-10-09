@@ -2239,3 +2239,10 @@
 .dig-hand.is-preview .dig-card {
   cursor: default;
 }
+
+/* 人物を決める画面の導入（初めの手札の下に）。 */
+.dig-create-intro {
+  max-width: 44rem;
+  margin: 4px 0 0;
+  color: var(--ink-2);
+}
