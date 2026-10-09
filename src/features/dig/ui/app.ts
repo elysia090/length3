@@ -75,6 +75,7 @@ import {
   storyChance,
   stratumName,
 } from '../sim/run';
+import { type SpotAction, spotActions } from '../sim/spot';
 import { BADGE_NAME, badgesOf } from './badges';
 import { button, type Child, fill, h, meter } from './dom';
 import { HINTS, nextHint } from './hints';
@@ -1685,8 +1686,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     kids.push(
       section(
-        '支度',
-        prepRow(w),
+        'その場で',
+        spotRows(w),
         // 抜けたあとは、いつでも灯りを置ける（どこまで下りたかを持ち帰る）。挑戦が
         // 終わる一手なので、ほかの釦から離して置き、二度押さないと置かない。
         w.flags.cleared ? lampButton(w) : null,
@@ -1707,7 +1708,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           'span',
           { class: `dig-after is-${a.kind}`, title: d?.text ?? '' },
           `${d?.name ?? a.kind}`,
-          h('i', {}, ` あと ${a.left}`),
+          h('i', {}, ` あと ${a.left} 戦`),
         );
       }),
     );
@@ -1744,30 +1745,166 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   /**
-   * 支度：一服と、探る。手札・エピテット・持ち物を触るのは、左の欄を手札に
-   * 切り替えて（いつも並べておくと、選ぶものが多すぎる）。
+   * その場で：いまの具合から、効く順に組み立てた一行ずつ（多くて四つ）。どの行も
+   * 押せばそのまま起きる。それ以外の持ち物は、左の欄を手札にすれば全部ある。
    */
-  function prepRow(w: World): HTMLElement {
-    const seekAt = w.you.items.findIndex((it) => gearOf(it.id)?.kind === 'seek');
-    const seek = seekAt >= 0 ? w.you.items[seekAt] : undefined;
-    const sg = seek ? gearOf(seek.id) : undefined;
+  const SPOT_VERB: Record<SpotAction['kind'], string> = {
+    rest: '休む',
+    fill: '満たす',
+    ink: '刻む',
+    prep: '備える',
+    seek: '探る',
+  };
+  /**
+   * 目押し：その場での一手は、左右に揺れる印を止めて決まる。緑の帯で止めれば
+   * そのとおり（×1）、帯の真ん中の細い印なら会心（×1.5）、外せば弱く効く（×0.6）。
+   * 結果は命令に添えて送る（記録から同じ夜が再現できるように）。静かな設定では
+   * 揺らさず、そのとおりに効く。
+   */
+  const GAUGE_PERIOD = 0.9;
+  let gauge: {
+    key: string;
+    cmd: Cmd;
+    at: number;
+    ok: [number, number];
+    crit: [number, number];
+    stop?: number;
+    q?: number;
+  } | null = null;
+  let gaugeRaf = 0;
+  const gaugePos = (t: number) => {
+    const x = ((t - (gauge?.at ?? 0)) / GAUGE_PERIOD) % 2;
+    return x < 1 ? x : 2 - x;
+  };
+  function startGauge(a: SpotAction): void {
+    if (gauge) return;
+    if (still()) {
+      send(withKnack(a.cmd, 1));
+      return;
+    }
+    const c = 0.25 + Math.random() * 0.5;
+    gauge = {
+      key: a.label,
+      cmd: a.cmd,
+      at: now(),
+      ok: [c - 0.14, c + 0.14],
+      crit: [c - 0.03, c + 0.03],
+    };
+    renderSide();
+    const tick = () => {
+      const el = side.querySelector<HTMLElement>('.dig-gauge__mark');
+      if (!gauge || gauge.stop !== undefined) return;
+      if (el) el.style.left = `${(gaugePos(now()) * 100).toFixed(2)}%`;
+      gaugeRaf = requestAnimationFrame(tick);
+    };
+    gaugeRaf = requestAnimationFrame(tick);
+  }
+  const withKnack = (cmd: Cmd, q: number): Cmd =>
+    cmd.c === 'item' || cmd.c === 'breather' ? { ...cmd, q } : cmd;
+  function stopGauge(): void {
+    if (!gauge || gauge.stop !== undefined) return;
+    cancelAnimationFrame(gaugeRaf);
+    const p = gaugePos(now());
+    const g = gauge;
+    g.stop = p;
+    g.q = p >= g.crit[0] && p <= g.crit[1] ? 1.5 : p >= g.ok[0] && p <= g.ok[1] ? 1 : 0.6;
+    if (g.q > 1) sound.chain(2);
+    else if (g.q === 1) sound.gain();
+    else sound.fail();
+    renderSide();
+    window.setTimeout(() => {
+      gauge = null;
+      send(withKnack(g.cmd, g.q ?? 1));
+    }, 520);
+  }
+  function cancelGauge(): void {
+    if (!gauge || gauge.stop !== undefined) return;
+    cancelAnimationFrame(gaugeRaf);
+    gauge = null;
+    renderSide();
+  }
+  function gaugeRow(a: SpotAction): HTMLElement {
+    const g = gauge;
+    if (!g) return h('div');
+    const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+    const result =
+      g.q === undefined ? null : g.q > 1 ? '会心 ×1.5' : g.q === 1 ? '良し ×1' : '外れ ×0.6';
+    return h(
+      'div',
+      {
+        class: `dig-gauge${g.q === undefined ? '' : g.q > 1 ? ' is-crit' : g.q === 1 ? ' is-ok' : ' is-miss'}`,
+        role: 'button',
+        tabindex: '0',
+        'aria-label': `${a.label}　押して止める`,
+        onclick: () => stopGauge(),
+      },
+      h(
+        'span',
+        { class: 'dig-gauge__head' },
+        h('span', { class: 'dig-spot__verb' }, SPOT_VERB[a.kind]),
+        h('span', { class: 'dig-spot__what' }, a.label),
+      ),
+      h(
+        'span',
+        { class: 'dig-gauge__bar' },
+        h('i', {
+          class: 'dig-gauge__ok',
+          style: `left:${pct(g.ok[0])};width:${pct(g.ok[1] - g.ok[0])}`,
+        }),
+        h('i', {
+          class: 'dig-gauge__crit',
+          style: `left:${pct(g.crit[0])};width:${pct(g.crit[1] - g.crit[0])}`,
+        }),
+        h('i', { class: 'dig-gauge__mark', style: `left:${pct(g.stop ?? gaugePos(now()))}` }),
+      ),
+      h(
+        'span',
+        { class: 'dig-gauge__foot' },
+        h('span', { class: 'dig-spot__gain' }, a.gain),
+        h('span', { class: 'dig-gauge__say' }, result ?? '押して止める（Space）'),
+      ),
+    );
+  }
+
+  function spotRows(w: World): HTMLElement {
+    const list = spotActions(w);
+    const shown = list.slice(0, 4);
     const prep = w.you.prep ?? [];
     return h(
       'div',
-      { class: 'dig-prep-row' },
-      button('一服', () => send({ c: 'breather' }), {
-        class: 'dig-prep-b',
-        disabled: breathed(w),
-        title: '体と心 +10%・1 時間（この階で一度）',
-      }),
-      sg && seek
-        ? button(`探る`, () => send({ c: 'item', index: seekAt }), {
-            class: 'dig-prep-b',
-            title: `${sg.name}で、この階を探る（1 時間）。出来事か、拾い物か、誰かに気づかれるか。残り ${seek.uses} 回`,
-          })
-        : null,
-      prep.length
-        ? h('span', { class: 'dig-prep' }, `備え：${prep.map((x) => x.name).join('・')}`)
+      { class: 'dig-spot' },
+      shown.length
+        ? shown.map((a) =>
+            gauge && gauge.key === a.label
+              ? gaugeRow(a)
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    class: `dig-spot__row is-${a.kind}`,
+                    disabled: !!gauge,
+                    onclick: () => startGauge(a),
+                  },
+                  h('span', { class: 'dig-spot__verb' }, SPOT_VERB[a.kind]),
+                  h('span', { class: 'dig-spot__what' }, a.label),
+                  h('span', { class: 'dig-spot__gain' }, ...heals(a.gain)),
+                ),
+          )
+        : h('p', { class: 'dig-quiet dig-spot__none' }, 'いま、ここで足りないものはない。'),
+      prep.length || list.length > shown.length
+        ? h(
+            'p',
+            { class: 'dig-spot__foot' },
+            prep.length
+              ? h('span', { class: 'dig-prep' }, `備え：${prep.map((x) => x.name).join('・')}`)
+              : null,
+            list.length > shown.length
+              ? button(`ほか ${list.length - shown.length}（手札で）`, () => {
+                  deckOpen = true;
+                  render();
+                })
+              : null,
+          )
         : null,
     );
   }
@@ -3957,6 +4094,17 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   function onKey(ev: KeyboardEvent): void {
     if (!game || screen !== 'play' || ev.target instanceof HTMLInputElement) return;
+    if (gauge) {
+      if (ev.key === ' ' || ev.key === 'Enter') {
+        ev.preventDefault();
+        stopGauge();
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        cancelGauge();
+      }
+      return;
+    }
     const w = game.world;
     const n = Number(ev.key);
     if (aim) {

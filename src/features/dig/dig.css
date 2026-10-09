@@ -3115,3 +3115,145 @@
 .dig-bar .dig-afters {
   margin: 0;
 }
+
+/*
+ * その場で：効く順に一行ずつ。左に動詞（休む・満たす・刻む・備える・探る）、
+ * 真ん中に何をするか、右に何が戻る・備わるか。行ごと押せばそのまま起きる。
+ */
+.dig-spot {
+  display: grid;
+  gap: 4px;
+}
+
+.dig .dig-spot__row {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 0 8px;
+  align-items: baseline;
+  min-height: 0;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.dig-spot__verb {
+  grid-row: span 2;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.dig-spot__row.is-fill .dig-spot__verb,
+.dig-spot__row.is-ink .dig-spot__verb {
+  color: var(--amber-text);
+}
+
+.dig-spot__what {
+  font-size: 0.8125rem;
+  color: var(--ink);
+}
+
+.dig-spot__gain {
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig-spot__none {
+  margin: 0;
+}
+
+.dig-spot__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin: 4px 0 0;
+}
+
+.dig .dig-spot__foot button {
+  min-height: 1.75rem;
+  padding: 0 10px;
+  font-size: var(--font-ui-xs);
+}
+
+
+/*
+ * 目押し：行がそのまま帯になり、墨の印が左右に揺れる。緑の帯で止めれば良し、
+ * 帯の真ん中の濃い印なら会心、外せば弱く効く。止めた瞬間に結果の一語。
+ */
+.dig-gauge {
+  display: grid;
+  gap: 6px;
+  padding: 6px 8px 10px;
+  border: 1px solid var(--ink);
+  cursor: pointer;
+}
+
+.dig-gauge:focus-visible {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
+.dig-gauge__head {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.dig-gauge__foot {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.dig-gauge__say {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig-gauge.is-crit .dig-gauge__say {
+  color: var(--dig-green);
+  font-weight: 700;
+}
+
+.dig-gauge.is-ok .dig-gauge__say {
+  color: var(--dig-green);
+}
+
+.dig-gauge.is-miss .dig-gauge__say {
+  color: var(--amber-text);
+}
+
+.dig-gauge__bar {
+  position: relative;
+  display: block;
+  height: 14px;
+  border: 1px solid var(--ink-2);
+  background: var(--bg);
+}
+
+.dig-gauge__ok {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--dig-green) 35%, var(--bg));
+}
+
+.dig-gauge__crit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--dig-green);
+}
+
+.dig-gauge__mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+}

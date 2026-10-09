@@ -47,7 +47,7 @@ export type Ev =
   /** 持ち物を一回使う（尽きたら手放す）。 */
   | { type: 'item.use'; who: Who; index: number }
   /** 備えを一つ足す（次の遭遇の初めに起きる）。 */
-  | { type: 'prep'; who: Who; name: string; fx: import('../content/fx').Fx[] }
+  | { type: 'prep'; who: Who; name: string; fx: import('../content/fx').Fx[]; mult?: number }
   | { type: 'prep.clear'; who: Who }
   | { type: 'xp'; who: Who; stat: Stat; n: number }
   | { type: 'grew'; who: Who; stat: Stat; n?: number; innate?: boolean }
@@ -197,8 +197,9 @@ export type Cmd =
       goals?: GoalCarry[];
     }
   | { c: 'move'; node: number }
-  | { c: 'breather' }
-  | { c: 'item'; index: number }
+  /** q は「その場で」の目押しの出来（0.6 外れ・1 良し・1.5 会心）。 */
+  | { c: 'breather'; q?: number }
+  | { c: 'item'; index: number; q?: number }
   | { c: 'act'; a: Basic }
   | { c: 'card'; slot: number }
   | { c: 'close' }

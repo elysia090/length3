@@ -1129,12 +1129,16 @@ function pickStory(tx: Tx): string | null {
 export const breathed = (w: World): boolean =>
   (w.flags[`breath:${w.stratum}:${nodeOf(w, w.pos)?.row ?? -1}`] ?? 0) > 0;
 
-export function breather(tx: Tx): void {
+/** 目押しの出来を、効き目の倍率に（外れ 0.6・良し 1・会心 1.5）。 */
+export const knack = (q?: number): number => Math.min(1.5, Math.max(0.6, q ?? 1));
+
+export function breather(tx: Tx, q?: number): void {
   const w = tx.w;
   tx.emit({ type: 'flag', key: `breath:${w.stratum}:${nodeOf(w, w.pos)?.row ?? -1}`, v: 1 });
   if (w.you.perms.includes('insomnia')) refill(tx, 1, undefined, 'you', true);
   const s = stats(w, 'you');
-  heal(tx, Math.round(maxHp(s) * 0.1), Math.round(maxMind(s) * 0.1), 'you');
+  const k = knack(q);
+  heal(tx, Math.round(maxHp(s) * 0.1 * k), Math.round(maxMind(s) * 0.1 * k), 'you');
   careBonus(tx);
   shiftAll(tx, 'you');
   passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, 1))));
@@ -1161,7 +1165,7 @@ function lootItem(tx: Tx): string | undefined {
  * 最中も）に、「その場で」使う。休む品はその場で戻し、備える品は次の遭遇の初めに
  * 効く備えになり、探る品と道具は、その階を探る（出来事が起きるかもしれない）。
  */
-export function useItem(tx: Tx, index: number): boolean {
+export function useItem(tx: Tx, index: number, q?: number): boolean {
   const w = tx.w;
   const held = w.you.items[index];
   const g = held ? gearOf(held.id) : undefined;
@@ -1170,26 +1174,31 @@ export function useItem(tx: Tx, index: number): boolean {
   if (g.kind === 'seek' && w.pending) return false;
   tx.emit({ type: 'item.use', who: 'you', index });
   const left = held.uses > 1 ? `（あと ${held.uses - 1} 回）` : '';
+  const k = knack(q);
+  const how = k > 1 ? '会心。' : k < 1 ? '手元が狂った。' : '';
   if (g.kind === 'prep') {
-    tx.emit({ type: 'prep', who: 'you', name: g.name, fx: [...(g.prep ?? [])] });
-    tx.emit({ type: 'note', text: `${g.name}を手に、次の相手に備える。${left}`, level: 1 });
+    tx.emit({ type: 'prep', who: 'you', name: g.name, fx: [...(g.prep ?? [])], mult: k });
+    tx.emit({ type: 'note', text: `${how}${g.name}を手に、次の相手に備える。${left}`, level: 1 });
     return true;
   }
   if (g.kind === 'seek') {
-    tx.emit({ type: 'note', text: `${g.name}で、この階を探る。${left}`, level: 1 });
-    rummage(tx, g.seek ?? { story: 0.4, find: 0.3 });
+    tx.emit({ type: 'note', text: `${how}${g.name}で、この階を探る。${left}`, level: 1 });
+    const sk = g.seek ?? { story: 0.4, find: 0.3 };
+    // 会心なら当たりやすく、気づかれない。外れなら当たりにくい。
+    rummage(tx, { story: sk.story * k, find: sk.find * k, quiet: sk.quiet || k > 1 });
     return true;
   }
   const s = stats(w, 'you');
-  const hp = Math.min(g.heal?.hp ?? 0, maxHp(s) - w.you.hp);
-  const mind = Math.min(g.heal?.mind ?? 0, maxMind(s) - w.you.mind);
+  const hp = Math.min(Math.round((g.heal?.hp ?? 0) * k), maxHp(s) - w.you.hp);
+  const mind = Math.min(Math.round((g.heal?.mind ?? 0) * k), maxMind(s) - w.you.mind);
   if (hp > 0 || mind > 0)
     tx.emit({ type: 'vital', who: 'you', hp: Math.max(0, hp), mind: Math.max(0, mind) });
   if (g.refill) {
-    if (g.refill.tags.length === 0) refill(tx, g.refill.n, undefined, 'you');
-    else for (const t of g.refill.tags) if (refill(tx, g.refill.n, t as Tag, 'you')) break;
+    const n = Math.max(1, Math.round(g.refill.n * k));
+    if (g.refill.tags.length === 0) refill(tx, n, undefined, 'you');
+    else for (const t of g.refill.tags) if (refill(tx, n, t as Tag, 'you')) break;
   }
-  tx.emit({ type: 'note', text: `${g.name}を使った。${left}`, level: 1 });
+  tx.emit({ type: 'note', text: `${how}${g.name}を使った。${left}`, level: 1 });
   return true;
 }
 

@@ -59,11 +59,11 @@ export function decide(
     case 'breather':
       // 一服はフロアに一度（締め切りがないぶん、際限なく休めないように）。
       ok = !w.enc && !w.pending && !breathed(w);
-      if (ok) breather(tx);
+      if (ok) breather(tx, cmd.q);
       break;
     case 'item':
       // 持ち物は、向き合っていないときに使う（探る品は、手の空いているときだけ）。
-      ok = !w.enc && useItem(tx, cmd.index);
+      ok = !w.enc && useItem(tx, cmd.index, cmd.q);
       break;
     case 'act':
       // 素手の手（押す・構える・話す）は無い。立ち去るか、取引に応じるだけ。

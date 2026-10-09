@@ -243,7 +243,7 @@ export function startEnc(
   if (who === 'you' && prep.length) {
     tx.emit({ type: 'prep.clear', who });
     for (const p of prep) {
-      run(tx, p.fx, { mult: 1, card: `prep:${p.name}`, slot: -1, first: false });
+      run(tx, p.fx, { mult: p.mult ?? 1, card: `prep:${p.name}`, slot: -1, first: false });
       tx.emit({ type: 'note', text: `備えの${p.name}が効いた。`, level: 1 });
     }
     settle(tx);

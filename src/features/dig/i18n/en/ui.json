@@ -263,7 +263,15 @@
     "手放す": "Let go",
     "手放す一枚を押す": "Click the card to let go",
     "拾う一枚を選ぶ": "Choose one to take",
-    "拾う一枚を選ぶ（手持ちはいっぱいなので、あとで一枚手放す）": "Choose one to take (your hand is full, so you will let one go)"
+    "拾う一枚を選ぶ（手持ちはいっぱいなので、あとで一枚手放す）": "Choose one to take (your hand is full, so you will let one go)",
+    "その場で": "Right here",
+    "満たす": "Refill",
+    "刻む": "Inscribe",
+    "壁にもたれて一服": "Lean on the wall for a breather",
+    "いま、ここで足りないものはない。": "Nothing is lacking right now.",
+    "出来事が起きやすい・1 時間": "Events more likely · 1 h",
+    "何か見つかりやすい・1 時間": "More likely to find something · 1 h",
+    "何かが起きるかもしれない・1 時間": "Something may happen · 1 h"
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -437,6 +445,14 @@
     "『{0}』を拾い、『{1}』を手放す": "Take “{0}” and let “{1}” go",
     "『{0}』を拾う": "Take “{0}”",
     "{0}・見せ場［{1}］": "{0} · showcase [{1}]",
-    "{0}と、{1}。拾う一枚は左に並んでいる。": "{0}: {1}. The cards you can take are on the left."
+    "{0}と、{1}。拾う一枚は左に並んでいる。": "{0}: {1}. The cards you can take are on the left.",
+    "『{0}』に{1}{2}": "{1} on “{0}”{2}",
+    "{0}に{1}{2}": "{1} for {0}{2}",
+    "（あと {0}）": " ({0} left)",
+    "回数 {0}/{1} → {2}/{3}": "Uses {0}/{1} → {2}/{3}",
+    "ほか {0}（手札で）": "{0} more (in hand)",
+    "『{0}』に《{1}》": "«{1}» on “{0}”",
+    "（あと {0} 回）": " ({0} left)",
+    " あと {0} 戦": " {0} more"
   }
 }

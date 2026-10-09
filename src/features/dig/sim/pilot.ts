@@ -1,5 +1,4 @@
 import { PACE } from '../content/balance';
-import { gearOf } from '../content/gear';
 import { cardDef, epithetDef } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import type { Cmd } from '../core/events';
@@ -19,6 +18,7 @@ import {
   isHall,
   reachable,
 } from './run';
+import { spotActions } from './spot';
 
 /**
  * 自動操縦。あなたの席に座る頭（ライバルと同じ 1 手読み）に、地図の上の
@@ -90,8 +90,9 @@ export function pilot(w: World): Cmd | null {
   if (ins) return ins;
   const all = reachable(w);
   if (!all.length) return null;
-  const gear = fieldItem(w, all);
-  if (gear !== null) return { c: 'item', index: gear };
+  // その場で：人に見せるのと同じ見積もりで、効き目の大きいものから使う。
+  const spot = spotActions(w)[0];
+  if (spot && spot.score >= 5) return spot.cmd;
   // 締め切りはないので、時間の余裕はいつもある（廊下も渡り廊下も選べる）。
   const slack = 99;
   // 廊下は夜に余裕があるときだけ。渡り廊下は回り道のぶん（2 時間）余裕が要る。
@@ -255,26 +256,4 @@ function pickCard(
   const low = bare[0];
   const drop = low && (low.uses === 0 || low.uses + 2 <= most) ? low : undefined;
   return drop ? { id: best, drop: drop.uid } : null;
-}
-
-/**
- * 地図の上で使う持ち物。傷んでいれば癒やし、尽きた札があれば戻す。次の部屋に相手がいて備えが無ければ、備える品を一つ。持ち物が溜まったら探る。
- */
-function fieldItem(w: World, next: readonly { npc?: string }[]): number | null {
-  const s = stats(w, 'you');
-  const low = w.you.hp * 2 < maxHp(s);
-  const dry = [...w.you.cards, ...w.you.back].some((c) => c && c.uses === 0);
-  const facing = next.some((n) => !!n.npc) && !(w.you.prep?.length ?? 0);
-  let at: number | null = null;
-  w.you.items.forEach((it, i) => {
-    if (at !== null) return;
-    const g = gearOf(it.id);
-    if (!g) return;
-    if (g.kind === 'rest') {
-      if ((g.heal?.hp && low) || (g.refill && dry)) at = i;
-    } else if (g.kind === 'prep') {
-      if (facing) at = i;
-    } else if (w.you.items.length >= 6 && !low) at = i;
-  });
-  return at;
 }

@@ -66,7 +66,7 @@ export interface Char {
    */
   back: Card[];
   /** 備え（次の遭遇の初めに起きる効き目）。遭遇が始まると使われて消える。 */
-  prep?: { name: string; fx: import('../content/fx').Fx[] }[];
+  prep?: { name: string; fx: import('../content/fx').Fx[]; mult?: number }[];
   /** 地力が新しい高さに届いた数（持てる札が一枚ずつ増える）。 */
   level: number;
   /** 手に入れた順。そのまま、この挑戦の履歴になる。 */

@@ -145,7 +145,10 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'prep': {
       const c = charOf(w, ev.who);
-      c.prep = [...(c.prep ?? []), { name: ev.name, fx: structuredClone(ev.fx) }];
+      c.prep = [
+        ...(c.prep ?? []),
+        { name: ev.name, fx: structuredClone(ev.fx), mult: ev.mult ?? 1 },
+      ];
       break;
     }
     case 'prep.clear':
