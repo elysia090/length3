@@ -286,28 +286,6 @@
   color: var(--amber-text);
 }
 
-.dig-route {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.625rem;
-  border: 0.0625rem solid var(--rule);
-}
-
-.dig-route--chain,
-.dig-route--almost {
-  border-color: var(--amber-text);
-}
-
-.dig-route h4 {
-  margin: 0;
-  font-size: var(--font-ui-xs);
-  letter-spacing: 0.12em;
-}
-
-.dig-route__steps {
-  font-family: var(--font-mono);
-  font-size: var(--font-ui-xs);
-  color: var(--ink-3);
-}
 
 /* 道の読み：三つの道は一行のチップ。選んだ一本だけ、詳しく。 */
 .dig-chips {
@@ -2163,16 +2141,6 @@
   }
 }
 
-/* 階の癖（上の帯、階の名の隣）。 */
-.dig-quirk {
-  padding: 0 6px;
-  border: 1px solid var(--amber-text);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--amber-text);
-  cursor: help;
-}
-
 /*
  * エピテットの刻む先を選んでいるあいだ：刻めない札・記憶・欄は沈め、刻める先
  * （白い札・記憶・相手・出来事・地図の部屋の輪）だけが浮く。
@@ -3112,13 +3080,9 @@
   opacity: 0.32;
 }
 
-.dig-bar .dig-afters {
-  margin: 0;
-}
-
 /*
- * その場で：効く順に一行ずつ。左に動詞（休む・満たす・刻む・備える・探る）、
- * 真ん中に何をするか、右に何が戻る・備わるか。行ごと押せばそのまま起きる。
+ * その場で：箱が縦に並ぶ（休む → 備える → 探る）。一行目に何を使うか、二行目に
+ * 何が戻る・備わるか。道を選ぶと、その道に効く箱が琥珀の枠になって上へ滑る。
  */
 .dig-spot {
   display: grid;
@@ -3127,35 +3091,141 @@
 
 .dig .dig-spot__row {
   display: grid;
-  grid-template-columns: 3.25rem minmax(0, 1fr);
-  gap: 0 8px;
-  align-items: baseline;
+  gap: 2px;
   min-height: 0;
-  padding: 6px 8px;
+  padding: 6px 10px 7px;
   text-align: left;
+  transition: border-color 0.2s;
 }
 
-.dig-spot__verb {
-  grid-row: span 2;
-  font-family: var(--font-mono);
-  font-size: var(--font-ui-xs);
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
+/* 選んだ道に効く箱は、選んだ道の札と同じ形（琥珀の二重線と、琥珀の名）。 */
+.dig .dig-spot__row.is-fit,
+.dig-gauge.is-fit {
+  padding: 5px 9px 6px;
+  border-width: 2px;
+  border-color: var(--amber-text);
 }
 
-.dig-spot__row.is-fill .dig-spot__verb,
-.dig-spot__row.is-ink .dig-spot__verb {
+.dig-spot__row.is-fit .dig-spot__what {
   color: var(--amber-text);
 }
 
 .dig-spot__what {
   font-size: 0.8125rem;
+  font-weight: 700;
   color: var(--ink);
 }
 
 .dig-spot__gain {
   font-size: var(--font-ui-xs);
   color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-spot__row {
+    transition: none;
+  }
+}
+
+/* 整えたら、進む（その場での下に、一つだけ）。 */
+.dig-next {
+  margin-top: 12px;
+}
+
+.dig .dig-next .dig-go {
+  display: block;
+  width: 100%;
+}
+
+/* 選んだ道の中身：見出しと短い行。 */
+.dig-route {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 2px 8px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  font-size: var(--font-ui-xs);
+  line-height: 1.6;
+}
+
+.dig-route dt {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.dig-route dt.is-hot {
+  color: var(--amber-text);
+}
+
+.dig-route dd {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* 目標の下：いまの状況（階の癖・余韻・冠）。 */
+.dig-status ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dig-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 8px;
+  align-items: baseline;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-state b {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dig-state i {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+.dig-state span {
+  grid-column: 1 / -1;
+  color: var(--ink-3);
+}
+
+.dig-state.is-ally b,
+.dig-state.is-insight b {
+  color: var(--dig-blue);
+}
+
+.dig-state.is-notorious b,
+.dig-state.is-feared b,
+.dig-state.is-quirk b {
+  color: var(--amber-text);
+}
+
+/* ヒント：状況のさらに下に。 */
+.dig-side .dig-guide__hint {
+  display: grid;
+  gap: 4px;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+  line-height: 1.6;
+}
+
+.dig-side .dig-guide__hint:empty {
+  display: none;
+}
+
+.dig-side .dig-guide__hint .dig-guide__nav {
+  margin-left: 0;
+  justify-self: end;
 }
 
 .dig-spot__none {
@@ -3192,13 +3262,6 @@
 .dig-gauge:focus-visible {
   outline: 1px solid var(--amber-text);
   outline-offset: 2px;
-}
-
-.dig-gauge__head {
-  display: grid;
-  grid-template-columns: 3.25rem minmax(0, 1fr);
-  gap: 8px;
-  align-items: baseline;
 }
 
 .dig-gauge__foot {

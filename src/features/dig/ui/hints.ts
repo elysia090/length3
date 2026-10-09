@@ -4,7 +4,7 @@ import { foeHardness, nodeHardness, outmatched, youHardness } from '../sim/hardn
 import { isBridge, lateral, reachable } from '../sim/run';
 
 /**
- * 案内（チュートリアルとヒント）。塔の上の帯に、いまの状況にいちばん関係する
+ * 案内（チュートリアルとヒント）。右の欄の目標の下に、いまの状況にいちばん関係する
  * まだ見ていない一つだけを出す。見たものは端末に覚えて、二度目からは出さない
  * （一覧からはいつでも読み返せる）。並び順がそのまま優先順。
  */

@@ -271,7 +271,21 @@
     "いま、ここで足りないものはない。": "Nothing is lacking right now.",
     "出来事が起きやすい・1 時間": "Events more likely · 1 h",
     "何か見つかりやすい・1 時間": "More likely to find something · 1 h",
-    "何かが起きるかもしれない・1 時間": "Something may happen · 1 h"
+    "何かが起きるかもしれない・1 時間": "Something may happen · 1 h",
+    "一服": "Breather",
+    "状況": "Situation",
+    "道": "Route",
+    "見込み": "Odds",
+    "繋がる": "Leads to",
+    "足りない": "Missing",
+    "拾える": "Pick up",
+    "危うい": "Risky",
+    "この階": "This floor",
+    "この階を探る": "Search this floor",
+    "出来事が起きやすい": "Events more likely",
+    "何か見つかりやすい": "More likely to find something",
+    "何かが起きるかもしれない": "Something may happen",
+    "1 時間（この階で一度）": "1 h (once per floor)"
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -453,6 +467,14 @@
     "ほか {0}（手札で）": "{0} more (in hand)",
     "『{0}』に《{1}》": "«{1}» on “{0}”",
     "（あと {0} 回）": " ({0} left)",
-    " あと {0} 戦": " {0} more"
+    " あと {0} 戦": " {0} more",
+    "{0}（あと {1} 回）": "{0} ({1} left)",
+    "『{0}』の回数 {1}/{2} → {3}/{4}": "“{0}” uses {1}/{2} → {3}/{4}",
+    "噛み合う相互作用：{0}": "Interlocking: {0}",
+    "{0}に、あと{1}": "{0}: still missing {1}",
+    "{0}で{1}（{2}）": "{1} at {0} ({2})",
+    "着いて体力 {0}%": "arrive at {0}% body",
+    "あと {0} 戦": "{0} more",
+    "{0}：{1}　{2}": "{0}: {1}  {2}"
   }
 }

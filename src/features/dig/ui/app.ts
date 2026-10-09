@@ -23,13 +23,21 @@ import {
 } from '../content/registry';
 import { buildsOf } from '../content/sources';
 import { nextTier, SURGES, tierOf } from '../content/surges';
+import { titleDef } from '../content/titles';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
 import { fold } from '../core/reduce';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { clockOf, PHASE_NAME, phaseOf } from '../core/time';
 import { getLang, setLang, tr } from '../i18n';
-import { type Advice, advise, nodeLabel, type RouteKind, sourceLabel } from '../sim/advise';
+import {
+  type Advice,
+  advise,
+  nodeLabel,
+  type Route,
+  type RouteKind,
+  sourceLabel,
+} from '../sim/advise';
 import {
   bonusOf,
   canAccept,
@@ -89,8 +97,9 @@ import { type RoomView, type Scene, Tower, type TowerView } from './tower';
  * DIG の画面。底の見えない巨大な建物を、フロアごとに下りていく。
  *
  *   塔      斜めに見下ろしたフロアの積み重ね（本体）。部屋を押すと進む
- *   上帯    フロア・時刻・体力・精神・金・硬度・冠
- *   脇      いま起きていること（部屋の様子と三つの道／遭遇／出来事・拾う・食堂・古物商）
+ *   上帯    フロア・時刻・体力・精神・金・硬度（ここには、それ以上足さない）
+ *   脇      いま起きていること（三つの道 → その場で → 進む／遭遇／出来事・拾う・
+ *          食堂・古物商）。その下に目標、状況（階の癖・余韻・冠）、ヒント
  *   手元    五つの枠のカード・所持品・刻んでいないエピテット・記憶
  *
  * 言葉は揃える：フロア・部屋・人物・硬度・カード・記憶・冠・エピテット・原型。
@@ -1311,14 +1320,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       const hard = youHardness(w);
       items.push(
         h('span', { class: 'dig-where' }, ...placeOf(w, row >= 0 ? nodeOf(w, w.pos) : undefined)),
-        // 階の癖（その階にいるあいだだけ。触れると得と癖）。
-        quirkDef(nodeOf(w, w.pos)?.quirk)
-          ? h(
-              'span',
-              { class: 'dig-quirk', title: quirkDef(nodeOf(w, w.pos)?.quirk)?.text },
-              quirkDef(nodeOf(w, w.pos)?.quirk)?.name,
-            )
-          : null,
         // 時刻と、いまが夜か朝か（数えなくていい。夜は、また来る）。
         h(
           'span',
@@ -1347,15 +1348,6 @@ export function openDig(doc: Document, onClose: () => void): void {
           now() - coinGain.at < 1.4 ? h('i', { class: 'dig-coins__up' }, `+${coinGain.n}`) : null,
         ),
         now() - hardAt < 2.5 ? h('span', { class: 'is-risen' }, hardTag(hard)) : hardTag(hard),
-        // 尾を引いている決着の余韻（残りの遭遇の数つき）。体と同じく、いまの自分の具合。
-        afterRow(w),
-        w.you.titles.length
-          ? h(
-              'span',
-              { class: 'dig-titles' },
-              w.you.titles.map((id) => `《${epithetDef(id)?.name ?? id}》`).join(''),
-            )
-          : null,
       );
     }
     items.push(
@@ -1408,8 +1400,12 @@ export function openDig(doc: Document, onClose: () => void): void {
   // ─── 脇 ─────────────────────────────────────────────────────
 
   function renderSide(): void {
+    const spots = spotSpots();
     side.replaceChildren();
-    if (!game) return;
+    if (!game) {
+      guide.append(hintBox);
+      return;
+    }
     const sw = staged ?? game.world;
     // 刻む先を選んでいるあいだ（地図の上で）：何を選んでいるかと、やめる。
     if (aim && !sw.enc)
@@ -1428,6 +1424,11 @@ export function openDig(doc: Document, onClose: () => void): void {
     renderPanel(sw);
     const goals = goalsPanel(sw);
     if (goals) fill(side, [goals]);
+    // 目標の下に、いまの状況（階の癖・余韻・冠）と、ヒント。
+    const status = statusPanel(sw);
+    if (status) fill(side, [status]);
+    side.append(hintBox);
+    slideSpots(spots);
     // 出来事の記録は、どの画面でも同じ場所に畳んでおく（開けば読める）。
     if (log.length)
       fill(side, [
@@ -1517,6 +1518,34 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h('section', { class: 'dig-sec dig-goals' }, h('h3', {}, '目標'), h('ol', {}, rows));
   }
 
+  /** いまの状況：その階の癖、尾を引いている余韻、あなたの冠。どれも、何が起きるかを一行で。 */
+  function statusPanel(w: World): HTMLElement | null {
+    if (w.enc || w.ending) return null;
+    const row = (name: string, meta: string, text: string, cls = '') =>
+      h(
+        'li',
+        { class: `dig-state${cls ? ` ${cls}` : ''}` },
+        h('b', {}, name),
+        meta ? h('i', {}, meta) : null,
+        h('span', {}, text),
+      );
+    const quirk = quirkDef(nodeOf(w, w.pos)?.quirk);
+    const rows = [
+      quirk ? row(quirk.name, 'この階', quirk.text, 'is-quirk') : null,
+      // 受け取りのあいだは、結末の欄が余韻を言っているので重ねない。
+      ...(w.pending?.kind === 'reward' ? [] : w.after).map((a) => {
+        const d = afterDef(a.kind);
+        return row(d?.name ?? a.kind, `あと ${a.left} 戦`, d?.text ?? '', `is-${a.kind}`);
+      }),
+      ...w.you.titles.map((id) =>
+        row(`《${epithetDef(id)?.name ?? id}》`, '冠', titleDef(id)?.text ?? ''),
+      ),
+    ].filter((x): x is NonNullable<typeof x> => !!x);
+    return rows.length
+      ? h('section', { class: 'dig-sec dig-status' }, h('h3', {}, '状況'), h('ul', {}, rows))
+      : null;
+  }
+
   const section = (title: string, ...kids: (Child | readonly Child[])[]) =>
     h('section', { class: 'dig-sec' }, h('h3', {}, title), ...kids);
 
@@ -1583,17 +1612,15 @@ export function openDig(doc: Document, onClose: () => void): void {
     const next = reachable(w);
     const sel = pinned !== null ? nodeOf(w, pinned) : undefined;
     const kids: (Child | readonly Child[])[] = [];
+    // 行き先（決めていれば）。その場で整えてから、いちばん下の釦で進む。
+    let go: number | undefined;
+    let chosen: Route | undefined;
     if (sel) {
-      const can = next.some((n) => n.id === sel.id);
+      if (next.some((n) => n.id === sel.id)) go = sel.id;
       kids.push(
         section(
           '部屋',
           roomInfo(w, sel),
-          can
-            ? button(`${way(w, sel).verb}`, () => send({ c: 'move', node: sel.id }), {
-                class: 'dig-go',
-              })
-            : null,
           button('閉じる', () => {
             pinned = null;
             render();
@@ -1633,7 +1660,8 @@ export function openDig(doc: Document, onClose: () => void): void {
           : r.kind === 'chain'
             ? `噛み合い ${r.links.length}`
             : '';
-      const chosen = all.find((r) => r.kind === routeSel);
+      chosen = all.find((r) => r.kind === routeSel);
+      if (!sel && chosen?.path[0] !== undefined) go = chosen.path[0];
       kids.push(
         section(
           '道の読み',
@@ -1665,35 +1693,57 @@ export function openDig(doc: Document, onClose: () => void): void {
               ),
             ),
           ),
-          chosen
-            ? h(
-                'div',
-                { class: `dig-route dig-route--${chosen.kind}` },
-                h('p', {}, chosen.text),
-                chosen.warn.length ? h('p', { class: 'dig-warn' }, chosen.warn.join('。')) : null,
-                chosen.hint ? h('p', { class: 'dig-amber' }, chosen.hint) : null,
-                chosen.path[0] !== undefined
-                  ? button(
-                      stepLabel(w, chosen.path[0]),
-                      () => send({ c: 'move', node: chosen.path[0] as number }),
-                      { class: 'dig-go' },
-                    )
-                  : null,
-              )
-            : null,
+          chosen ? routeFacts(w, chosen) : null,
         ),
       );
     }
     kids.push(
       section(
         'その場で',
-        spotRows(w),
+        spotRows(w, go, sel ? undefined : chosen),
         // 抜けたあとは、いつでも灯りを置ける（どこまで下りたかを持ち帰る）。挑戦が
         // 終わる一手なので、ほかの釦から離して置き、二度押さないと置かない。
         w.flags.cleared ? lampButton(w) : null,
       ),
     );
+    // 整えたら、進む。
+    if (go !== undefined) {
+      const to = go;
+      kids.push(
+        h(
+          'div',
+          { class: 'dig-next' },
+          button(stepLabel(w, to), () => send({ c: 'move', node: to }), { class: 'dig-go' }),
+        ),
+      );
+    }
     return h('div', {}, ...kids);
+  }
+
+  /**
+   * 選んだ道の中身を、文ではなく見出しつきの短い行で（道・見込み・繋がる・
+   * 足りない・拾える・危うい）。噛み合う相互作用の一覧は、触れると出る。
+   */
+  function routeFacts(w: World, r: Route): HTMLElement {
+    const pct = (x: number) => `${Math.round(x * 100)}%`;
+    const names = r.path.map((id) => nodeOf(w, id)).flatMap((n) => (n ? [whoOf(n)] : []));
+    const rows: [string, string, boolean][] = [
+      ['道', `${names.slice(0, 4).join(' → ')}${names.length > 4 ? ' …' : ''}`, false],
+      ['見込み', `抜ける ${pct(r.survive)}・着いて体力 ${pct(r.hpEnd)}`, r.survive < 0.7],
+    ];
+    if (r.gets?.length) rows.push(['繋がる', r.gets.join('・'), false]);
+    if (r.need) rows.push(['足りない', r.need, false]);
+    if (r.pick) rows.push(['拾える', r.pick, false]);
+    const warn = r.warn.filter((x) => !x.startsWith('倒れる見込み'));
+    if (warn.length) rows.push(['危うい', warn.join('。'), true]);
+    return h(
+      'dl',
+      {
+        class: `dig-route dig-route--${r.kind}`,
+        title: r.links.length ? `噛み合う相互作用：${r.links.join(' × ')}` : '',
+      },
+      rows.flatMap(([k, v, hot]) => [h('dt', { class: hot ? 'is-hot' : '' }, k), h('dd', {}, v)]),
+    );
   }
 
   /** いま尾を引いている決着の余韻（残りの遭遇の数つき）。 */
@@ -1823,7 +1873,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     gauge = null;
     renderSide();
   }
-  function gaugeRow(a: SpotAction): HTMLElement {
+  function gaugeRow(a: SpotAction, fit: boolean): HTMLElement {
     const g = gauge;
     if (!g) return h('div');
     const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
@@ -1832,18 +1882,14 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h(
       'div',
       {
-        class: `dig-gauge${g.q === undefined ? '' : g.q > 1 ? ' is-crit' : g.q === 1 ? ' is-ok' : ' is-miss'}`,
+        class: `dig-gauge${fit ? ' is-fit' : ''}${g.q === undefined ? '' : g.q > 1 ? ' is-crit' : g.q === 1 ? ' is-ok' : ' is-miss'}`,
+        'data-spot': a.label,
         role: 'button',
         tabindex: '0',
         'aria-label': `${a.label}　押して止める`,
         onclick: () => stopGauge(),
       },
-      h(
-        'span',
-        { class: 'dig-gauge__head' },
-        h('span', { class: 'dig-spot__verb' }, SPOT_VERB[a.kind]),
-        h('span', { class: 'dig-spot__what' }, a.label),
-      ),
+      h('span', { class: 'dig-spot__what' }, a.label),
       h(
         'span',
         { class: 'dig-gauge__bar' },
@@ -1866,26 +1912,56 @@ export function openDig(doc: Document, onClose: () => void): void {
     );
   }
 
-  function spotRows(w: World): HTMLElement {
-    const list = spotActions(w);
-    const shown = list.slice(0, 4);
+  /**
+   * 並びは、休む（満たすも）→ 備える → 探る。道を選ぶと、その道に効くもの
+   * （その道の相手への備え、その道で尽きる札を満たすもの、傷の深い道なら休む）が
+   * 琥珀の枠になって上へ動く。道を変えれば、また入れ替わる。
+   */
+  const SPOT_ORDER: Record<SpotAction['kind'], number> = {
+    rest: 0,
+    fill: 0,
+    ink: 1,
+    prep: 1,
+    seek: 2,
+  };
+  function spotFits(a: SpotAction, toward: number | undefined, route: Route | undefined): boolean {
+    if (toward === undefined) return false;
+    if (a.kind === 'prep') return true;
+    if (!route) return false;
+    if (a.kind === 'fill') return a.card !== undefined && route.wear.includes(a.card);
+    if (a.kind === 'rest') return !!a.hp && (route.hpEnd < 0.6 || route.survive < 0.85);
+    return false;
+  }
+
+  function spotRows(w: World, toward?: number, route?: Route): HTMLElement {
+    const list = spotActions(w, toward).map((a) => ({ a, fit: spotFits(a, toward, route) }));
+    const shown = [...list]
+      .sort((x, y) => Number(y.fit) - Number(x.fit) || y.a.score - x.a.score)
+      .slice(0, 4)
+      .sort(
+        (x, y) =>
+          Number(y.fit) - Number(x.fit) ||
+          SPOT_ORDER[x.a.kind] - SPOT_ORDER[y.a.kind] ||
+          y.a.score - x.a.score,
+      );
     const prep = w.you.prep ?? [];
     return h(
       'div',
       { class: 'dig-spot' },
       shown.length
-        ? shown.map((a) =>
+        ? shown.map(({ a, fit }) =>
             gauge && gauge.key === a.label
-              ? gaugeRow(a)
+              ? gaugeRow(a, fit)
               : h(
                   'button',
                   {
                     type: 'button',
-                    class: `dig-spot__row is-${a.kind}`,
+                    class: `dig-spot__row is-${a.kind}${fit ? ' is-fit' : ''}`,
+                    'data-spot': a.label,
+                    'aria-label': `${SPOT_VERB[a.kind]}：${a.label}　${a.gain}`,
                     disabled: !!gauge,
                     onclick: () => startGauge(a),
                   },
-                  h('span', { class: 'dig-spot__verb' }, SPOT_VERB[a.kind]),
                   h('span', { class: 'dig-spot__what' }, a.label),
                   h('span', { class: 'dig-spot__gain' }, ...heals(a.gain)),
                 ),
@@ -1896,7 +1972,11 @@ export function openDig(doc: Document, onClose: () => void): void {
             'p',
             { class: 'dig-spot__foot' },
             prep.length
-              ? h('span', { class: 'dig-prep' }, `備え：${prep.map((x) => x.name).join('・')}`)
+              ? h(
+                  'span',
+                  { class: 'dig-prep' },
+                  `備え：${prep.map((x) => `${x.name}${x.mult && x.mult !== 1 ? ` ×${x.mult}` : ''}`).join('・')}`,
+                )
               : null,
             list.length > shown.length
               ? button(`ほか ${list.length - shown.length}（手札で）`, () => {
@@ -1907,6 +1987,36 @@ export function openDig(doc: Document, onClose: () => void): void {
           )
         : null,
     );
+  }
+
+  /**
+   * 並びが変わった行を、前の位置から今の位置へ滑らせる（何が上がったかが目で追える）。
+   * 位置は「その場で」の枠の中での高さで測る（上の欄が伸び縮みしても動かない）。
+   */
+  function spotSpots(): Map<string, number> {
+    const at = new Map<string, number>();
+    for (const el of side.querySelectorAll<HTMLElement>('[data-spot]')) {
+      const box = el.parentElement?.getBoundingClientRect().top ?? 0;
+      at.set(el.dataset.spot ?? '', el.getBoundingClientRect().top - box);
+    }
+    return at;
+  }
+  function slideSpots(before: Map<string, number>): void {
+    if (!before.size || still()) return;
+    for (const el of side.querySelectorAll<HTMLElement>('[data-spot]')) {
+      const was = before.get(el.dataset.spot ?? '');
+      if (was === undefined) {
+        el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' });
+        continue;
+      }
+      const box = el.parentElement?.getBoundingClientRect().top ?? 0;
+      const dy = was - (el.getBoundingClientRect().top - box);
+      if (Math.abs(dy) > 1)
+        el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], {
+          duration: 280,
+          easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)',
+        });
+    }
   }
 
   /** 整えるの中の持ち物（休む・備える・探るの三つの列）。 */

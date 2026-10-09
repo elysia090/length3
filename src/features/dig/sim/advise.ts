@@ -70,6 +70,13 @@ export interface Route {
   text: string;
   warn: string[];
   hint?: string;
+  /** 成功すれば繋がるもの（高連鎖）。 */
+  gets?: string[];
+  /** あと一つ：成立しかけているものと足りないもの、拾えそうな場所。 */
+  need?: string;
+  pick?: string;
+  /** この道で回数が尽きる・残り 1 回を切る札（uid）。 */
+  wear: number[];
 }
 
 export type { Miss };
@@ -472,7 +479,14 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     const c = w.you.cards[slot];
     return c ? `『${cardDef(c.id).name}』` : '';
   };
-  const route = (kind: RouteKind, x: Walk, text: string, warn: string[], hint?: string): Route => ({
+  const route = (
+    kind: RouteKind,
+    x: Walk,
+    text: string,
+    warn: string[],
+    hint?: string,
+    more: Pick<Route, 'gets' | 'need' | 'pick'> = {},
+  ): Route => ({
     kind,
     label: LABEL[kind],
     aim: kind === 'safe' ? 'win' : 'play',
@@ -485,6 +499,10 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     text,
     warn,
     hint,
+    wear: [...x.short, ...x.thin]
+      .map((slot) => w.you.cards[slot]?.uid)
+      .filter((u): u is number => u !== undefined),
+    ...more,
   });
 
   const safe = best('safe', walks);
@@ -521,6 +539,8 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
         chain,
         `今の構成なら、この道で ${l.length} 個の相互作用が成立する：${l.slice(0, 5).join('×')}${l.length > 5 ? '…' : ''}。${gets.length ? `成功すれば ${gets.join('・')} まで繋がる。` : ''}ただし失敗したときの損失も大きい。`,
         warn,
+        undefined,
+        { gets },
       ),
     );
   }
@@ -542,6 +562,10 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
         `${m.name}が成立しかけている。あと${lackText(m.lack)}足りない。`,
         x.alive < 0.6 ? [`倒れる見込み ${Math.round((1 - x.alive) * 100)}%`] : [],
         `${nodeLabel(sup.node)}に寄れば、${sup.what}を拾える可能性がある（${odds(sup.chance)}）。寄るかどうかは、あなた次第。`,
+        {
+          need: `${m.name}に、あと${lackText(m.lack)}`,
+          pick: `${nodeLabel(sup.node)}で${sup.what}（${odds(sup.chance)}）`,
+        },
       ),
     );
     break;
