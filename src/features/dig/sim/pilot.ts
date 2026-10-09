@@ -24,7 +24,7 @@ import { spotActions } from './spot';
  * 自動操縦。あなたの席に座る頭（ライバルと同じ 1 手読み）に、地図の上の
  * 簡単な好みを足したもの。テストと釣り合いの試算、それと「おまかせ」に使う。
  */
-export function pilot(w: World): Cmd | null {
+export function pilot(w: World, opts: { quick?: boolean } = {}): Cmd | null {
   if (w.ending) return null;
   const e = w.enc;
   if (e) {
@@ -32,7 +32,9 @@ export function pilot(w: World): Cmd | null {
     // 弱めるエピテットは、手強い相手に刻む（手番は使わない）。
     const weak = foeInk(w);
     if (weak) return { c: 'inscribe', ep: weak, foe: true };
-    const a = bestAction(w, 2);
+    // 道の読みの試行の中では 1 手読み（2 手読みは一手ごとに世界を 7×7 回複製する。
+    // 試行は場所の数だけ回るので、ここが読みの時間のほとんどを占めていた）。
+    const a = bestAction(w, opts.quick ? 1 : 2);
     return a.kind === 'basic' ? { c: 'act', a: a.a } : { c: 'card', slot: a.slot };
   }
   const p = w.pending;

@@ -223,7 +223,7 @@ export function probe(w: World, nodeId: number, samples = 2): Probe | null {
     };
     if (!run({ c: 'move', node: nodeId })) return null;
     for (let step = 0; step < 160 && !s.ending && (s.enc || s.pending); step++) {
-      const cmd = pilot(s);
+      const cmd = pilot(s, { quick: true });
       if (!cmd || !run(cmd)) break;
     }
     const after = snapshot(s);
