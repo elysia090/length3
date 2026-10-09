@@ -73,7 +73,9 @@ export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
     need: Math.round(def.need * PACE.tough) + w.stratum - 1 + Math.round(heat) + 2 * deep,
     hostility: def.hostility,
     guard: 0,
-    atk: Math.round(def.atk * (1 + 0.1 * depth) + PACE.atkStep * (w.stratum - 1) + 2 * deep),
+    atk: Math.round(
+      def.atk * PACE.bite * (1 + 0.2 * depth) + PACE.atkStep * (w.stratum - 1) + 2 * deep,
+    ),
     def: def.def,
     wil: def.wil,
     int: def.int,
@@ -733,18 +735,11 @@ export function cardsAfter(
   if (outcome === 'left' && log.hostility < 7) on.push('left');
   if (log.lies > 0 && log.caught === 0) on.push('lieKept');
   if (log.cards === 0 && outcome !== 'fallen' && outcome !== 'shattered') on.push('quiet');
-  // 決着の形に合う札のうち、いちばん減っている一枚だけが一つ戻る。
+  // 決着の形に合う札のうち、尽きた一枚だけが息を吹き返す（一回ぶん）。
   const c = charOf(tx.w, who);
-  let at = -1;
-  let gap = 0;
-  c.cards.forEach((card, slot) => {
-    if (!card || card.uses >= card.max) return;
-    if (!cardDef(card.id).recover.on.some((t) => on.includes(t))) return;
-    if (card.max - card.uses > gap) {
-      gap = card.max - card.uses;
-      at = slot;
-    }
-  });
+  const at = c.cards.findIndex(
+    (card) => !!card && card.uses <= 0 && cardDef(card.id).recover.on.some((t) => on.includes(t)),
+  );
   if (at >= 0) tx.emit({ type: 'card.uses', who, slot: at, n: 1 });
   shiftAll(tx, who);
   overuse(tx, who);

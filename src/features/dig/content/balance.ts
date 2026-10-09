@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.16.0';
+export const DATA_VERSION = '1.17.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -44,7 +44,9 @@ export const POINTS = {
 export const PACE = {
   rows: 9,
   dawn: 10,
-  tough: 1.95,
+  tough: 1.5,
+  /** 相手の攻撃の倍率（勝負は短く、そのぶん一撃が重い）。 */
+  bite: 2.05,
   /** 区画ごとの相手の攻撃の伸び。 */
   atkStep: 0.6,
   /** 難度の効き 1 段あたりの、相手の体と意志の伸び。 */
@@ -220,13 +222,19 @@ export const LEGACY: readonly CardDef[] = [
 ];
 
 /** いまの版までの tune を、定義に重ねる。 */
+/**
+ * 札の回数の掛け率。手持ちは七枚なので、回数が多いと尽きずに回ってしまう。
+ * 三人と向き合えば二枚ほどが尽きるように、どの札も一律に絞る（二回は残す）。
+ */
+export const USES_SCALE = 0.55;
+
 export function tuned(def: CardDef): CardDef {
   let out = def;
   for (const r of RELEASES) {
     const t = r.tune?.[def.id];
     if (t) out = { ...out, ...t };
   }
-  return out;
+  return { ...out, uses: Math.max(2, Math.round(out.uses * USES_SCALE)) };
 }
 
 /** いまの版までの、規則への調整。 */

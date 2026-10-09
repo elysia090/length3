@@ -2560,3 +2560,558 @@
 .dig-deckview .dig-card.is-dim {
   opacity: 0.32;
 }
+
+/*
+ * 場面（決着の受け取り・食堂）。地図の場所に重なり、目の前で起きる。
+ * 受け取りは順に：判（結末の一語）→ 余韻 → 品が一つずつ押され → 拾える札が
+ * 伏せたまま並び、一枚ずつ表を向ける。どの動きも「何が手に入ったか」を順に
+ * 伝えるためだけのもの（静かな設定では、全部が最初から見えている）。
+ */
+
+
+
+.dig-scene__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.dig-scene__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+.dig-scene__word {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.dig-scene__word.is-blue {
+  color: var(--dig-blue);
+}
+
+.dig-scene__who {
+  color: var(--ink-3);
+}
+
+.dig-scene__after {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  max-width: 44rem;
+  margin: 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--amber-text);
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+
+.dig-scene__after b {
+  color: var(--amber-text);
+}
+
+.dig-scene__spoils {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dig .dig-scene__spoil {
+  font-size: 0.8125rem;
+  line-height: 28px;
+  padding: 0 10px;
+}
+
+.dig-scene__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.dig .dig-scene__pick {
+  min-height: 2rem;
+  padding: 0 10px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig .dig-scene__pick.is-chosen {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+.dig .dig-scene__pick.is-spent {
+  border-style: dashed;
+  color: var(--ink-3);
+}
+
+.dig-scene__cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dig .dig-scene__card {
+  min-height: 11rem;
+  border: 1px solid var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dig .dig-scene__card:hover:not(:disabled),
+.dig .dig-scene__card:focus-visible {
+  border-color: var(--amber-text);
+}
+
+.dig .dig-scene__card.is-chosen {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
+.dig .dig-scene__card.is-tool {
+  border-style: dashed;
+}
+
+.dig-scene__inked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.dig-scene__foot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 食堂の三つの休み方（同じ大きさの三枚。選ぶのは一つだけ）。 */
+.dig-scene__choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dig .dig-scene__choice {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-height: 7rem;
+  padding: 12px;
+  border: 1px solid var(--ink-2);
+  text-align: left;
+  font-size: var(--font-ui-xs);
+  color: var(--ink-2);
+}
+
+.dig .dig-scene__choice b {
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.dig .dig-scene__choice:hover,
+.dig .dig-scene__choice[aria-pressed='true'] {
+  border-color: var(--amber-text);
+}
+
+.dig .dig-scene__choice.is-costly span:last-child {
+  color: var(--amber-text);
+}
+
+/*
+ * 札は伏せたまま並び、横に縮んで裏返り、表を向ける。裏は網点（地図と同じ紙）。
+ * 刻まれたエピテットは、表を向いたあとに押される（金は三度またたく）。
+ */
+.dig .dig-scene__card.is-flip {
+  animation: dig-flip 360ms steps(6, jump-none) both;
+  animation-delay: var(--d, 0s);
+}
+
+.dig .dig-scene__card.is-flip::before {
+  position: absolute;
+  inset: -1px;
+  z-index: 1;
+  content: '';
+  border: 1px solid var(--ink-2);
+  background:
+    radial-gradient(var(--ink-2) 0.6px, transparent 0.8px) 0 0 / 4px 4px,
+    var(--bg);
+  animation: dig-flip-back 360ms linear both;
+  animation-delay: var(--d, 0s);
+  pointer-events: none;
+}
+
+@keyframes dig-flip {
+  0% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.04);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes dig-flip-back {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes dig-twinkle {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (max-width: 52rem) {
+  .dig-scene__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dig-scene__choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-scene__card.is-flip,
+  .dig .dig-scene__card.is-flip::before {
+    animation: none;
+  }
+
+  .dig .dig-scene__card.is-flip::before {
+    display: none;
+  }
+}
+
+/* 支度：整える・一服・探るの三つだけ。整えるに手を入れる理由があれば、琥珀の点を添える。 */
+.dig-prep-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dig .dig-prep-b {
+  position: relative;
+  min-height: 2.25rem;
+  padding: 0 14px;
+}
+
+.dig .dig-prep-b.is-on {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+.dig .dig-prep-b.is-cue::after {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  content: '';
+  background: var(--amber);
+}
+
+/* 手元の帯：手持ちの釦（尽きた数を添えて）と、入ったばかりの札の知らせ。 */
+.dig .dig-deckbtn {
+  gap: 6px;
+}
+
+.dig-deckbtn__dry {
+  font-style: normal;
+  color: var(--amber-text);
+}
+
+.dig-joined {
+  font-size: var(--font-ui-xs);
+  color: var(--amber-text);
+  animation: dig-stamp 160ms steps(2, jump-none) both;
+}
+
+.dig-mems .dig-pills__label {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.dig-deck__sec {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.dig-deck__sec h3 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+.dig-deck__mems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-joined {
+    animation: none;
+  }
+}
+
+.dig-tray[hidden] {
+  display: none;
+}
+
+/* 受け取りの下の帯：拾える札が、手札と同じ大きさで並ぶ。 */
+.dig-offers__note {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.dig-reward {
+  display: grid;
+  gap: 12px;
+}
+
+.dig-reward .dig-scene__word {
+  font-size: 1.75rem;
+}
+
+.dig-reward .dig-scene__choices {
+  grid-template-columns: 1fr;
+}
+
+.dig-aimbar {
+  margin: 0 0 12px;
+  font-size: var(--font-ui-xs);
+}
+
+/* 受け取りの順番（経過から引いた遅れで。描き直しても途中から続く）。 */
+.dig .is-beat {
+  animation: dig-stamp 160ms steps(2, jump-none) both;
+  animation-delay: var(--d, 0s);
+}
+
+.dig .dig-scene__head.is-beat .dig-scene__word {
+  animation: dig-blink-in 0.3s steps(3, jump-none) both;
+  animation-delay: var(--d, 0s);
+}
+
+.dig .dig-scene__card.is-flip .dig-scene__inked .dig-ep {
+  animation: dig-stamp 160ms steps(2, jump-none) both;
+  animation-delay: calc(var(--d, 0s) + 0.4s);
+}
+
+.dig .dig-scene__card.is-flip .dig-scene__inked .dig-ep.is-gold {
+  animation:
+    dig-stamp 160ms steps(2, jump-none) both,
+    dig-twinkle 0.24s steps(2, jump-none) 3;
+  animation-delay: calc(var(--d, 0s) + 0.4s), calc(var(--d, 0s) + 0.6s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .is-beat,
+  .dig .dig-scene__head.is-beat .dig-scene__word,
+  .dig .dig-scene__card.is-flip .dig-scene__inked .dig-ep {
+    animation: none;
+  }
+}
+
+/*
+ * 左の欄の切り替え（地図 ⇄ 手札）。右上の二つ並びの釦。向き合っているあいだは
+ * 出ない（そのときは手札が下の帯にある）。手札に手を入れる理由があれば琥珀の点。
+ */
+.dig-switch {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 4;
+  display: flex;
+  background: var(--bg);
+}
+
+.dig-switch[hidden] {
+  display: none;
+}
+
+.dig .dig-switch__b {
+  position: relative;
+  min-height: 2rem;
+  padding: 0 12px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig .dig-switch__b + .dig-switch__b {
+  margin-left: -1px;
+}
+
+.dig .dig-switch__b.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.dig .dig-switch__b.is-cue::after {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  content: '';
+  background: var(--amber);
+}
+
+/* 手札の一覧は、切り替えの釦をよけて始める。 */
+.dig-deckview {
+  padding-top: 56px;
+}
+
+.dig-offers .dig-scene__card {
+  min-height: 0;
+}
+
+.dig-switch__new {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  white-space: nowrap;
+}
+
+/*
+ * 受け取りの手順の帯：いまの段（番号と一文）を左に、何も拾わない釦と、受け取る釦を右に。
+ * 受け取る釦は、選び終わるまで押せない。
+ */
+.dig-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dig-confirm__step {
+  display: flex;
+  flex: 1 1 20rem;
+  gap: 8px;
+  align-items: baseline;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ink);
+}
+
+.dig-confirm__step b {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--amber-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--amber-text);
+}
+
+.dig .dig-confirm .dig-go:disabled {
+  border-color: var(--rule);
+  color: var(--ink-3);
+}
+
+/* 手放すと決めた札は、斜線で消して「手放す」の札を添える。 */
+.dig .dig-card.is-drop {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+  background:
+    repeating-linear-gradient(-45deg, transparent 0 6px, var(--rule) 6px 7px),
+    var(--bg);
+}
+
+.dig-card__drop {
+  align-self: flex-start;
+  padding: 0 4px;
+  border: 1px solid var(--amber-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--amber-text);
+  background: var(--bg);
+}
+
+.dig .dig-card.is-still {
+  cursor: default;
+}
+
+.dig .dig-hand .dig-scene__card.is-chosen::after {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  padding: 0 6px;
+  content: '拾う';
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--bg);
+  background: var(--amber-text);
+}
+
+
+/* 3 押されている切り替えは、触れていても墨の地に紙の字（琥珀に変えない）。 */
+.dig .dig-switch__b.is-on,
+.dig .dig-switch__b.is-on:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* 4 手札の欄の「手放す一枚を押す」は、見出しと同じ大きさで琥珀に。 */
+.dig-handview__ask {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.08em;
+  color: var(--amber-text);
+}
+
+/* 5 「拾う」の札は、回数を隠さないよう下の角に。 */
+.dig .dig-hand .dig-scene__card.is-chosen::after {
+  top: auto;
+  bottom: -1px;
+}
+
+/* 6 拾った札の知らせは、地図の網点の上でも読めるよう紙の地に。 */
+.dig-switch__new {
+  padding: 2px 6px;
+  border: 1px solid var(--amber-text);
+  background: var(--bg);
+}
+
+.dig-deck__mems .dig-mem {
+  padding: 2px 8px;
+  border: 1px solid var(--rule);
+  font-size: var(--font-ui-xs);
+}
+
+.dig-deck__mems .dig-mem.is-dim {
+  opacity: 0.32;
+}
+
+.dig-bar .dig-afters {
+  margin: 0;
+}

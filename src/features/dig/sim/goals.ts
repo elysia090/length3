@@ -128,7 +128,7 @@ export function checkGoals(tx: Tx): void {
     tx.emit({
       type: 'note',
       text: `目標に届いた：${goalText(g)} ── ${REWARD_TEXT[g.size]}`,
-      level: 3,
+      level: 2,
     });
     tx.emit({ type: 'goal.set', goal: next(w, g.size) });
   }

@@ -113,11 +113,13 @@ export function newCard(uid: number, id: string, eps: string[] = []): Card {
 /** 挑戦の初めに後ろへ配る札の数。 */
 export const START_BACK = 2;
 /** 持てる札の上限（枠と後ろを合わせて）。 */
-export const DECK_MAX = 17;
+export const DECK_MAX = 7;
 
-/** 持てる札の数。職ごとの数に、地力が新しい高さに届いた数を足す（17 まで）。 */
-export const deckCap = (c: Char): number =>
-  Math.min(DECK_MAX, (jobDef(c.job)?.deck ?? 12) + c.level);
+/**
+ * 持てる札の数。どの職でも七枚で、増えない（遭遇のたびに五枚が配られ、二枚は
+ * 出番がない）。拾うたびに一枚を手放すので、何を残すかが毎回の判断になる。
+ */
+export const deckCap = (_c: Char): number => DECK_MAX;
 /** いま持っている札の数（枠と後ろ）。 */
 export const deckSize = (c: Char): number => c.cards.filter(Boolean).length + c.back.length;
 /** もう一枚持てるか。 */
@@ -195,20 +197,10 @@ function rotate(tx: Tx, who: Who): void {
   });
 }
 
-/** 地力が新しい高さに届いたら、持てる札が一枚増える。 */
+/** 地力が新しい高さに届いたことを覚えておく（届いた高さは、上の帯の硬度で見える）。 */
 function levelUp(tx: Tx): void {
-  const w = tx.w;
-  const hd = youHardness(w);
-  const peak = w.flags.peak ?? 0;
-  if (hd <= peak) return;
-  tx.emit({ type: 'flag', key: 'peak', v: hd });
-  if (!peak || deckCap(w.you) >= DECK_MAX) return;
-  tx.emit({ type: 'level', who: 'you', n: 1 });
-  tx.emit({
-    type: 'note',
-    text: `地力が上がった。持てる札が ${deckCap(w.you)} 枚になった。`,
-    level: 2,
-  });
+  const hd = youHardness(tx.w);
+  if (hd > (tx.w.flags.peak ?? 0)) tx.emit({ type: 'flag', key: 'peak', v: hd });
 }
 
 export function makeChar(job: string, name: string, carry?: string, sheet: Sheet = {}): Char {
@@ -238,7 +230,6 @@ export function makeChar(job: string, name: string, carry?: string, sheet: Sheet
     back: [],
     prep: [],
     level: 0,
-    tired: 0,
     perms: [...new Set(['promise', origin].filter(Boolean))],
     permEps: {},
     epithets: ep ? [ep] : [],
@@ -1142,11 +1133,12 @@ export function breather(tx: Tx): void {
   const w = tx.w;
   tx.emit({ type: 'flag', key: `breath:${w.stratum}:${nodeOf(w, w.pos)?.row ?? -1}`, v: 1 });
   if (w.you.perms.includes('insomnia')) refill(tx, 1, undefined, 'you', true);
-  tx.emit({ type: 'tired', who: 'you', n: -1 });
+  const s = stats(w, 'you');
+  heal(tx, Math.round(maxHp(s) * 0.1), Math.round(maxMind(s) * 0.1), 'you');
   careBonus(tx);
   shiftAll(tx, 'you');
   passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, 1))));
-  tx.emit({ type: 'note', text: '壁にもたれて、一服した。疲れが少し抜けた。', level: 0 });
+  tx.emit({ type: 'note', text: '壁にもたれて、一服した。', level: 0 });
 }
 
 /** 古びた・未完のカードは、休ませたことを 2 倍に数える。 */
@@ -1193,7 +1185,6 @@ export function useItem(tx: Tx, index: number): boolean {
   const mind = Math.min(g.heal?.mind ?? 0, maxMind(s) - w.you.mind);
   if (hp > 0 || mind > 0)
     tx.emit({ type: 'vital', who: 'you', hp: Math.max(0, hp), mind: Math.max(0, mind) });
-  if (g.tired) tx.emit({ type: 'tired', who: 'you', n: g.tired });
   if (g.refill) {
     if (g.refill.tags.length === 0) refill(tx, g.refill.n, undefined, 'you');
     else for (const t of g.refill.tags) if (refill(tx, g.refill.n, t as Tag, 'you')) break;
@@ -1281,8 +1272,6 @@ export function close(tx: Tx): boolean {
   }
   const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];
   if (o === 'beaten') tx.emit({ type: 'flag', key: 'beaten', v: (w.flags.beaten ?? 0) + 1 });
-  // 疲れが溜まる（最後の相手は二つ）。
-  tx.emit({ type: 'tired', who: 'you', n: p.tier === 'boss' ? 2 : 1 });
   // 決着の余韻（どう決着をつけたかが、この先に大げさに尾を引く）。
   const aft = AFTER[o];
   if (aft) {
@@ -1640,11 +1629,10 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
   if (a === 'bet') return bet(tx);
   switch (a) {
     case 'rest': {
-      // 休む：体と心、疲れを少し。いちばん減っている札が一枚、満ちる。
+      // 休む：体と心を戻し、いちばん減っている札が一枚、満ちる。
       const again = w.flags[`rested${w.stratum}`] ?? 0;
       tx.emit({ type: 'flag', key: `rested${w.stratum}`, v: again + 1 });
       heal(PACE.rest);
-      tx.emit({ type: 'tired', who: 'you', n: -3 });
       refillOne(tx);
       if (y.perms.includes('insomnia')) refill(tx, 1, undefined, 'you', true);
       careBonus(tx);
@@ -1652,19 +1640,17 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
       break;
     }
     case 'eat': {
-      // 食べる：金を払って、体と心を少しと、疲れを二つ（札の回数は戻らない）。
+      // 食べる：金を払って、体と心を少し（札の回数は戻らない）。
       if (y.coins < PACE.meal) return false;
       coins(tx, -PACE.meal, 'you');
       heal(0.25);
-      tx.emit({ type: 'tired', who: 'you', n: -2 });
       passTime(tx, timeFor(1));
       break;
     }
     case 'full': {
-      // ひと晩ここで：疲れは抜けきって全部満ちるが、夜が明けて噂も冷める
+      // ひと晩ここで：体と心は大きく戻るが、夜が明けて噂も冷める
       // （決着の余韻はすべて消える）。次の出来事も逃す。
       heal(0.8);
-      tx.emit({ type: 'tired', who: 'you', n: -10 });
       // 札は二枚だけ満ちる（ひと晩でも、全部は戻らない）。
       refillOne(tx);
       refillOne(tx);
@@ -1831,7 +1817,7 @@ export function peel(tx: Tx, uid: number, ep: string): boolean {
   if (w.enc) return false;
   const at = findCard(w.you, uid);
   const card = at ? cardAt(w.you, at) : undefined;
-  if (!at || !card || !card.eps.includes(ep)) return false;
+  if (!at || !card?.eps.includes(ep)) return false;
   markEp(tx, 'you', at, ep, false);
   tx.emit({ type: 'ep.held', who: 'you', ep, n: 1 });
   tx.emit({

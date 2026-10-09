@@ -19,7 +19,6 @@ export interface Gear {
   uses: number;
   heal?: { hp?: number; mind?: number };
   refill?: { tags: readonly string[]; n: number };
-  tired?: number;
   prep?: readonly Fx[];
   seek?: Seek;
   price: number;
@@ -62,7 +61,6 @@ export function gearOf(id: string): Gear | undefined {
     uses: d.uses ?? 1,
     heal: d.heal,
     refill: d.refill,
-    tired: d.tired,
     prep: d.prep,
     seek: d.seek,
     price: d.price,

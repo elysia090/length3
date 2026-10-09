@@ -4,7 +4,7 @@ import type { ItemDef } from './defs';
  * 持ち物。どれも、向き合っていないときに「その場で」使う。使いどころで三つに
  * 分かれる（向き合っているあいだだけ、休憩所でだけ、という品は無い）。
  *
- *   休む  体と心、疲れ、札一枚の回数を戻す
+ *   休む  体と心、札一枚の回数を戻す
  *   備える  次に出会う相手との遭遇の初めに効く（煙玉を握って次の部屋へ入る）
  *   探る  その階を探る。出来事が起きるか、何かが見つかるか、誰かに気づかれる
  */
@@ -23,9 +23,8 @@ export const ITEM_LIST: readonly ItemDef[] = [
     id: 'coffee',
     kind: 'rest',
     name: 'コーヒー',
-    text: '精神 +8、疲れ −1。',
+    text: '精神 +8。',
     heal: { mind: 8 },
-    tired: -1,
     price: 18,
     flavor: '深夜の食堂の、煮詰まった一杯。',
   },
@@ -43,8 +42,8 @@ export const ITEM_LIST: readonly ItemDef[] = [
     id: 'blanket',
     kind: 'rest',
     name: '毛布',
-    text: '疲れ −2。',
-    tired: -2,
+    text: '体力 +6、精神 +6。',
+    heal: { hp: 6, mind: 6 },
     uses: 2,
     price: 30,
     flavor: '防災用。まだ折り目がついている。',
@@ -53,9 +52,8 @@ export const ITEM_LIST: readonly ItemDef[] = [
     id: 'hymnal',
     kind: 'rest',
     name: '讃美歌集',
-    text: '精神 +6、疲れ −1。',
-    heal: { mind: 6 },
-    tired: -1,
+    text: '精神 +10。',
+    heal: { mind: 10 },
     price: 22,
     flavor: '一番だけ、歌える。',
   },

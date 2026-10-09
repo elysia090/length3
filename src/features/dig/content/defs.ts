@@ -203,7 +203,7 @@ export interface JobDef {
   text: string;
   innate: StatBlock;
   cards: readonly string[];
-  /** 持てる札の数（枠の五枚と後ろを合わせて）。地力が上がるたびに一枚増え、17 まで。 */
+  /** 使っていない（持てる札はどの職も七枚）。古い職の定義のために残してある。 */
   deck: number;
   perms: readonly string[];
   passive?: readonly PassiveSpec[];
@@ -253,8 +253,6 @@ export interface ItemDef {
   /** 札一枚の回数（タグの合う、いちばん減っている札）。 */
   refill?: { tags: readonly Tag[]; n: number };
   heal?: { hp?: number; mind?: number };
-  /** 疲れの増減。 */
-  tired?: number;
   /** 備える：次の遭遇の初めに起きる効き目。 */
   prep?: readonly Fx[];
   seek?: Seek;

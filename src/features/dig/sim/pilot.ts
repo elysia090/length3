@@ -66,13 +66,10 @@ export function pilot(w: World): Cmd | null {
       }
       case 'rest': {
         if (p.used) return { c: 'depart' };
-        // 疲れが深いか、体が細いなら一晩。そうでなければ休む。金があって疲れが浅ければ食べる。
+        // 体が細いなら一晩（味方の余韻があれば惜しんで、休むだけ）。そうでなければ休む。
         const s = stats(w, 'you');
         const thin = w.you.hp * 2 < maxHp(s) || w.you.mind * 2 < s.WIL * 3 + 8;
-        if ((w.you.tired ?? 0) >= 6 || (thin && !w.after.some((a) => a.kind === 'ally')))
-          return { c: 'rest', action: 'full' };
-        if ((w.you.tired ?? 0) <= 2 && w.you.coins >= PACE.meal + 20)
-          return { c: 'rest', action: 'eat' };
+        if (thin && !w.after.some((a) => a.kind === 'ally')) return { c: 'rest', action: 'full' };
         return { c: 'rest', action: 'rest' };
       }
       case 'shop':
@@ -252,22 +249,21 @@ function pickCard(
   }
   if (!best) return null;
   if (deckRoom(w.you) || w.you.cards.some((c) => !c)) return { id: best };
+  // 尽きていてエピテットの無い札から。無ければ、拾う札より二回以上少ない札を（入れ替える）。
   const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
-  const dry = all
-    .filter((c) => c.uses === 0 && c.eps.length === 0)
-    .sort((a, b) => a.max - b.max)[0];
-  return dry ? { id: best, drop: dry.uid } : null;
+  const bare = all.filter((c) => c.eps.length === 0).sort((a, b) => a.uses - b.uses);
+  const low = bare[0];
+  const drop = low && (low.uses === 0 || low.uses + 2 <= most) ? low : undefined;
+  return drop ? { id: best, drop: drop.uid } : null;
 }
 
 /**
- * 地図の上で使う持ち物。傷んでいれば癒やし、尽きた札があれば戻し、疲れていれば
- * 休む。次の部屋に相手がいて備えが無ければ、備える品を一つ。持ち物が溜まったら探る。
+ * 地図の上で使う持ち物。傷んでいれば癒やし、尽きた札があれば戻す。次の部屋に相手がいて備えが無ければ、備える品を一つ。持ち物が溜まったら探る。
  */
 function fieldItem(w: World, next: readonly { npc?: string }[]): number | null {
   const s = stats(w, 'you');
   const low = w.you.hp * 2 < maxHp(s);
   const dry = [...w.you.cards, ...w.you.back].some((c) => c && c.uses === 0);
-  const tired = (w.you.tired ?? 0) >= 5;
   const facing = next.some((n) => !!n.npc) && !(w.you.prep?.length ?? 0);
   let at: number | null = null;
   w.you.items.forEach((it, i) => {
@@ -275,7 +271,7 @@ function fieldItem(w: World, next: readonly { npc?: string }[]): number | null {
     const g = gearOf(it.id);
     if (!g) return;
     if (g.kind === 'rest') {
-      if ((g.heal?.hp && low) || (g.refill && dry) || (g.tired && tired)) at = i;
+      if ((g.heal?.hp && low) || (g.refill && dry)) at = i;
     } else if (g.kind === 'prep') {
       if (facing) at = i;
     } else if (w.you.items.length >= 6 && !low) at = i;
