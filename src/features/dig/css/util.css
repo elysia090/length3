@@ -1,0 +1,60 @@
+/* 色の名札（quiet・amber・blue・heal・label）。どの部品の文にも付くので、いちばん後ろで効く。 */
+
+.dig-quiet {
+  color: var(--ink-3);
+}
+
+.dig-amber {
+  color: var(--amber-text);
+}
+
+.dig-blue {
+  color: var(--dig-blue);
+}
+
+.dig-held > p.dig-amber {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* 戻るもの（体と心の回復）は緑。 */
+.dig-heal {
+  color: var(--dig-green);
+  font-weight: 700;
+}
+
+/* 選ぶものの小さな見出し（文ではなく名札）。 */
+.dig-label {
+  margin: 16px 0 4px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+/* 並びの都合でここに置く（本来は plan.css。.dig-quiet より後に効く必要がある）。 */
+.dig-spot__what {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* 並びの都合でここに置く（本来は plan.css。.dig-quiet より後に効く必要がある）。 */
+.dig-spot__gain {
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+/* 並びの都合でここに置く（本来は plan.css。.dig-quiet より後に効く必要がある）。 */
+.dig-spot__order {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--amber-text);
+}
+
+/* 道の見込み：良くなるなら緑（戻るものの色）、悪くなる・変わらないなら灰。 */
+/* 並びの都合でここに置く（本来は plan.css。.dig-quiet より後に効く必要がある）。 */
+.dig-spot__cost {
+  color: var(--ink-3);
+}

@@ -1,0 +1,295 @@
+/* 道の読みとその場で：道の札、琥珀の枠、その場での箱と目押し、付け替えと刻む先。 */
+
+/* 道の読み：三つの道は一行のチップ。選んだ一本だけ、詳しく。 */
+.dig-chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.dig .dig-chip {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.375rem 0.5rem;
+  font-size: var(--font-ui-xs);
+}
+
+.dig .dig-chip span {
+  color: var(--ink-3);
+}
+
+.dig .dig-chip.is-on {
+  border-color: var(--amber-text);
+  box-shadow: inset 2px 0 0 var(--amber-text);
+}
+
+.dig .dig-chip.is-on b {
+  color: var(--amber-text);
+}
+
+/* 道の読みの札の三行目：最初の一歩。 */
+.dig .dig-chip .dig-chip__step {
+  display: block;
+  margin-top: 0.125rem;
+  color: var(--ink-2);
+  font-size: var(--font-ui-xs);
+}
+
+.dig .dig-ink-foe.is-live {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+.dig-prep {
+  font-size: var(--font-ui-xs);
+  color: var(--amber-text);
+}
+
+/* 支度：整える・一服・探るの三つだけ。整えるに手を入れる理由があれば、琥珀の点を添える。 */
+.dig-prep-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dig .dig-prep-b {
+  position: relative;
+  min-height: 2.25rem;
+  padding: 0 14px;
+}
+
+.dig .dig-prep-b.is-on {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+.dig .dig-prep-b.is-cue::after {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  content: '';
+  background: var(--amber);
+}
+
+/*
+ * その場で：箱が縦に並ぶ（休む → 備える → 探る）。一行目に何を使うか、二行目に
+ * 何が戻る・備わるか。道を選ぶと、その道に効く箱が琥珀の枠になって上へ滑る。
+ */
+.dig-spot {
+  display: grid;
+  gap: 4px;
+}
+
+.dig .dig-spot__row {
+  display: grid;
+  gap: 2px;
+  min-height: 0;
+  padding: 6px 10px 7px;
+  text-align: left;
+  transition: border-color 0.2s;
+}
+
+/* 選んだ道に効く箱は、選んだ道の札と同じ形（人物を決める画面の選んだ箱とも同じ）。 */
+.dig .dig-spot__row.is-fit,
+.dig-gauge.is-fit {
+  border-color: var(--amber-text);
+  box-shadow: inset 2px 0 0 var(--amber-text);
+}
+
+.dig-spot__row.is-fit .dig-spot__what {
+  color: var(--amber-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-spot__row {
+      transition: none;
+    }
+}
+
+/*
+ * 行き先の枠（琥珀の一本線）：中身 → その場で → 進む釦。進む釦は「この夜に入る」と
+ * 同じ形（字の幅の四角、太い枠）で、枠の左下に。
+ */
+.dig-plan {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--amber-text);
+}
+
+.dig-plan__h {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+.dig-plan__go {
+  margin-top: 6px;
+}
+
+/* 箱を使い切ると、見出しが「整った」に替わり、進む釦だけが残る。 */
+.dig-plan__h.is-done {
+  color: var(--amber-text);
+}
+
+.dig-plan__room {
+  position: relative;
+}
+
+.dig .dig-plan__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-height: 1.75rem;
+  padding: 0 10px;
+  font-size: var(--font-ui-xs);
+}
+
+/* 選んだ道の中身：見出しと短い行。 */
+.dig-route {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 2px 8px;
+  margin: 0;
+  font-size: var(--font-ui-xs);
+  line-height: 1.6;
+}
+
+.dig-route dt {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.dig-route dd {
+  margin: 0;
+  color: var(--ink);
+}
+
+.dig-spot__none {
+  margin: 0;
+}
+
+.dig-spot__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin: 4px 0 0;
+}
+
+.dig .dig-spot__foot button {
+  min-height: 1.75rem;
+  padding: 0 10px;
+  font-size: var(--font-ui-xs);
+}
+
+/*
+ * 目押し：行がそのまま帯になり、墨の印が左右に揺れる。緑の帯で止めれば良し、
+ * 帯の真ん中の濃い印なら会心、外せば弱く効く。止めた瞬間に結果の一語。
+ */
+.dig-gauge {
+  display: grid;
+  gap: 6px;
+  padding: 6px 8px 10px;
+  border: 1px solid var(--ink);
+  cursor: pointer;
+}
+
+.dig-gauge:focus-visible {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
+.dig-gauge__foot {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.dig-gauge__say {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+/* 動いているあいだの取り消し。止める操作（枠全体）より小さく、端に。 */
+.dig .dig-gauge__cancel {
+  min-height: 0;
+  margin-left: auto;
+  padding: 0 var(--dig-s-2);
+  border-color: var(--rule);
+  font-family: var(--font-mono);
+  font-size: var(--dig-t-xs);
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+.dig-gauge.is-crit .dig-gauge__say {
+  color: var(--dig-green);
+  font-weight: 700;
+}
+
+.dig-gauge.is-ok .dig-gauge__say {
+  color: var(--dig-green);
+}
+
+.dig-gauge.is-miss .dig-gauge__say {
+  color: var(--amber-text);
+}
+
+.dig-gauge__bar {
+  position: relative;
+  display: block;
+  height: 14px;
+  border: 1px solid var(--ink-2);
+  background: var(--bg);
+}
+
+.dig-gauge__ok {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--dig-green) 35%, var(--bg));
+}
+
+.dig-gauge__crit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--dig-green);
+}
+
+.dig-gauge__mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+}
+
+/* 箱の三行目：見つけた隠し順序（琥珀の印）と、代償つきの品の道の見込み。 */
+.dig-spot__more {
+  display: grid;
+  gap: 1px;
+  font-size: 0.6875rem;
+}
+
+.dig-spot__cost.is-better {
+  color: var(--dig-green);
+}
+
+.dig-ready {
+  margin: 0;
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}

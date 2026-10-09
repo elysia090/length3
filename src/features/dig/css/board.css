@@ -1,0 +1,260 @@
+/* 塔の見取り図の欄：地図の枠、寄る・見渡す、地図と手札の切り替え、狭い画面の切り替えの帯。 */
+
+.dig-view {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  justify-items: stretch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dig-tower {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dig-tip {
+  position: absolute;
+  display: grid;
+  gap: 0.125rem;
+  max-width: 13rem;
+  padding: 0.375rem 0.5rem;
+  border: 0.0625rem solid var(--ink);
+  background: var(--bg);
+  font-size: var(--font-ui-xs);
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.dig-tip[hidden] {
+  display: none;
+}
+
+/* 触れたときの説明（どこでも同じ枠）。一行目が本文、二行目からは添え書き。 */
+.dig-tip--hover {
+  position: fixed;
+  z-index: 20;
+  max-width: 20rem;
+  padding: var(--dig-s-1) var(--dig-s-2) 5px;
+  border-color: var(--ink);
+  font-size: var(--dig-t-md);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.dig-tip__sub {
+  font-size: var(--dig-t-sm);
+  color: var(--ink-3);
+}
+
+@media (max-width: 52rem) {
+  .dig-view {
+      grid-area: view;
+    }
+}
+
+/* 見渡す／寄る：地図の左上に小さく。 */
+/* 寄る／見渡す。地図の右下に、＋ と − を縦に一つずつ（地図の約束どおり）。 */
+.dig .dig-zoom {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: grid;
+  border: 1px solid var(--rule);
+  background: var(--bg);
+}
+
+.dig .dig-zoom__b {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.dig .dig-zoom__b + .dig-zoom__b {
+  border-top: 1px solid var(--rule);
+}
+
+.dig .dig-zoom__b:disabled {
+  color: var(--rule);
+  cursor: default;
+}
+
+/* 向き合っているあいだは寄り引きできないので、＋ − も出さない。 */
+.dig-enc-on .dig-zoom {
+  display: none;
+}
+
+/* 抜けたあとの分かれ目。 */
+.dig-summit {
+  display: grid;
+  gap: 8px;
+}
+
+/* 寄せ引きの釦は地図の中に収め、ヒントの地のすぐ上に置く（地にめり込ませない）。 */
+.dig.is-create .dig-zoom {
+  bottom: calc(max(var(--dig-hint-h, 0px), 8px) + 8px);
+}
+
+/* 地図は遊ぶ画面と同じ高さのまま（手元の帯ぶんを空ける）。視点を変えない。 */
+.dig.is-create .dig-view {
+  padding-bottom: calc(1.25rem + 1px);
+}
+
+/* 手札の画面では地図の寄せ引きは要らない。 */
+.dig-view:has(.dig-handview:not([hidden])) .dig-zoom {
+  display: none;
+}
+
+/* 手元の帯：手持ちの釦（尽きた数を添えて）と、入ったばかりの札の知らせ。 */
+.dig .dig-deckbtn {
+  gap: 6px;
+}
+
+.dig-deckbtn__dry {
+  font-style: normal;
+  color: var(--amber-text);
+}
+
+.dig-joined {
+  font-size: var(--font-ui-xs);
+  color: var(--amber-text);
+  animation: dig-stamp 160ms steps(2, jump-none) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-joined {
+      animation: none;
+    }
+}
+
+/*
+ * 左の欄の切り替え（地図 ⇄ 手札）。右上の二つ並びの釦。向き合っているあいだは
+ * 出ない（そのときは手札が下の帯にある）。手札に手を入れる理由があれば琥珀の点。
+ */
+/* 左の欄の切り替えは、縮小・拡大の左隣に（地図の操作は右下に一つにまとめる）。 */
+.dig-switch {
+  position: absolute;
+  right: calc(16px + 34px + 8px);
+  bottom: 16px;
+  align-items: flex-end;
+  z-index: 4;
+  display: flex;
+  background: var(--bg);
+}
+
+.dig-switch[hidden] {
+  display: none;
+}
+
+.dig .dig-switch__b {
+  position: relative;
+  min-height: 2rem;
+  padding: 0 12px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig .dig-switch__b + .dig-switch__b {
+  margin-left: -1px;
+}
+
+.dig .dig-switch__b.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.dig .dig-switch__b.is-cue::after {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  content: '';
+  background: var(--amber);
+}
+
+/* 手札の一覧では縮小・拡大が無いので、切り替えは右下の角に。一覧は釦をよけて終わる。 */
+.dig-view:has(.dig-handview:not([hidden])) .dig-switch {
+  right: 16px;
+}
+
+.dig-switch__new {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  white-space: nowrap;
+}
+
+/* 3 押されている切り替えは、触れていても墨の地に紙の字（琥珀に変えない）。 */
+.dig .dig-switch__b.is-on,
+.dig .dig-switch__b.is-on:hover,
+.dig .dig-switch__b.is-on:focus-visible {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* 6 拾った札の知らせは、地図の網点の上でも読めるよう紙の地に。 */
+.dig-switch__new {
+  padding: 2px 6px;
+  border: 1px solid var(--amber-text);
+  background: var(--bg);
+}
+
+/*
+ * 狭い画面の切り替え（地図の下）と、受け取りの下端の「前へ・次へ」。
+ * 広い画面では出さない（札も情報も、いつも見えている）。
+ */
+.dig-panes,
+.dig-stepnav {
+  display: none;
+}
+
+@media (max-width: 52rem) {
+  .dig-panes:not([hidden]) {
+      grid-area: panes;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid var(--rule);
+    }
+
+  .dig .dig-panes__b {
+      min-height: 2.25rem;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      font-family: var(--font-mono);
+      font-size: var(--font-ui-xs);
+      letter-spacing: 0.16em;
+      text-align: center;
+      color: var(--ink-3);
+    }
+
+  .dig .dig-panes__b.is-on {
+      border-bottom-color: var(--ink);
+      color: var(--ink);
+      font-weight: 700;
+    }
+}
+
+@media (max-width: 52rem) {
+  /* 受け取りの確かめる帯の釦は、下端の「次へ」に任せる（段の一文だけ残す）。 */
+  .dig-panes-on .dig-confirm > button {
+      display: none;
+    }
+}

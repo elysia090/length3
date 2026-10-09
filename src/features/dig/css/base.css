@@ -1,0 +1,295 @@
+/* 土台：色と字と間のトークン、ダイアログ、釦の触れ方、文の折り返し、ふだん使いの色の名札（quiet・amber・blue）。 */
+
+/*
+ * 塔（斜めに見下ろしたフロアの積み重ね）が本体。脇に、いま起きていること。
+ * 下に、手元のカード。
+ *
+ * 色・線・字・間・動き・触れ方・改行の約束は docs/specs/dig-design-language.md、ファイルの地図は docs/reference/dig-code-map.md。
+ * ここのトークン（--dig-*）と、触れたときの説明（ui/hovertip.ts）はその実装。
+ */
+.dig {
+  --dig-green: #2f7d4f;
+  --dig-blue: #1f3d9e;
+  --dig-s-1: 4px;
+  --dig-s-2: 8px;
+  --dig-s-3: 12px;
+  --dig-s-4: 16px;
+  --dig-s-5: 24px;
+  --dig-t-xs: 0.625rem;
+  --dig-t-sm: 0.6875rem;
+  --dig-t-md: 0.75rem;
+  --dig-t-base: 0.8125rem;
+  --dig-line: 1px solid var(--rule);
+  --dig-fast: 0.12s;
+  --dig-off: 0.45;
+  line-break: strict;
+  word-break: auto-phrase;
+  overflow-wrap: anywhere;
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--bg);
+  color: var(--ink);
+  overflow: hidden;
+  font-family: var(--font-sans);
+}
+
+.dig::backdrop {
+  background: var(--bg);
+}
+
+.dig-app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+}
+
+.dig button {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+  border: 0.0625rem solid var(--ink);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dig button {
+  text-wrap: balance;
+  transition:
+    border-color var(--dig-fast) ease,
+    color var(--dig-fast) ease,
+    background-color var(--dig-fast) ease;
+}
+
+@media (hover: hover) {
+  .dig button:hover:not(:disabled) {
+      border-color: var(--amber-text);
+      color: var(--amber-text);
+    }
+}
+
+.dig button:focus-visible {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
+.dig button:active:not(:disabled) {
+  translate: 0 1px;
+}
+
+.dig button:disabled {
+  opacity: var(--dig-off);
+  cursor: default;
+}
+
+/* 文は均して折る。見出しは揃えて。 */
+.dig p,
+.dig li,
+.dig dd {
+  text-wrap: pretty;
+}
+
+.dig h2,
+.dig h3,
+.dig dt {
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig button {
+      transition: none;
+    }
+
+  .dig button:active:not(:disabled) {
+      translate: none;
+    }
+}
+
+.dig .dig-go {
+  border-width: 0.125rem;
+  font-weight: 700;
+}
+
+/* ─── 本体：塔と脇 ─── */
+.dig-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
+  min-height: 0;
+}
+
+.dig-sec + .dig-sec,
+* + .dig-goals {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 0.0625rem solid var(--rule);
+}
+
+.dig-sec h3 {
+  margin: 0 0 0.375rem;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+.dig-sec p {
+  margin: 0.25rem 0;
+}
+
+.dig-sec > button,
+.dig-basics button,
+.dig-shopline {
+  display: block;
+  width: 100%;
+  margin-top: 0.375rem;
+}
+
+.dig-log summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.dig-log ol {
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dig-log {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+}
+
+.dig.is-create .dig-main {
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 34rem);
+}
+
+.dig-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ─── 狭い画面：塔を上、脇を下へ ─── */
+@media (max-width: 52rem) {
+  /*
+     * 狭い画面は、上から 上帯・地図・手札・情報。手札を地図のすぐ下に（親指の届く
+     * 真ん中に）置き、相手の様子や道の読みは、その下で読む。
+     */
+  .dig-app {
+      grid-template-rows:
+        auto auto var(--dig-view-h, minmax(12rem, 45dvh)) auto auto minmax(0, 1fr)
+        auto;
+      grid-template-areas: 'bar' 'foe' 'view' 'panes' 'tray' 'side' 'step';
+    }
+
+  /* 札を見ているあいだは、札が地図の下の残りを使う（情報は隠す）。 */
+  .dig-pane-hand .dig-app {
+      grid-template-rows:
+        auto auto var(--dig-view-h, minmax(12rem, 45dvh)) auto minmax(0, 1fr) 0
+        auto;
+    }
+}
+
+@media (max-width: 52rem) {
+  .dig-main,
+    .dig.is-create .dig-main {
+      display: contents;
+    }
+}
+
+/* 変質：見出しの下に、一列の箱（作品名が長いので、折り返さない幅で）。 */
+.dig-alter__list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.dig .dig-odd {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/*
+ * エピテットの格（金・銀・銅・無垢）。字と縁の色だけで見分ける（塗りはしない）。
+ */
+.dig {
+  --dig-gold: #9a7a1c;
+  --dig-silver: #6d757e;
+  --dig-bronze: #9a5528;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .dig {
+      --dig-gold: #d9b65a;
+      --dig-silver: #b4bcc4;
+      --dig-bronze: #d08a5a;
+    }
+}
+
+:root[data-theme='dark'] .dig {
+  --dig-gold: #d9b65a;
+  --dig-silver: #b4bcc4;
+  --dig-bronze: #d08a5a;
+}
+
+/*
+ * 人物を決める画面の下端。下に帯は足さない（地図の高さが縮むと視点が変わる）。
+ * ヒントは地図の欄に、「この夜に入る」は右の欄に、それぞれ上の案内帯と同じ
+ * 作法で重ねる：罫も板も引かず、紙の地が下から薄く上がるだけ。二つは下端を
+ * 揃えるので一つの段に読めるが、欄の仕切りはまたがない。
+ */
+.dig.is-create {
+  --dig-foot: 7rem;
+}
+
+/*
+ * 声：食堂の主人・古物商の一言、決着のあとの一言、整ったときの一言。どれも数を
+ * 持たないので、薄い字で一行。主人と古物商の言葉は鉤括弧で。
+ */
+.dig-host {
+  margin: 8px 0 4px;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+.dig-host--aside {
+  margin: 4px 0;
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+@media (max-width: 52rem) {
+  /* 遭遇：相手の様子は上の段にあるので、地図は手札二段のぶんだけ残して見せる。 */
+  .dig-enc-on .dig-app {
+      --dig-view-h: minmax(9rem, 34dvh);
+    }
+}
+
+/* スマホ：受け取り・食堂・古物商・出来事のあいだも、地図を低くして欄に高さを残す。 */
+@media (max-width: 52rem) {
+  .dig-pend-on .dig-app {
+      --dig-view-h: minmax(7rem, 22dvh);
+    }
+}

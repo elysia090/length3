@@ -1,0 +1,249 @@
+/* 脇の欄：欄の骨組み、目標、状況、場所と部屋の書き方、前の傷、掟。 */
+
+.dig-side {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.75rem 1rem 1.5rem;
+  border-left: 0.0625rem solid var(--rule);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.dig-room__name,
+.dig-outcome,
+.dig-persona {
+  font-weight: 700;
+}
+
+.dig-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 1rem;
+}
+
+.dig .dig-row button {
+  min-height: 2rem;
+  font-size: var(--font-ui-xs);
+}
+
+@media (max-width: 52rem) {
+  .dig-pane-hand .dig-side,
+    .dig-pane-info .dig-app > .dig-tray {
+      display: none;
+    }
+}
+
+@media (max-width: 52rem) {
+  .dig-side {
+      grid-area: side;
+    }
+
+  .dig-side {
+      border-left: 0;
+      border-top: 0.0625rem solid var(--rule);
+    }
+}
+
+/* 場所（B# は太字）と硬度。どの画面でも同じ書き方。 */
+.dig-place {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 0.86em;
+}
+
+.dig-place b,
+.dig-where b {
+  color: var(--ink);
+}
+
+/* 目標（小・中・大）。 */
+.dig-goals ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dig-goal {
+  display: grid;
+  grid-template-columns: 14px 1fr 4.5em;
+  grid-template-areas: 'size text bar';
+  column-gap: 0.5rem;
+  align-items: center;
+}
+
+.dig-goal__size {
+  grid-area: size;
+  justify-self: center;
+  align-self: center;
+  background: var(--amber-text);
+}
+
+/* 大・中・小は、印の大きさで。 */
+.dig-goal--L .dig-goal__size {
+  width: 12px;
+  height: 12px;
+}
+
+.dig-goal--M .dig-goal__size {
+  width: 8px;
+  height: 8px;
+}
+
+.dig-goal--S .dig-goal__size {
+  width: 4px;
+  height: 4px;
+}
+
+.dig-goal__text {
+  grid-area: text;
+}
+
+.dig-goal__bar {
+  grid-area: bar;
+  height: 6px;
+  border: 1px solid var(--ink-3);
+}
+
+.dig-goal__bar i {
+  display: block;
+  height: 100%;
+  background: var(--amber-text);
+  transition: width 0.4s ease-out;
+}
+
+.dig-goal.is-fresh .dig-goal__text {
+  color: var(--amber-text);
+  animation: dig-blink-text 0.5s steps(2, jump-none) 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-goal.is-fresh .dig-goal__text {
+      animation: none;
+    }
+}
+
+/* 区画の掟（遭遇の脇に、名前だけ）。 */
+.dig-law {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  color: var(--ink-2);
+  cursor: help;
+}
+
+.dig.is-create .dig-side {
+  padding-bottom: 0;
+}
+
+/*
+ * その場で：休む・備える・探るの三つの列。名札（mono）と、その列で使えるもの。
+ * 向き合っているあいだに使う品は無いので、この三つが持ち物のすべての居場所。
+ */
+.dig-places {
+  display: grid;
+  gap: 8px;
+}
+
+.dig-place {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+
+.dig-place__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.dig-place__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.dig-aimbar {
+  margin: 0 0 12px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 8px;
+  align-items: baseline;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-state b {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.dig-state i {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+.dig-state span {
+  grid-column: 1 / -1;
+  color: var(--ink-3);
+}
+
+.dig-state.is-ally b,
+.dig-state.is-insight b {
+  color: var(--dig-blue);
+}
+
+.dig-state.is-notorious b,
+.dig-state.is-feared b,
+.dig-state.is-quirk b {
+  color: var(--amber-text);
+}
+
+@media (max-width: 52rem) {
+  .dig-enc-on .dig-side {
+      padding-top: 8px;
+    }
+}
+
+@media (max-width: 52rem) {
+  .dig-enc .dig-room__name {
+      margin: 0;
+    }
+}
+
+/* 前の傷：一度削って退いた相手の扉に。傷跡の印（斜線）を添えて、墨で（あなたが残した事実）。 */
+.dig-wound {
+  margin: 0;
+  font-size: var(--dig-t-md);
+}
+
+.dig-wound b {
+  margin-right: var(--dig-s-1);
+  padding: 0 var(--dig-s-1);
+  border: var(--dig-line);
+  background: repeating-linear-gradient(135deg, transparent 0 3px, var(--rule) 3px 4px);
+  font-family: var(--font-mono);
+  font-size: var(--dig-t-xs);
+  font-weight: 700;
+}
+
+@keyframes dig-blink {
+  50% {
+    background: transparent;
+  }
+}
+
+@keyframes dig-blink-text {
+  50% {
+    color: var(--ink-3);
+  }
+}

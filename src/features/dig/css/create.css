@@ -1,0 +1,292 @@
+/* 人物を決める：難しさと名前、職と能力値、初めの手札の見本。 */
+
+/* ─── 人物を決める ─── */
+.dig-pick {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.dig-pick legend {
+  margin-bottom: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.dig .dig-pick button {
+  display: block;
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.dig .dig-pick button span {
+  display: block;
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+/* 短い選択肢（難度・職）は横に詰めて並べる。 */
+.dig-pick--cols2 .dig-pick__list,
+.dig-pick--cols3 .dig-pick__list {
+  display: grid;
+  gap: 4px;
+}
+
+.dig-pick--cols2 .dig-pick__list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dig-pick--cols3 .dig-pick__list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dig .dig-pick--cols2 button,
+.dig .dig-pick--cols3 button {
+  margin-top: 0;
+  min-height: 3rem;
+  text-align: left;
+}
+
+/* 名前：ラベルと一行で、下線だけの入力。 */
+.dig-field {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig-field input[type='text'],
+.dig-field select {
+  flex: 1;
+  max-width: 16rem;
+  min-height: 2rem;
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 1px solid var(--ink-2);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+}
+
+.dig-field input[type='text']:focus {
+  outline: none;
+  border-bottom-color: var(--amber-text);
+}
+
+.dig-field input[type='checkbox'] {
+  accent-color: var(--ink);
+}
+
+/* 始める釦は、欄の下に貼りついていつも見える。 */
+.dig-start {
+  position: sticky;
+  /* 欄の下の余白（1.5rem）ぶん下げて、下端にぴたりと貼りつける。 */
+  bottom: -1.5rem;
+  margin: 16px -1rem 0;
+  padding: 8px 1rem 1.5rem;
+  border-top: 1px solid var(--rule);
+  background: var(--bg);
+}
+
+/* 人物を決める：職の一文と、能力値の目盛り。 */
+.dig-job-text {
+  margin: 8px 0 4px;
+}
+
+.dig-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 16px;
+  margin: 4px 0 8px;
+}
+
+.dig-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig-stat b {
+  font-weight: 400;
+}
+
+.dig-stat__pips {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.dig-stat__pips i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--ink-3);
+}
+
+/* 人物を決める画面の導入（初めの手札の下に）。 */
+.dig-create-intro {
+  max-width: 44rem;
+  margin: 4px 0 0;
+  color: var(--ink-2);
+}
+
+.dig-create-hand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+}
+
+.dig .dig-create-hand button {
+  min-height: 2rem;
+  padding: 0 12px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-create-hand {
+  margin-top: 8px;
+}
+
+.dig-side .dig-create-intro {
+  margin: 8px 0 0;
+  font-size: var(--font-ui-xs);
+}
+
+/* 能力値：名と目盛りを寄せて並べる。 */
+.dig-stat {
+  justify-content: flex-start;
+}
+
+.dig-stat b {
+  min-width: 2.5rem;
+}
+
+.dig.is-create .dig-start {
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  box-sizing: border-box;
+  margin-top: 0;
+  padding: 2rem 1rem 16px;
+  border-top: 0;
+  background: linear-gradient(transparent, var(--bg) 2rem);
+}
+
+.dig-create-hint {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: auto minmax(0, 44rem);
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+  /* 地は字の上で上がりきる（網点が字に掛からない）。 */
+  padding: 2rem 1rem 16px;
+  background: linear-gradient(transparent, var(--bg) 2rem);
+  font-size: var(--font-ui-xs);
+  line-height: 1.6;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.dig-create-hint[hidden] {
+  display: none;
+}
+
+/* 見出しは遊ぶ画面のヒント（上の案内帯）と同じ顔。 */
+.dig-create-hint b {
+  color: var(--ink);
+}
+
+/*
+ * 手札の画面（地図の場所に替わる）。遊ぶときの手元と同じ五枚の枠で並べ、
+ * 見出しは脇の欄の見出しと同じ顔にする。
+ */
+.dig-handview {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 16px 16px calc(var(--dig-hint-h, 0px) + 16px);
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.dig-handview[hidden] {
+  display: none;
+}
+
+.dig-handview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dig-handview__head h3 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+.dig .dig-handview__head button {
+  min-height: 2rem;
+  padding: 0 12px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-handview__note {
+  max-width: 44rem;
+  margin: 0;
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+/*
+ * 狭い画面（地図が上、脇が下）では地図が低い。ヒントは重ねず、地図のすぐ下に
+ * 脇の欄の頭として置く（広い画面では出さない）。
+ */
+.dig-create-hint.is-narrow {
+  display: none;
+}
+
+@media (max-width: 52rem) {
+  .dig-view > .dig-create-hint {
+      display: none;
+    }
+
+  .dig-create-hint.is-narrow {
+      position: static;
+      display: grid;
+      margin: 0 0 16px;
+      padding: 0;
+      background: none;
+    }
+}
+
+/* 並びの都合でここに置く（本来は hand.css。.dig-handview より後に効く必要がある）。 */
+.dig-deckview {
+  padding-bottom: 64px;
+}
+
+/* 4 手札の欄の「手放す一枚を押す」は、見出しと同じ大きさで琥珀に。 */
+.dig-handview__ask {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.08em;
+  color: var(--amber-text);
+}
