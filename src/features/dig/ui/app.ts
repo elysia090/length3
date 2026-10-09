@@ -1194,12 +1194,25 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   let last = performance.now();
+  /**
+   * 塔の描き替えは、こまの支配項（三角形の塗りと、点の書き出し）。カメラも人も止まって
+   * いるあいだは三十こまに間引き、画面を描き直したとき（操作や触れた部屋が替わったとき）は
+   * すぐに描く。
+   */
+  let lastDraw = 0;
+  let drawNow = true;
   function frame(): void {
     const t = performance.now();
-    const dt = Math.min(0.1, (t - last) / 1000);
+    const due = drawNow || tower.moving || t - lastDraw >= 33;
+    const dt = Math.min(0.1, (t - (due ? lastDraw || last : last)) / 1000);
     last = t;
-    if (screen === 'create' || !game) tower.draw(EMPTY, now(), dt);
-    else if (screen === 'play') {
+    if (screen === 'create' || !game) {
+      if (due) {
+        tower.draw(EMPTY, now(), dt);
+        lastDraw = t;
+        drawNow = false;
+      }
+    } else if (screen === 'play') {
       const w = game.world;
       if (!w.enc && !w.pending && !w.ending && adviceAt !== w.seq) {
         adviceAt = w.seq;
@@ -1207,7 +1220,11 @@ export function openDig(doc: Document, onClose: () => void): void {
         render();
       }
       // 止め（ヒットストップ）のあいだは、絵を描き替えない。
-      if (now() >= freezeUntil) tower.draw(heldView ?? towerView(staged ?? w), now(), dt);
+      if (due && now() >= freezeUntil) {
+        tower.draw(heldView ?? towerView(staged ?? w), now(), dt);
+        lastDraw = t;
+        drawNow = false;
+      }
       idle(w);
     }
     raf = requestAnimationFrame(frame);
@@ -4875,6 +4892,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   // ─── 全体 ───────────────────────────────────────────────────
 
   function render(): void {
+    drawNow = true;
     // 描き直しで触れていた札が消えたら、説明も畳む。
     queueMicrotask(() => tips.sync());
     if (screen !== 'create') {

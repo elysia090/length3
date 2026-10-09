@@ -93,8 +93,21 @@ export class Tower {
   /** 見渡す（引いて、区画をひと目に）。 */
   overview = false;
 
+  /** 枠の大きさが変わったか（毎こまの寸法の読み取りは、レイアウトを起こして重い）。 */
+  private sized = true;
+  private rect = { left: 0, top: 0, width: 0, height: 0 };
+  /** 額縁で紙へ溶かす点（寸法が決まれば同じ。毎こま全点を回さない）。 */
+  private frame: Int32Array | null = null;
+  /** いま動いているか（カメラが落ち着いていない・歩いている・寄りの演出）。止まっていれば、描き替えを間引ける。 */
+  moving = true;
+
   constructor(readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d');
+    if (typeof ResizeObserver !== 'undefined')
+      new ResizeObserver(() => {
+        this.sized = true;
+      }).observe(canvas);
+    window.addEventListener('scroll', () => (this.sized = true), { capture: true, passive: true });
     this.match();
     const style = getComputedStyle(canvas);
     this.palette = new Uint32Array([
@@ -115,12 +128,18 @@ export class Tower {
 
   /** 枠の大きさが変わっていたら、横の画素数を合わせる（帯や余白のない一枚に）。 */
   private match(): void {
-    const rect = this.canvas.getBoundingClientRect();
+    // ResizeObserver の無い環境では、毎こま測る。
+    if (!this.sized && typeof ResizeObserver !== 'undefined') return;
+    this.sized = false;
+    const r = this.canvas.getBoundingClientRect();
+    this.rect = { left: r.left, top: r.top, width: r.width, height: r.height };
+    const rect = this.rect;
     const aspect = rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 4 / 3;
     this.narrow = rect.width > 0 && rect.width < 832;
     const w = Math.round(clamp(H * aspect, H * 0.75, H * 2.6));
     if (w === this.W && this.image) return;
     this.W = w;
+    this.frame = null;
     this.canvas.width = w;
     this.canvas.height = H;
     this.raster.resize(w, H);
@@ -245,6 +264,15 @@ export class Tower {
     }
     // 0.4 秒ほどで落ち着く（次の操作を待たせない）。
     const k = 1 - Math.exp(-dt * 7.5);
+    // 落ち着いたか（追う先との差が一画素の数分の一に入り、歩きも演出も終わっている）。
+    this.moving =
+      walking ||
+      Math.abs(this.cam.y - targetY) > 0.05 ||
+      Math.abs(this.cam.x - targetX) > 0.05 ||
+      Math.abs(this.cam.floor - targetFloor) > 0.002 ||
+      Math.abs(this.cam.zoom - targetZoom) > 0.002 ||
+      t - this.kick.at < 0.8 ||
+      t - this.hold.at < 2.5;
     this.cam.y = lerp(this.cam.y, targetY, k);
     this.cam.floor = lerp(this.cam.floor, targetFloor, k);
     this.cam.zoom = lerp(this.cam.zoom, targetZoom, k);
@@ -306,17 +334,23 @@ export class Tower {
    */
   private vignette(k: number): void {
     if (k <= 0) return;
-    const r = this.raster;
-    const mx = 28;
-    const my = 14;
-    for (let y = 0; y < H; y++) {
-      const ty = 1 - Math.min(y, H - 1 - y) / my;
-      for (let x = 0; x < this.W; x++) {
-        const tx = 1 - Math.min(x, this.W - 1 - x) / mx;
-        const t = Math.max(tx, ty) * k;
-        if (t > 0 && threshold(x, y) < t) r.set(x, y, NONE);
+    // k は 0 か 1 だけ。溶かす点は寸法で決まるので、一度だけ数えて覚えておく。
+    if (!this.frame) {
+      const mx = 28;
+      const my = 14;
+      const list: number[] = [];
+      for (let y = 0; y < H; y++) {
+        const ty = 1 - Math.min(y, H - 1 - y) / my;
+        for (let x = 0; x < this.W; x++) {
+          const tx = 1 - Math.min(x, this.W - 1 - x) / mx;
+          const t = Math.max(tx, ty);
+          if (t > 0 && threshold(x, y) < t) list.push(y * this.W + x);
+        }
       }
+      this.frame = Int32Array.from(list);
     }
+    const color = this.raster.color;
+    for (const i of this.frame) color[i] = NONE;
   }
 
   /** 底。下へ行くほど墨の網点が濃くなり、何も見えなくなる。 */
@@ -788,6 +822,7 @@ export class Tower {
   /** 画面上の点（CSS 画素）から、その部屋を探す。 */
   pick(cssX: number, cssY: number): number | null {
     const rect = this.canvas.getBoundingClientRect();
+    this.rect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
     if (!rect.width || !rect.height) return null;
     const x = ((cssX - rect.left) / rect.width) * this.W;
     const y = ((cssY - rect.top) / rect.height) * H;
