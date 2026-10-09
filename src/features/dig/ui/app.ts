@@ -1,7 +1,7 @@
 import { AFTER } from '../content/after';
 import { PACE } from '../content/balance';
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
-import { EP_TIER_NAME, epTier } from '../content/epithets';
+import { epTier } from '../content/epithets';
 import { IDLE, POSTURE, VITALS } from '../content/flavor';
 import { DIFFICULTY, sectionNo } from '../content/floors';
 import { fxText } from '../content/fx';
@@ -19,26 +19,10 @@ import {
   itemDef,
   jobDef,
   permDef,
-  storyDef,
 } from '../content/registry';
 import { buildsOf } from '../content/sources';
 import { nextTier, SURGES, tierOf } from '../content/surges';
-import {
-  CHEER,
-  DINER_AFTER,
-  DINER_BET,
-  DINER_FULL,
-  DINER_LEAVE,
-  DINER_LIGHT,
-  DINER_MORNING,
-  DINER_NIGHT,
-  READY,
-  SETTLED,
-  SHOP_BARGAIN,
-  SHOP_HELLO,
-  SHOP_LEAVE,
-  SHOP_SOLD,
-} from '../content/voices';
+import { CHEER, READY, SETTLED } from '../content/voices';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
 import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
 import { fold } from '../core/reduce';
@@ -68,36 +52,18 @@ import { foeHardness, MINERALS, nodeHardness, outmatched, youHardness } from '..
 import { misses } from '../sim/near';
 import { epUses, itemRoom, maxHp, maxMind, stats } from '../sim/ops';
 import {
-  alterOptions,
-  canChoose,
-  cardPrice,
-  curePrice,
   deckCap,
   deckRoom,
   deckSize,
-  epPrice,
   nodeOf,
   OUTCOME_NAME,
-  permValue,
-  priceOf,
   ROWS,
   reachable,
   START_BACK,
-  storyChance,
   stratumName,
 } from '../sim/run';
 import { type SpotAction, spotActions } from '../sim/spot';
-import {
-  badges,
-  cardOffer,
-  epChip,
-  gearOffer,
-  heals,
-  luckyTag,
-  outcome,
-  pips,
-  previewCard,
-} from './cards';
+import { badges, epChip, heals, luckyTag, outcome, pips, previewCard } from './cards';
 import { button, type Child, fill, h, meter } from './dom';
 import { HINTS, nextHint } from './hints';
 import { hoverTips } from './hovertip';
@@ -114,6 +80,7 @@ import {
   tally,
   titled,
 } from './parts';
+import { gearRows, peelRows, restPanel, shopPanel, storyPanel, toldPanel } from './places';
 import { cardEffect, clearEffects, delta, effectOf, say as sayDelta, withEpithet } from './preview';
 import {
   foeInkable,
@@ -130,6 +97,7 @@ import { loadProfile, loadRun, type Profile, saveProfile, saveRun } from './save
 import { DigSound } from './sound';
 import type { TurnLine } from './state';
 import { type RoomView, type Scene, Tower, type TowerView } from './tower';
+import type { Ui } from './ui';
 import {
   BASIC_GLOSS,
   BASIC_NAME,
@@ -200,9 +168,6 @@ export function openDig(doc: Document, onClose: () => void): void {
   let hintShown: string | null = null;
   /** 遭遇の外で押して開いたカード（触れられない端末でも中身を読める）。 */
   let opened: number | null = null;
-  /** 古物商で、手持ちがいっぱいのときに入れ替えで買おうとしている札。 */
-  let shopSwap: string | null = null;
-  /** 遭遇中に触れている札（相手の四つの道に、効き目を先に映す）。 */
   let hoverSlot: number | null = null;
   /** 狭い画面で、一度押して構えた札（もう一度押すと切る）。 */
   let armedSlot: number | null = null;
@@ -331,6 +296,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   dialog.append(app);
   // 触れたときの説明は、どこでも同じ枠で（ブラウザの title の代わり）。
   const tips = hoverTips(dialog);
+  // 外へ出した欄が、操作と描き直しを頼む窓口。
+  const ui: Ui = { send, render, caption: (text) => showCaption(text) };
   doc.body.append(dialog);
   dialog.showModal();
   // 開いた直後は、どの印にも焦点を置かない（左上の小さな印に輪が出ないように）。
@@ -1525,11 +1492,11 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     const p = w.pending;
     if (p?.kind === 'story') {
-      fill(side, [storyPanel(w)]);
+      fill(side, [storyPanel(w, ui)]);
       return;
     }
     if (p?.kind === 'told') {
-      fill(side, [toldPanel(w)]);
+      fill(side, [toldPanel(w, ui)]);
       return;
     }
     if (p?.kind === 'reward') {
@@ -1537,7 +1504,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       return;
     }
     if (p?.kind === 'rest') {
-      fill(side, [restPanel(w)]);
+      fill(side, [restPanel(w, ui)]);
       return;
     }
     if (p?.kind === 'summit') {
@@ -1545,7 +1512,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       return;
     }
     if (p?.kind === 'shop') {
-      fill(side, [shopPanel(w)]);
+      fill(side, [shopPanel(w, ui)]);
       return;
     }
     fill(side, [mapPanel(w)]);
@@ -2113,43 +2080,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   }
 
-  /** 整えるの中の持ち物（休む・備える・探るの三つの列）。 */
-  function gearRows(w: World): HTMLElement | null {
-    if (!w.you.items.length) return null;
-    const gear = (kind: 'rest' | 'prep' | 'seek') =>
-      w.you.items.flatMap((it, i) => {
-        const g = gearOf(it.id);
-        if (!g || g.kind !== kind) return [];
-        return [
-          button(
-            `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
-            () => send({ c: 'item', index: i }),
-            {
-              class: `dig-gear__item${g.tool ? ' is-tool' : ''}`,
-              disabled: kind === 'seek' && !!w.pending,
-              title: `${g.text}\n${g.flavor}`,
-            },
-          ),
-        ];
-      });
-    const row = (label: string, gloss: string, kids: HTMLElement[]) =>
-      kids.length
-        ? h(
-            'div',
-            { class: 'dig-place' },
-            h('span', { class: 'dig-place__label', title: gloss }, label),
-            h('span', { class: 'dig-place__items' }, kids),
-          )
-        : null;
-    return h(
-      'div',
-      { class: 'dig-places' },
-      row('休む', '体と心、札一枚の回数を戻す', gear('rest')),
-      row('備える', '次に出会う相手との遭遇の初めに効く', gear('prep')),
-      row('探る', 'この階を探る（1 時間）。出来事か、拾い物か、誰かに気づかれるか', gear('seek')),
-    );
-  }
-
   /**
    * 整える：地図の場所に、手持ちの札（枠と後ろ）を全部広げる。札のエピテットは
    * 剥がして手に戻せ、手元のエピテットを選ぶと、刻める札が浮く（押すと刻む）。
@@ -2314,7 +2244,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         '遭遇のたびに、この七枚から五枚が配られる。使い切った札は、休むか、回数を増やすエピテットが宿るまで眠ったままになる。',
       ),
       w.you.items.length
-        ? h('div', { class: 'dig-deck__sec' }, h('h3', {}, '持ち物'), gearRows(w))
+        ? h('div', { class: 'dig-deck__sec' }, h('h3', {}, '持ち物'), gearRows(w, ui))
         : null,
       w.you.perms.length
         ? h(
@@ -2650,13 +2580,13 @@ export function openDig(doc: Document, onClose: () => void): void {
       ),
       // 受け取る前に整える：手放す札からエピテットを剥がしておく、持ち物を使って枠を空ける。
       // （受け取りは保留のまま。整えたら、同じ受け取りに戻る）
-      peelRows(st.all),
+      peelRows(st.all, ui),
       w.you.items.length
         ? h(
             'div',
             { class: 'dig-deck__sec' },
             h('h3', {}, '持ち物（使って枠を空けられる）'),
-            gearRows(w),
+            gearRows(w, ui),
           )
         : null,
       confirmBar(w),
@@ -2679,32 +2609,6 @@ export function openDig(doc: Document, onClose: () => void): void {
           { class: 'dig-ink-foe is-live' },
         ),
       );
-  }
-
-  /** 受け取りのあいだに、札のエピテットを剥がして手元に戻す（手放す前に、語だけ残す）。 */
-  function peelRows(all: readonly Card[]): HTMLElement | null {
-    const inked = all.filter((c) => c.eps.length);
-    if (!inked.length) return null;
-    return h(
-      'div',
-      { class: 'dig-deck__sec' },
-      h('h3', {}, '剥がして残す'),
-      h(
-        'div',
-        { class: 'dig-deck__eps' },
-        inked.flatMap((c) =>
-          c.eps.map((e) =>
-            h(
-              'span',
-              { class: 'dig-deck__ep' },
-              h('span', {}, `『${cardDef(c.id).name}』`),
-              epChip(e),
-              button('剥がす', () => send({ c: 'peel', uid: c.uid, ep: e })),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   /**
@@ -3019,80 +2923,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h('div', { class: 'dig-enc' }, ...kids);
   }
 
-  function storyPanel(w: World): HTMLElement {
-    const p = w.pending;
-    if (p?.kind !== 'story') return h('div');
-    const def = storyDef(p.id);
-    if (!def) return h('div');
-    return section(
-      def.title,
-      h('p', {}, def.text),
-      p.eps.length
-        ? h(
-            'p',
-            { class: 'dig-ep' },
-            p.eps
-              .map((e) => `《${epithetDef(e)?.name ?? e}》${epithetDef(e)?.story?.text ?? ''}`)
-              .join(' '),
-          )
-        : null,
-      // 手元のエピテットのうち、出来事に効くものは、この出来事に刻める（二つまで）。
-      p.eps.length < 2
-        ? h(
-            'p',
-            { class: 'dig-row dig-ink' },
-            [...new Set(w.you.epithets)]
-              .filter((ep) => !!epithetDef(ep)?.story && !p.eps.includes(ep))
-              .map((ep) =>
-                button(
-                  `＋《${epithetDef(ep)?.name ?? ep}》 ${epithetDef(ep)?.story?.text ?? ''}`,
-                  () => send({ c: 'inscribe', ep, story: true }),
-                  {
-                    class: 'dig-pill dig-pill--ep is-ink-target',
-                    title: '刻むと、この出来事の判定と実りが変わる',
-                  },
-                ),
-              ),
-          )
-        : null,
-      def.options.map((o, i) =>
-        button(
-          `${o.label}${o.stat ? `（${o.stat} ${storyChance(w, o.stat, o.diff ?? 0)}%）` : ''}`,
-          () => send({ c: 'choose', option: i }),
-          { disabled: !canChoose(w, i) },
-        ),
-      ),
-      // 拾い物：妙な選択肢が一つ増えている（選べば必ず何か得る。失うものはない）。
-      p.odd
-        ? h(
-            'button',
-            {
-              type: 'button',
-              class: 'dig-odd is-lucky',
-              onclick: () => send({ c: 'choose', option: def.options.length }),
-            },
-            luckyTag(),
-            '黙って、灯りを落として待つ',
-          )
-        : null,
-    );
-  }
-
-  function toldPanel(w: World): HTMLElement {
-    const p = w.pending;
-    if (p?.kind !== 'told') return h('div');
-    return section(
-      storyDef(p.id)?.title ?? '',
-      h('p', {}, p.text),
-      // 何が出て、何を払ったか（選んだあとに確かめられる）。
-      p.got ? h('p', { class: 'dig-got' }, p.got) : null,
-      p.chance !== undefined
-        ? h('p', { class: 'dig-quiet' }, `判定 ${p.roll} / ${p.chance}%`)
-        : null,
-      button('先へ', () => send({ c: 'ack' }), { class: 'dig-go' }),
-    );
-  }
-
   /**
    * 受け取りの右の欄：判（結末の一語）→ 余韻 → 品が一つずつ押される。拾える
    * 札は下の帯（手札の場所）に並ぶ。持ち帰る記憶と、頼って満たす札もここで。
@@ -3234,240 +3064,6 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   function sameAim(a: typeof aim, b: typeof aim): boolean {
     return !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
-  }
-
-  /** 食堂：休み方は二つだけ（どちらか一つ）。変質と、ときどき店主の賭け。 */
-  function restPanel(w: World): HTMLElement {
-    const p = w.pending;
-    if (p?.kind !== 'rest') return h('div');
-    const choice = (name: string, lines: string[], on: () => void, cls = '', dish = '') =>
-      h(
-        'button',
-        { type: 'button', class: `dig-scene__choice ${cls}`.trim(), onclick: on },
-        h('b', {}, name),
-        lines.map((l) => h('span', {}, ...heals(l))),
-        dish ? h('span', { class: 'dig-dish' }, dish) : null,
-      );
-    // 主人の一言：食べる前は挨拶（夜か朝か）、食べたあとは見送りの前の一言。
-    const morning = phaseOf(w.hour) === 'morning' || phaseOf(w.hour) === 'day';
-    const host = p.used
-      ? voiceOf(DINER_AFTER, w, 'after')
-      : voiceOf(morning ? DINER_MORNING : DINER_NIGHT, w, 'hello');
-    const alters = p.altered
-      ? []
-      : w.you.cards.flatMap((c, slot) =>
-          c
-            ? alterOptions(w.you, slot).map((o) =>
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    class: 'dig-alter__b',
-                    disabled: !o.ready,
-                    title: fxText(cardDef(o.to).ready),
-                    onclick: () => send({ c: 'alter', slot, to: o.to }),
-                  },
-                  h('b', {}, `『${cardDef(o.to).name}』`),
-                  h('span', {}, `『${cardDef(c.id).name}』から・${o.need}`),
-                ),
-              )
-            : [],
-        );
-    return h(
-      'div',
-      { class: 'dig-reward' },
-      h(
-        'div',
-        { class: 'dig-scene__head' },
-        h('span', { class: 'dig-scene__label' }, '食堂'),
-        h('b', { class: 'dig-scene__word' }, p.used ? '休んだ' : 'どう休む'),
-      ),
-      host ? h('p', { class: 'dig-host' }, `「${host}」`) : null,
-      p.used
-        ? null
-        : h(
-            'div',
-            { class: 'dig-scene__choices' },
-            choice(
-              '休む',
-              [
-                `体力 +${Math.round(PACE.rest * 100)}%・精神 +${Math.round(PACE.rest * 100)}%`,
-                'いちばん減っている札が一枚満ちる',
-                '1 時間',
-              ],
-              () => send({ c: 'rest', action: 'rest' }),
-              '',
-              voiceOf(DINER_LIGHT, w, 'light'),
-            ),
-            choice(
-              'ひと晩ここで',
-              [
-                '体力 +80%・精神 +80%',
-                '減っている札が二枚満ちる',
-                `3 時間・次の出来事を逃す${w.after.length ? '・決着の余韻が消える' : ''}`,
-              ],
-              () => send({ c: 'rest', action: 'full' }),
-              w.after.length ? 'is-costly' : '',
-              voiceOf(DINER_FULL, w, 'full'),
-            ),
-          ),
-      alters.length
-        ? h(
-            'div',
-            { class: 'dig-alter' },
-            h('h4', { class: 'dig-plan__h' }, '変質'),
-            h('div', { class: 'dig-alter__list' }, alters),
-          )
-        : null,
-      p.bet
-        ? h(
-            'div',
-            { class: 'dig-scene__row' },
-            h('span', { class: 'dig-host dig-host--aside' }, voiceOf(DINER_BET, w, 'bet')),
-            button('店主と賭ける', () => send({ c: 'rest', action: 'bet' }), {
-              class: 'dig-scene__pick is-lucky',
-              title: '負けのない賭け。表なら金 +10、裏ならコーヒーを一杯（精神 +5）',
-            }),
-          )
-        : null,
-      h(
-        'div',
-        { class: 'dig-scene__foot' },
-        button(
-          '出る',
-          () => {
-            const bye = voiceOf(DINER_LEAVE, w, 'leave');
-            if (send({ c: 'depart' }) && bye) showCaption(bye);
-          },
-          { class: p.used ? 'dig-go' : '' },
-        ),
-      ),
-    );
-  }
-
-  /** 古物商の入れ替え：手放す一枚を押すと、入れ替えて買う。 */
-  function swapPicker(w: World, id: string): HTMLElement {
-    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
-    return h(
-      'div',
-      { class: 'dig-swap' },
-      h(
-        'p',
-        { class: 'dig-swap__ask' },
-        `手放す一枚を押すと、『${cardDef(id).name}』と入れ替えて買う`,
-      ),
-      h(
-        'div',
-        { class: 'dig-swap__list' },
-        all.map((c) =>
-          button(
-            `『${cardDef(c.id).name}』 ${c.uses}/${c.max}${c.eps.length ? `　${c.eps.map((e) => `《${epithetDef(e)?.name ?? e}》`).join('')}` : ''}`,
-            () => {
-              shopSwap = null;
-              send({ c: 'buy', id, drop: c.uid });
-            },
-            { class: 'dig-swap__b' },
-          ),
-        ),
-      ),
-      button('やめる', () => {
-        shopSwap = null;
-        render();
-      }),
-    );
-  }
-
-  function shopPanel(w: World): HTMLElement {
-    const p = w.pending;
-    if (p?.kind !== 'shop') {
-      shopSwap = null;
-      return h('div');
-    }
-    const kids: (Child | readonly Child[])[] = [];
-    for (const id of p.cards) {
-      const sold = p.sold.includes(id);
-      // 拾い物：半値の掘り出し物（元の値段を添えて）。
-      const full = cardPrice(w, id);
-      const cost = p.bargain === id ? Math.ceil(full / 2) : full;
-      const room = deckRoom(w.you) || w.you.cards.some((c) => !c);
-      const price = p.bargain === id ? `金 ${cost}（${full}）` : `金 ${cost}`;
-      kids.push(
-        cardOffer(
-          id,
-          () => {
-            if (sold || w.you.coins < cost) return;
-            // 手持ちがいっぱいなら、手放す一枚を選んでから買う（選ぶまでは何も減らない）。
-            if (room) send({ c: 'buy', id });
-            else {
-              shopSwap = shopSwap === id ? null : id;
-              render();
-            }
-          },
-          sold || w.you.coins < cost ? null : 'buy',
-          shopSwap === id && !sold,
-          sold ? '売約' : room ? price : `${price}・一枚と入れ替え`,
-          p.bargain === id && !sold,
-        ),
-      );
-      if (shopSwap === id && !sold && !room) kids.push(swapPicker(w, id));
-    }
-    for (const id of p.items) {
-      const sold = p.sold.includes(id);
-      const ep = id.startsWith('ep:') ? epithetDef(id.slice(3)) : undefined;
-      if (ep) {
-        const price = epPrice(w, id.slice(3));
-        kids.push(
-          act(
-            `エピテット《${ep.name}》（${EP_TIER_NAME[epTier(ep)]}）　金 ${price}${sold ? '（売約）' : ''}`,
-            `札に刻むと：${ep.card?.text ?? ep.gloss}`,
-            () => send({ c: 'buy', id }),
-            { disabled: sold || w.you.coins < price, class: `is-ep is-${epTier(ep)}` },
-          ),
-        );
-        continue;
-      }
-      const price = priceOf(w, gearOf(id)?.price ?? 99);
-      kids.push(
-        gearOffer(
-          id,
-          !sold && w.you.coins >= price && itemRoom(w.you, id),
-          () => send({ c: 'buy', id }),
-          sold ? '売約' : `金 ${price}`,
-          sold ? '売約' : !itemRoom(w.you, id) ? '持ち物がいっぱい' : '金が足りない',
-        ),
-      );
-    }
-    for (const perm of w.you.perms) {
-      const d = permDef(perm);
-      if (!d) continue;
-      if (d.bad)
-        kids.push(
-          button(`《${d.name}》を手放す（金 ${curePrice(w)}）`, () => send({ c: 'cure', perm })),
-        );
-      else if (perm !== 'promise' && permValue(w.you, perm) > 0)
-        kids.push(
-          button(`記憶《${d.name}》を売る（金 ${permValue(w.you, perm)}）`, () =>
-            send({ c: 'sell', perm }),
-          ),
-        );
-    }
-    kids.push(
-      button(
-        '出る',
-        () => {
-          const bye = voiceOf(SHOP_LEAVE, w, 'leave');
-          if (send({ c: 'depart' }) && bye) showCaption(bye);
-        },
-        { class: 'dig-go' },
-      ),
-    );
-    // 古物商の一言：買ったあと／掘り出し物があるとき／ふだん。
-    const talk = p.sold.length
-      ? voiceOf(SHOP_SOLD, w, `sold${p.sold.length}`)
-      : p.bargain && !p.sold.includes(p.bargain)
-        ? voiceOf(SHOP_BARGAIN, w, 'bargain')
-        : voiceOf(SHOP_HELLO, w, 'hello');
-    return section('古物商', talk ? h('p', { class: 'dig-host' }, `「${talk}」`) : null, ...kids);
   }
 
   // ─── 終わり ─────────────────────────────────────────────────

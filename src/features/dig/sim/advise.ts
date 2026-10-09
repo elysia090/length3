@@ -5,7 +5,7 @@ import { allBuilds, allLinks, cardDef, epithetDef, foeDef, permDef } from '../co
 import { buildsOf } from '../content/sources';
 import { branch } from '../core/branch';
 import type { Cmd } from '../core/events';
-import type { AfterKind, MapNode, World } from '../core/model';
+import type { AfterKind, Card, MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { decide } from './decide';
 import { bestCardInk, bestNodeInk, inkSources, type Style } from './inking';
@@ -385,18 +385,23 @@ function plan(w: World, kind: RouteKind, x: Walk): { lean: number[]; ink?: Ink; 
   // 値踏みは inking に任せる。この道で使う回数と、規則を動かす重みを渡す。
   const sources = inkSources(w, keep);
   const style = STYLE[kind];
-  const card = bestCardInk(w, style, sources, {
-    wear: (c) => {
+  const ctx = {
+    wear: (c: Card) => {
       const i = slotOf(c.uid);
       return i === undefined ? 0 : (x.spent[i] ?? 0) + (x.short.has(i) ? 3 : 0);
     },
-    fire: (c) => {
+    fire: (c: Card) => {
       const i = slotOf(c.uid);
       return i === undefined ? 0 : Math.min(3, (fire[i] ?? 0) / 2);
     },
+  };
+  // 道の先へ刻む語を先に決め、その語は札への付け替えの候補から外す（同じ語を部屋へ剥がして、
+  // 札へ戻す、の行き来をさせない）。剥がす損は、札と同じ物差し（この道の減り方）で測る。
+  const node = bestNodeInk(w, style, sources, x.path, ctx);
+  const card = bestCardInk(w, style, node ? sources.filter((s) => s.ep !== node.ep) : sources, {
+    ...ctx,
     targets: style === 'chain' ? lean : undefined,
   });
-  const node = bestNodeInk(w, style, sources, x.path);
   return {
     lean,
     ink: card ? { ep: card.ep, to: card.to, from: card.from, why: card.why } : undefined,

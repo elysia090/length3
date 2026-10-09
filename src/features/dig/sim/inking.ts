@@ -55,8 +55,13 @@ const tierOf = (d: Epithet) => TIER[epTier(d)];
 /** 推す値打ちの下限（押し）。これに届かない付け替えは勧めない。 */
 const MIN_CARD = 5;
 const MIN_NODE = 5;
-/** 剥がす手間（押し）。 */
-const FRICTION = 1;
+/** 剥がす手間（押し）。小さな差では剥がさない（読み直すたびに行き先が揺れないように）。 */
+const FRICTION = 3;
+/**
+ * 剥がして移す条件：移した先の値打ちが、元の札で失うぶんのこの倍を超えること。読み直すたびに
+ * 頼る札が少し替わっても、A → B → A の輪にならない（両向きに一倍半ずつは超えられない）。
+ */
+const PEEL_GAIN = 1.5;
 /** 余った回数の値打ち（次の休みまで持つ）。 */
 const SURPLUS = 0.25;
 
@@ -207,10 +212,11 @@ function onCard(
     }
   }
   if (f.add?.length) {
-    const base = deckScore(w.you);
-    const all = w.you.cards.map((x) => (x?.uid === c.uid ? { ...x, eps: [...x.eps, d.id] } : x));
-    const builds = buildsOf({ ...w.you, cards: all }).length - buildsOf(w.you).length;
-    const g = (deckScore({ ...w.you, cards: all }) - base) / 10;
+    // 比べる元は、この札がいま渡された形（剥がしたあとの形なら、その形）の手持ち。
+    const now = { ...w.you, cards: w.you.cards.map((x) => (x?.uid === c.uid ? c : x)) };
+    const all = now.cards.map((x) => (x?.uid === c.uid ? { ...x, eps: [...x.eps, d.id] } : x));
+    const builds = buildsOf({ ...w.you, cards: all }).length - buildsOf(now).length;
+    const g = (deckScore({ ...w.you, cards: all }) - deckScore(now)) / 10;
     if (g > 0) {
       const p = g * 6 * (style === 'chain' ? 1.5 : 1);
       if (p > v)
@@ -224,6 +230,26 @@ function onCard(
   // 同じ語を重ねると、効きは少しずつ鈍る。
   if (c.eps.filter((e) => e === d.id).length > (charge ? 0 : 1)) v *= 0.75;
   return { v, why };
+}
+
+/** 札を一枚、別の形に差し替えた世界（値踏みのための写し。手持ちだけ替える）。 */
+function without(w: World, c: Card, next: Card): World {
+  const swap = (x: Card | null) => (x?.uid === c.uid ? next : x);
+  return {
+    ...w,
+    you: { ...w.you, cards: w.you.cards.map(swap), back: w.you.back.map((x) => swap(x) ?? x) },
+  };
+}
+
+/** その語を一つ剥がしたあとの札（回数を増やす語なら、足したぶんの回数と最大が減る）。 */
+function peeled(c: Card, ep: string, u: number): Card {
+  const i = c.eps.indexOf(ep);
+  return {
+    ...c,
+    eps: i >= 0 ? c.eps.filter((_, k) => k !== i) : c.eps,
+    uses: c.uses - Math.min(u, Math.max(0, c.uses)),
+    max: c.max - u,
+  };
 }
 
 /** 札への付け替えで、いちばん効くもの。 */
@@ -248,22 +274,21 @@ export function bestCardInk(
     // 運んでくる回数：手元の語は、使い切って剥がしたものでなければ運ぶ。札から剥がすなら、
     // 元の札に回数が残っていれば運ぶ（残っていなければ、使い切った語として来る）。
     const charge = src ? src.uses >= u : !drained.includes(s.ep);
-    // 剥がしてくる語は、元の札が失う押しを差し引く（元の札の形で、同じ物差しで）。
+    // 剥がしてくる語は、元の札が失う押しを差し引く。剥がしたあとの札（回数も最大も、その語の
+    // ぶん減った形）に、同じ語を刻み直したときの値打ちで測る。こうすると「剥がす → 同じ札へ
+    // 刻み直す」が値打ちを生まず、行き来が起きない。
     const loss = src
-      ? onCard(
-          w,
-          style,
-          { ...src, eps: src.eps.filter((e) => e !== s.ep) },
-          d,
-          want(src),
-          fire(src),
-          true,
-        ).v + FRICTION
+      ? onCard(w, style, peeled(src, s.ep, u), d, want(src), fire(src), charge).v + FRICTION
       : 0;
+    // 移した先の値打ちは、元の札から剥がしたあとの手持ちで測る（同じ語が二枚に
+    // 付いている前提で数えると、タグが二重に数えられて構成が成立したように見える）。
+    const after = src ? without(w, src, peeled(src, s.ep, u)) : w;
     for (const c of targets) {
       if (s.from === c.uid) continue;
-      const { v: gain, why } = onCard(w, style, c, d, want(c), fire(c), charge);
+      const { v: gain, why } = onCard(after, style, c, d, want(c), fire(c), charge);
       const v = gain - loss;
+      // 剥がして移すのは、移した先が元の札の一倍半を超えるときだけ（行き来の輪を作らない）。
+      if (src && gain < loss * PEEL_GAIN) continue;
       if (v > MIN_CARD && why && (!best || v > best.v)) best = { ...s, to: c.uid, why, v };
     }
   }
@@ -355,6 +380,7 @@ export function bestNodeInk(
   style: Style,
   sources: readonly InkSource[],
   path: readonly number[],
+  ctx: CardCtx = {},
 ): NodeInk | null {
   const here = nodeOf(w, w.pos)?.row ?? -1;
   const nodes = path
@@ -368,14 +394,24 @@ export function bestNodeInk(
     const d = epithetDef(s.ep);
     if (!d || (!d.foe && !d.place)) continue;
     const src = s.from !== undefined ? cards.find((c) => c.uid === s.from) : undefined;
+    const u = Math.max(0, d.card?.uses ?? 0);
     const loss = src
-      ? onCard(w, style, src, d, Math.max(1, src.max - src.uses), 0, true).v + FRICTION
+      ? onCard(
+          w,
+          style,
+          peeled(src, s.ep, u),
+          d,
+          ctx.wear?.(src) ?? Math.max(1, src.max - src.uses),
+          ctx.fire?.(src) ?? 0,
+          src.uses >= u,
+        ).v + FRICTION
       : 0;
     for (const n of nodes) {
       if (n.eps.includes(s.ep)) continue;
       const size = sizes.get(n.id);
       const gain = n.npc ? (size ? foeValue(w, d, style, size) : 0) : placeValue(w, d, style, n);
       const v = gain - loss;
+      if (src && gain < loss * PEEL_GAIN) continue;
       const text = n.npc ? d.foe?.text : d.place?.text;
       if (!text || v <= MIN_NODE || (best && v <= best.v)) continue;
       const who = n.npc ? foeDef(n.npc).name : NODE_NAME[n.kind];

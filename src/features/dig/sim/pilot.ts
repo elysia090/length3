@@ -133,8 +133,25 @@ export function pilot(w: World, opts: { quick?: boolean; style?: Style } = {}): 
  * うち指定の性格の道を一歩進み、それ以外は pilot と同じ。指定の性格の道が
  * 出ていなければ、安定の道を歩く。
  */
+/**
+ * 剥がしたら、次の一手で必ずその先へ刻む（画面の付け替えの箱と同じく、剥がす・刻むで一組）。
+ * 剥がしたあとに読み直すと、頼る札が替わって行き先が揺れ、剥がしては戻すを繰り返すので。
+ */
+let carry: { seed: number; seq: number; cmd: Cmd } | null = null;
+
 export function routePilot(w: World, kind: RouteKind): Cmd | null {
   const style: Style = kind;
+  const held = carry;
+  carry = null;
+  if (
+    held &&
+    held.seed === w.seed &&
+    w.seq > held.seq &&
+    held.cmd.c === 'inscribe' &&
+    w.you.epithets.includes(held.cmd.ep) &&
+    !w.enc
+  )
+    return held.cmd;
   if (w.enc || w.pending || w.ending) return pilot(w, { style });
   const a = advise(w, { samples: 1 });
   const all = [...(a?.win ?? []), ...(a?.play ?? [])];
@@ -142,12 +159,15 @@ export function routePilot(w: World, kind: RouteKind): Cmd | null {
   // その道の方針どおりに整える（付け替え、道の先へ刻む）。剥がしてくる語は、先に剥がす。
   for (const m of [r?.ink, r?.mark]) {
     if (!m) continue;
-    if (m.from !== undefined && !w.you.epithets.includes(m.ep))
-      return { c: 'peel', uid: m.from, ep: m.ep };
-    if (w.you.epithets.includes(m.ep))
-      return 'to' in m
+    const put: Cmd =
+      'to' in m
         ? { c: 'inscribe', ep: m.ep, uid: m.to }
         : { c: 'inscribe', ep: m.ep, node: m.node };
+    if (m.from !== undefined && !w.you.epithets.includes(m.ep)) {
+      carry = { seed: w.seed, seq: w.seq, cmd: put };
+      return { c: 'peel', uid: m.from, ep: m.ep };
+    }
+    if (w.you.epithets.includes(m.ep)) return put;
   }
   const own = pilot(w, { style });
   if (own && own.c !== 'move') return own;
