@@ -2259,3 +2259,12 @@
   padding: 0 12px;
   font-size: var(--font-ui-xs);
 }
+
+.dig-create-hand {
+  margin-top: 8px;
+}
+
+.dig-side .dig-create-intro {
+  margin: 8px 0 0;
+  font-size: var(--font-ui-xs);
+}

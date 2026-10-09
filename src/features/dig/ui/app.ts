@@ -3155,37 +3155,13 @@ export function openDig(doc: Document, onClose: () => void): void {
     tray.replaceChildren();
     const j = jobDef(create.job);
     // 初めの手札は、押したときだけ遊ぶときと同じ場所（下の帯）に並べる（いつも出して
-    // おくと字が多すぎる）。導入は、その釦の下に。
-    if (j)
+    // おくと字が多すぎる）。釦は、右の欄の職の一文と持って入る記憶のあいだに。
+    if (j && handOpen)
       fill(tray, [
-        handOpen
-          ? h(
-              'div',
-              { class: 'dig-hand is-preview' },
-              j.cards.map((id, i) => previewCard(id, i)),
-            )
-          : null,
         h(
           'div',
-          { class: 'dig-held' },
-          h(
-            'p',
-            { class: 'dig-create-hand' },
-            button(handOpen ? '手札を閉じる' : '手札を見る', () => {
-              handOpen = !handOpen;
-              render();
-            }),
-            h(
-              'span',
-              { class: 'dig-quiet' },
-              `初めの札 ${j.cards.length} 枚・持てる札 ${j.deck} 枚`,
-            ),
-          ),
-          h(
-            'p',
-            { class: 'dig-create-intro' },
-            '灯りを提げて底の見えない建物を十階ずつ下り、六つ目の区画の底にあたる B60 を抜ければ、ひとまずこの夜は越えたことになる。出会う相手とは殴り合うことも話をつけることもでき、手札とエピテットと記憶の組み方しだいで、同じ建物でも周回ごとに違う夜になる。',
-          ),
+          { class: 'dig-hand is-preview' },
+          j.cards.map((id, i) => previewCard(id, i)),
         ),
       ]);
     const saved = loadRun();
@@ -3304,6 +3280,26 @@ export function openDig(doc: Document, onClose: () => void): void {
             )
           : null,
         j ? h('p', { class: 'dig-job-text' }, j.text) : null,
+        j
+          ? h(
+              'p',
+              { class: 'dig-create-hand' },
+              button(handOpen ? '手札を閉じる' : '手札を見る', () => {
+                handOpen = !handOpen;
+                render();
+              }),
+              h(
+                'span',
+                { class: 'dig-quiet' },
+                `初めの札 ${j.cards.length} 枚・持てる札 ${j.deck} 枚`,
+              ),
+            )
+          : null,
+        h(
+          'p',
+          { class: 'dig-create-intro' },
+          '灯りを提げて底の見えない建物を十階ずつ下り、六つ目の区画の底にあたる B60 を抜ければ、ひとまずこの夜は越えたことになる。出会う相手とは殴り合うことも話をつけることもでき、手札とエピテットと記憶の組み方しだいで、同じ建物でも周回ごとに違う夜になる。',
+        ),
         pick(
           '持って入る記憶',
           ORIGINS[create.job] ?? [],
