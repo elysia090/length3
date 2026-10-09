@@ -39,20 +39,20 @@ export const HINTS: readonly Hint[] = [
   {
     id: 'intent',
     title: '次の手',
-    text: '相手は次の手を先に見せる。強い一撃の前は構え、話してくる時は話す。見せている手が嘘のこともある。',
+    text: '相手は次の手を先に見せる。強い一撃の前は守りの札を、心を開きかけている時は話の札を。見せている手が嘘のこともある。',
     when: (w) => !!w.enc?.foe.intent,
   },
   {
     id: 'cards',
     title: 'カード',
-    text: 'カードは使うと回数が減る（●）。0 回になっても、危うい別の効き目で使える。休むか、条件で戻る。',
+    text: '札は使うと回数が減る（●）。尽きた札は眠りぎわの効き目を一度だけ見せて後ろへ回り、後ろで回数のある札が前へ出る。後ろの札は部屋を移るたびに一回ずつ戻る。',
     when: (w) => !!w.enc && w.you.cards.some((c) => c && c.uses < c.max),
   },
   {
     id: 'empty',
-    title: '空き枠',
-    text: '初めのカードは 3 枚。空き枠は、決着のあとに拾うカードで埋まっていく。何を拾うかで、人物が決まる。',
-    when: (w) => w.pending?.kind === 'reward' && w.you.cards.some((c) => !c),
+    title: '手持ち',
+    text: '枠の五枚の後ろに、持てる数まで札を抱えられる（職で 12〜14 枚、地力が上がるたびに一枚増えて 17 まで）。決着では作品の札か道具を一つ拾う。いっぱいなら一枚手放して拾う。',
+    when: (w) => w.pending?.kind === 'reward',
   },
   {
     id: 'hall',
@@ -69,9 +69,9 @@ export const HINTS: readonly Hint[] = [
   {
     id: 'epithet',
     title: 'エピテット',
-    text: '下の《》はエピテット。札にも、記憶にも、先の部屋にも、向き合った相手にも刻める。同じエピテットでも、刻んだ先で意味が変わる。押してから、刻む先を押す。',
+    text: '下の《》はエピテット。色は格で、金・銀・銅・無垢。札にも、記憶にも、先の部屋にも、向き合った相手にも刻め、三つまで重ねられる。同じエピテットでも、刻んだ先で意味が変わる。眠った札が前へ戻るとき、刻んだものが一つ剥がれる。',
     when: (w) =>
-      onMap(w) && w.you.epithets.length > 0 && w.you.cards.some((c) => !!c && c.eps.length < 2),
+      onMap(w) && w.you.epithets.length > 0 && w.you.cards.some((c) => !!c && c.eps.length < 3),
   },
   {
     id: 'routes',

@@ -290,7 +290,7 @@ export function losePerm(tx: Tx, id: string, why: string, who: Who = actor(tx)):
 export function loseItem(tx: Tx, who: Who = actor(tx)): void {
   const c = charOf(tx.w, who);
   const item = tx.pick('enc', c.items);
-  if (item) tx.emit({ type: 'item', who, id: item, n: -1 });
+  if (item) tx.emit({ type: 'item', who, id: item.id, n: -1 });
   else coins(tx, -Math.ceil(c.coins / 2), who);
 }
 

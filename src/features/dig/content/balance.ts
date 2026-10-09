@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.12.0';
+export const DATA_VERSION = '1.13.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -44,7 +44,7 @@ export const POINTS = {
 export const PACE = {
   rows: 8,
   dawn: 10,
-  tough: 1.7,
+  tough: 1.95,
   build: 1.7,
   stratum: 0.3,
   /** 底の手前より下の区画ごとの掛け算（体・意志）。 */
@@ -63,6 +63,15 @@ export const PACE = {
   rivalFrom: 4,
   /** 気まぐれ（選択肢が減る・増える・妙なものが混じる）の割合。 */
   whim: 0.06,
+  /** 一つの札・記憶・部屋に重ねて刻めるエピテットの数（同じものを重ねてもいい）。 */
+  stack: 3,
+  /** 向き合った相手に刻める数（一度の遭遇で inkTurn まで、相手には stackFoe まで）。 */
+  inkEnc: 2,
+  stackFoe: 4,
+  /** 決着の見返りの札に、エピテットが刻まれたまま出てくる割合。 */
+  inked: 0.18,
+  /** 決着のあと、その場で使える品が一つ手に入る割合。 */
+  loot: 0.35,
   /** 最後の相手の扉の前で、体と心がここまで戻る。 */
   gate: 0.6,
   /** 下りた先で、選択のない小さな出来事が起きる割合。 */

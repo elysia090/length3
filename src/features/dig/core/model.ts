@@ -31,6 +31,12 @@ export interface Card {
 
 export type Who = 'you' | 'rival';
 
+/** 持ち物の一つ（品か道具の id と、残りの回数）。 */
+export interface Held {
+  id: string;
+  uses: number;
+}
+
 export interface Char {
   name: string;
   job: string;
@@ -40,8 +46,16 @@ export interface Char {
   hp: number;
   mind: number;
   coins: number;
-  items: string[];
+  /** 持ち物（品と道具）。一つずつ、残りの回数を持つ。 */
+  items: Held[];
   cards: (Card | null)[];
+  /**
+   * 後ろの札（枠に入っていない手持ち）。回数が尽きた札は枠から落ちてここで休み、
+   * 部屋を移るたびに一回ずつ戻る。枠の札が尽きると、回数のある札が前へ出る。
+   */
+  back: Card[];
+  /** 地力が新しい高さに届いた数（持てる札が一枚ずつ増える）。 */
+  level: number;
   /** 手に入れた順。そのまま、この挑戦の履歴になる。 */
   perms: string[];
   /** 記憶に刻まれたエピテット。 */
@@ -230,8 +244,11 @@ export type Pending =
       help: boolean;
       boss: boolean;
       resume?: number;
-      /** 拾える札（一枚だけ選べる。選ばなくてもいい）。 */
+      /** 拾える札（作品）と道具。どれか一つだけ選べる（選ばなくてもいい）。 */
       cards: string[];
+      tools: string[];
+      /** エピテットが刻まれたまま出てきた札（札の id → 刻まれたエピテット）。 */
+      inked?: Record<string, string[]>;
       /** 拾い物：棚にまぎれていた見慣れない札（主役の札）。 */
       lucky?: string;
     }

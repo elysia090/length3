@@ -203,6 +203,8 @@ export interface JobDef {
   text: string;
   innate: StatBlock;
   cards: readonly string[];
+  /** 持てる札の数（枠の五枚と後ろを合わせて）。地力が上がるたびに一枚増え、17 まで。 */
+  deck: number;
   perms: readonly string[];
   passive?: readonly PassiveSpec[];
   triggers?: readonly TriggerSpec[];
@@ -238,6 +240,10 @@ export interface ItemDef {
   text: string;
   refill?: { tags: readonly Tag[]; n: number };
   heal?: { hp?: number; mind?: number };
+  /** その場の効き目（向き合っているあいだ、手番を使わずに）。 */
+  fx?: readonly Fx[];
+  /** 使える回数（無ければ一度きり）。 */
+  uses?: number;
   price: number;
   flavor: string;
 }

@@ -1,4 +1,3 @@
-import { PACE } from '../content/balance';
 import { buildsOf } from '../content/sources';
 import { tierOf } from '../content/surges';
 import type { Foe, MapNode, Who, World } from '../core/model';

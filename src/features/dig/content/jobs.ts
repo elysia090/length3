@@ -13,6 +13,7 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '測量士',
     text: '見て、測って、掘る。［場所］［視線］のカードがよく効く。',
     innate: { VIT: 2, ATK: 2, DEF: 2, WIL: 3, INT: 4, AGI: 3 },
+    deck: 12,
     cards: ['seeing', 'image', 'saturn', 'molloy', 'rain'],
     perms: ['promise', 'habit-measure'],
     passive: [
@@ -29,6 +30,7 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '夜警',
     text: '殴られ慣れた体。遭遇の初めに守り 3。深夜は［夜］のカードが強く、残った守りの 1/4 が信頼にこぼれる（夜勤）。',
     innate: { VIT: 4, ATK: 3, DEF: 4, WIL: 2, INT: 1, AGI: 2 },
+    deck: 13,
     cards: ['darkknight', 'robocop', 'vernacular', 'nighthawks', 'hunters'],
     perms: ['promise', 'old-wound'],
     passive: [
@@ -59,6 +61,7 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '映写技師',
     text: '暗闇で見る目と、消えない記憶。連鎖がひときわ深く効く（+2）。',
     innate: { VIT: 2, ATK: 1, DEF: 2, WIL: 4, INT: 3, AGI: 3 },
+    deck: 12,
     cards: ['bladerunner', 'morel', 'solaris', 'chirico', 'fightclub'],
     perms: ['promise', 'accident'],
     passive: [{ rule: 'chain', fn: (_c, v) => (v > 0 ? v + 2 : v), text: '連鎖 +2' }],
@@ -68,6 +71,7 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '記者',
     text: '手がかりを見るたびに金 3（記事になる）。［公開情報］のカードがよく効く。',
     innate: { VIT: 2, ATK: 2, DEF: 1, WIL: 3, INT: 4, AGI: 3 },
+    deck: 13,
     cards: ['merulana', 'lot49', 'presentation', 'jacobs', 'rain'],
     perms: ['promise', 'suspicion'],
     passive: [
@@ -92,7 +96,8 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '錠前師',
     text: '指先と逃げ足。去る +20%。［私的情報］のカードがよく効く。',
     innate: { VIT: 2, ATK: 2, DEF: 2, WIL: 2, INT: 3, AGI: 4 },
-    cards: ['conversation', 'ghost', 'pulp', 'night', 'picklock'],
+    deck: 14,
+    cards: ['conversation', 'ghost', 'pulp', 'seven', 'android'],
     perms: ['promise', 'runaway'],
     passive: [
       { rule: 'leaveChance', fn: (_c, v) => v + 20, text: '去る +20%' },
@@ -109,6 +114,7 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '看護師',
     text: '回復が 1.5 倍。弱った相手は、あなたに心を開きやすい。',
     innate: { VIT: 3, ATK: 1, DEF: 2, WIL: 4, INT: 3, AGI: 2 },
+    deck: 12,
     cards: ['joseph', 'children', 'agnus', 'w', 'molloy'],
     perms: ['promise', 'daughter-photo'],
     passive: [
@@ -126,6 +132,7 @@ export const JOB_LIST: readonly JobDef[] = [
     name: '溶接工',
     text: '鉄と火。［技術］［身体］のカードがよく効き、毎手番 守り +1・構え +1。',
     innate: { VIT: 4, ATK: 4, DEF: 3, WIL: 2, INT: 1, AGI: 1 },
+    deck: 14,
     cards: ['rim', 'vernacular', 'hunters', 'leviathan', 'labyrinth'],
     perms: ['promise', 'scarred'],
     passive: [

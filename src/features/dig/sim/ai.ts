@@ -47,10 +47,8 @@ export function act(tx: Tx, a: Action): boolean {
 export function actions(w: World): Action[] {
   const e = w.enc;
   if (!e) return [];
-  const out: Action[] = (['press', 'brace', 'talk', 'leave'] as const).map((a) => ({
-    kind: 'basic',
-    a,
-  }));
+  // 素手の手は無い。札を切るか、立ち去るか（取引に応じるか）。
+  const out: Action[] = [{ kind: 'basic', a: 'leave' }];
   if (canAccept(w)) out.push({ kind: 'basic', a: 'accept' });
   charOf(w, e.who).cards.forEach((c, slot) => {
     if (c) out.push({ kind: 'card', slot });
@@ -105,7 +103,7 @@ export function judgeYou(base: World, s: World): number {
 /** 1 手読みで、いちばん良い手。 */
 export function bestAction(w: World): Action {
   const list = actions(w);
-  let best: Action = { kind: 'basic', a: 'brace' };
+  let best: Action = { kind: 'basic', a: 'leave' };
   let bestV = Number.NEGATIVE_INFINITY;
   list.forEach((a, i) => {
     const s = fork(w, i + 17);
@@ -155,31 +153,28 @@ const prior = (w: World, m: MoveDef) => Math.max(0.05, m.prior?.(w) ?? 1);
 function imagine(tx: Tx): Action {
   const w = tx.w;
   const e = w.enc;
-  if (!e) return { kind: 'basic', a: 'brace' };
+  if (!e) return { kind: 'basic', a: 'leave' };
   const mind = w.minds[e.foe.id];
   const p = portrait(mind);
   const harmless = believes(mind, 'harmless');
-  const weights: [Action, number][] = [
-    [{ kind: 'basic', a: 'press' }, harmless ? 0.1 : 1 + 4 * p.violent],
-    [{ kind: 'basic', a: 'talk' }, 1 + 4 * p.kind],
-    [{ kind: 'basic', a: 'brace' }, 1],
-    [{ kind: 'basic', a: 'leave' }, 0.3],
-  ];
-  if (e.who === 'you') {
-    const seen = new Set(mind?.cards ?? []);
-    charOf(w, 'you').cards.forEach((c, slot) => {
-      if (!c || !seen.has(c.id)) return;
-      const body = cardDef(c.id).tags.includes('body');
-      weights.push([{ kind: 'card', slot }, harmless && body ? 0.1 : 2.2]);
-    });
-  }
+  // 相手が想像するあなたの手は、札と立ち去ることだけ（素手の手は無い）。見た札は
+  // 重く、見ていない札は、あなたが乱暴そうか穏やかそうかで、身体の札か話の札を想像する。
+  const weights: [Action, number][] = [[{ kind: 'basic', a: 'leave' }, 0.3]];
+  const seen = new Set(mind?.cards ?? []);
+  charOf(w, e.who).cards.forEach((c, slot) => {
+    if (!c) return;
+    const body = cardDef(c.id).tags.includes('body');
+    const guess = body ? 0.5 + 2 * p.violent : 0.5 + 2 * p.kind;
+    const x = seen.has(c.id) ? 2.2 : guess;
+    weights.push([{ kind: 'card', slot }, harmless && body ? 0.1 : x]);
+  });
   const total = weights.reduce((a, [, x]) => a + x, 0);
   let r = tx.rand('ai') * total;
   for (const [a, x] of weights) {
     r -= x;
     if (r < 0) return a;
   }
-  return weights[0]?.[0] ?? { kind: 'basic', a: 'brace' };
+  return weights[0]?.[0] ?? { kind: 'basic', a: 'leave' };
 }
 
 function judgeFoe(base: World, s: World): number {

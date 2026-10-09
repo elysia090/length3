@@ -638,19 +638,28 @@
   }
 }
 
-/* カードは名前・回数・効き目（いつも）。タグは、触れたときに。 */
+/*
+ * カードは名前・回数・効き目（いつも）。タグは、触れたときに札の上へ浮かぶ
+ * （札の高さを変えない。変えると手元が上下して、触れたまま揺れる）。
+ */
 .dig-card__tags {
-  display: none;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: -1px;
+  right: -1px;
+  z-index: 2;
+  padding: 2px 8px;
+  border: 1px solid var(--ink-3);
+  background: var(--bg);
+  color: var(--ink-3);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .dig .dig-card.is-open .dig-card__tags,
 .dig .dig-card:hover .dig-card__tags,
 .dig .dig-card:focus-visible .dig-card__tags {
-  display: block;
-}
-
-.dig-card__tags {
-  color: var(--ink-3);
+  visibility: visible;
 }
 
 /* 主役の章は、札の下端に細い線で区切って。進み具合だけ琥珀。 */
@@ -1862,4 +1871,135 @@
   .dig-crown.is-in {
     animation: none;
   }
+}
+
+/*
+ * エピテットの格（金・銀・銅・無垢）。字と縁の色だけで見分ける（塗りはしない）。
+ */
+.dig {
+  --dig-gold: #9a7a1c;
+  --dig-silver: #6d757e;
+  --dig-bronze: #9a5528;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .dig {
+    --dig-gold: #d9b65a;
+    --dig-silver: #b4bcc4;
+    --dig-bronze: #d08a5a;
+  }
+}
+
+:root[data-theme='dark'] .dig {
+  --dig-gold: #d9b65a;
+  --dig-silver: #b4bcc4;
+  --dig-bronze: #d08a5a;
+}
+
+.dig-ep.is-gold,
+.dig .is-gold.dig-pill--ep,
+.dig .is-ep.is-gold {
+  color: var(--dig-gold);
+  border-color: var(--dig-gold);
+}
+
+.dig-ep.is-silver,
+.dig .is-silver.dig-pill--ep,
+.dig .is-ep.is-silver {
+  color: var(--dig-silver);
+  border-color: var(--dig-silver);
+}
+
+.dig-ep.is-bronze,
+.dig .is-bronze.dig-pill--ep,
+.dig .is-ep.is-bronze {
+  color: var(--dig-bronze);
+  border-color: var(--dig-bronze);
+}
+
+.dig-ep.is-plain,
+.dig .is-plain.dig-pill--ep {
+  color: var(--ink-2);
+}
+
+.dig-ep {
+  font-weight: 700;
+}
+
+/* エピテットが刻まれたまま出てきた札（縁の上だけ、刻まれた格の色）。 */
+.dig .dig-offer.is-inked {
+  border-top-width: 1px;
+  border-top-style: double;
+}
+
+/* 後ろで眠っている札。回数の尽きた札は薄く。 */
+.dig-back {
+  flex-wrap: wrap;
+}
+
+.dig-back__card {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+  color: var(--ink-2);
+}
+
+.dig-back__card.is-asleep {
+  color: var(--ink-3);
+}
+
+.dig-back__n {
+  font-family: var(--font-mono);
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+/* 札の眠りぎわ（回数が尽きて後ろへ回るときの一度きり）。 */
+.dig-card__sleep {
+  color: var(--ink-3);
+  font-size: var(--font-ui-xs);
+}
+
+/* その場で使う持ち物（品と道具）。 */
+.dig-gear {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.dig-gear__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig .dig-gear__item {
+  min-height: 1.75rem;
+  padding: 0 8px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig .dig-gear__item.is-tool {
+  border-style: dashed;
+}
+
+/* 手持ちがいっぱいのとき、手放す札を選ぶ列。 */
+.dig-drop {
+  display: grid;
+  gap: 4px;
+}
+
+.dig .dig-drop__card {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-card__sleep {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }

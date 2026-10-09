@@ -1,5 +1,5 @@
-import { PACE } from '../content/balance';
-import { epithetDef } from '../content/registry';
+import { gearOf } from '../content/gear';
+import { cardDef, epithetDef } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import type { Cmd } from '../core/events';
 import type { Char, World } from '../core/model';
@@ -10,12 +10,11 @@ import {
   breathed,
   canChoose,
   cardPrice,
+  deckRoom,
   epPrice,
+  ITEM_CAP,
   isBridge,
   isHall,
-  newCard,
-  nodeOf,
-  ROWS,
   reachable,
 } from './run';
 
@@ -28,6 +27,9 @@ export function pilot(w: World): Cmd | null {
   const e = w.enc;
   if (e) {
     if (e.phase === 'over') return { c: 'close' };
+    // 持ち物は手番を使わない。一手に一つ、効きそうなものを先に使う。
+    const item = useful(w);
+    if (item !== null) return { c: 'item', index: item };
     const a = bestAction(w);
     return a.kind === 'basic' ? { c: 'act', a: a.a } : { c: 'card', slot: a.slot };
   }
@@ -46,7 +48,8 @@ export function pilot(w: World): Cmd | null {
           });
         }
         const pick = pickCard(w, p.cards);
-        return { c: 'claim', take: p.take[0], help, card: pick?.card, slot: pick?.slot };
+        const tool = !pick && w.you.items.length < ITEM_CAP ? p.tools[0] : undefined;
+        return { c: 'claim', take: p.take[0], help, card: pick ?? undefined, tool };
       }
       case 'story': {
         for (let i = 0; i < 6; i++) if (canChoose(w, i)) return { c: 'choose', option: i };
@@ -126,20 +129,14 @@ export function deckScore(c: Char): number {
 function shopping(w: World): Cmd | null {
   const p = w.pending;
   if (p?.kind !== 'shop') return null;
-  const base = deckScore(w.you);
   let best: Cmd | null = null;
   let gain = 9;
   for (const id of p.cards) {
-    if (p.sold.includes(id) || cardPrice(w, id) > w.you.coins) continue;
-    for (let slot = 0; slot < 5; slot++) {
-      const cards = [...w.you.cards];
-      cards[slot] = newCard(0, id);
-      const c = { ...w.you, cards };
-      const g = deckScore(c) - base;
-      if (g > gain) {
-        gain = g;
-        best = { c: 'buy', id, slot };
-      }
+    if (p.sold.includes(id) || cardPrice(w, id) > w.you.coins || !deckRoom(w.you)) continue;
+    // 後ろに入る札は構成を変えないので、余地があれば一枚だけ買う。
+    if (gain < 10) {
+      gain = 10;
+      best = { c: 'buy', id };
     }
   }
   for (const it of p.items) {
@@ -177,23 +174,34 @@ function inscription(w: World): Cmd | null {
   return null;
 }
 
-/** 拾う札を選ぶ。空き枠があれば、構成がいちばん良くなる札を入れる。なければ入れ替えが得なときだけ。 */
-function pickCard(w: World, offer: readonly string[]): { card: string; slot: number } | null {
-  const base = deckScore(w.you);
-  const empty = w.you.cards.findIndex((c) => !c);
-  let best: { card: string; slot: number } | null = null;
-  let gain = empty >= 0 ? Number.NEGATIVE_INFINITY : 9;
+/** 拾う札を選ぶ。持てる余地があれば、回数の多い札を。いっぱいなら拾わない。 */
+function pickCard(w: World, offer: readonly string[]): string | null {
+  if (!deckRoom(w.you) && w.you.cards.every(Boolean)) return null;
+  let best: string | null = null;
+  let most = -1;
   for (const id of offer) {
-    const slots = empty >= 0 ? [empty] : [0, 1, 2, 3, 4];
-    for (const slot of slots) {
-      const cards = [...w.you.cards];
-      cards[slot] = newCard(0, id);
-      const g = deckScore({ ...w.you, cards }) - base + (empty >= 0 ? 1 : 0);
-      if (g > gain) {
-        gain = g;
-        best = { card: id, slot };
-      }
+    const n = cardDef(id).uses;
+    if (n > most) {
+      most = n;
+      best = id;
     }
   }
   return best;
+}
+
+/** 向き合っているあいだに使う持ち物（体が細ければ癒やすもの、あとは効き目のあるもの）。 */
+function useful(w: World): number | null {
+  const e = w.enc;
+  if (!e || e.who !== 'you' || e.phase !== 'act' || e.st[`item:${e.turn}`]) return null;
+  const low = w.you.hp * 2 < maxHp(stats(w, 'you'));
+  let at: number | null = null;
+  w.you.items.forEach((it, i) => {
+    if (at !== null) return;
+    const g = gearOf(it.id);
+    if (!g) return;
+    if (g.heal?.hp && low) at = i;
+    else if (g.fx?.some((f) => ['hit', 'break', 'trust', 'clue', 'stun', 'cut'].includes(f[0])))
+      at = i;
+  });
+  return at;
 }
