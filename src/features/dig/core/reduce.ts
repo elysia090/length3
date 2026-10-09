@@ -53,6 +53,7 @@ export function emptyWorld(): World {
     enc: null,
     pending: null,
     flags: {},
+    after: [],
     goals: [],
     unlocked: [],
     seen: [],
@@ -244,6 +245,24 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'deck.drop':
       charOf(w, ev.who).back.splice(ev.index, 1);
+      break;
+    case 'after': {
+      // 同じ種類の余韻は一つだけ（長いほうに揃える）。
+      const old = w.after.some((a) => a.kind === ev.after.kind);
+      w.after = old
+        ? w.after.map((a) =>
+            a.kind === ev.after.kind
+              ? { ...a, left: Math.max(a.left, ev.after.left), npc: ev.after.npc }
+              : a,
+          )
+        : [...w.after, { ...ev.after }];
+      break;
+    }
+    case 'after.tick':
+      w.after = w.after.map((a) => ({ ...a, left: a.left - 1 })).filter((a) => a.left > 0);
+      break;
+    case 'after.end':
+      w.after = w.after.filter((a) => a.kind !== ev.kind);
       break;
     case 'level':
       charOf(w, ev.who).level += ev.n;

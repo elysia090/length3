@@ -1,3 +1,4 @@
+import { AFTER } from '../content/after';
 import { WORK_ARCH } from '../content/archetypes';
 import { DATA_VERSION, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
@@ -12,6 +13,7 @@ import {
   sectionName,
   sectionNo,
   sectionOf,
+  THEMES,
   useOf,
 } from '../content/floors';
 import { holds, run as runFx } from '../content/fx';
@@ -26,6 +28,7 @@ import {
   type Sheet,
   START_CARDS,
 } from '../content/origins';
+import { QUIRKS, quirkDef } from '../content/quirks';
 import {
   allBuilds,
   allCards,
@@ -415,6 +418,20 @@ function buildMap(tx: Tx, stratum: number): void {
     a.next = [b.id];
     b.next = back.filter((_, i) => i === 0 || tx.rand('map') < 0.5).map((n) => n.id);
     nodes.push(a, b);
+  }
+  // 階の癖。入口の階と最後の相手の階を除いて、三つに一つほど。隣り合う階は同じ癖にしない。
+  let prevQuirk: string | undefined;
+  for (let row = 1; row < ROWS; row++) {
+    if (tx.rand('map') >= PACE.quirk) {
+      prevQuirk = undefined;
+      continue;
+    }
+    const q = tx.pick(
+      'map',
+      QUIRKS.filter((x) => x.id !== prevQuirk),
+    );
+    prevQuirk = q?.id;
+    if (q) for (const n of nodes) if (n.row === row && n.kind !== 'boss') n.quirk = q.id;
   }
   tx.emit({ type: 'map.built', stratum, nodes });
 }
@@ -849,9 +866,18 @@ export function move(tx: Tx, id: number): boolean {
   const node = reachable(w).find((n) => n.id === id);
   if (!node) return false;
   const from = w.pos;
+  const fromRow = nodeOf(w, from)?.row;
   const hall = isHall(w, node);
   const bridge = isBridge(w, node);
   tx.emit({ type: 'moved', node: node.id });
+  // 癖のある階に着いたら、一度だけ名場面の帯で告げる。
+  const q = quirkDef(node.quirk);
+  if (q && fromRow !== node.row)
+    tx.emit({
+      type: 'note',
+      text: `B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}・${q.name} ── ${q.text}`,
+      level: 3,
+    });
   // 後ろで休んでいる札は、部屋を移るたびに一回ずつ戻る。
   w.you.back.forEach((b, index) => {
     if (b.uses < b.max) tx.emit({ type: 'deck.uses', who: 'you', index, n: 1 });
@@ -965,7 +991,7 @@ function happen(tx: Tx, node: MapNode): void {
 
 function enter(tx: Tx, node: MapNode, from: number | null = null): void {
   const w = tx.w;
-  // 最後の相手の扉の前で、一度だけ息を整える（体も心も、六割までは戻る）。
+  // 最後の相手の扉の前で、一度だけ息を整える（体も心も、七割半までは戻る）。
   // 弱ったまま試験に入って、何もできずに崩れることがないように。
   if (node.kind === 'boss' && !w.flags[`gate:${w.stratum}`]) {
     tx.emit({ type: 'flag', key: `gate:${w.stratum}`, v: 1 });
@@ -976,6 +1002,13 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
       tx.emit({ type: 'vital', who: 'you', hp: dh, mind: dm });
       tx.emit({ type: 'note', text: '扉の前で、息を整えた。', level: 1 });
     }
+    // 区画の底に着いた（名場面の帯で、一度だけ）。
+    const who = node.npc ? foeDef(node.npc).name : '最後の相手';
+    tx.emit({
+      type: 'note',
+      text: `${'一二三四五六七八九'[w.stratum - 1] ?? w.stratum}の区画の底、B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}。${who}が待っていた。`,
+      level: 3,
+    });
   }
   if (node.npc) {
     if (node.eps.some((e) => epithetDef(e)?.place?.empty) && node.kind !== 'boss') {
@@ -1212,6 +1245,30 @@ export function close(tx: Tx): boolean {
   }
   const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];
   if (o === 'beaten') tx.emit({ type: 'flag', key: 'beaten', v: (w.flags.beaten ?? 0) + 1 });
+  // 決着の余韻（どう決着をつけたかが、この先に大げさに尾を引く）。
+  const aft = AFTER[o];
+  if (aft) {
+    tx.emit({ type: 'after', after: { kind: aft.kind, npc: e.foe.id, left: aft.left } });
+    if (o === 'beaten') {
+      // 戦利品：金と、品を一つ（持ちきれなければ金で）。
+      const loot = 8 + 4 * w.stratum;
+      coins(tx, loot, 'you');
+      notes.push(`戦利品 金 ${loot}`);
+      const id = lootItem(tx);
+      if (id && w.you.items.length < ITEM_CAP) {
+        tx.emit({ type: 'item', who: 'you', id, n: 1, uses: gearOf(id)?.uses });
+        notes.push(gearOf(id)?.name ?? id);
+      }
+    } else if (o === 'broken') {
+      // 相手の名を奪う：エピテットが一つ落ちる（相手に刻まれていたものがあれば、それ）。
+      const pool = allEpithets().filter((x) => x.rarity !== 'rare');
+      const ep = e.foe.eps[0] ?? tx.pick('loot', pool)?.id;
+      if (ep) {
+        tx.emit({ type: 'ep.held', who: 'you', ep, n: 1 });
+        notes.push(`エピテット《${epithetDef(ep)?.name ?? ep}》`);
+      }
+    }
+  }
   if (p.npc === 'rival') tx.emit({ type: 'flag', key: 'rivalMet', v: 1 });
   // 打ち解けたり暴いたりすると、エピテットを拾うことがある。
   if ((o === 'trusted' || o === 'uncovered') && tx.rand('loot') < 0.45) {
@@ -1413,6 +1470,25 @@ export function onward(tx: Tx, go: boolean): boolean {
 
 function descend(tx: Tx): void {
   const w = tx.w;
+  // 区画の記録：この区画で、誰とどう決着をつけたか（名場面の帯に一行）。
+  const ways: [string, string][] = [
+    ['beaten', '倒した'],
+    ['broken', '折った'],
+    ['trusted', '打ち解けた'],
+    ['uncovered', '暴いた'],
+  ];
+  const tally = ways
+    .map(([k, name]) => {
+      const n = (w.you.deeds[k] ?? 0) - (w.flags[`snap:${k}`] ?? 0);
+      return n > 0 ? `${name} ${n}` : '';
+    })
+    .filter(Boolean);
+  tx.emit({
+    type: 'note',
+    text: `${'一二三四五六七八九'[w.stratum - 1] ?? w.stratum}の区画を抜けた${tally.length ? ` ── ${tally.join('・')}` : ''}`,
+    level: 3,
+  });
+  for (const [k] of ways) tx.emit({ type: 'flag', key: `snap:${k}`, v: w.you.deeds[k] ?? 0 });
   if (w.stratum < LAST) crown(tx);
   const next = w.stratum + 1;
   buildMap(tx, next);
@@ -1430,15 +1506,17 @@ function descend(tx: Tx): void {
   tx.emit({
     type: 'note',
     text:
-      next <= LAST
+      next <= THEMES
         ? `${'一二三'[next - 1] ?? next}の区画、${sec.name}。B${(next - 1) * (ROWS + 1) + 1}〜B${next * (ROWS + 1)}。${sec.open}`
-        : `B${(next - 1) * (ROWS + 1) + 1}。${sectionName(next)}。上の${sec.name}と同じ造りだが、空気が古い。`,
+        : next <= LAST
+          ? `${'一二三四五六'[next - 1] ?? next}の区画、${sectionName(next)}。B${(next - 1) * (ROWS + 1) + 1}〜B${next * (ROWS + 1)}。上の${sec.name}と同じ造りだが、空気が古い。`
+          : `B${(next - 1) * (ROWS + 1) + 1}。${sectionName(next)}。抜けたあとの、もっと古い階。`,
     level: 2,
   });
   // 新しい掟は、着いたときに一度だけ（名場面の帯に）。
   const law = LAWS[next];
   if (law) tx.emit({ type: 'note', text: `掟《${law.name}》 ── ${law.text}`, level: 3 });
-  else if (next > LAST)
+  else if (next > THEMES)
     tx.emit({
       type: 'note',
       text: `掟はそのまま ── ${lawsAt(next)

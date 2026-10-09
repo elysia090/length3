@@ -364,6 +364,17 @@ export function settle(tx: Tx): void {
               : all
                 ? 'uncovered'
                 : null;
+  // 味方の肩代わり：倒れる一撃を、一度だけ味方が受ける（大げさに、少しだけ不公平に）。
+  if (out === 'fallen' && e.who === 'you') {
+    const ally = tx.w.after.find((a) => a.kind === 'ally');
+    if (ally) {
+      tx.emit({ type: 'vital', who: 'you', hp: 1 - c.hp });
+      tx.emit({ type: 'after.end', kind: 'ally' });
+      say(tx, 'voice', `${foeDef(ally.npc).name}が、あなたの前に立った。`);
+      tx.emit({ type: 'note', text: `${foeDef(ally.npc).name}が身代わりになった。`, level: 3 });
+      return;
+    }
+  }
   if (out) end(tx, out);
 }
 

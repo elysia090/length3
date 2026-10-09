@@ -1,5 +1,7 @@
+import { afterDef } from '../content/after';
 import { WORK_ARCH } from '../content/archetypes';
 import { PACE } from '../content/balance';
+import { quirkDef } from '../content/quirks';
 import {
   allBuilds,
   allCards,
@@ -12,7 +14,7 @@ import {
 } from '../content/registry';
 import { buildsOf } from '../content/sources';
 import { branch } from '../core/branch';
-import type { MapNode, World } from '../core/model';
+import type { AfterKind, MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { decide } from './decide';
 import { type Miss, misses } from './near';
@@ -128,6 +130,10 @@ export function sourceLabel(src: string): string | null {
       return b ? `《${epithetDef(b)?.name ?? b}》` : null;
     case 'stage':
       return a ? `見せ場［${TAG_NAME[a as Tag]}］` : null;
+    case 'quirk':
+      return a ? (quirkDef(a)?.name ?? null) : null;
+    case 'after':
+      return a ? (afterDef(a as AfterKind)?.name ?? null) : null;
     case 'foe':
     case 'place':
     case 'story':

@@ -1,5 +1,5 @@
 import { clamp } from '../../../../shared/pixel/math';
-import { AMBER, INK, PAPER, type Raster, threshold } from '../../../../shared/pixel/raster';
+import { INK, PAPER, type Raster, threshold } from '../../../../shared/pixel/raster';
 import type { RoomKind } from './types';
 
 /** 人の記号・部屋の印・計器など、小さな絵の部品（塔の上の位置は呼ぶ側が決める）。 */
@@ -81,7 +81,8 @@ export function mark(r: Raster, kind: RoomKind, x: number, y: number, dim: boole
   const oy = Math.round(y - rows.length + 1);
   rows.forEach((row, j) => {
     for (let i = 0; i < row.length; i++)
-      if (row[i] === '1') r.set(ox + i, oy + j, kind === 'rest' ? AMBER : c);
+      // 琥珀はあなたの灯りと選べる道のためだけに取っておく（食堂の印も墨で）。
+      if (row[i] === '1') r.set(ox + i, oy + j, c);
   });
 }
 
@@ -143,32 +144,4 @@ export function glyph(r: Raster, kind: string, x: number, y: number, c: number):
 /** 頭から計器への細い点線。 */
 export function leader(r: Raster, x0: number, y0: number, x1: number, y1: number): void {
   r.line(x0, y0, 99, x1, y1, 99, INK, false, 0, [1, 2]);
-}
-
-/** 円環にまばらな点（守り・落ち着き）。from〜to は角度（ラジアン）。 */
-export function veil(
-  r: Raster,
-  cx: number,
-  cy: number,
-  rad: number,
-  thick: number,
-  density: number,
-  c: number,
-  from = 0,
-  to = Math.PI * 2,
-): void {
-  for (let y = Math.floor(cy - rad - 1); y <= cy + rad + 1; y++)
-    for (let x = Math.floor(cx - rad - 1); x <= cx + rad + 1; x++) {
-      const dx = x - cx;
-      const dy = (y - cy) * 1.3;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d > rad || d < rad - thick) continue;
-      let a = Math.atan2(dy, dx);
-      if (a < 0) a += Math.PI * 2;
-      const inArc = from <= to ? a >= from && a <= to : a >= from || a <= to;
-      if (!inArc) continue;
-      // 縁は濃く、内側ほど薄く。
-      const edge = d > rad - 1.2 ? 2.2 : 1;
-      if (threshold(x, y) < density * edge) r.set(x, y, c);
-    }
 }

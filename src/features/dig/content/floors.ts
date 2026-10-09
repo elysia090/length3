@@ -4,7 +4,7 @@ import type { Tag } from '../core/tags';
 /**
  * 建物の間取り。底の見えない建物を、灯りを提げて下りていく。
  *
- * 区画     九つのフロアでひとまとまり。下の区画ほど、古い夜が残っている
+ * 区画     十のフロアでひとまとまり。下の区画ほど、古い夜が残っている
  *          （着くと時計は 22 時に戻る。上の夜とは別の夜だから）
  * 用途     フロアには用途がある（喫茶・路地・書庫・映写室・標本室…）。
  *          そこにいる人物も、場所に刻まれたエピテットも、そこで輝くカード
@@ -312,10 +312,14 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
 };
 
 /** 底の手前までの区画の数（ここを抜けると、ひとまず抜けたことになる）。 */
-export const LAST = 3;
+/** 区画の顔ぶれの数（夜の街・記録の階・琥珀の階。四つ目からは巡る）。 */
+export const THEMES = 3;
+/** 抜けるのは六つ目の区画の底（B60）。四つ目から六つ目は「深い」区画。 */
+export const LAST = 6;
 
 /**
  * 区画の中身。三つ目より下は、上の区画がもう一度現れる（もっと古い、同じ夜）。
+ * 四つ目から六つ目は「深い」区画で、六つ目の底（B60）を抜ければ挑戦は抜けたことになる。
  * 人も用途も同じだが、相手は区画の深さのぶん手強く、掟は重なっていく。
  */
 export function sectionOf(stratum: number): Section {
@@ -323,13 +327,14 @@ export function sectionOf(stratum: number): Section {
 }
 
 /** 区画の中身の番号（1〜3。三つ目より下は巡る）。 */
-export const sectionNo = (stratum: number): number => ((((stratum - 1) % LAST) + LAST) % LAST) + 1;
+export const sectionNo = (stratum: number): number =>
+  ((((stratum - 1) % THEMES) + THEMES) % THEMES) + 1;
 
 /** 区画の呼び名。三つ目より下は「深い」「底の」を冠する。 */
 export function sectionName(stratum: number): string {
   const base = sectionOf(stratum).name;
-  if (stratum <= LAST) return base;
-  return `${stratum <= LAST * 2 ? '深い' : '底の'}${base}`;
+  if (stratum <= THEMES) return base;
+  return `${stratum <= LAST ? '深い' : '底の'}${base}`;
 }
 
 /** 用途を id から（その区画の中で）。 */
@@ -361,5 +366,6 @@ export const BEATS: readonly Beat[] = [
   { name: '中休み', rooms: ['rest', 'person'], stage: 0.2 },
   { name: '欲張り', rooms: ['?', 'person', 'shop'], stage: 0.8 },
   { name: '余波', rooms: ['event', 'person', '?'], stage: 0.5 },
+  { name: '踊り場', rooms: ['person', '?', 'event'], stage: 0.6 },
   { name: '補給', rooms: ['rest', 'shop', 'person'], stage: 0.3 },
 ];

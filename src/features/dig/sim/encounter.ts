@@ -223,9 +223,50 @@ export function startEnc(
     const shown = (epithetDef(ep)?.foe?.show ?? 0) + (epithetDef(ep)?.place?.clue ?? 0);
     for (let i = 0; i < shown; i++) revealClue(tx);
   }
+  if (who === 'you' && w.after.length) aftermath(tx);
   def.init?.(tx);
   if (statOf(w, who, 'AGI') >= e.foe.agi + 3) tx.emit({ type: 'foe.st', key: 'late', n: 1 });
   planFoe(tx);
+}
+
+/**
+ * 決着の余韻が、遭遇の初めに効く（悪名と見透かしの規則は sources が持つ）。
+ * 効いたら、どの余韻も一つ減る。
+ */
+function aftermath(tx: Tx): void {
+  const w = tx.w;
+  const e = w.enc;
+  if (!e) return;
+  for (const a of w.after) {
+    switch (a.kind) {
+      case 'feared':
+        tx.emit({
+          type: 'foe',
+          field: 'resolve',
+          n: -Math.min(e.foe.resolve - 1, Math.round(e.foe.resolve * 0.3)),
+        });
+        say(tx, 'voice', '噂が先に着いていた。相手は、もう怯えている。');
+        break;
+      case 'ally':
+        tx.emit({ type: 'enc.you', field: 'guard', n: 4 });
+        tx.emit({ type: 'enc.you', field: 'calm', n: 4 });
+        if (e.foe.need < 50)
+          tx.emit({
+            type: 'foe',
+            field: 'trust',
+            n: Math.max(0, Math.min(1, e.foe.need - 1 - e.foe.trust)),
+          });
+        say(tx, 'voice', `${foeDef(a.npc).name}が、そばにいる。`);
+        break;
+      case 'insight':
+        revealClue(tx);
+        break;
+      case 'notorious':
+        say(tx, 'voice', '悪名が先回りしていた。');
+        break;
+    }
+  }
+  tx.emit({ type: 'after.tick' });
 }
 
 function rivalStats(w: World, r: Char) {

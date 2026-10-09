@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.13.0';
+export const DATA_VERSION = '1.14.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -42,11 +42,11 @@ export const POINTS = {
 } as const;
 
 export const PACE = {
-  rows: 8,
+  rows: 9,
   dawn: 10,
-  tough: 1.95,
+  tough: 1.8,
   build: 1.7,
-  stratum: 0.3,
+  stratum: 0.22,
   /** 底の手前より下の区画ごとの掛け算（体・意志）。 */
   deep: 1.3,
   rest: 0.4,
@@ -58,7 +58,7 @@ export const PACE = {
   keystone: 0.7,
   noon: 4,
   /** 決着のあと、体と心がこの割合を下回っていたら、ここまで息を整える（一度の遭遇で次が詰まないように）。 */
-  breath: 0.35,
+  breath: 0.4,
   /** もう一人の灯り持ちと鉢合わせるのは、このフロアから（入口で潰されないように）。 */
   rivalFrom: 4,
   /** 気まぐれ（選択肢が減る・増える・妙なものが混じる）の割合。 */
@@ -73,7 +73,9 @@ export const PACE = {
   /** 決着のあと、その場で使える品が一つ手に入る割合。 */
   loot: 0.35,
   /** 最後の相手の扉の前で、体と心がここまで戻る。 */
-  gate: 0.6,
+  gate: 0.75,
+  /** 階の癖がつく割合（入口と最後の相手の階を除く）。 */
+  quirk: 0.35,
   /** 下りた先で、選択のない小さな出来事が起きる割合。 */
   auto: 0.22,
 } as const;

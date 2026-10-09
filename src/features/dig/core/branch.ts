@@ -91,6 +91,7 @@ export function branch(w: World): World {
     ...w,
     rng: { ...w.rng },
     flags: { ...w.flags },
+    after: w.after.map((a) => ({ ...a })),
     found: [...w.found],
     seen: [...w.seen],
     unlocked: [...w.unlocked],

@@ -1,3 +1,4 @@
+import { AFTER, afterDef } from '../content/after';
 import { PACE } from '../content/balance';
 import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
 import { EP_TIER_NAME, epTier } from '../content/epithets';
@@ -9,6 +10,7 @@ import { gearOf } from '../content/gear';
 import { lawsAt } from '../content/laws';
 import { legendState } from '../content/legends';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
+import { quirkDef } from '../content/quirks';
 import {
   allJobs,
   cardDef,
@@ -185,7 +187,7 @@ const KANJI = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '�
 const sectNo = (n: number) => (n <= 10 ? (KANJI[n] ?? String(n)) : String(n));
 
 /**
- * 区画の進み。九階で一つの区画で、九つ目が最後の相手。いまの階は琥珀、
+ * 区画の進み。十階で一つの区画で、十階目が最後の相手。いまの階は琥珀、
  * 下りた階は塗り、最後の相手は菱形。区画の番号を頭に添える。
  */
 const sectionGauge = (w: World, row: number) => {
@@ -1202,6 +1204,9 @@ export function openDig(doc: Document, onClose: () => void): void {
         hard !== null ? hardTag(hard, youHardness(w)) : null,
         over ? h('span', { class: 'dig-warn' }, ' 歯が立たない') : null,
       ),
+      quirkDef(n.quirk)
+        ? h('span', { class: 'dig-quiet' }, `階の癖：${quirkDef(n.quirk)?.text}`)
+        : null,
       aim?.kind === 'inscribe' && nodeInkable(w, aim.ep, n)
         ? h(
             'span',
@@ -1241,6 +1246,14 @@ export function openDig(doc: Document, onClose: () => void): void {
       const hard = youHardness(w);
       items.push(
         h('span', { class: 'dig-where' }, ...placeOf(w, row >= 0 ? nodeOf(w, w.pos) : undefined)),
+        // 階の癖（その階にいるあいだだけ。触れると得と癖）。
+        quirkDef(nodeOf(w, w.pos)?.quirk)
+          ? h(
+              'span',
+              { class: 'dig-quirk', title: quirkDef(nodeOf(w, w.pos)?.quirk)?.text },
+              quirkDef(nodeOf(w, w.pos)?.quirk)?.name,
+            )
+          : null,
         sectionGauge(w, row),
         // 時刻と、いまが夜か朝か（数えなくていい。夜は、また来る）。
         h(
@@ -1601,19 +1614,63 @@ export function openDig(doc: Document, onClose: () => void): void {
             disabled: breathed(w),
             title: '少しだけ体と心が戻る。1 時間たつ。',
           }),
-          // 抜けたあとは、いつでもここで灯りを置ける（どこまで下りたかを持ち帰る）。
-          w.flags.cleared
-            ? act(
-                '灯りを置く',
-                `B${floorNo(w, Math.max(0, nodeOf(w, w.pos)?.row ?? 0))}までを持ち帰る`,
-                () => send({ c: 'onward', go: false }),
-              )
-            : null,
         ),
         gearRow(w, false),
+        afterRow(w),
+        // 抜けたあとは、いつでも灯りを置ける（どこまで下りたかを持ち帰る）。挑戦が
+        // 終わる一手なので、ほかの釦から離して置き、二度押さないと置かない。
+        w.flags.cleared ? lampButton(w) : null,
       ),
     );
     return h('div', {}, ...kids);
+  }
+
+  /** いま尾を引いている決着の余韻（残りの遭遇の数つき）。 */
+  function afterRow(w: World): HTMLElement | null {
+    if (!w.after.length) return null;
+    return h(
+      'p',
+      { class: 'dig-afters' },
+      w.after.map((a) => {
+        const d = afterDef(a.kind);
+        return h(
+          'span',
+          { class: `dig-after is-${a.kind}`, title: d?.text ?? '' },
+          `${d?.name ?? a.kind}`,
+          h('i', {}, ` あと ${a.left}`),
+        );
+      }),
+    );
+  }
+
+  /** 灯りを置く釦。一度押すと構え（四秒）、もう一度押すと置く。 */
+  let lampArmed = -9;
+  function lampButton(w: World): HTMLElement {
+    const armed = now() - lampArmed < 4;
+    const at = `B${floorNo(w, Math.max(0, nodeOf(w, w.pos)?.row ?? 0))}`;
+    return h(
+      'div',
+      { class: 'dig-lamp' },
+      button(
+        armed ? `もう一度押すと、${at}で灯りを置く` : '灯りを置く…',
+        () => {
+          if (now() - lampArmed < 4) {
+            lampArmed = -9;
+            send({ c: 'onward', go: false });
+            return;
+          }
+          lampArmed = now();
+          render();
+          window.setTimeout(() => {
+            if (now() - lampArmed >= 4) render();
+          }, 4100);
+        },
+        {
+          class: `dig-lamp__b${armed ? ' is-armed' : ''}`,
+          title: `${at}までを持ち帰って、挑戦を終える`,
+        },
+      ),
+    );
   }
 
   /**
@@ -1935,8 +1992,21 @@ export function openDig(doc: Document, onClose: () => void): void {
             ? effectOf(w, { c: 'act', a: hoverAct })
             : null;
     // 四つの決着の道。どれか一つを尽くせば終わる（これが遭遇の目当て）。
+    // 道ごとに、終えたあとに何が尾を引くかを一言（四つの道は同じ勝ちではない）。
+    const AFTER_HINT: Record<string, string> = {
+      倒す: '戦利品・悪名',
+      折る: '名を奪う・畏れ',
+      打ち解ける: '味方がつく',
+      暴く: '記憶・見透かし',
+    };
     const way = (verb: string, el: HTMLElement) =>
-      h('div', { class: 'dig-way' }, h('span', { class: 'dig-way__verb' }, verb), el);
+      h(
+        'div',
+        { class: 'dig-way' },
+        h('span', { class: 'dig-way__verb' }, verb),
+        el,
+        h('span', { class: 'dig-way__after' }, AFTER_HINT[verb] ?? ''),
+      );
     const ways = [
       way(
         '倒す',
@@ -1975,6 +2045,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         '　',
         hardTag(hard, you),
       ),
+      afterRow(w),
       // 一巡：前の手番（あなた → 相手）と、相手の次の手。
       lastTurn.length
         ? h(
@@ -2163,6 +2234,16 @@ export function openDig(doc: Document, onClose: () => void): void {
         h('span', { class: 'dig-result__who' }, foeDef(p.npc).name),
         h('b', { class: `dig-result__stamp${fresh ? ' is-in' : ''}` }, OUTCOME_NAME[p.outcome]),
       ),
+      // これから何が尾を引くか（決着の余韻）。
+      AFTER[p.outcome]
+        ? h(
+            'p',
+            { class: `dig-after-line${fresh ? ' is-in' : ''}` },
+            h('b', {}, `${AFTER[p.outcome]?.name}`),
+            '　',
+            AFTER[p.outcome]?.text ?? '',
+          )
+        : null,
       spoils.list.length
         ? h(
             'ul',
@@ -3040,7 +3121,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'p',
           { class: 'dig-quiet' },
-          '底の見えない建物を下りる。九階で一つの区画、三つ目の区画の底（B27）を抜ければ、ひとまず抜けた。手札とエピテットと記憶で、その周回の生き方が変わる。向き合った相手とは、殴り合うか、話をつけるか、退くか。疲れたら休む。',
+          '底の見えない建物を下りる。十階で一つの区画、六つ目の区画の底（B60）を抜ければ、ひとまず抜けた。手札とエピテットと記憶で、その周回の生き方が変わる。向き合った相手とは、殴り合うか、話をつけるか、退くか。疲れたら休む。',
         ),
         saved
           ? button(

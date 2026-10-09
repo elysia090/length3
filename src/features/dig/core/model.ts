@@ -31,6 +31,16 @@ export interface Card {
 
 export type Who = 'you' | 'rival';
 
+/** 決着の余韻の種類（倒す・折る・打ち解ける・暴く）。 */
+export type AfterKind = 'notorious' | 'feared' | 'ally' | 'insight';
+
+/** 決着の余韻。この先の遭遇に尾を引く（left は残りの遭遇の数）。 */
+export interface After {
+  kind: AfterKind;
+  npc: string;
+  left: number;
+}
+
 /** 持ち物の一つ（品か道具の id と、残りの回数）。 */
 export interface Held {
   id: string;
@@ -92,6 +102,8 @@ export interface MapNode {
   use?: string;
   /** どの塔か（0 本棟、-1 左、1 右）。隣の塔へは渡り廊下で。 */
   tower?: number;
+  /** 階の癖（その階の部屋にいるあいだだけ効く）。 */
+  quirk?: string;
 }
 
 // ─── 遭遇 ─────────────────────────────────────────────────────
@@ -336,6 +348,8 @@ export interface World {
   enc: Enc | null;
   pending: Pending | null;
   flags: Record<string, number>;
+  /** 決着の余韻（この先の遭遇に尾を引くもの）。 */
+  after: After[];
   /** いま見えている目標（小・中・大の三つ）。 */
   goals: Goal[];
   unlocked: string[];

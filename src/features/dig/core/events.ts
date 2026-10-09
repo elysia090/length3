@@ -71,6 +71,10 @@ export type Ev =
   | { type: 'deck.swap'; who: Who; slot: number; index: number }
   | { type: 'deck.uses'; who: Who; index: number; n: number }
   | { type: 'deck.drop'; who: Who; index: number }
+  /** 決着の余韻が付く・遭遇ごとに一つ減る・使い切る。 */
+  | { type: 'after'; after: import('./model').After }
+  | { type: 'after.tick' }
+  | { type: 'after.end'; kind: import('./model').AfterKind }
   /** 地力が新しい高さに届いた（持てる札 +1）。 */
   | { type: 'level'; who: Who; n: number }
   | { type: 'debt'; who: Who; npc: string; n: number }
