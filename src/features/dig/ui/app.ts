@@ -50,7 +50,6 @@ import { getLang, setLang, tr } from '../i18n';
 import {
   type Advice,
   advise,
-  nodeLabel,
   preview,
   type Route,
   type RouteKind,
@@ -79,7 +78,6 @@ import { misses } from '../sim/near';
 import { epUses, itemRoom, maxHp, maxMind, stats } from '../sim/ops';
 import {
   alterOptions,
-  breathed,
   canChoose,
   cardPrice,
   curePrice,
@@ -96,7 +94,6 @@ import {
   priceOf,
   ROWS,
   reachable,
-  restChance,
   START_BACK,
   storyChance,
   stratumName,
@@ -251,7 +248,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   /** 押して見ている部屋（脇に詳しく出す）。 */
   let pinned: number | null = null;
   /** 見取り図に描く道（選んだ一本と、触れている一本だけ）。 */
-  let routeSel: RouteKind | null = null;
+  /** 選んでいる道。'walk' は自分の脚で（推奨を切る手動）。 */
+  let routeSel: RouteKind | 'walk' | null = null;
   let routePeek: RouteKind | null = null;
   /** 案内を一覧でめくっているときの位置。 */
   let browse: number | null = null;
@@ -260,6 +258,9 @@ export function openDig(doc: Document, onClose: () => void): void {
   let opened: number | null = null;
   /** 遭遇中に触れている札（相手の四つの道に、効き目を先に映す）。 */
   let hoverSlot: number | null = null;
+  /** 狭い画面で、一度押して構えた札（もう一度押すと切る）。 */
+  let armedSlot: number | null = null;
+  const narrow = () => window.matchMedia('(max-width: 52rem)').matches;
   /** 触れている札以外の手（札と同じく、四つの道に先に映す）。 */
   let hoverAct: Basic | null = null;
   /** 触れている選択肢（押す前に、相手になれる札を白く見せる）。 */
@@ -373,7 +374,12 @@ export function openDig(doc: Document, onClose: () => void): void {
   const tray = h('footer', { class: 'dig-tray' });
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
   const main = h('main', { class: 'dig-main' }, view, side);
-  const app = h('div', { class: 'dig-app' }, bar, main, tray, live);
+  // 狭い画面だけ：地図の下の切り替え（札 ⇄ 情報）と、受け取りの下端の「前へ・次へ」。
+  const paneSwitch = h('div', { class: 'dig-panes', role: 'tablist', hidden: true });
+  // 狭い画面の遭遇：上帯（あなた）のすぐ下に、相手の段（名前・次の手・四つの道の棒）。
+  const foeBar = h('div', { class: 'dig-foebar', hidden: true });
+  const stepNav = h('nav', { class: 'dig-stepnav', hidden: true });
+  const app = h('div', { class: 'dig-app' }, bar, foeBar, main, paneSwitch, tray, stepNav, live);
   dialog.append(app);
   doc.body.append(dialog);
   dialog.showModal();
@@ -436,6 +442,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     else if (cmd.c === 'move' || cmd.c === 'close') lastTurn = [];
     hoverSlot = null;
     hoverAct = null;
+    armedSlot = null;
     if (!evs.length) {
       sound.fail();
       return false;
@@ -1108,10 +1115,8 @@ export function openDig(doc: Document, onClose: () => void): void {
       ? [...advice.win, ...advice.play].map((r) => ({
           kind: r.kind,
           path: r.path,
-          mark:
-            r.kind === 'almost' && r.hint
-              ? r.path.find((id) => r.hint?.startsWith(nodeLabel(nodeOf(w, id) as MapNode)))
-              : undefined,
+          // 地図の印：道の先へ刻む部屋。
+          mark: r.mark?.node,
         }))
       : [];
     const rv = w.rival;
@@ -1430,7 +1435,65 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   // ─── 脇 ─────────────────────────────────────────────────────
 
+  /** 相手の段（狭い画面の遭遇）。構えた札・触れている札の効き目を、棒の先に点滅で。 */
+  function renderFoeBar(): void {
+    foeBar.replaceChildren();
+    const w = game && screen === 'play' ? (staged ?? game.world) : null;
+    const e = w?.enc;
+    foeBar.hidden = !w || !e;
+    if (!w || !e) return;
+    const f = e.foe;
+    const intent = shownIntent(w);
+    const sel = armedSlot ?? hoverSlot;
+    const eff = e.phase === 'act' && sel !== null && w.you.cards[sel] ? cardEffect(w, sel) : null;
+    const shown = f.clues.filter((c) => c.shown && !c.false).length;
+    const way = (verb: string, el: HTMLElement) =>
+      h('div', { class: 'dig-foebar__way' }, h('span', { class: 'dig-foebar__verb' }, verb), el);
+    fill(foeBar, [
+      h(
+        'p',
+        { class: 'dig-foebar__head' },
+        h('b', { class: 'dig-foebar__name' }, f.name),
+        hardTag(foeHardness(f), youHardness(w)),
+        intent && e.phase === 'act'
+          ? h(
+              'span',
+              { class: 'dig-foebar__intent' },
+              '次の手 ',
+              h('b', {}, intent.label),
+              intent.power ? h('i', {}, String(intent.power)) : null,
+            )
+          : null,
+      ),
+      h(
+        'div',
+        { class: 'dig-foebar__ways' },
+        way(
+          '倒す',
+          meter(f.hp, f.maxHp, 'foe-hp', '体力', { shield: f.guard, loss: eff ? -eff.hp : 0 }),
+        ),
+        way(
+          '折る',
+          meter(f.resolve, f.maxResolve, 'foe-will', '意志', { loss: eff ? -eff.resolve : 0 }),
+        ),
+        f.need < 50
+          ? way(
+              '打ち解ける',
+              meter(f.trust, f.need, 'foe-trust', '信頼', { gain: eff?.trust ?? 0 }),
+            )
+          : way('打ち解ける', h('span', { class: 'dig-quiet' }, '通じない')),
+        f.clues.length
+          ? way(
+              '暴く',
+              meter(shown, f.clues.length, 'foe-clue', '手がかり', { gain: eff?.clues ?? 0 }),
+            )
+          : null,
+      ),
+    ]);
+  }
+
   function renderSide(): void {
+    renderFoeBar();
     const spots = spotSpots();
     side.replaceChildren();
     if (!game) {
@@ -1656,21 +1719,38 @@ export function openDig(doc: Document, onClose: () => void): void {
     const kids: (Child | readonly Child[])[] = [];
     const chosen = sel ? undefined : chosenRoute();
     const go = sel ? (next.some((n) => n.id === sel.id) ? sel.id : undefined) : chosen?.path[0];
+    // 自分の脚で：推奨を切って、部屋も、その場でも、自分で選ぶ（道の読みは何も勧めない）。
+    const manual = routeSel === 'walk' && !sel;
     if (advice) {
       const all = [...advice.win, ...advice.play];
-      const short: Record<RouteKind, string> = {
+      const short: Record<RouteKind | 'walk', string> = {
         safe: '安定',
         chain: '高連鎖',
-        almost: 'あと一つ',
+        walk: '自分の脚で',
       };
       const metric = (r: (typeof all)[number]) =>
         r.kind === 'safe'
           ? r.survive < 0.95
             ? `抜ける ${Math.round(r.survive * 100)}%`
             : `体力 ${Math.round(r.hpEnd * 100)}% で着く`
-          : r.kind === 'chain'
-            ? `噛み合い ${r.links.length}`
-            : '';
+          : `噛み合い ${r.links.length}`;
+      const own = h(
+        'button',
+        {
+          type: 'button',
+          class: `dig-chip dig-chip--walk${manual ? ' is-on' : ''}`,
+          'aria-pressed': manual ? 'true' : 'false',
+          title: '推奨を切って、自分で選んで歩く',
+          onclick: () => {
+            routeSel = routeSel === 'walk' && pinned === null ? null : 'walk';
+            pinned = null;
+            render();
+          },
+        },
+        h('b', {}, short.walk),
+        h('span', {}, '推奨を切る'),
+        h('span', { class: 'dig-chip__step' }, '部屋は自分で'),
+      );
       kids.push(
         section(
           '道の読み',
@@ -1702,13 +1782,14 @@ export function openDig(doc: Document, onClose: () => void): void {
                 firstStep(w, r.path[0]),
               ),
             ),
+            own,
           ),
           sel || chosen ? plan(w, sel, chosen, go) : null,
         ),
       );
     } else if (sel) kids.push(section('部屋', plan(w, sel, undefined, go)));
-    // 道の読みが無いときだけ、行ける部屋を並べる。
-    else
+    // 道の読みが無いとき、または自分の脚でのときは、行ける部屋を並べる（自分で選ぶ）。
+    if (!sel && (!advice || manual))
       kids.push(
         section(
           '行ける部屋',
@@ -1793,8 +1874,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       .flatMap((c) => (c ? [`『${cardDef(c.id).name}』`] : []));
     if (lean.length) rows.push(['頼る札', lean.join(''), false]);
     if (r.gets?.length) rows.push(['繋がる', r.gets.join('・'), false]);
-    if (r.need) rows.push(['足りない', r.need, false]);
-    if (r.pick) rows.push(['拾える', r.pick, false]);
     const warn = r.warn.filter((x) => !x.startsWith('倒れる見込み'));
     if (warn.length) rows.push(['危うい', warn.join('。'), true]);
     return h(
@@ -2712,25 +2791,37 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   /** 手順の段と、確かめる釦（何も拾わない釦も）。 */
+  /** 受け取る（選んだ一枚を拾い、要れば一枚手放す）。 */
+  function claimPicked(w: World): void {
+    const st = rewardState(w);
+    if (!st?.ready || !pickId) return;
+    const cmd = st.isTool
+      ? { c: 'claim' as const, take: reward.take, help: reward.help, tool: pickId }
+      : {
+          c: 'claim' as const,
+          take: reward.take,
+          help: reward.help,
+          card: pickId,
+          drop: st.drop?.uid,
+        };
+    pickId = null;
+    dropUid = null;
+    deckOpen = false;
+    send(cmd);
+  }
+
+  /** 何も拾わずに進む。 */
+  function claimNone(): void {
+    pickId = null;
+    dropUid = null;
+    deckOpen = false;
+    send({ c: 'claim', take: reward.take, help: reward.help });
+  }
+
   function confirmBar(w: World): HTMLElement | null {
     const st = rewardState(w);
     if (!st) return null;
-    const confirm = () => {
-      if (!st.ready || !pickId) return;
-      const cmd = st.isTool
-        ? { c: 'claim' as const, take: reward.take, help: reward.help, tool: pickId }
-        : {
-            c: 'claim' as const,
-            take: reward.take,
-            help: reward.help,
-            card: pickId,
-            drop: st.drop?.uid,
-          };
-      pickId = null;
-      dropUid = null;
-      deckOpen = false;
-      send(cmd);
-    };
+    const confirm = () => claimPicked(w);
     return h(
       'div',
       { class: 'dig-confirm' },
@@ -2740,12 +2831,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h('b', {}, String(st.step)),
         h('span', {}, st.stepText),
       ),
-      button('何も拾わずに進む', () => {
-        pickId = null;
-        dropUid = null;
-        deckOpen = false;
-        send({ c: 'claim', take: reward.take, help: reward.help });
-      }),
+      button('何も拾わずに進む', claimNone),
       button('受け取る', confirm, { class: 'dig-go', disabled: !st.ready }),
     );
   }
@@ -3146,8 +3232,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     const eff =
       e.phase !== 'act'
         ? null
-        : hoverSlot !== null && w.you.cards[hoverSlot]
-          ? cardEffect(w, hoverSlot)
+        : (armedSlot ?? hoverSlot) !== null && w.you.cards[armedSlot ?? hoverSlot ?? -1]
+          ? cardEffect(w, armedSlot ?? hoverSlot ?? 0)
           : hoverAct
             ? effectOf(w, { c: 'act', a: hoverAct })
             : null;
@@ -3978,7 +4064,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         'button',
         {
           type: 'button',
-          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}${deal ? ' is-dealt' : ''}${was !== null ? ' is-swapped' : ''}${leans ? ' is-lean' : ''}`,
+          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}${deal ? ' is-dealt' : ''}${was !== null ? ' is-swapped' : ''}${leans ? ' is-lean' : ''}${armedSlot === slot ? ' is-armed' : ''}`,
           style: deal ? `--deal:${slot}` : undefined,
           onclick: onClick,
           ...drop,
@@ -4071,6 +4157,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     });
     fill(tray, [
       h('div', { class: 'dig-hand' }, slots),
+      armDetail(w),
       h(
         'div',
         { class: 'dig-held' },
@@ -4231,6 +4318,66 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (kind === 'ep' && w.you.cards[slot]) send({ c: 'inscribe', ep: id, slot });
   }
 
+  /**
+   * 狭い画面で一度目に押した札の中身（広い画面で札に触れたときの説明と同じもの）。
+   * 手札の下に開く。効き目の文・眠りぎわ・足される点の内訳・タグ・ひとこと。
+   */
+  function armDetail(w: World): HTMLElement | null {
+    if (w.enc?.phase !== 'act' || w.enc.who !== 'you') return null;
+    const c = armedSlot !== null ? w.you.cards[armedSlot] : null;
+    if (!c)
+      return h(
+        'p',
+        { class: 'dig-armdetail is-idle' },
+        '札を一度押すと、ここに中身。相手の棒に動く分が映る。もう一度で切る。',
+      );
+    const d = cardDef(c.id);
+    const spent = c.uses <= 0;
+    const b = bonusOf(w, c);
+    const tags = cardTags(c);
+    return h(
+      'div',
+      { class: 'dig-armdetail', 'aria-live': 'polite' },
+      h(
+        'p',
+        { class: 'dig-armdetail__head' },
+        h('b', {}, cardName(c, spent)),
+        tags.length
+          ? h(
+              'span',
+              { class: 'dig-armdetail__tags' },
+              tags.map((t) => `［${TAG_NAME[t]}］`).join(''),
+            )
+          : null,
+      ),
+      h(
+        'p',
+        { class: 'dig-armdetail__fx' },
+        spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready),
+      ),
+      !spent && d.spent.length
+        ? h('p', { class: 'dig-armdetail__sub' }, `眠りぎわ　${fxText(d.spent)}`)
+        : null,
+      b.parts.length
+        ? h(
+            'p',
+            { class: 'dig-armdetail__why' },
+            b.parts.map((p) =>
+              h(
+                'i',
+                {
+                  class: `dig-why__p${p.text.startsWith('連鎖') ? ' is-chain' : ''}${p.n < 0 ? ' is-minus' : ''}`,
+                },
+                p.text,
+              ),
+            ),
+          )
+        : null,
+      d.flavor ? h('p', { class: 'dig-armdetail__flavor' }, d.flavor) : null,
+      h('p', { class: 'dig-armdetail__go' }, 'もう一度押すと切る'),
+    );
+  }
+
   function clickSlot(w: World, slot: number): void {
     // 灰色の札は、押しても何も起きない（狙っている最中は、中身も開かない）。
     if (aim && !aimOk(w, aim, slot)) return;
@@ -4247,6 +4394,13 @@ export function openDig(doc: Document, onClose: () => void): void {
       return;
     }
     if (w.enc?.phase === 'act' && w.you.cards[slot]) {
+      // 狭い画面では、一度目は構えるだけ（相手の棒に、動く分が映る）。二度目で切る。
+      if (narrow() && armedSlot !== slot) {
+        armedSlot = slot;
+        hoverSlot = slot;
+        render();
+        return;
+      }
       send({ c: 'card', slot });
       return;
     }
@@ -4534,6 +4688,89 @@ export function openDig(doc: Document, onClose: () => void): void {
     renderSide();
     renderTray();
     renderDeck();
+    renderPanes();
+  }
+
+  /**
+   * 狭い画面の切り替え。地図はいつも残し、その下を「札」か「情報」のどちらかに
+   * 使う。場面が替わると、まず見るべきほうに戻す（遭遇は札、受け取りは結末から）。
+   * 受け取りでは、下端に「前へ・次へ」（結末 → 拾う → 受け取る）。
+   */
+  let pane: 'hand' | 'info' = 'info';
+  let paneAt = '';
+  function renderPanes(): void {
+    paneSwitch.replaceChildren();
+    stepNav.replaceChildren();
+    const w = game && screen === 'play' ? (staged ?? game.world) : null;
+    const reward = w?.pending?.kind === 'reward' && !w.enc ? w : null;
+    const two = !!w && !tray.hidden;
+    const at = w ? (w.enc ? `enc:${w.enc.foe.id}` : (w.pending?.kind ?? 'map')) : '';
+    if (at !== paneAt) {
+      paneAt = at;
+      pane = w?.enc ? 'hand' : 'info';
+    }
+    // 受け取りは「前へ・次へ」だけで順に進む（切り替えと二重にしない）。
+    paneSwitch.hidden = !two || !!reward;
+    dialog.classList.toggle('dig-panes-on', two);
+    dialog.classList.toggle('dig-pane-hand', two && pane === 'hand');
+    dialog.classList.toggle('dig-pane-info', two && pane === 'info');
+    const go = (next: 'hand' | 'info') => {
+      if (pane === next) return;
+      pane = next;
+      renderPanes();
+    };
+    if (two && !reward) {
+      const [handName, infoName] = ['札', '相手'];
+      const tab = (name: string, which: 'hand' | 'info') =>
+        h(
+          'button',
+          {
+            type: 'button',
+            role: 'tab',
+            class: `dig-panes__b${pane === which ? ' is-on' : ''}`,
+            'aria-selected': pane === which ? 'true' : 'false',
+            onclick: () => go(which),
+          },
+          name,
+        );
+      fill(paneSwitch, [tab(handName, 'hand'), tab(infoName, 'info')]);
+    }
+    stepNav.hidden = !reward;
+    if (!reward) return;
+    // 段：結末 → 拾う一枚 →（手持ちがいっぱいなら）手放す一枚。選び終わると「受け取る」。
+    const st = rewardState(reward);
+    const offers = two;
+    const first = !offers || pane === 'info';
+    // 点の数は最初から決まっている（手持ちがいっぱいなら、手放す段が一つ増える）。
+    const steps = !offers ? 1 : st?.full ? 3 : 2;
+    const now = first ? 1 : st?.needDrop && pickId ? 3 : 2;
+    const label = first
+      ? '結末'
+      : st?.ready && pickId
+        ? '受け取る'
+        : st?.needDrop && pickId
+          ? '手放す一枚を選ぶ'
+          : '拾う一枚を選ぶ';
+    fill(stepNav, [
+      button('前へ', () => go('info'), { class: 'dig-stepnav__prev', disabled: first }),
+      h(
+        'span',
+        { class: 'dig-stepnav__at' },
+        h(
+          'span',
+          { class: 'dig-stepnav__dots', 'aria-hidden': 'true' },
+          Array.from({ length: steps }, (_, i) => h('i', { class: i + 1 === now ? 'is-on' : '' })),
+        ),
+        label,
+      ),
+      first && offers
+        ? button('次へ', () => go('hand'), { class: 'dig-stepnav__next dig-go' })
+        : st?.ready && pickId
+          ? button('受け取る', () => claimPicked(reward), { class: 'dig-stepnav__next dig-go' })
+          : button(offers ? '拾わずに進む' : '受け取って進む', claimNone, {
+              class: `dig-stepnav__next${offers ? '' : ' dig-go'}`,
+            }),
+    ]);
   }
 
   function onKey(ev: KeyboardEvent): void {

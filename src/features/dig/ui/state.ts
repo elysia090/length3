@@ -56,7 +56,7 @@ export interface UiState {
   /** 押して見ている部屋（脇に詳しく出す）。 */
   pinned: number | null;
   /** 見取り図に描く道（選んだ一本と、触れている一本だけ）。 */
-  routeSel: RouteKind | null;
+  routeSel: RouteKind | 'walk' | null;
   routePeek: RouteKind | null;
   /** 案内を一覧でめくっているときの位置。 */
   browse: number | null;

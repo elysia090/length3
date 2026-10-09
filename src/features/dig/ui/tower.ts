@@ -110,10 +110,14 @@ export class Tower {
   /** 横の画素数（枠の縦横比から）。 */
   private W = 320;
 
+  /** 細い画面（スマホ）。遭遇中は、地図の下（次に下りる階）のほうを多く見せる。 */
+  private narrow = false;
+
   /** 枠の大きさが変わっていたら、横の画素数を合わせる（帯や余白のない一枚に）。 */
   private match(): void {
     const rect = this.canvas.getBoundingClientRect();
     const aspect = rect.width > 0 && rect.height > 0 ? rect.width / rect.height : 4 / 3;
+    this.narrow = rect.width > 0 && rect.width < 832;
     const w = Math.round(clamp(H * aspect, H * 0.75, H * 2.6));
     if (w === this.W && this.image) return;
     this.W = w;
@@ -220,10 +224,11 @@ export class Tower {
     let targetY = 0;
     if (view.enc && !walking) {
       // 向き合うのは、着いてから。その部屋を画面のまん中より少し下へ。
+      // 細い画面では逆に少し上へ置いて、足元から下の階までを見せる。
       targetFloor = here ? here.floor : this.me.f;
       targetZoom = ENC_ZOOM;
       targetX = sx(focusAt);
-      targetY = sy(focusAt) - H * 0.14;
+      targetY = sy(focusAt) - H * (this.narrow ? 0.06 : 0.14);
     } else if (this.overview || view.rooms.length === 0) {
       // 見渡す。人物を決めている間（まだ部屋が無い）も、建物を引きで見せる。
       targetFloor = (here?.floor ?? 0) - 0.3;

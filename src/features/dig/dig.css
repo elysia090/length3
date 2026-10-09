@@ -898,6 +898,11 @@
   white-space: nowrap;
 }
 
+/* 構えた札の中身は、狭い画面だけ（広い画面では札に触れれば読める）。 */
+.dig-armdetail {
+  display: none;
+}
+
 /* ─── 狭い画面：塔を上、脇を下へ ─── */
 @media (max-width: 52rem) {
   /*
@@ -905,8 +910,27 @@
    * 真ん中に）置き、相手の様子や道の読みは、その下で読む。
    */
   .dig-app {
-    grid-template-rows: auto var(--dig-view-h, minmax(12rem, 45dvh)) auto minmax(0, 1fr);
-    grid-template-areas: 'bar' 'view' 'tray' 'side';
+    grid-template-rows:
+      auto auto var(--dig-view-h, minmax(12rem, 45dvh)) auto auto minmax(0, 1fr)
+      auto;
+    grid-template-areas: 'bar' 'foe' 'view' 'panes' 'tray' 'side' 'step';
+  }
+
+  /* 札を見ているあいだは、札が地図の下の残りを使う（情報は隠す）。 */
+  .dig-pane-hand .dig-app {
+    grid-template-rows:
+      auto auto var(--dig-view-h, minmax(12rem, 45dvh)) auto minmax(0, 1fr) 0
+      auto;
+  }
+
+  .dig-pane-hand .dig-side,
+  .dig-pane-info .dig-app > .dig-tray {
+    display: none;
+  }
+
+  .dig-pane-hand .dig-app > .dig-tray {
+    align-content: start;
+    overflow-y: auto;
   }
 
   .dig-main,
@@ -3593,9 +3617,9 @@
     letter-spacing: 0.02em;
   }
 
-  /* 遭遇：地図を低く、手札の下の情報（相手の様子と次の手）に高さを残す。 */
+  /* 遭遇：相手の様子は上の段にあるので、地図は手札二段のぶんだけ残して見せる。 */
   .dig-enc-on .dig-app {
-    --dig-view-h: minmax(7rem, 24dvh);
+    --dig-view-h: minmax(9rem, 34dvh);
   }
 
   .dig-enc-on .dig-side {
@@ -3736,5 +3760,266 @@
 @media (max-width: 52rem) {
   .dig-pend-on .dig-app {
     --dig-view-h: minmax(7rem, 22dvh);
+  }
+}
+
+/*
+ * 狭い画面の切り替え（地図の下）と、受け取りの下端の「前へ・次へ」。
+ * 広い画面では出さない（札も情報も、いつも見えている）。
+ */
+.dig-panes,
+.dig-stepnav {
+  display: none;
+}
+
+@media (max-width: 52rem) {
+  .dig-panes:not([hidden]) {
+    grid-area: panes;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .dig .dig-panes__b {
+    min-height: 2.25rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    font-family: var(--font-mono);
+    font-size: var(--font-ui-xs);
+    letter-spacing: 0.16em;
+    text-align: center;
+    color: var(--ink-3);
+  }
+
+  .dig .dig-panes__b.is-on {
+    border-bottom-color: var(--ink);
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .dig-stepnav:not([hidden]) {
+    grid-area: step;
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--rule);
+    background: var(--bg);
+  }
+
+  .dig .dig-stepnav__prev {
+    min-height: 2.5rem;
+    text-align: center;
+  }
+
+  .dig .dig-stepnav__next {
+    min-height: 2.5rem;
+    padding: 0 16px;
+  }
+
+  .dig-stepnav__at {
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    font-size: var(--font-ui-xs);
+    color: var(--ink-2);
+  }
+
+  .dig-stepnav__dots {
+    display: flex;
+    gap: 5px;
+  }
+
+  .dig-stepnav__dots i {
+    width: 6px;
+    height: 6px;
+    border: 1px solid var(--ink-3);
+  }
+
+  .dig-stepnav__dots i.is-on {
+    border-color: var(--ink);
+    background: var(--ink);
+  }
+
+  /* 受け取りの確かめる帯の釦は、下端の「次へ」に任せる（段の一文だけ残す）。 */
+  .dig-panes-on .dig-confirm > button {
+    display: none;
+  }
+}
+
+/*
+ * 相手の段（狭い画面の遭遇だけ）。上帯のあなたの体と心のすぐ下に、相手の名前・
+ * 硬度・次の手、四つの道の棒を二列二段で。札を一度押して構えると、その札で動く分が
+ * 棒の先に点滅で映る（もう一度押すと切る）。広い画面では右の欄にあるので出さない。
+ */
+.dig-foebar {
+  display: none;
+}
+
+@media (max-width: 52rem) {
+  .dig-foebar:not([hidden]) {
+    grid-area: foe;
+    display: grid;
+    gap: 4px;
+    padding: 6px 12px 8px;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.6875rem;
+  }
+
+  .dig-foebar__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    margin: 0;
+  }
+
+  .dig-foebar__name {
+    font-size: 0.8125rem;
+  }
+
+  .dig-foebar__intent {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    color: var(--ink-3);
+  }
+
+  .dig-foebar__intent b {
+    color: var(--amber-text);
+  }
+
+  .dig-foebar__intent i {
+    margin-left: 4px;
+    padding: 0 4px;
+    border: 1px solid var(--amber-text);
+    font-style: normal;
+    color: var(--amber-text);
+  }
+
+  .dig-foebar__ways {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px 14px;
+  }
+
+  .dig-foebar__way {
+    display: grid;
+    grid-template-columns: 3.75rem minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dig-foebar__verb {
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .dig-foebar__way .dig-meter {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
+    font-size: 0.625rem;
+  }
+
+  .dig-foebar__way .dig-meter__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* 一度目に押した札の中身。手札の下の空きに開く（広い画面で札に触れたときの説明と同じ）。 */
+  .dig-armdetail {
+    display: grid;
+    gap: 4px;
+    margin-top: 4px;
+    padding: 8px 10px 9px 12px;
+    border: 1px solid var(--rule);
+    box-shadow: inset 2px 0 0 var(--amber-text);
+    background: var(--bg);
+  }
+
+  .dig-armdetail p {
+    margin: 0;
+  }
+
+  .dig-armdetail.is-idle {
+    margin-bottom: 0;
+    border-style: dashed;
+    box-shadow: none;
+    font-size: 0.6875rem;
+    line-height: 1.55;
+    color: var(--ink-3);
+  }
+
+  .dig-armdetail__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 8px;
+    font-size: 0.8125rem;
+  }
+
+  .dig-armdetail__tags {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    color: var(--ink-3);
+  }
+
+  .dig-armdetail__fx {
+    font-size: 0.75rem;
+    line-height: 1.6;
+  }
+
+  .dig-armdetail__sub,
+  .dig-armdetail__flavor {
+    font-size: 0.6875rem;
+    line-height: 1.55;
+    color: var(--ink-3);
+  }
+
+  .dig-armdetail__why {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 8px;
+  }
+
+  .dig-armdetail__go {
+    justify-self: end;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    color: var(--amber-text);
+  }
+
+  /* 手の枠の中で浮く札が、枠の上端で切れないように（浮きは小さく、枠に余白）。 */
+  .dig-app > .dig-tray {
+    padding-top: 10px;
+  }
+
+  .dig .dig-card.is-live.is-lean {
+    transform: translateY(-3px);
+  }
+
+  /* 構えた札：琥珀の二重線で、いちばん上に浮く。ほかの札は一歩引く。もう一度押すと切る。 */
+  .dig .dig-card.is-armed,
+  .dig .dig-card.is-live.is-armed {
+    border-color: var(--amber-text);
+    box-shadow: inset 0 0 0 1px var(--amber-text);
+    transform: translateY(-6px);
+  }
+
+  .dig-hand:has(.is-armed) .dig-card:not(.is-armed) {
+    opacity: 0.5;
+  }
+}
+
+/* 動きを減らす設定では、浮かせない（構えた札は二重線と、ほかの札の引きで分かる）。 */
+@media (max-width: 52rem) and (prefers-reduced-motion: reduce) {
+  .dig .dig-card.is-live.is-lean,
+  .dig .dig-card.is-armed,
+  .dig .dig-card.is-live.is-armed {
+    transform: none;
   }
 }
