@@ -1,21 +1,22 @@
 import { PACE } from '../content/balance';
-import { epithetDef } from '../content/registry';
+import { gearOf } from '../content/gear';
+import { cardDef, epithetDef } from '../content/registry';
 import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import type { Cmd } from '../core/events';
 import type { Char, World } from '../core/model';
 import { advise, type RouteKind } from './advise';
 import { bestAction } from './ai';
+import { foeHardness, youHardness } from './hardness';
 import { maxHp, stats } from './ops';
 import {
   breathed,
   canChoose,
   cardPrice,
+  deckRoom,
   epPrice,
+  ITEM_CAP,
   isBridge,
   isHall,
-  newCard,
-  nodeOf,
-  ROWS,
   reachable,
 } from './run';
 
@@ -28,7 +29,13 @@ export function pilot(w: World): Cmd | null {
   const e = w.enc;
   if (e) {
     if (e.phase === 'over') return { c: 'close' };
-    const a = bestAction(w);
+    // 持ち物は手番を使わない。一手に一つ、効きそうなものを先に使う。
+    const item = useful(w);
+    if (item !== null) return { c: 'item', index: item };
+    // 弱めるエピテットは、手強い相手に刻む（手番は使わない）。
+    const weak = foeInk(w);
+    if (weak) return { c: 'inscribe', ep: weak, foe: true };
+    const a = bestAction(w, 2);
     return a.kind === 'basic' ? { c: 'act', a: a.a } : { c: 'card', slot: a.slot };
   }
   const p = w.pending;
@@ -46,14 +53,24 @@ export function pilot(w: World): Cmd | null {
           });
         }
         const pick = pickCard(w, p.cards);
-        return { c: 'claim', take: p.take[0], help, card: pick?.card, slot: pick?.slot };
+        const tool = !pick && w.you.items.length < ITEM_CAP ? p.tools[0] : undefined;
+        return { c: 'claim', take: p.take[0], help, card: pick ?? undefined, tool };
       }
       case 'story': {
         for (let i = 0; i < 6; i++) if (canChoose(w, i)) return { c: 'choose', option: i };
         return { c: 'choose', option: 0 };
       }
-      case 'rest':
-        return p.used ? { c: 'depart' } : { c: 'rest', action: 'rest' };
+      case 'rest': {
+        if (p.used) return { c: 'depart' };
+        // 疲れが深いか、体が細いなら一晩。そうでなければ休む。金があって疲れが浅ければ食べる。
+        const s = stats(w, 'you');
+        const thin = w.you.hp * 2 < maxHp(s) || w.you.mind * 2 < s.WIL * 3 + 8;
+        if ((w.you.tired ?? 0) >= 6 || (thin && !w.after.some((a) => a.kind === 'ally')))
+          return { c: 'rest', action: 'full' };
+        if ((w.you.tired ?? 0) <= 2 && w.you.coins >= PACE.meal + 20)
+          return { c: 'rest', action: 'eat' };
+        return { c: 'rest', action: 'rest' };
+      }
       case 'shop':
         return shopping(w) ?? { c: 'depart' };
       case 'told':
@@ -126,20 +143,14 @@ export function deckScore(c: Char): number {
 function shopping(w: World): Cmd | null {
   const p = w.pending;
   if (p?.kind !== 'shop') return null;
-  const base = deckScore(w.you);
   let best: Cmd | null = null;
   let gain = 9;
   for (const id of p.cards) {
-    if (p.sold.includes(id) || cardPrice(w, id) > w.you.coins) continue;
-    for (let slot = 0; slot < 5; slot++) {
-      const cards = [...w.you.cards];
-      cards[slot] = newCard(0, id);
-      const c = { ...w.you, cards };
-      const g = deckScore(c) - base;
-      if (g > gain) {
-        gain = g;
-        best = { c: 'buy', id, slot };
-      }
+    if (p.sold.includes(id) || cardPrice(w, id) > w.you.coins || !deckRoom(w.you)) continue;
+    // 後ろに入る札は構成を変えないので、余地があれば一枚だけ買う。
+    if (gain < 10) {
+      gain = 10;
+      best = { c: 'buy', id };
     }
   }
   for (const it of p.items) {
@@ -174,26 +185,66 @@ function inscription(w: World): Cmd | null {
     const b = bestInscription(w.you, ep);
     if (b) return { c: 'inscribe', ep, slot: b.slot };
   }
+  // 札を強めるエピテット（×1.1 より上）は、回数のいちばん多い札に重ねる。
+  for (const ep of w.you.epithets) {
+    const text = epithetDef(ep)?.card?.text ?? '';
+    if (!/×1\.[1-9]|×[2-9]/.test(text) || /−|代償/.test(text)) continue;
+    let slot = -1;
+    let most = 0;
+    w.you.cards.forEach((c, i) => {
+      if (c && c.eps.length < PACE.stack && c.max > most) {
+        most = c.max;
+        slot = i;
+      }
+    });
+    if (slot >= 0) return { c: 'inscribe', ep, slot };
+  }
   return null;
 }
 
-/** 拾う札を選ぶ。空き枠があれば、構成がいちばん良くなる札を入れる。なければ入れ替えが得なときだけ。 */
-function pickCard(w: World, offer: readonly string[]): { card: string; slot: number } | null {
-  const base = deckScore(w.you);
-  const empty = w.you.cards.findIndex((c) => !c);
-  let best: { card: string; slot: number } | null = null;
-  let gain = empty >= 0 ? Number.NEGATIVE_INFINITY : 9;
+/** 手強い相手（最後の相手か、硬度が上）に刻む、弱めるエピテット。 */
+function foeInk(w: World): string | null {
+  const e = w.enc;
+  if (!e || e.who !== 'you' || e.phase !== 'act' || (e.st.inked ?? 0) >= PACE.inkEnc) return null;
+  if (e.foe.eps.length >= PACE.stackFoe) return null;
+  const tough = e.tier === 'boss' || foeHardness(e.foe) > youHardness(w);
+  if (!tough) return null;
+  for (const ep of w.you.epithets) {
+    const f = epithetDef(ep)?.foe;
+    if (!f) continue;
+    if ((f.hp ?? 1) < 1 || (f.resolve ?? 1) < 1 || f.stun || (f.need ?? 0) < 0) return ep;
+  }
+  return null;
+}
+
+/** 拾う札を選ぶ。持てる余地があれば、回数の多い札を。いっぱいなら拾わない。 */
+function pickCard(w: World, offer: readonly string[]): string | null {
+  if (!deckRoom(w.you) && w.you.cards.every(Boolean)) return null;
+  let best: string | null = null;
+  let most = -1;
   for (const id of offer) {
-    const slots = empty >= 0 ? [empty] : [0, 1, 2, 3, 4];
-    for (const slot of slots) {
-      const cards = [...w.you.cards];
-      cards[slot] = newCard(0, id);
-      const g = deckScore({ ...w.you, cards }) - base + (empty >= 0 ? 1 : 0);
-      if (g > gain) {
-        gain = g;
-        best = { card: id, slot };
-      }
+    const n = cardDef(id).uses;
+    if (n > most) {
+      most = n;
+      best = id;
     }
   }
   return best;
+}
+
+/** 向き合っているあいだに使う持ち物（体が細ければ癒やすもの、あとは効き目のあるもの）。 */
+function useful(w: World): number | null {
+  const e = w.enc;
+  if (!e || e.who !== 'you' || e.phase !== 'act' || e.st[`item:${e.turn}`]) return null;
+  const low = w.you.hp * 2 < maxHp(stats(w, 'you'));
+  let at: number | null = null;
+  w.you.items.forEach((it, i) => {
+    if (at !== null) return;
+    const g = gearOf(it.id);
+    if (!g) return;
+    if (g.heal?.hp && low) at = i;
+    else if (g.fx?.some((f) => ['hit', 'break', 'trust', 'clue', 'stun', 'cut'].includes(f[0])))
+      at = i;
+  });
+  return at;
 }

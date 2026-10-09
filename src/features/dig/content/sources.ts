@@ -1,13 +1,16 @@
 import type { Char, World } from '../core/model';
 import { type Patch, setSources, type Trigger } from '../core/rules';
 import { type ArchCount, meets, TAG_NAME, type TagCount } from '../core/tags';
+import { afterDef } from './after';
 import { ARCH_SETS } from './archetypes';
 import { DATA_VERSION, PACE, POINTS, releaseRules } from './balance';
 import { BASE_RULES, BASE_TRIGGERS, DEPTH_RULES } from './base';
 import { archCount, tagCount } from './cardinfo';
 import type { BuildDef, LinkDef, PassiveSpec, TriggerSpec } from './defs';
 import { SPILL_AURA } from './epithets';
+import { heatOf } from './floors';
 import { lawsAt } from './laws';
+import { quirkDef } from './quirks';
 import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './registry';
 import { SURGES, tierOf } from './surges';
 import { titleDef } from './titles';
@@ -91,7 +94,10 @@ function collect(w: World) {
   };
   add('rule', BASE_RULES, BASE_TRIGGERS);
   for (const { v, spec } of releaseRules()) add(`v${v}`, [spec]);
-  for (const d of DEPTH_RULES) if (w.depth >= d.at) add(`depth${d.at}`, [d.spec]);
+  // 難度の規則は、効きが満ちてから（三区から効きはじめ、五区で満ちる）。
+  DEPTH_RULES.forEach((d, i) => {
+    if (heatOf(w) >= d.at) add(`depth${i}`, [d.spec]);
+  });
   const job = jobDef(c.job);
   if (job) add(`job:${job.id}`, job.passive, job.triggers);
   c.cards.forEach((card, slot) => {
@@ -123,6 +129,31 @@ function collect(w: World) {
   }
   for (const l of linksOf(c)) add(`link:${l.id}`, l.passive, l.triggers);
   for (const s of archSetsOf(c)) add(`arch:${s.arch}${s.at}`, s.passive, s.triggers);
+  // 疲れ。四つから札の点 −1（三つごとに増える）、四つごとに受ける一撃 +1。
+  const tired = who === 'you' ? (w.you.tired ?? 0) : 0;
+  if (tired >= 4)
+    add('tired', [
+      {
+        rule: 'bonus',
+        fn: (_c, v) => v - Math.floor((tired - 1) / 3),
+        text: `疲れ ${tired}：札の点 −${Math.floor((tired - 1) / 3)}`,
+      },
+      ...(tired >= 4
+        ? [
+            {
+              rule: 'strikeTaken' as const,
+              fn: (_c: unknown, v: number) => (v > 0 ? v + Math.floor(tired / 4) : v),
+              text: `疲れ ${tired}：受ける一撃 +${Math.floor(tired / 4)}`,
+            },
+          ]
+        : []),
+    ]);
+  // 決着の余韻（悪名・見透かし…）。あなたの遭遇にだけ効く。
+  if ((w.enc?.who ?? 'you') === 'you')
+    for (const a of w.after) {
+      const d = afterDef(a.kind);
+      if (d?.passive) add(`after:${a.kind}`, d.passive);
+    }
   // 区画の掟（上の区画の掟も、下では生きている）。共鳴には数えない。
   for (const l of lawsAt(w.stratum)) add(`law:${l.id}`, l.passive);
   // 見せ場。合うタグのカードがよく効く（共鳴に数える）。
@@ -141,6 +172,9 @@ function collect(w: World) {
     if (f?.passive) add(`foe:${e}`, f.passive);
   }
   const node = w.map.find((n) => n.id === w.pos);
+  // 階の癖（その階にいるあいだだけ）。
+  const q = quirkDef(node?.quirk);
+  if (q) add(`quirk:${q.id}`, q.passive);
   for (const e of node?.eps ?? []) {
     const p = epithetDef(e)?.place;
     if (!p) continue;
@@ -188,13 +222,15 @@ function keyOf(w: World): string {
     DATA_VERSION,
     who,
     c.job,
-    w.depth,
+    Math.floor(heatOf(w) * 4),
     c.cards
       .map((x) => (x ? `${x.id}+${(x.eps ?? []).join('+')}+${x.marks.ch ?? 0}` : '-'))
       .join(','),
     (c.titles ?? []).join('+'),
     c.perms.map((p) => `${p}${(c.permEps?.[p] ?? []).join('+')}`).join(','),
     (w.enc?.foe.eps ?? []).join('+'),
+    w.after.map((a) => a.kind).join('+'),
+    w.you.tired ?? 0,
     (w.enc?.stage ?? []).join('+'),
     w.pos,
     w.pending?.kind === 'story' ? w.pending.eps.join('+') : '',

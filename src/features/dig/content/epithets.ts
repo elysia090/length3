@@ -895,3 +895,25 @@ export const SPILL_AURA: Readonly<Record<string, PassiveSpec>> = {
     text: '《谺する》流用：残った守りの 2 割が信頼になる',
   },
 };
+
+/**
+ * エピテットの格。色で見分ける（名札の字と縁の色）。
+ *   金    稀なもの
+ *   銀    ときどき出るもの
+ *   銅    ありふれているが、札を強めるもの
+ *   無垢  ありふれていて、強めはしない（形を変えるだけ）
+ */
+export type EpTier = 'gold' | 'silver' | 'bronze' | 'plain';
+
+export const EP_TIER_NAME: Readonly<Record<EpTier, string>> = {
+  gold: '金',
+  silver: '銀',
+  bronze: '銅',
+  plain: '無垢',
+};
+
+export function epTier(e: Epithet): EpTier {
+  if (e.rarity === 'rare') return 'gold';
+  if (e.rarity === 'uncommon') return 'silver';
+  return /×1\.[1-9]|×[2-9]/.test(e.card?.text ?? '') ? 'bronze' : 'plain';
+}

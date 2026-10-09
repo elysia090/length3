@@ -42,7 +42,10 @@ export type Ev =
   | { type: 'pending'; p: Pending | null }
   | { type: 'vital'; who: Who; hp?: number; mind?: number }
   | { type: 'coins'; who: Who; n: number }
-  | { type: 'item'; who: Who; id: string; n: 1 | -1 }
+  /** 持ち物を得る（uses の回数ぶん）・手放す。 */
+  | { type: 'item'; who: Who; id: string; n: 1 | -1; uses?: number }
+  /** 持ち物を一回使う（尽きたら手放す）。 */
+  | { type: 'item.use'; who: Who; index: number }
   | { type: 'xp'; who: Who; stat: Stat; n: number }
   | { type: 'grew'; who: Who; stat: Stat; n?: number; innate?: boolean }
   | { type: 'perm'; who: Who; id: string; gain: boolean; why: string }
@@ -63,6 +66,19 @@ export type Ev =
   | { type: 'card.max'; who: Who; slot: number; n: number }
   | { type: 'card.mark'; who: Who; slot: number; mark: string; n: number }
   | { type: 'card.set'; who: Who; slot: number; card: Card | null; why: string }
+  /** 後ろの札（手持ち）に加える・枠と入れ替える・回数を戻す・手放す。 */
+  | { type: 'deck.add'; who: Who; card: Card }
+  | { type: 'deck.swap'; who: Who; slot: number; index: number }
+  | { type: 'deck.uses'; who: Who; index: number; n: number }
+  | { type: 'deck.drop'; who: Who; index: number }
+  /** 決着の余韻が付く・遭遇ごとに一つ減る・使い切る。 */
+  | { type: 'after'; after: import('./model').After }
+  | { type: 'after.tick' }
+  | { type: 'after.end'; kind: import('./model').AfterKind }
+  /** 疲れが溜まる・抜ける。 */
+  | { type: 'tired'; who: Who; n: number }
+  /** 地力が新しい高さに届いた（持てる札 +1）。 */
+  | { type: 'level'; who: Who; n: number }
   | { type: 'debt'; who: Who; npc: string; n: number }
   | { type: 'title'; who: Who; id: string }
   | { type: 'flag'; key: string; v: number }
@@ -159,7 +175,7 @@ export type EvType = Ev['type'];
 export type EvOf<T extends EvType> = Extract<Ev, { type: T }>;
 
 export type Basic = 'press' | 'brace' | 'talk' | 'leave' | 'accept';
-export type RestAction = 'rest' | 'full' | 'tune-int' | 'tune-wil' | 'discard' | 'bet';
+export type RestAction = 'rest' | 'full' | 'eat' | 'tune-int' | 'tune-wil' | 'discard' | 'bet';
 
 export type Cmd =
   | {
@@ -179,10 +195,19 @@ export type Cmd =
   | { c: 'act'; a: Basic }
   | { c: 'card'; slot: number }
   | { c: 'close' }
-  | { c: 'claim'; take?: string; help?: number; card?: string; slot?: number }
+  | {
+      c: 'claim';
+      take?: string;
+      help?: number;
+      card?: string;
+      /** 手持ちがいっぱいのとき、代わりに手放す札（uid）。 */
+      drop?: number;
+      tool?: string;
+    }
   | { c: 'choose'; option: number }
   | { c: 'ack' }
   | { c: 'rest'; action: RestAction; slot?: number }
+  | { c: 'buy'; id: string; drop?: number }
   | { c: 'alter'; slot: number; to: string }
   | {
       c: 'inscribe';
@@ -196,7 +221,6 @@ export type Cmd =
       /** いま開いている出来事。 */
       story?: boolean;
     }
-  | { c: 'buy'; id: string; slot?: number }
   | { c: 'sell'; perm: string }
   | { c: 'cure'; perm: string }
   | { c: 'sacrifice'; stat: Stat; slot: number }

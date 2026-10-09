@@ -5,6 +5,7 @@ import { hostile, say } from '../sim/ops';
 import { ANSWERS } from './archetypes';
 import { POINTS } from './balance';
 import type { PassiveSpec, TriggerSpec } from './defs';
+import { heatOf } from './floors';
 import { foeDef, permDef } from './registry';
 
 /**
@@ -91,13 +92,13 @@ export const BASE_RULES: readonly PassiveSpec[] = [
   {
     rule: 'startHostility',
     prio: -10,
-    fn: (c, v) => v + (isDeep(c.w.hour) ? 1 : 0) + c.w.depth / 3,
+    fn: (c, v) => v + (isDeep(c.w.hour) ? 1 : 0) + heatOf(c.w) / 2,
     text: '深夜と、深い層ほど荒れている',
   },
   {
     rule: 'leaveChance',
     prio: -10,
-    fn: (c, v) => (v >= 100 ? v : v - 3 * c.w.depth),
+    fn: (c, v) => (v >= 100 ? v : v - 4 * heatOf(c.w)),
     text: '深いほど去りにくい',
   },
 ];
@@ -106,43 +107,22 @@ export const BASE_RULES: readonly PassiveSpec[] = [
 export const DEPTH_RULES: readonly { at: number; spec: PassiveSpec }[] = [
   {
     at: 1,
+    spec: { rule: 'strikeTaken', fn: (_c, v) => (v > 0 ? v + 1 : v), text: 'ハード：受ける傷 +1' },
+  },
+  {
+    at: 2,
     spec: {
-      rule: 'startHostility',
-      fn: (_c, v) => v + 1,
-      text: '難度 1：相手は初めから荒れている（+1）',
+      rule: 'threatTaken',
+      fn: (_c, v) => (v > 0 ? v + 1 : v),
+      text: 'ナイトメア：精神への傷 +1',
     },
   },
   {
     at: 2,
-    spec: { rule: 'strikeTaken', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '難度 2：受ける傷 +1' },
-  },
-  {
-    at: 3,
     spec: {
       rule: 'restHeal',
       fn: (_c, v) => Math.round(v * 0.8),
-      text: '難度 3：休んでも 2 割少ない',
-    },
-  },
-  { at: 4, spec: { rule: 'price', fn: (_c, v) => Math.round(v * 1.2), text: '難度 4：値段 ×1.2' } },
-  {
-    at: 6,
-    spec: {
-      rule: 'threatTaken',
-      fn: (_c, v) => (v > 0 ? v + 1 : v),
-      text: '難度 6：精神への傷 +1',
-    },
-  },
-  {
-    at: 7,
-    spec: { rule: 'falseChance', fn: (_c, v) => v + 10, text: '難度 7：誤った手がかり +10%' },
-  },
-  {
-    at: 8,
-    spec: {
-      rule: 'leaveChance',
-      fn: (_c, v) => (v >= 100 ? v : v - 10),
-      text: '難度 8：去る −10%',
+      text: 'ナイトメア：休んでも 2 割少ない',
     },
   },
 ];

@@ -18,6 +18,9 @@ const blankChar = (): Char => ({
   coins: 0,
   items: [],
   cards: [null, null, null, null, null],
+  back: [],
+  level: 0,
+  tired: 0,
   perms: [],
   permEps: {},
   epithets: [],
@@ -51,6 +54,7 @@ export function emptyWorld(): World {
     enc: null,
     pending: null,
     flags: {},
+    after: [],
     goals: [],
     unlocked: [],
     seen: [],
@@ -128,11 +132,19 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'item': {
       const c = charOf(w, ev.who);
-      if (ev.n > 0) c.items.push(ev.id);
+      if (ev.n > 0) c.items.push({ id: ev.id, uses: Math.max(1, ev.uses ?? 1) });
       else {
-        const i = c.items.indexOf(ev.id);
+        const i = c.items.findIndex((x) => x.id === ev.id);
         if (i >= 0) c.items.splice(i, 1);
       }
+      break;
+    }
+    case 'item.use': {
+      const c = charOf(w, ev.who);
+      const it = c.items[ev.index];
+      if (!it) break;
+      it.uses -= 1;
+      if (it.uses <= 0) c.items.splice(ev.index, 1);
       break;
     }
     case 'xp':
@@ -166,7 +178,8 @@ export function apply(w: World, ev: Ev): void {
     case 'perm.ep': {
       const c = charOf(w, ev.who);
       const list = c.permEps[ev.perm] ?? [];
-      c.permEps[ev.perm] = ev.on ? [...list, ev.ep] : list.filter((x) => x !== ev.ep);
+      const i = list.indexOf(ev.ep);
+      c.permEps[ev.perm] = ev.on ? [...list, ev.ep] : list.filter((_, k) => k !== i);
       break;
     }
     case 'ep.held': {
@@ -180,7 +193,14 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'card.ep': {
       const card = charOf(w, ev.who).cards[ev.slot];
-      if (card) card.eps = ev.on ? [...card.eps, ev.ep] : card.eps.filter((x) => x !== ev.ep);
+      if (card) {
+        // 同じエピテットは重ねて刻める。剥がすときは一つずつ。
+        if (ev.on) card.eps = [...card.eps, ev.ep];
+        else {
+          const i = card.eps.indexOf(ev.ep);
+          if (i >= 0) card.eps = card.eps.filter((_, k) => k !== i);
+        }
+      }
       break;
     }
     case 'card.uses': {
@@ -198,6 +218,61 @@ export function apply(w: World, ev: Ev): void {
       if (card) card.marks[ev.mark] = (card.marks[ev.mark] ?? 0) + ev.n;
       break;
     }
+    case 'deck.add': {
+      const c = charOf(w, ev.who);
+      c.back.push(structuredClone(ev.card));
+      c.uid = Math.max(c.uid, ev.card.uid + 1);
+      break;
+    }
+    case 'deck.swap': {
+      // 枠の札と後ろの札を入れ替える（枠の札は後ろの最後に回る）。
+      const c = charOf(w, ev.who);
+      const inn = c.back[ev.index];
+      if (!inn) break;
+      const out = c.cards[ev.slot] ?? null;
+      c.back.splice(ev.index, 1);
+      c.cards[ev.slot] = inn;
+      if (out) {
+        // 後ろへ回った札は「眠った」ことを覚えている（戻るときにエピテットが剥がれる）。
+        out.marks.slept = (out.marks.slept ?? 0) + 1;
+        c.back.push(out);
+      }
+      break;
+    }
+    case 'deck.uses': {
+      const card = charOf(w, ev.who).back[ev.index];
+      if (card) card.uses = Math.max(0, Math.min(card.max, card.uses + ev.n));
+      break;
+    }
+    case 'deck.drop':
+      charOf(w, ev.who).back.splice(ev.index, 1);
+      break;
+    case 'after': {
+      // 同じ種類の余韻は一つだけ（長いほうに揃える）。
+      const old = w.after.some((a) => a.kind === ev.after.kind);
+      w.after = old
+        ? w.after.map((a) =>
+            a.kind === ev.after.kind
+              ? { ...a, left: Math.max(a.left, ev.after.left), npc: ev.after.npc }
+              : a,
+          )
+        : [...w.after, { ...ev.after }];
+      break;
+    }
+    case 'after.tick':
+      w.after = w.after.map((a) => ({ ...a, left: a.left - 1 })).filter((a) => a.left > 0);
+      break;
+    case 'after.end':
+      w.after = w.after.filter((a) => a.kind !== ev.kind);
+      break;
+    case 'tired': {
+      const c = charOf(w, ev.who);
+      c.tired = Math.max(0, Math.min(10, (c.tired ?? 0) + ev.n));
+      break;
+    }
+    case 'level':
+      charOf(w, ev.who).level += ev.n;
+      break;
     case 'card.set': {
       const c = charOf(w, ev.who);
       c.cards[ev.slot] = ev.card ? structuredClone(ev.card) : null;
@@ -268,7 +343,7 @@ export function apply(w: World, ev: Ev): void {
       break;
     case 'node.ep': {
       const n = w.map.find((x) => x.id === ev.id);
-      if (n && !n.eps.includes(ev.ep)) n.eps = [...n.eps, ev.ep];
+      if (n) n.eps = [...n.eps, ev.ep];
       break;
     }
     case 'foe.st':

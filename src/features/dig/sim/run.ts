@@ -1,3 +1,4 @@
+import { AFTER } from '../content/after';
 import { WORK_ARCH } from '../content/archetypes';
 import { DATA_VERSION, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
@@ -7,14 +8,17 @@ import { ARRIVE, AUTO } from '../content/flavor';
 import {
   BEATS,
   type FloorUse,
+  heatOf,
   LAST,
   SECTIONS,
   sectionName,
   sectionNo,
   sectionOf,
+  THEMES,
   useOf,
 } from '../content/floors';
-import { holds } from '../content/fx';
+import { holds, run as runFx } from '../content/fx';
+import { allTools, gearOf } from '../content/gear';
 import { LAWS, lawsAt } from '../content/laws';
 import { LEGENDS } from '../content/legends';
 import {
@@ -25,6 +29,7 @@ import {
   type Sheet,
   START_CARDS,
 } from '../content/origins';
+import { QUIRKS, quirkDef } from '../content/quirks';
 import {
   allBuilds,
   allCards,
@@ -65,8 +70,21 @@ import type { Tx } from '../core/tx';
 import { Tx as TxClass } from '../core/tx';
 import { autoPlay } from './ai';
 import { cardsAfter, resonate, rewards, shiftAll, startEnc, transform } from './encounter';
+import { youHardness } from './hardness';
 import { misses } from './near';
-import { charOf, coins, gainPerm, heal, losePerm, maxHp, maxMind, refill, stats, xp } from './ops';
+import {
+  charOf,
+  coins,
+  gainPerm,
+  heal,
+  losePerm,
+  maxHp,
+  maxMind,
+  refill,
+  settle,
+  stats,
+  xp,
+} from './ops';
 
 /**
  * 挑戦。三つの層を一夜ずつ下りる（22 時に始まり、6 時に夜が明ける）。
@@ -83,6 +101,120 @@ export const stratumName = sectionName;
 export function newCard(uid: number, id: string, eps: string[] = []): Card {
   const def = cardDef(id);
   return { uid, id, uses: def.uses, max: def.uses, marks: {}, eps };
+}
+
+/** 挑戦の初めに後ろへ配る札の数。 */
+const START_BACK = 2;
+/** 持てる札の上限（枠と後ろを合わせて）。 */
+export const DECK_MAX = 17;
+
+/** 持てる札の数。職ごとの数に、地力が新しい高さに届いた数を足す（17 まで）。 */
+export const deckCap = (c: Char): number =>
+  Math.min(DECK_MAX, (jobDef(c.job)?.deck ?? 12) + c.level);
+/** いま持っている札の数（枠と後ろ）。 */
+export const deckSize = (c: Char): number => c.cards.filter(Boolean).length + c.back.length;
+/** もう一枚持てるか。 */
+export const deckRoom = (c: Char): boolean => deckSize(c) < deckCap(c);
+
+/** 札を手持ちに加える（空いた枠があれば枠へ、なければ後ろへ）。持てなければ false。 */
+export function addCard(
+  tx: Tx,
+  id: string,
+  why: string,
+  who: Who = 'you',
+  eps: readonly string[] = [],
+): boolean {
+  const c = charOf(tx.w, who);
+  const at = c.cards.findIndex((x) => !x);
+  if (at >= 0) {
+    tx.emit({ type: 'card.set', who, slot: at, card: newCard(c.uid, id, [...eps]), why });
+    return true;
+  }
+  if (!deckRoom(c)) return false;
+  tx.emit({ type: 'deck.add', who, card: newCard(c.uid, id, [...eps]) });
+  return true;
+}
+
+/**
+ * もう一枚持てるようにする。余地があればそのまま。いっぱいなら、drop の札
+ * （uid）を手放す（枠の札でも、後ろの札でも）。手放す札が無ければ false。
+ */
+export function makeRoom(tx: Tx, drop?: number): boolean {
+  const c = tx.w.you;
+  if (deckRoom(c) || c.cards.some((x) => !x)) return true;
+  if (drop === undefined) return false;
+  const slot = c.cards.findIndex((x) => x?.uid === drop);
+  const index = c.back.findIndex((x) => x.uid === drop);
+  const gone = slot >= 0 ? c.cards[slot] : c.back[index];
+  if (!gone) return false;
+  if (slot >= 0) tx.emit({ type: 'card.set', who: 'you', slot, card: null, why: 'dropped' });
+  else tx.emit({ type: 'deck.drop', who: 'you', index });
+  tx.emit({ type: 'note', text: `『${cardDef(gone.id).name}』を手放した。`, level: 1 });
+  return true;
+}
+
+/**
+ * 回数の尽きた枠の札を後ろで休ませ、回数のある後ろの札を前へ出す（空いた枠も
+ * 埋める）。回数のある札が後ろに無ければ、尽きた札はそのまま枠に残る（0 回の
+ * 顔で使える）。
+ */
+function rotate(tx: Tx, who: Who): void {
+  const w = tx.w;
+  const c = charOf(w, who);
+  c.cards.forEach((card, slot) => {
+    if (card && card.uses > 0) return;
+    const index = c.back.findIndex((b) => b.uses > 0);
+    if (index < 0) return;
+    const inn = c.back[index];
+    if (!inn) return;
+    tx.emit({ type: 'deck.swap', who, slot, index });
+    const e = w.enc;
+    // 眠りぎわ：向き合っているあいだに尽きた札は、後ろへ回るときに休眠の顔を一度だけ見せる。
+    if (card && e && e.who === who && e.phase === 'act') {
+      const def = cardDef(card.id);
+      if (def.spent.length) {
+        runFx(tx, def.spent, { mult: 1, card: card.id, slot, first: false });
+        settle(tx);
+      }
+    }
+    // 眠っていた札が前へ戻るとき、刻まれたエピテットが一つ、どれか剥がれる。
+    if ((inn.marks.slept ?? 0) > 0 && inn.eps.length) {
+      const ep = inn.eps[Math.floor(tx.rand('loot') * inn.eps.length)];
+      if (ep) {
+        tx.emit({ type: 'card.ep', who, slot, ep, on: false });
+        if (who === 'you')
+          tx.emit({
+            type: 'note',
+            text: `『${cardDef(inn.id).name}』から《${epithetDef(ep)?.name ?? ep}》が剥がれた。`,
+            level: 1,
+          });
+      }
+    }
+    if (who === 'you')
+      tx.emit({
+        type: 'note',
+        text: card
+          ? `『${cardDef(card.id).name}』は後ろで眠る。『${cardDef(inn.id).name}』が前へ。`
+          : `『${cardDef(inn.id).name}』が前へ。`,
+        level: 0,
+      });
+  });
+}
+
+/** 地力が新しい高さに届いたら、持てる札が一枚増える。 */
+function levelUp(tx: Tx): void {
+  const w = tx.w;
+  const hd = youHardness(w);
+  const peak = w.flags.peak ?? 0;
+  if (hd <= peak) return;
+  tx.emit({ type: 'flag', key: 'peak', v: hd });
+  if (!peak || deckCap(w.you) >= DECK_MAX) return;
+  tx.emit({ type: 'level', who: 'you', n: 1 });
+  tx.emit({
+    type: 'note',
+    text: `地力が上がった。持てる札が ${deckCap(w.you)} 枚になった。`,
+    level: 2,
+  });
 }
 
 export function makeChar(job: string, name: string, carry?: string, sheet: Sheet = {}): Char {
@@ -102,19 +234,23 @@ export function makeChar(job: string, name: string, carry?: string, sheet: Sheet
     hp: 0,
     mind: 0,
     coins: 30,
-    items: [item],
+    items: [{ id: item, uses: gearOf(item)?.uses ?? 1 }],
     // 初めは 3 枚。残りの枠は空いている（拾って埋める）。
+    // 職の五枚が枠に入る。後ろの札は、挑戦の初めに配る（start）。
     cards: [0, 1, 2, 3, 4].map((i) => {
       const id = j.cards[i];
-      return i < START_CARDS && id ? newCard(i + 1, id) : null;
+      return id ? newCard(i + 1, id) : null;
     }),
+    back: [],
+    level: 0,
+    tired: 0,
     perms: [...new Set(['promise', origin].filter(Boolean))],
     permEps: {},
     epithets: ep ? [ep] : [],
     debts: {},
     deeds: {},
     titles: [],
-    uid: START_CARDS + 1,
+    uid: 6,
   };
   if (carry && permDef(carry) && !c.perms.includes(carry)) c.perms.push(carry);
   const s = statsOfChar(c);
@@ -285,6 +421,20 @@ function buildMap(tx: Tx, stratum: number): void {
     b.next = back.filter((_, i) => i === 0 || tx.rand('map') < 0.5).map((n) => n.id);
     nodes.push(a, b);
   }
+  // 階の癖。入口の階と最後の相手の階を除いて、三つに一つほど。隣り合う階は同じ癖にしない。
+  let prevQuirk: string | undefined;
+  for (let row = 1; row < ROWS; row++) {
+    if (tx.rand('map') >= PACE.quirk) {
+      prevQuirk = undefined;
+      continue;
+    }
+    const q = tx.pick(
+      'map',
+      QUIRKS.filter((x) => x.id !== prevQuirk),
+    );
+    prevQuirk = q?.id;
+    if (q) for (const n of nodes) if (n.row === row && n.kind !== 'boss') n.quirk = q.id;
+  }
   tx.emit({ type: 'map.built', stratum, nodes });
 }
 
@@ -334,7 +484,7 @@ export function start(
   sheet: Sheet = {},
 ): void {
   const you = makeChar(job, sheet.name ?? 'あなた', carry, sheet);
-  if (depth >= 5 && !you.perms.includes('fear')) you.perms.push('fear');
+  if (depth >= 2 && !you.perms.includes('fear')) you.perms.push('fear');
   const others = [
     'surveyor',
     'watch',
@@ -374,10 +524,34 @@ export function start(
       },
     });
   }
+  // 後ろの札を配る（作品から。職のタグに寄せて）と、道具を二つ。
+  const jobTags = new Set(
+    (jobDef(job)?.cards ?? []).flatMap((id) => cardDef(id).tags as readonly string[]),
+  );
+  const have = new Set(jobDef(job)?.cards ?? []);
+  const works = allCards().filter(
+    (d) =>
+      d.layer === 'archetype' &&
+      !d.retired &&
+      !d.legend &&
+      d.rarity !== 'rare' &&
+      !have.has(d.id) &&
+      d.tags.some((t) => jobTags.has(t)),
+  );
+  for (let k = 0; k < START_BACK && works.length; k++) {
+    const i = Math.floor(tx.rand('loot') * works.length);
+    const [d] = works.splice(i, 1);
+    if (d) tx.emit({ type: 'deck.add', who: 'you', card: newCard(tx.w.you.uid, d.id) });
+  }
+  const tools = allTools().filter((id) => cardDef(id.slice(5)).tags.some((t) => jobTags.has(t)));
+  for (let k = 0; k < 2 && tools.length; k++) {
+    const [id] = tools.splice(Math.floor(tx.rand('loot') * tools.length), 1);
+    if (id) tx.emit({ type: 'item', who: 'you', id, n: 1, uses: gearOf(id)?.uses });
+  }
   buildMap(tx, 1);
   tx.emit({
     type: 'note',
-    text: `22:00。${SECTIONS[1]?.open ?? ''} 下のほうに、もう一つ灯りが揺れている。${rival.name}だ。`,
+    text: `22:00。${SECTIONS[1]?.open ?? ''}ずっと下のほうでは、${rival.name}の灯りがもう一つ揺れている。`,
     level: 2,
   });
   sync(tx);
@@ -534,7 +708,7 @@ function rivalStep(tx: Tx): void {
 export function offerCards(tx: Tx, who: Who): string[] {
   const w = tx.w;
   const c = charOf(w, who);
-  const have = new Set(c.cards.map((x) => x?.id));
+  const have = new Set([...c.cards.map((x) => x?.id), ...c.back.map((x) => x.id)]);
   const tail = new Set(jobDef(c.job)?.cards.slice(START_CARDS) ?? []);
   const want = who === 'you' ? misses(w)[0]?.lack : undefined;
   const fits = (d: CardDef) =>
@@ -554,9 +728,7 @@ export function offerCards(tx: Tx, who: Who): string[] {
         : d.rarity === 'uncommon'
           ? 0.8
           : 1.2);
-  const pool = allCards().filter(
-    (d) => (d.layer === 'archetype' || d.layer === 'basic') && !d.retired && !have.has(d.id),
-  );
+  const pool = allCards().filter((d) => d.layer === 'archetype' && !d.retired && !have.has(d.id));
   const out: string[] = [];
   for (let k = 0; k < 3 && pool.length; k++) {
     const total = pool.reduce((a, d) => a + weight(d), 0);
@@ -696,9 +868,22 @@ export function move(tx: Tx, id: number): boolean {
   const node = reachable(w).find((n) => n.id === id);
   if (!node) return false;
   const from = w.pos;
+  const fromRow = nodeOf(w, from)?.row;
   const hall = isHall(w, node);
   const bridge = isBridge(w, node);
   tx.emit({ type: 'moved', node: node.id });
+  // 癖のある階に着いたら、一度だけ名場面の帯で告げる。
+  const q = quirkDef(node.quirk);
+  if (q && fromRow !== node.row)
+    tx.emit({
+      type: 'note',
+      text: `B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}・${q.name} ── ${q.text}`,
+      level: 3,
+    });
+  // 後ろで休んでいる札は、部屋を移るたびに一回ずつ戻る。
+  w.you.back.forEach((b, index) => {
+    if (b.uses < b.max) tx.emit({ type: 'deck.uses', who: 'you', index, n: 1 });
+  });
   const use = useOf(w.stratum, node.use);
   if (hall) tx.emit({ type: 'note', text: '廊下を歩いて、隣の部屋へ。', level: 0 });
   else if (bridge)
@@ -808,7 +993,7 @@ function happen(tx: Tx, node: MapNode): void {
 
 function enter(tx: Tx, node: MapNode, from: number | null = null): void {
   const w = tx.w;
-  // 最後の相手の扉の前で、一度だけ息を整える（体も心も、六割までは戻る）。
+  // 最後の相手の扉の前で、一度だけ息を整える（体も心も、七割半までは戻る）。
   // 弱ったまま試験に入って、何もできずに崩れることがないように。
   if (node.kind === 'boss' && !w.flags[`gate:${w.stratum}`]) {
     tx.emit({ type: 'flag', key: `gate:${w.stratum}`, v: 1 });
@@ -819,6 +1004,13 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
       tx.emit({ type: 'vital', who: 'you', hp: dh, mind: dm });
       tx.emit({ type: 'note', text: '扉の前で、息を整えた。', level: 1 });
     }
+    // 区画の底に着いた（名場面の帯で、一度だけ）。
+    const who = node.npc ? foeDef(node.npc).name : '最後の相手';
+    tx.emit({
+      type: 'note',
+      text: `${'一二三四五六七八九'[w.stratum - 1] ?? w.stratum}の区画の底、B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}。${who}が待っていた。`,
+      level: 3,
+    });
   }
   if (node.npc) {
     if (node.eps.some((e) => epithetDef(e)?.place?.empty) && node.kind !== 'boss') {
@@ -868,7 +1060,7 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
       const have = new Set(w.you.cards.map((c) => c?.id));
       const pool = allCards().filter(
         (d) =>
-          d.layer !== 'legacy' &&
+          d.layer === 'archetype' &&
           !d.retired &&
           !have.has(d.id) &&
           !d.alter?.care?.to?.startsWith('__'),
@@ -892,10 +1084,13 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
         const d = near[Math.floor(tx.rand('loot') * near.length)];
         if (d) cards.splice(0, 1, d.id);
       }
-      const items = tx
-        .shuffle('loot', allItems())
-        .slice(0, 3)
-        .map((i) => i.id);
+      const items = [
+        ...tx
+          .shuffle('loot', allItems())
+          .slice(0, 3)
+          .map((i) => i.id),
+        ...tx.shuffle('loot', allTools()).slice(0, 2),
+      ];
       const eps = tx
         .shuffle(
           'loot',
@@ -959,10 +1154,11 @@ export function breather(tx: Tx): void {
   const w = tx.w;
   tx.emit({ type: 'flag', key: `breath:${w.stratum}:${nodeOf(w, w.pos)?.row ?? -1}`, v: 1 });
   refill(tx, 1 + (w.you.perms.includes('insomnia') ? 1 : 0), undefined, 'you', true);
+  tx.emit({ type: 'tired', who: 'you', n: -1 });
   careBonus(tx);
   shiftAll(tx, 'you');
   passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, 1))));
-  tx.emit({ type: 'note', text: '壁にもたれて、一服した。', level: 0 });
+  tx.emit({ type: 'note', text: '壁にもたれて、一服した。疲れが少し抜けた。', level: 0 });
 }
 
 /** 古びた・未完のカードは、休ませたことを 2 倍に数える。 */
@@ -973,22 +1169,48 @@ function careBonus(tx: Tx): void {
   });
 }
 
+/** 持てる持ち物の数。 */
+export const ITEM_CAP = 8;
+
+/** 決着の見返りの品（道具ではない品から。重みは同じ）。 */
+function lootItem(tx: Tx): string | undefined {
+  return tx.pick('loot', allItems())?.id;
+}
+
+/**
+ * 持ち物を一回使う。向き合っているあいだは手番を使わず、一手に一つまで。
+ * 地図の上では、体と心・札の回数・金に効くものだけ。
+ */
 export function useItem(tx: Tx, index: number): boolean {
   const w = tx.w;
-  const id = w.you.items[index];
-  const def = id ? itemDef(id) : undefined;
-  if (!def || !id) return false;
-  tx.emit({ type: 'item', who: 'you', id, n: -1 });
+  const held = w.you.items[index];
+  const g = held ? gearOf(held.id) : undefined;
+  if (!g || !held) return false;
+  const e = w.enc;
+  const facing = !!e && e.who === 'you' && e.phase === 'act';
+  if (e && !facing) return false;
+  if (!facing && !g.field) return false;
+  if (e && facing) {
+    if (e.st[`item:${e.turn}`]) return false;
+    tx.emit({ type: 'enc.st', key: `item:${e.turn}`, n: 1 });
+  }
+  tx.emit({ type: 'item.use', who: 'you', index });
   const s = stats(w, 'you');
-  const hp = Math.min(def.heal?.hp ?? 0, maxHp(s) - w.you.hp);
-  const mind = Math.min(def.heal?.mind ?? 0, maxMind(s) - w.you.mind);
+  const hp = Math.min(g.heal?.hp ?? 0, maxHp(s) - w.you.hp);
+  const mind = Math.min(g.heal?.mind ?? 0, maxMind(s) - w.you.mind);
   if (hp > 0 || mind > 0)
     tx.emit({ type: 'vital', who: 'you', hp: Math.max(0, hp), mind: Math.max(0, mind) });
-  if (def.refill) {
-    if (def.refill.tags.length === 0) refill(tx, def.refill.n, undefined, 'you');
-    else for (const t of def.refill.tags) refill(tx, def.refill.n, t, 'you');
+  if (g.refill) {
+    if (g.refill.tags.length === 0) refill(tx, g.refill.n, undefined, 'you');
+    else for (const t of g.refill.tags) refill(tx, g.refill.n, t as Tag, 'you');
   }
-  tx.emit({ type: 'note', text: `${def.name}を使った。`, level: 0 });
+  if (g.fx) runFx(tx, g.fx, { mult: 1, card: g.id, slot: -1, first: false });
+  if (facing) settle(tx);
+  tx.emit({
+    type: 'note',
+    text: `${g.name}を使った。${held.uses > 1 ? `（あと ${held.uses - 1} 回）` : ''}`,
+    level: 1,
+  });
   return true;
 }
 
@@ -1026,6 +1248,32 @@ export function close(tx: Tx): boolean {
   }
   const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];
   if (o === 'beaten') tx.emit({ type: 'flag', key: 'beaten', v: (w.flags.beaten ?? 0) + 1 });
+  // 疲れが溜まる（最後の相手は二つ）。
+  tx.emit({ type: 'tired', who: 'you', n: p.tier === 'boss' ? 2 : 1 });
+  // 決着の余韻（どう決着をつけたかが、この先に大げさに尾を引く）。
+  const aft = AFTER[o];
+  if (aft) {
+    tx.emit({ type: 'after', after: { kind: aft.kind, npc: e.foe.id, left: aft.left } });
+    if (o === 'beaten') {
+      // 戦利品：金と、品を一つ（持ちきれなければ金で）。
+      const loot = 8 + 4 * w.stratum;
+      coins(tx, loot, 'you');
+      notes.push(`戦利品 金 ${loot}`);
+      const id = lootItem(tx);
+      if (id && w.you.items.length < ITEM_CAP) {
+        tx.emit({ type: 'item', who: 'you', id, n: 1, uses: gearOf(id)?.uses });
+        notes.push(gearOf(id)?.name ?? id);
+      }
+    } else if (o === 'broken') {
+      // 相手の名を奪う：エピテットが一つ落ちる（相手に刻まれていたものがあれば、それ）。
+      const pool = allEpithets().filter((x) => x.rarity !== 'rare');
+      const ep = e.foe.eps[0] ?? tx.pick('loot', pool)?.id;
+      if (ep) {
+        tx.emit({ type: 'ep.held', who: 'you', ep, n: 1 });
+        notes.push(`エピテット《${epithetDef(ep)?.name ?? ep}》`);
+      }
+    }
+  }
   if (p.npc === 'rival') tx.emit({ type: 'flag', key: 'rivalMet', v: 1 });
   // 打ち解けたり暴いたりすると、エピテットを拾うことがある。
   if ((o === 'trusted' || o === 'uncovered') && tx.rand('loot') < 0.45) {
@@ -1060,10 +1308,36 @@ export function close(tx: Tx): boolean {
   const mindFloor = Math.round(maxMind(s) * PACE.breath);
   const dh = Math.max(0, hpFloor - w.you.hp);
   const dm = Math.max(0, mindFloor - w.you.mind);
+  // 決着がつけば、半分ほどの割合で、その場で使える品を一つ（持てるのは ITEM_CAP まで）。
+  if (
+    o !== 'left' &&
+    o !== 'fled' &&
+    w.you.items.length < ITEM_CAP &&
+    tx.rand('loot') < PACE.loot
+  ) {
+    const id = lootItem(tx);
+    if (id) {
+      tx.emit({ type: 'item', who: 'you', id, n: 1, uses: gearOf(id)?.uses });
+      notes.push(itemDef(id)?.name ?? id);
+    }
+  }
   if (notes.length) tx.emit({ type: 'note', text: `手に入れた：${notes.join('、')}`, level: 1 });
   if (dh || dm) {
     tx.emit({ type: 'vital', who: 'you', hp: dh, mind: dm });
     tx.emit({ type: 'note', text: '壁にもたれて、息を整えた。', level: 1 });
+  }
+  const settled = o !== 'left' && o !== 'fled';
+  const offered = settled ? offerCards(tx, 'you').slice(0, 2) : [];
+  // ときどき、エピテットが刻まれたままの札がまざる（強いが、手持ちを空けて悩む）。
+  let inked: Record<string, string[]> | undefined;
+  const marked = offered[0];
+  if (marked && tx.rand('loot') < PACE.inked) {
+    const pool = allEpithets().filter((x) => !!x.card);
+    const n = tx.rand('loot') < 0.3 ? 2 : 1;
+    const eps = Array.from({ length: n }, () => tx.pick('loot', pool)?.id).filter(
+      (x): x is string => !!x,
+    );
+    if (eps.length) inked = { [marked]: eps };
   }
   tx.emit({
     type: 'pending',
@@ -1075,7 +1349,11 @@ export function close(tx: Tx): boolean {
       help,
       boss,
       resume: p.resume,
-      cards: o === 'left' || o === 'fled' ? [] : offerCards(tx, 'you'),
+      // 作品の札を二枚と、道具を一つ。拾えるのはどれか一つ（手持ちがいっぱいなら、
+      // 札は一枚手放して拾う）。
+      cards: offered,
+      tools: settled ? tx.shuffle('loot', allTools()).slice(0, 1) : [],
+      inked,
       lucky:
         o === 'left' || o === 'fled'
           ? undefined
@@ -1089,20 +1367,24 @@ export function close(tx: Tx): boolean {
   return true;
 }
 
-export function claim(tx: Tx, take?: string, help?: number, card?: string, slot?: number): boolean {
+export function claim(
+  tx: Tx,
+  cmd: { take?: string; help?: number; card?: string; drop?: number; tool?: string },
+): boolean {
   const w = tx.w;
   const p = w.pending;
   if (p?.kind !== 'reward') return false;
+  const { take, help, card, drop, tool } = cmd;
+  // 拾えるのは、作品の札か道具のどちらか一つ。
+  if (card && tool) return false;
   if (card && (p.cards.includes(card) || p.lucky === card)) {
-    const at = slot ?? w.you.cards.findIndex((c) => !c);
-    if (at < 0 || at > 4) return false;
-    tx.emit({
-      type: 'card.set',
-      who: 'you',
-      slot: at,
-      card: newCard(w.you.uid, card),
-      why: 'picked',
-    });
+    // 持てる数を超えるなら、代わりに一枚手放す（どれを手放すかは、あなたが選ぶ）。
+    if (!makeRoom(tx, drop)) return false;
+    addCard(tx, card, 'picked', 'you', p.inked?.[card] ?? []);
+  }
+  if (tool && p.tools.includes(tool)) {
+    if (w.you.items.length >= ITEM_CAP) return false;
+    tx.emit({ type: 'item', who: 'you', id: tool, n: 1, uses: gearOf(tool)?.uses });
   }
   if (take && p.take.includes(take)) gainPerm(tx, take, p.npc, 'you');
   if (help !== undefined && p.help) {
@@ -1193,6 +1475,25 @@ export function onward(tx: Tx, go: boolean): boolean {
 
 function descend(tx: Tx): void {
   const w = tx.w;
+  // 区画の記録：この区画で、誰とどう決着をつけたか（名場面の帯に一行）。
+  const ways: [string, string][] = [
+    ['beaten', '倒した'],
+    ['broken', '折った'],
+    ['trusted', '打ち解けた'],
+    ['uncovered', '暴いた'],
+  ];
+  const tally = ways
+    .map(([k, name]) => {
+      const n = (w.you.deeds[k] ?? 0) - (w.flags[`snap:${k}`] ?? 0);
+      return n > 0 ? `${name} ${n}` : '';
+    })
+    .filter(Boolean);
+  tx.emit({
+    type: 'note',
+    text: `${'一二三四五六七八九'[w.stratum - 1] ?? w.stratum}の区画を抜けた${tally.length ? ` ── ${tally.join('・')}` : ''}`,
+    level: 3,
+  });
+  for (const [k] of ways) tx.emit({ type: 'flag', key: `snap:${k}`, v: w.you.deeds[k] ?? 0 });
   if (w.stratum < LAST) crown(tx);
   const next = w.stratum + 1;
   buildMap(tx, next);
@@ -1210,15 +1511,17 @@ function descend(tx: Tx): void {
   tx.emit({
     type: 'note',
     text:
-      next <= LAST
+      next <= THEMES
         ? `${'一二三'[next - 1] ?? next}の区画、${sec.name}。B${(next - 1) * (ROWS + 1) + 1}〜B${next * (ROWS + 1)}。${sec.open}`
-        : `B${(next - 1) * (ROWS + 1) + 1}。${sectionName(next)}。上の${sec.name}と同じ造りだが、空気が古い。`,
+        : next <= LAST
+          ? `${'一二三四五六'[next - 1] ?? next}の区画、${sectionName(next)}。B${(next - 1) * (ROWS + 1) + 1}〜B${next * (ROWS + 1)}。上の${sec.name}と同じ造りだが、空気が古い。`
+          : `B${(next - 1) * (ROWS + 1) + 1}。${sectionName(next)}。抜けたあとの、もっと古い階。`,
     level: 2,
   });
   // 新しい掟は、着いたときに一度だけ（名場面の帯に）。
   const law = LAWS[next];
   if (law) tx.emit({ type: 'note', text: `掟《${law.name}》 ── ${law.text}`, level: 3 });
-  else if (next > LAST)
+  else if (next > THEMES)
     tx.emit({
       type: 'note',
       text: `掟はそのまま ── ${lawsAt(next)
@@ -1245,7 +1548,7 @@ export function canChoose(w: World, i: number): boolean {
   const o = def?.options[i];
   if (!o) return false;
   if (o.needPerm && !w.you.perms.includes(o.needPerm)) return false;
-  if (o.needItem && !w.you.items.includes(o.needItem)) return false;
+  if (o.needItem && !w.you.items.some((x) => x.id === o.needItem)) return false;
   if (o.needCoins && w.you.coins < o.needCoins) return false;
   if (o.needTags && !meets(tagCount(w.you), o.needTags)) return false;
   return true;
@@ -1314,23 +1617,43 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
   if (a === 'bet') return bet(tx);
   switch (a) {
     case 'rest': {
-      // 同じ層で休むほど、効きは薄れる（安全な道ばかりでは、夜を越えられない）。
+      // 休む：体と心、疲れを少し、後ろの札は満ちる。
       const again = w.flags[`rested${w.stratum}`] ?? 0;
       tx.emit({ type: 'flag', key: `rested${w.stratum}`, v: again + 1 });
       heal(PACE.rest);
-      refill(tx, 1 + (y.perms.includes('insomnia') ? 1 : 0), undefined, 'you', true);
+      tx.emit({ type: 'tired', who: 'you', n: -3 });
+      y.back.forEach((b, index) => {
+        if (b.uses < b.max) tx.emit({ type: 'deck.uses', who: 'you', index, n: b.max - b.uses });
+      });
+      refill(tx, y.perms.includes('insomnia') ? 1 : 0, undefined, 'you', true);
       careBonus(tx);
       passTime(tx, timeFor(1));
       break;
     }
+    case 'eat': {
+      // 食べる：金を払って、疲れを少しと、全ての札の回数を一つ。
+      if (y.coins < PACE.meal) return false;
+      coins(tx, -PACE.meal, 'you');
+      heal(0.2);
+      tx.emit({ type: 'tired', who: 'you', n: -1 });
+      refill(tx, 1, undefined, 'you', true);
+      passTime(tx, timeFor(1));
+      break;
+    }
     case 'full': {
-      const card = slot !== undefined ? y.cards[slot] : null;
-      if (!card || slot === undefined) return false;
-      heal(0.6);
-      if (card.uses < card.max)
-        tx.emit({ type: 'card.uses', who: 'you', slot, n: card.max - card.uses });
-      tx.emit({ type: 'card.mark', who: 'you', slot, mark: 'rested', n: 2 });
-      passTime(tx, timeFor(2));
+      // ひと晩ここで：疲れは抜けきって全部満ちるが、夜が明けて噂も冷める
+      // （決着の余韻はすべて消える）。次の出来事も逃す。
+      heal(0.8);
+      tx.emit({ type: 'tired', who: 'you', n: -10 });
+      y.cards.forEach((card, i) => {
+        if (card && card.uses < card.max)
+          tx.emit({ type: 'card.uses', who: 'you', slot: i, n: card.max - card.uses });
+      });
+      y.back.forEach((b, index) => {
+        if (b.uses < b.max) tx.emit({ type: 'deck.uses', who: 'you', index, n: b.max - b.uses });
+      });
+      for (const af of [...w.after]) tx.emit({ type: 'after.end', kind: af.kind });
+      passTime(tx, timeFor(3));
       tx.emit({ type: 'flag', key: 'skipStory', v: 1 });
       break;
     }
@@ -1448,23 +1771,23 @@ export function inscribe(
   } else if (to.node !== undefined) {
     const n = nodeOf(w, to.node);
     const here = nodeOf(w, w.pos)?.row ?? -1;
-    if (w.enc || w.pending || !n || n.visited || n.row <= here) return false;
-    if (!(n.npc ? def.foe : def.place) || n.eps.length >= 2 || n.eps.includes(ep)) return false;
+    // 先の部屋へは、向き合っていなければいつでも（受け取り・店・出来事の最中でも）。
+    if (w.enc || !n || n.visited || n.row <= here) return false;
+    if (!(n.npc ? def.foe : def.place) || n.eps.length >= PACE.stack) return false;
     tx.emit({ type: 'node.ep', id: n.id, ep });
     tx.emit({
       type: 'note',
       text: `《${def.name}》を${n.npc ? foeDef(n.npc).name : '部屋'}に刻んだ。${(n.npc ? def.foe : def.place)?.text ?? ''}`,
       level: 1,
     });
-  } else if (w.enc || (w.pending && w.pending.kind !== 'rest')) return false;
-  else if (slot !== undefined) {
+  } else if (slot !== undefined) {
+    // 札と記憶へは、どの場面でも（向き合っているあいだも、手番を使わずに）。
     const card = w.you.cards[slot];
-    if (!card || !def.card || card.eps.length >= 2 || card.eps.includes(ep)) return false;
+    if (!card || !def.card || card.eps.length >= PACE.stack) return false;
     tx.emit({ type: 'card.ep', who: 'you', slot, ep, on: true });
   } else if (perm) {
     const list = w.you.permEps[perm] ?? [];
-    if (!w.you.perms.includes(perm) || !def.memory || list.length >= 2 || list.includes(ep))
-      return false;
+    if (!w.you.perms.includes(perm) || !def.memory || list.length >= PACE.stack) return false;
     tx.emit({ type: 'perm.ep', who: 'you', perm, ep, on: true });
   } else if (!to.foe && !to.story && to.node === undefined) return false;
   tx.emit({ type: 'ep.held', who: 'you', ep, n: -1 });
@@ -1480,8 +1803,8 @@ function inkFoe(tx: Tx, ep: string): boolean {
   const w = tx.w;
   const e = w.enc;
   const ff = epithetDef(ep)?.foe;
-  if (!e || e.phase !== 'act' || e.who !== 'you' || !ff || e.st.inked) return false;
-  if (e.foe.eps.includes(ep) || e.foe.eps.length >= 3) return false;
+  if (!e || e.phase !== 'act' || e.who !== 'you' || !ff) return false;
+  if ((e.st.inked ?? 0) >= PACE.inkEnc || e.foe.eps.length >= PACE.stackFoe) return false;
   const f = e.foe;
   tx.emit({ type: 'enc.st', key: 'inked', n: 1 });
   tx.emit({ type: 'foe.ep', ep });
@@ -1517,7 +1840,7 @@ function inkFoe(tx: Tx, ep: string): boolean {
 // ─── 古物商 ───────────────────────────────────────────────────
 
 export const priceOf = (w: World, base: number) =>
-  Math.round(ask(w, 'price', {}, base * (1 + 0.1 * w.depth)));
+  Math.round(ask(w, 'price', {}, base * (1 + 0.08 * heatOf(w))));
 export const cardPrice = (w: World, id: string) =>
   priceOf(w, 45 + cardDef(id).uses * 3 + (cardDef(id).rarity === 'rare' ? 25 : 0));
 export const epPrice = (w: World, id: string) =>
@@ -1533,15 +1856,16 @@ export function permValue(c: Char, id: string): number {
   return Math.round(v);
 }
 
-export function buy(tx: Tx, id: string, slot?: number): boolean {
+export function buy(tx: Tx, id: string, drop?: number): boolean {
   const w = tx.w;
   const p = w.pending;
   if (p?.kind !== 'shop' || p.sold.includes(id)) return false;
   if (p.cards.includes(id)) {
     const price = p.bargain === id ? Math.ceil(cardPrice(w, id) / 2) : cardPrice(w, id);
-    if (w.you.coins < price || slot === undefined || slot < 0 || slot > 4) return false;
+    if (w.you.coins < price) return false;
+    if (!makeRoom(tx, drop)) return false;
     coins(tx, -price, 'you');
-    tx.emit({ type: 'card.set', who: 'you', slot, card: newCard(w.you.uid, id), why: 'bought' });
+    addCard(tx, id, 'bought');
   } else if (p.items.includes(id)) {
     if (id.startsWith('ep:')) {
       const ep = id.slice(3);
@@ -1550,10 +1874,11 @@ export function buy(tx: Tx, id: string, slot?: number): boolean {
       coins(tx, -price, 'you');
       tx.emit({ type: 'ep.held', who: 'you', ep, n: 1 });
     } else {
-      const price = priceOf(w, itemDef(id)?.price ?? 99);
-      if (w.you.coins < price) return false;
+      const g = gearOf(id);
+      const price = priceOf(w, g?.price ?? 99);
+      if (!g || w.you.coins < price || w.you.items.length >= ITEM_CAP) return false;
       coins(tx, -price, 'you');
-      tx.emit({ type: 'item', who: 'you', id, n: 1 });
+      tx.emit({ type: 'item', who: 'you', id, n: 1, uses: g.uses });
     }
   } else return false;
   tx.emit({ type: 'pending', p: { ...p, sold: [...p.sold, id] } });
@@ -1616,6 +1941,9 @@ export function sync(tx: Tx): void {
     if (c.grant) gainPerm(tx, c.grant, `combo:${c.id}`, 'you');
     if (c.story) tx.emit({ type: 'unlock', story: c.story });
   }
+  rotate(tx, 'you');
+  rotate(tx, 'rival');
+  levelUp(tx);
   const s = stats(w, 'you');
   if (w.you.hp > maxHp(s)) tx.emit({ type: 'vital', who: 'you', hp: maxHp(s) - w.you.hp });
   if (w.you.mind > maxMind(s))

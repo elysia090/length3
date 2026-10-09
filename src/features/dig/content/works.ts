@@ -54,7 +54,8 @@ function w(
     work: { title, by, year, kind },
     tags,
     stats,
-    uses,
+    // 何枚かだけ、効き目が控えめなかわりに十回使える（長く手元に残る札）。
+    uses: LONG.has(id) ? 10 : uses,
     rarity,
     ready,
     spentName,
@@ -68,6 +69,16 @@ function w(
     flavor,
   };
 }
+
+/** 十回使える札（控えめな効き目の、いつもの一枚）。 */
+const LONG: ReadonlySet<string> = new Set([
+  'delft',
+  'monk',
+  'cafe',
+  'crocodiles',
+  'alien',
+  'democracy',
+]);
 
 const night = (c: { w: { hour: number } }) => isDeep(c.w.hour);
 const foeHas = (t: Tag) => (c: { enc?: { foe: { tags: readonly Tag[] } } | null }) =>

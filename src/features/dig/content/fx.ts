@@ -342,16 +342,20 @@ export function fxText(list: readonly Fx[]): string {
   for (const f of list) {
     switch (f[0]) {
       case 'hit':
-        out.push(`体力を ${numText(f[1])} 削る${f[2] ? '（守りを無視）' : ''}`);
+        out.push(`相手の体力を ${numText(f[1])} 削る${f[2] ? '（守りを無視）' : ''}`);
         break;
       case 'break':
-        out.push(`意志を ${numText(f[1])} 削る`);
+        out.push(`相手の意志を ${numText(f[1])} 削る`);
         break;
       case 'trust':
-        out.push(`信頼 +${numText(f[1])}`);
+        out.push(
+          typeof f[1] === 'number' && f[1] < 0
+            ? `相手の信頼 −${-f[1]}`
+            : `相手の信頼 +${numText(f[1])}`,
+        );
         break;
       case 'host':
-        out.push(`敵意 ${f[1] > 0 ? '+' : ''}${f[1]}`);
+        out.push(`相手の敵意 ${f[1] > 0 ? '+' : ''}${f[1]}`);
         break;
       case 'clue':
         out.push(`手がかりを ${f[1]} つ見る${f[2] ? '（誤りが混じりうる）' : ''}`);
@@ -360,16 +364,16 @@ export function fxText(list: readonly Fx[]): string {
         out.push('本当の予告を見る');
         break;
       case 'guard':
-        out.push(`守り ${numText(f[1])}`);
+        out.push(`あなたの守り +${numText(f[1])}`);
         break;
       case 'calm':
-        out.push(`構え ${numText(f[1])}`);
+        out.push(`あなたの構え +${numText(f[1])}`);
         break;
       case 'heal': {
         const hp = numText(f[1]);
         const mind = f[2] === undefined ? '' : numText(f[2]);
         out.push(
-          [hp !== '0' ? `体力 +${hp}` : '', mind && mind !== '0' ? `精神 +${mind}` : '']
+          [hp !== '0' ? `あなたの体力 +${hp}` : '', mind && mind !== '0' ? `精神 +${mind}` : '']
             .filter(Boolean)
             .join('、'),
         );

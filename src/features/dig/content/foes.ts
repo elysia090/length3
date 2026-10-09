@@ -13,6 +13,7 @@ import {
 } from '../sim/ops';
 import { PACE } from './balance';
 import type { FoeDef, MoveDef } from './defs';
+import { heatOf } from './floors';
 import { permDef } from './registry';
 
 /**
@@ -2225,7 +2226,7 @@ export const FOE_LIST: readonly FoeDef[] = [
       // 体積はあなたの履歴でできている。辺は経験の数、手がかりはあなたの永続カード。
       const mine = w.you.perms.filter((id) => id !== 'false-lead');
       const edge = 3 + Math.min(3, Math.floor(mine.length / 4));
-      const k = PACE.tough * (1 + 0.1 * w.depth);
+      const k = PACE.tough * (1 + PACE.heat * heatOf(w));
       f.hp = f.maxHp = Math.round((edge ** 3 / 2 + 20) * k);
       const memories = mine.filter((id) => permDef(id)?.kind === 'memory').length;
       f.resolve = f.maxResolve = Math.round((14 + 4 * memories) * k);

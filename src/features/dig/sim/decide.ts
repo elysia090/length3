@@ -65,7 +65,8 @@ export function decide(
       if (ok) ok = useItem(tx, cmd.index);
       break;
     case 'act':
-      ok = basic(tx, cmd.a);
+      // 素手の手（押す・構える・話す）は無い。立ち去るか、取引に応じるだけ。
+      ok = (cmd.a === 'leave' || cmd.a === 'accept') && basic(tx, cmd.a);
       break;
     case 'card':
       ok = useCard(tx, cmd.slot);
@@ -74,7 +75,7 @@ export function decide(
       ok = close(tx);
       break;
     case 'claim':
-      ok = claim(tx, cmd.take, cmd.help, cmd.card, cmd.slot);
+      ok = claim(tx, cmd);
       break;
     case 'choose':
       ok = choose(tx, cmd.option);
@@ -93,7 +94,7 @@ export function decide(
       ok = inscribe(tx, cmd.ep, cmd);
       break;
     case 'buy':
-      ok = buy(tx, cmd.id, cmd.slot);
+      ok = buy(tx, cmd.id, cmd.drop);
       break;
     case 'sell':
       ok = sell(tx, cmd.perm);

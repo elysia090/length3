@@ -1,4 +1,5 @@
 import type { MoveDef } from '../content/defs';
+import { heatOf } from '../content/floors';
 import { cardDef, foeDef } from '../content/registry';
 import { forkEncounter } from '../core/branch';
 import type { Basic } from '../core/events';
@@ -7,7 +8,7 @@ import type { Intent, World } from '../core/model';
 import { Tx } from '../core/tx';
 import { basic, canAccept, useCard } from './encounter';
 import { foeHardness } from './hardness';
-import { charOf, maxHp, stats } from './ops';
+import { charOf, maxHp, maxMind, stats } from './ops';
 
 /**
  * 頭。サーバーを使わず、手元で読む。
@@ -47,10 +48,8 @@ export function act(tx: Tx, a: Action): boolean {
 export function actions(w: World): Action[] {
   const e = w.enc;
   if (!e) return [];
-  const out: Action[] = (['press', 'brace', 'talk', 'leave'] as const).map((a) => ({
-    kind: 'basic',
-    a,
-  }));
+  // 素手の手は無い。札を切るか、立ち去るか（取引に応じるか）。
+  const out: Action[] = [{ kind: 'basic', a: 'leave' }];
   if (canAccept(w)) out.push({ kind: 'basic', a: 'accept' });
   charOf(w, e.who).cards.forEach((c, slot) => {
     if (c) out.push({ kind: 'card', slot });
@@ -80,9 +79,13 @@ export function judgeYou(base: World, s: World): number {
   const c1 = charOf(s, who);
   const f = e.foe;
   let v = e.outcome ? (VALUE[e.outcome] ?? 0) : 0;
-  // 長引いたら、引くのも手。ただし最後の相手からは、負けているときだけ退く（再戦）。
-  if (e.outcome === 'left' && b.tier === 'boss') v = c1.hp * 3 < maxHp(stats(s, who)) ? 10 : -60;
-  else if (e.outcome === 'left') v += 5 * Math.max(0, e.turn - 3);
+  // 立ち去るのは、危ないときだけ（体か心が三割を切っている）。最後の相手からは
+  // 退いても再戦できるが、勝てるうちは粘る。長引いたら、少しずつ引くのも手。
+  if (e.outcome === 'left') {
+    const st = stats(s, who);
+    const danger = c1.hp * 10 < maxHp(st) * 3 || c1.mind * 10 < maxMind(st) * 3;
+    v = b.tier === 'boss' ? (danger ? 10 : -60) : danger ? 25 : -25 + 5 * Math.max(0, e.turn - 6);
+  }
   const progress = [
     1 - Math.max(0, f.hp) / f.maxHp,
     1 - Math.max(0, f.resolve) / f.maxResolve,
@@ -102,15 +105,27 @@ export function judgeYou(base: World, s: World): number {
   return v;
 }
 
-/** 1 手読みで、いちばん良い手。 */
-export function bestAction(w: World): Action {
+/**
+ * いちばん良い手。depth 2 なら、相手の返しのあとのこちらの次の一手まで読む
+ * （試しの遊び手が使う。人の読みに近づける）。
+ */
+export function bestAction(w: World, depth = 1): Action {
   const list = actions(w);
-  let best: Action = { kind: 'basic', a: 'brace' };
+  let best: Action = { kind: 'basic', a: 'leave' };
   let bestV = Number.NEGATIVE_INFINITY;
   list.forEach((a, i) => {
     const s = fork(w, i + 17);
     act(new Tx(s, true), a);
-    const v = judgeYou(w, s);
+    let v = judgeYou(w, s);
+    if (depth > 1 && s.enc?.phase === 'act' && !(a.kind === 'basic' && a.a === 'leave')) {
+      let next = Number.NEGATIVE_INFINITY;
+      actions(s).forEach((b, j) => {
+        const s2 = fork(s, j + 31);
+        act(new Tx(s2, true), b);
+        next = Math.max(next, judgeYou(w, s2));
+      });
+      if (next > Number.NEGATIVE_INFINITY) v = 0.4 * v + 0.6 * next;
+    }
     if (v > bestV) {
       bestV = v;
       best = a;
@@ -155,31 +170,28 @@ const prior = (w: World, m: MoveDef) => Math.max(0.05, m.prior?.(w) ?? 1);
 function imagine(tx: Tx): Action {
   const w = tx.w;
   const e = w.enc;
-  if (!e) return { kind: 'basic', a: 'brace' };
+  if (!e) return { kind: 'basic', a: 'leave' };
   const mind = w.minds[e.foe.id];
   const p = portrait(mind);
   const harmless = believes(mind, 'harmless');
-  const weights: [Action, number][] = [
-    [{ kind: 'basic', a: 'press' }, harmless ? 0.1 : 1 + 4 * p.violent],
-    [{ kind: 'basic', a: 'talk' }, 1 + 4 * p.kind],
-    [{ kind: 'basic', a: 'brace' }, 1],
-    [{ kind: 'basic', a: 'leave' }, 0.3],
-  ];
-  if (e.who === 'you') {
-    const seen = new Set(mind?.cards ?? []);
-    charOf(w, 'you').cards.forEach((c, slot) => {
-      if (!c || !seen.has(c.id)) return;
-      const body = cardDef(c.id).tags.includes('body');
-      weights.push([{ kind: 'card', slot }, harmless && body ? 0.1 : 2.2]);
-    });
-  }
+  // 相手が想像するあなたの手は、札と立ち去ることだけ（素手の手は無い）。見た札は
+  // 重く、見ていない札は、あなたが乱暴そうか穏やかそうかで、身体の札か話の札を想像する。
+  const weights: [Action, number][] = [[{ kind: 'basic', a: 'leave' }, 0.3]];
+  const seen = new Set(mind?.cards ?? []);
+  charOf(w, e.who).cards.forEach((c, slot) => {
+    if (!c) return;
+    const body = cardDef(c.id).tags.includes('body');
+    const guess = body ? 0.5 + 2 * p.violent : 0.5 + 2 * p.kind;
+    const x = seen.has(c.id) ? 2.2 : guess;
+    weights.push([{ kind: 'card', slot }, harmless && body ? 0.1 : x]);
+  });
   const total = weights.reduce((a, [, x]) => a + x, 0);
   let r = tx.rand('ai') * total;
   for (const [a, x] of weights) {
     r -= x;
     if (r < 0) return a;
   }
-  return weights[0]?.[0] ?? { kind: 'basic', a: 'brace' };
+  return weights[0]?.[0] ?? { kind: 'basic', a: 'leave' };
 }
 
 function judgeFoe(base: World, s: World): number {
@@ -234,7 +246,7 @@ function judgeFoe(base: World, s: World): number {
 /** 硬い相手ほど、多く読む。 */
 function rollouts(w: World): number {
   const f = w.enc?.foe;
-  return 3 + (f ? foeHardness(f) : 4) + Math.floor(w.depth / 2);
+  return 3 + (f ? foeHardness(f) : 4) + Math.floor(heatOf(w));
 }
 
 /** 相手の次の手を決め、予告する。 */

@@ -71,6 +71,8 @@ export class Tower {
    * 歩く人を追って横と下へ流れるだけ。
    */
   private me = { u: 0, v: 0, f: -1 };
+  /** フロアの番号（額縁のあとに描く）。 */
+  private labels: { text: string; x: number; y: number }[] = [];
   private walk = {
     id: null as number | null,
     from: { u: 0, v: 0, f: -1 },
@@ -249,6 +251,7 @@ export class Tower {
     const hold = view.enc ? this.hold.amt * (1 - Math.exp(-(t - this.hold.at) * 2.2)) : 0;
     this.cam.zoom = base * (1 + kick + Math.max(0, hold));
 
+    this.labels = [];
     this.abyss(view);
     // 深いフロアから描く（上のフロアが手前に重なる）。同じ高さの隣の床が先。
     const lit = new Set(view.rooms.filter((x) => x.tower).map((x) => `${x.tower}:${x.floor}`));
@@ -274,9 +277,17 @@ export class Tower {
       if (scene.stage) spotlight(this.raster, this.cam.zoom, c.x, c.y, t, presence);
     }
     this.people(view, t);
+    // エピテットの刻む先を選んでいるあいだ、刻める部屋に琥珀の輪が明滅する。
+    if (Math.floor(t * 3) % 2 === 0)
+      for (const room of view.rooms)
+        if (room.ink) {
+          const c = this.center(room);
+          ring(this.raster, c.x, c.y - 2, 10 * this.cam.zoom, AMBER);
+        }
     if (scene && c && at && presence > 0.6)
       hud(this.raster, this.cam.zoom, c.x, c.y, at.kind === 'boss', scene, t);
     this.vignette(view.enc ? 0 : 1);
+    for (const l of this.labels) drawText(r, l.text, l.x, l.y, INK);
     if (this.ctx && this.image && this.out) {
       r.present(this.out, this.palette);
       this.ctx.putImageData(this.image, 0, 0);
@@ -361,7 +372,8 @@ export class Tower {
     const label = `B${view.top + f}`;
     const lx = Math.round(e.x - textWidth(label) - 5);
     const ly = Math.round(e.y - 3);
-    if (lx > 0 && ly > 0 && ly < H - 8) drawText(r, label, lx, ly, INK);
+    // 額縁の網点に削られないよう、描くのは額縁のあと（draw の最後）。
+    if (lx > 0 && ly > 0 && ly < H - 8) this.labels.push({ text: label, x: lx, y: ly });
   }
 
   /**

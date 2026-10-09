@@ -2,7 +2,7 @@ import { drawText, textWidth } from '../../../../shared/pixel/font';
 import { clamp } from '../../../../shared/pixel/math';
 import { AMBER, INK, PAPER, type Raster, threshold } from '../../../../shared/pixel/raster';
 import { BLUE, GREEN, H, PEER, PEER_BOSS } from './geo';
-import { bar, dot, K, leader, veil } from './paint';
+import { bar, dot, K, leader } from './paint';
 import type { Scene } from './types';
 
 /** 向き合った場面：灯り・見せ場の光・計器と気配（寄ったときだけ描く）。 */
@@ -94,34 +94,8 @@ export function hud(
   const youTop = cy - 7 * zm - 4 * zm - 2;
   const foeTop = cy - 7 * fk - 4 * fk - 2;
   const blink = Math.floor(t * 2.2) % 2 === 0;
-  // 守り（体の前に、相手へ向けた半円）と落ち着き（頭のまわり）。あなたの側は
-  // 琥珀、相手の側は青で、どちらもまばらに。
-  if (s.you.guard > 0)
-    veil(
-      r,
-      youX,
-      cy - 4 * zm,
-      10 * zm,
-      2.5,
-      0.1 + Math.min(0.3, s.you.guard / 30),
-      AMBER,
-      Math.PI * 1.5,
-      Math.PI * 0.5,
-    );
-  if (s.you.calm > 0)
-    veil(r, youX, cy - 9.5 * zm, 3.6 * zm, 1.6, 0.14 + Math.min(0.3, s.you.calm / 25), AMBER);
-  if (s.foe.guard > 0)
-    veil(
-      r,
-      foeX,
-      cy - 4 * fk,
-      9 * fk,
-      2.5,
-      0.1 + Math.min(0.3, s.foe.guard / 30),
-      BLUE,
-      Math.PI * 0.5,
-      Math.PI * 1.5,
-    );
+  // 守りと構えは計器の棒の先（点線）で見せる。体のまわりに点を撒くと、人の脇に
+  // 琥珀の屑が残って見えるので描かない。
   // 信頼の糸（頭から頭へ、相手の色で）。届きそうになるほど、点が詰まる。
   if (s.foe.need < 50 && s.foe.trust > 0) {
     const k = clamp(s.foe.trust / Math.max(1, s.foe.need));
