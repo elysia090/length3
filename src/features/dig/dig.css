@@ -306,8 +306,12 @@
 }
 
 .dig .dig-chip.is-on {
-  border-width: 0.125rem;
   border-color: var(--amber-text);
+  box-shadow: inset 2px 0 0 var(--amber-text);
+}
+
+.dig .dig-chip.is-on b {
+  color: var(--amber-text);
 }
 
 .dig-row {
@@ -1094,11 +1098,39 @@
   color: var(--ink-3);
 }
 
-.dig .dig-bare__act {
-  min-height: 1.75rem;
-  padding: 0 0.5rem;
-  border-color: var(--rule);
+/* 立ち去る・応じる：選ぶ箱（名前と、何が起きるか）。札より目立たせない。 */
+.dig-bare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  align-items: stretch;
+}
+
+.dig .dig-bare__act,
+.dig .dig-alter__b {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-height: 0;
+  padding: 6px 10px 7px;
+}
+
+.dig .dig-bare__act b,
+.dig .dig-alter__b b {
+  font-size: 0.8125rem;
+}
+
+.dig .dig-bare__act span,
+.dig .dig-alter__b span {
   font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+/* 変質：見出しの下に、一列の箱（作品名が長いので、折り返さない幅で）。 */
+.dig-alter__list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .dig-enc__desc {
@@ -2912,10 +2944,12 @@
  * 左の欄の切り替え（地図 ⇄ 手札）。右上の二つ並びの釦。向き合っているあいだは
  * 出ない（そのときは手札が下の帯にある）。手札に手を入れる理由があれば琥珀の点。
  */
+/* 左の欄の切り替えは、縮小・拡大の左隣に（地図の操作は右下に一つにまとめる）。 */
 .dig-switch {
   position: absolute;
-  top: 12px;
-  right: 16px;
+  right: calc(16px + 34px + 8px);
+  bottom: 16px;
+  align-items: flex-end;
   z-index: 4;
   display: flex;
   background: var(--bg);
@@ -2952,9 +2986,13 @@
   background: var(--amber);
 }
 
-/* 手札の一覧は、切り替えの釦をよけて始める。 */
+/* 手札の一覧では縮小・拡大が無いので、切り替えは右下の角に。一覧は釦をよけて終わる。 */
+.dig-view:has(.dig-handview:not([hidden])) .dig-switch {
+  right: 16px;
+}
+
 .dig-deckview {
-  padding-top: 56px;
+  padding-bottom: 64px;
 }
 
 .dig-offers .dig-scene__card {
@@ -2963,8 +3001,8 @@
 
 .dig-switch__new {
   position: absolute;
-  top: calc(100% + 6px);
   right: 0;
+  bottom: calc(100% + 6px);
   white-space: nowrap;
 }
 
@@ -3098,12 +3136,11 @@
   transition: border-color 0.2s;
 }
 
-/* 選んだ道に効く箱は、選んだ道の札と同じ形（琥珀の二重線と、琥珀の名）。 */
+/* 選んだ道に効く箱は、選んだ道の札と同じ形（人物を決める画面の選んだ箱とも同じ）。 */
 .dig .dig-spot__row.is-fit,
 .dig-gauge.is-fit {
-  padding: 5px 9px 6px;
-  border-width: 2px;
   border-color: var(--amber-text);
+  box-shadow: inset 2px 0 0 var(--amber-text);
 }
 
 .dig-spot__row.is-fit .dig-spot__what {
@@ -3127,14 +3164,47 @@
   }
 }
 
-/* 整えたら、進む（その場での下に、一つだけ）。 */
-.dig-next {
-  margin-top: 12px;
+/*
+ * 行き先の枠（琥珀の一本線）：中身 → その場で → 進む釦。進む釦は「この夜に入る」と
+ * 同じ形（字の幅の四角、太い枠）で、枠の左下に。
+ */
+.dig-plan {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--amber-text);
 }
 
-.dig .dig-next .dig-go {
-  display: block;
-  width: 100%;
+.dig-plan__h {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+.dig-plan__go {
+  margin-top: 6px;
+}
+
+/* 箱を使い切ると、見出しが「整った」に替わり、進む釦だけが残る。 */
+.dig-plan__h.is-done {
+  color: var(--amber-text);
+}
+
+.dig-plan__room {
+  position: relative;
+}
+
+.dig .dig-plan__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-height: 1.75rem;
+  padding: 0 10px;
+  font-size: var(--font-ui-xs);
 }
 
 /* 選んだ道の中身：見出しと短い行。 */
@@ -3142,9 +3212,7 @@
   display: grid;
   grid-template-columns: 4rem minmax(0, 1fr);
   gap: 2px 8px;
-  margin: 8px 0 0;
-  padding: 8px 10px;
-  border: 1px solid var(--rule);
+  margin: 0;
   font-size: var(--font-ui-xs);
   line-height: 1.6;
 }
@@ -3319,4 +3387,17 @@
   width: 2px;
   margin-left: -1px;
   background: var(--ink);
+}
+
+/* 手札の一覧：選んだ道で頼る札は、選んだ箱と同じ琥珀の印。尽きる札は一言だけ。 */
+.dig .dig-card.is-lean {
+  border-color: var(--amber-text);
+  box-shadow: inset 2px 0 0 var(--amber-text);
+}
+
+.dig-card__route {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--amber-text);
 }

@@ -254,7 +254,7 @@
     "1 時間": "1 h",
     "手持ち": "Hand",
     "体と心 +10%・1 時間（この階で一度）": "Body and mind +10% · 1 h (once per floor)",
-    "右上の切り替えで、左の欄を地図から手札に替えられる。手札では七枚の札と手元のエピテットと持ち物が広がり、尽きた札を確かめたり、言葉を付け替えたり、品を使ったりできる。": "The switch at the top right turns the left pane from the map into your hand. There you see all seven cards, your epithets and your belongings: check spent cards, move epithets, use items.",
+    "右下の縮小・拡大の隣の切り替えで、左の欄を地図から手札に替えられる。手札では七枚の札と手元のエピテットと持ち物が広がり、尽きた札を確かめたり、言葉を付け替えたり、品を使ったりできる。": "The switch at the bottom right, next to zoom, turns the left pane from the map into your hand. There you see all seven cards, your epithets and your belongings: check spent cards, move epithets, use items.",
     "食堂では休み方を一つだけ選ぶ。休めば札が一枚、ひと晩なら二枚満ちるが、ひと晩は三時間かかって次の出来事を逃し、決着の余韻も消える。": "At the canteen you choose one way to rest. Resting refills one card, a night refills two, but a night takes three hours, misses the next event and lets every aftermath fade.",
     "手持ちはどの職でも七枚で、遭遇のたびに五枚が配られ、二枚は出番を待つ。拾うには一枚を手放すことになるので、尽きた札を新しい札と入れ替えるか、回数を増やすエピテットが宿るのを待つかを、決着のたびに選ぶ。": "Every job holds seven cards; each encounter deals five and two wait. Taking a card means letting one go, so after each settlement you choose: swap a spent card for a new one, or keep it and wait for an epithet that adds uses.",
     "手放す一枚": "Let one go",
@@ -285,7 +285,13 @@
     "出来事が起きやすい": "Events more likely",
     "何か見つかりやすい": "More likely to find something",
     "何かが起きるかもしれない": "Something may happen",
-    "1 時間（この階で一度）": "1 h (once per floor)"
+    "1 時間（この階で一度）": "1 h (once per floor)",
+    "頼る札": "Lean on",
+    "この道で頼る": "Lean on this route",
+    "この道で尽きる": "Runs dry on this route",
+    "手元から": "From your hand",
+    "噛み合いの芯を強める": "Strengthens the core of the chain",
+    "決着はつかない": "Nothing is settled"
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -475,6 +481,12 @@
     "{0}で{1}（{2}）": "{1} at {0} ({2})",
     "着いて体力 {0}%": "arrive at {0}% body",
     "あと {0} 戦": "{0} more",
-    "{0}：{1}　{2}": "{0}: {1}  {2}"
+    "{0}：{1}　{2}": "{0}: {1}  {2}",
+    "抜け出せる見込み {0}%": "{0}% to get away",
+    "《{0}》を『{1}』へ": "«{0}» onto “{1}”",
+    "『{0}』から剥がして": "Peeled from “{0}”",
+    "『{0}』から": "From “{0}”",
+    "［{0}］が付いて、{1}が成立する": "Adds [{0}], completing {1}",
+    "{0}がこの道で尽きない（最大回数 +{1}）": "{0} lasts this route (max uses +{1})"
   }
 }

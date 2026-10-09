@@ -20,6 +20,8 @@ import { breathed, reachable } from './run';
  * 点（score）は、いま使う値打ちの見積もり。低いものは出さない。
  */
 export interface SpotAction {
+  /** 何を使うか（品の id・一服・付け替え）。回数が減っても変わらない。 */
+  id: string;
   cmd: Cmd;
   /** 何をするか（品の名と、相手の札・人）。 */
   label: string;
@@ -69,6 +71,7 @@ export function spotActions(w: World, toward?: number): SpotAction[] {
     const hp = Math.min(hpGap, Math.round(maxHp(s) * 0.1));
     const mind = Math.min(mindGap, Math.round(maxMind(s) * 0.1));
     out.push({
+      id: 'breather',
       cmd: { c: 'breather' },
       label: '一服',
       gain: [hp ? `体力 +${hp}` : '', mind ? `精神 +${mind}` : '', '1 時間（この階で一度）']
@@ -93,6 +96,7 @@ export function spotActions(w: World, toward?: number): SpotAction[] {
       if (target && fill > 0 && target.uses * 2 <= target.max) {
         const name = cardDef(target.id).name;
         out.push({
+          id: `item:${it.id}`,
           cmd: { c: 'item', index },
           label: `${g.name}${left}`,
           gain: `『${name}』の回数 ${target.uses}/${target.max} → ${target.uses + fill}/${target.max}${mind > 0 ? `・精神 +${mind}` : ''}`,
@@ -103,6 +107,7 @@ export function spotActions(w: World, toward?: number): SpotAction[] {
       } else if (hp > 0 || mind > 0) {
         const want = hp / Math.max(1, g.heal?.hp ?? 1) + mind / Math.max(1, g.heal?.mind ?? 1);
         out.push({
+          id: `item:${it.id}`,
           cmd: { c: 'item', index },
           label: `${g.name}${left}`,
           gain: [hp ? `体力 +${hp}` : '', mind ? `精神 +${mind}` : ''].filter(Boolean).join('・'),
@@ -116,6 +121,7 @@ export function spotActions(w: World, toward?: number): SpotAction[] {
       const name = foeDef(foe.n.npc ?? '').name;
       const tough = outmatched(foe.hard, you) || foe.hard > you;
       out.push({
+        id: `item:${it.id}`,
         cmd: { c: 'item', index },
         label: `${g.name}${left}`,
         gain: g.text.replace(/^次の相手/, name).replace(/。$/, ''),
@@ -124,6 +130,7 @@ export function spotActions(w: World, toward?: number): SpotAction[] {
       });
     } else if (g.kind === 'seek' && free && !out.some((a) => a.kind === 'seek')) {
       out.push({
+        id: `item:${it.id}`,
         cmd: { c: 'item', index },
         label: `${g.name}${left}`,
         gain:

@@ -1608,27 +1608,76 @@ export function openDig(doc: Document, onClose: () => void): void {
     );
   }
 
+  /** いま選んでいる道（部屋を指していなければ）。 */
+  function chosenRoute(): Route | undefined {
+    if (!advice || pinned !== null) return undefined;
+    return [...advice.win, ...advice.play].find((r) => r.kind === routeSel);
+  }
+
+  /**
+   * 地図の欄。行き先を決めると（道を選ぶか、部屋を押すと）、琥珀の枠が一つ開いて、
+   * その中に「行き先の中身 → その場で → 進む釦」が上から順に入る。整えてから、
+   * 枠の下端の釦で進む。行き先が無いあいだは、その場でだけがふつうの欄で並ぶ。
+   */
   function mapPanel(w: World): HTMLElement {
     const next = reachable(w);
     const sel = pinned !== null ? nodeOf(w, pinned) : undefined;
     const kids: (Child | readonly Child[])[] = [];
-    // 行き先（決めていれば）。その場で整えてから、いちばん下の釦で進む。
-    let go: number | undefined;
-    let chosen: Route | undefined;
-    if (sel) {
-      if (next.some((n) => n.id === sel.id)) go = sel.id;
+    const chosen = sel ? undefined : chosenRoute();
+    const go = sel ? (next.some((n) => n.id === sel.id) ? sel.id : undefined) : chosen?.path[0];
+    if (advice) {
+      const all = [...advice.win, ...advice.play];
+      const short: Record<RouteKind, string> = {
+        safe: '安定',
+        chain: '高連鎖',
+        almost: 'あと一つ',
+      };
+      const metric = (r: (typeof all)[number]) =>
+        r.kind === 'safe'
+          ? r.survive < 0.95
+            ? `抜ける ${Math.round(r.survive * 100)}%`
+            : `体力 ${Math.round(r.hpEnd * 100)}% で着く`
+          : r.kind === 'chain'
+            ? `噛み合い ${r.links.length}`
+            : '';
       kids.push(
         section(
-          '部屋',
-          roomInfo(w, sel),
-          button('閉じる', () => {
-            pinned = null;
-            render();
-          }),
+          '道の読み',
+          h(
+            'div',
+            { class: 'dig-chips' },
+            all.map((r) =>
+              h(
+                'button',
+                {
+                  type: 'button',
+                  class: `dig-chip dig-chip--${r.kind}${chosen?.kind === r.kind ? ' is-on' : ''}`,
+                  'aria-pressed': chosen?.kind === r.kind ? 'true' : 'false',
+                  title: `${r.aim === 'win' ? '勝つ道' : '面白い道'}：${r.label}`,
+                  onclick: () => {
+                    routeSel = routeSel === r.kind && pinned === null ? null : r.kind;
+                    pinned = null;
+                    render();
+                  },
+                  onmouseenter: () => {
+                    routePeek = r.kind;
+                  },
+                  onmouseleave: () => {
+                    routePeek = null;
+                  },
+                },
+                h('b', {}, short[r.kind]),
+                h('span', {}, metric(r)),
+                firstStep(w, r.path[0]),
+              ),
+            ),
+          ),
+          sel || chosen ? plan(w, sel, chosen, go) : null,
         ),
       );
-    } else if (!advice)
-      // 道の読みが出ているあいだは、部屋の一覧は出さない（見取り図と道の読みで足りる）。
+    } else if (sel) kids.push(section('部屋', plan(w, sel, undefined, go)));
+    // 道の読みが無いときだけ、行ける部屋を並べる。
+    else
       kids.push(
         section(
           '行ける部屋',
@@ -1645,79 +1694,56 @@ export function openDig(doc: Document, onClose: () => void): void {
           }),
         ),
       );
-    if (advice) {
-      const all = [...advice.win, ...advice.play];
-      const short: Record<RouteKind, string> = {
-        safe: '安定',
-        chain: '高連鎖',
-        almost: 'あと一つ',
-      };
-      const metric = (r: (typeof all)[number]) =>
-        r.kind === 'safe'
-          ? r.survive < 0.95
-            ? `抜ける ${Math.round(r.survive * 100)}%`
-            : `体力 ${Math.round(r.hpEnd * 100)}% で着く`
-          : r.kind === 'chain'
-            ? `噛み合い ${r.links.length}`
-            : '';
-      chosen = all.find((r) => r.kind === routeSel);
-      if (!sel && chosen?.path[0] !== undefined) go = chosen.path[0];
+    if (!sel && !chosen)
       kids.push(
         section(
-          '道の読み',
-          h(
-            'div',
-            { class: 'dig-chips' },
-            all.map((r) =>
-              h(
-                'button',
-                {
-                  type: 'button',
-                  class: `dig-chip dig-chip--${r.kind}${routeSel === r.kind ? ' is-on' : ''}`,
-                  'aria-pressed': routeSel === r.kind ? 'true' : 'false',
-                  title: `${r.aim === 'win' ? '勝つ道' : '面白い道'}：${r.label}`,
-                  onclick: () => {
-                    routeSel = routeSel === r.kind ? null : r.kind;
-                    render();
-                  },
-                  onmouseenter: () => {
-                    routePeek = r.kind;
-                  },
-                  onmouseleave: () => {
-                    routePeek = null;
-                  },
-                },
-                h('b', {}, short[r.kind]),
-                h('span', {}, metric(r)),
-                firstStep(w, r.path[0]),
-              ),
-            ),
-          ),
-          chosen ? routeFacts(w, chosen) : null,
+          'その場で',
+          spotRows(w),
+          // 抜けたあとは、いつでも灯りを置ける（どこまで下りたかを持ち帰る）。挑戦が
+          // 終わる一手なので、ほかの釦から離して置き、二度押さないと置かない。
+          w.flags.cleared ? lampButton(w) : null,
         ),
       );
-    }
-    kids.push(
-      section(
-        'その場で',
-        spotRows(w, go, sel ? undefined : chosen),
-        // 抜けたあとは、いつでも灯りを置ける（どこまで下りたかを持ち帰る）。挑戦が
-        // 終わる一手なので、ほかの釦から離して置き、二度押さないと置かない。
-        w.flags.cleared ? lampButton(w) : null,
-      ),
-    );
-    // 整えたら、進む。
-    if (go !== undefined) {
-      const to = go;
-      kids.push(
-        h(
-          'div',
-          { class: 'dig-next' },
-          button(stepLabel(w, to), () => send({ c: 'move', node: to }), { class: 'dig-go' }),
-        ),
-      );
-    }
     return h('div', {}, ...kids);
+  }
+
+  /** 行き先の枠：中身（道の読みか部屋）→ その場で → 進む釦。 */
+  function plan(
+    w: World,
+    sel: MapNode | undefined,
+    chosen: Route | undefined,
+    go: number | undefined,
+  ): HTMLElement {
+    return h(
+      'div',
+      { class: `dig-plan${chosen ? ` dig-plan--${chosen.kind}` : ''}` },
+      sel
+        ? h(
+            'div',
+            { class: 'dig-plan__room' },
+            roomInfo(w, sel),
+            button(
+              '閉じる',
+              () => {
+                pinned = null;
+                render();
+              },
+              { class: 'dig-plan__close' },
+            ),
+          )
+        : chosen
+          ? routeFacts(w, chosen)
+          : null,
+      spotRows(w, go, chosen, `${chosen?.kind ?? 'room'}:${go ?? ''}`),
+      w.flags.cleared ? lampButton(w) : null,
+      go !== undefined
+        ? h(
+            'div',
+            { class: 'dig-plan__go', 'data-spot': 'go' },
+            button(stepLabel(w, go), () => send({ c: 'move', node: go }), { class: 'dig-go' }),
+          )
+        : null,
+    );
   }
 
   /**
@@ -1731,6 +1757,10 @@ export function openDig(doc: Document, onClose: () => void): void {
       ['道', `${names.slice(0, 4).join(' → ')}${names.length > 4 ? ' …' : ''}`, false],
       ['見込み', `抜ける ${pct(r.survive)}・着いて体力 ${pct(r.hpEnd)}`, r.survive < 0.7],
     ];
+    const lean = r.lean
+      .map((u) => w.you.cards.find((c) => c?.uid === u))
+      .flatMap((c) => (c ? [`『${cardDef(c.id).name}』`] : []));
+    if (lean.length) rows.push(['頼る札', lean.join(''), false]);
     if (r.gets?.length) rows.push(['繋がる', r.gets.join('・'), false]);
     if (r.need) rows.push(['足りない', r.need, false]);
     if (r.pick) rows.push(['拾える', r.pick, false]);
@@ -1826,15 +1856,23 @@ export function openDig(doc: Document, onClose: () => void): void {
     const x = ((t - (gauge?.at ?? 0)) / GAUGE_PERIOD) % 2;
     return x < 1 ? x : 2 - x;
   };
-  function startGauge(a: SpotAction): void {
+  function startGauge(a: SpotAction & { peel?: Cmd }): void {
     if (gauge) return;
+    // 付け替えは腕前の要らない一手（剥がして、刻む）。揺らさない。
+    if (a.kind === 'ink') {
+      stepsNow?.done.add(a.id);
+      if (a.peel && !send(a.peel)) return;
+      send(a.cmd);
+      return;
+    }
     if (still()) {
+      stepsNow?.done.add(a.id);
       send(withKnack(a.cmd, 1));
       return;
     }
     const c = 0.25 + Math.random() * 0.5;
     gauge = {
-      key: a.label,
+      key: a.id,
       cmd: a.cmd,
       at: now(),
       ok: [c - 0.14, c + 0.14],
@@ -1862,8 +1900,10 @@ export function openDig(doc: Document, onClose: () => void): void {
     else if (g.q === 1) sound.gain();
     else sound.fail();
     renderSide();
+    const steps = stepsNow;
     window.setTimeout(() => {
       gauge = null;
+      steps?.done.add(g.key);
       send(withKnack(g.cmd, g.q ?? 1));
     }, 520);
   }
@@ -1883,7 +1923,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       'div',
       {
         class: `dig-gauge${fit ? ' is-fit' : ''}${g.q === undefined ? '' : g.q > 1 ? ' is-crit' : g.q === 1 ? ' is-ok' : ' is-miss'}`,
-        'data-spot': a.label,
+        'data-spot': a.id,
         role: 'button',
         tabindex: '0',
         'aria-label': `${a.label}　押して止める`,
@@ -1933,9 +1973,44 @@ export function openDig(doc: Document, onClose: () => void): void {
     return false;
   }
 
-  function spotRows(w: World, toward?: number, route?: Route): HTMLElement {
-    const list = spotActions(w, toward).map((a) => ({ a, fit: spotFits(a, toward, route) }));
-    const shown = [...list]
+  /** 道の付け替え（剥がして刻む）を、その場での一箱に。 */
+  function inkRow(w: World, route: Route | undefined): (SpotAction & { peel?: Cmd }) | null {
+    const k = route?.ink;
+    if (!k) return null;
+    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
+    const to = all.find((c) => c.uid === k.to);
+    const from = k.from !== undefined ? all.find((c) => c.uid === k.from) : undefined;
+    const ep = epithetDef(k.ep);
+    if (!to || !ep || (k.from !== undefined && !from?.eps.includes(k.ep))) return null;
+    if (k.from === undefined && !w.you.epithets.includes(k.ep)) return null;
+    return {
+      id: `ink:${k.ep}:${k.to}`,
+      cmd: { c: 'inscribe', ep: k.ep, uid: k.to },
+      peel: from ? { c: 'peel', uid: from.uid, ep: k.ep } : undefined,
+      label: `《${ep.name}》を『${cardDef(to.id).name}』へ`,
+      gain: `${from ? `『${cardDef(from.id).name}』から剥がして・` : '手元から・'}${k.why}`,
+      kind: 'ink',
+      score: 99,
+    };
+  }
+
+  /**
+   * 行き先を決めたときの「その場で」は、その時点の箱を手順として固定する。使った箱は
+   * 消え（回数が残っていても、この行き先のためには済んだ）、残りが上へ詰まる。新しい
+   * 案は足さない。全部済めば、枠には進む釦だけが残る。手順は行き先ごとに覚えておき
+   * （道を選び替えて戻っても続きから）、部屋を移ると捨てる。
+   */
+  let stepsAt: number | null = null;
+  const stepsBy = new Map<string, { ids: string[]; done: Set<string> }>();
+  let stepsNow: { ids: string[]; done: Set<string> } | null = null;
+
+  function spotRows(w: World, toward?: number, route?: Route, key?: string): HTMLElement {
+    const ink = inkRow(w, route);
+    const list = [
+      ...(ink ? [{ a: ink as SpotAction, fit: true }] : []),
+      ...spotActions(w, toward).map((a) => ({ a, fit: spotFits(a, toward, route) })),
+    ];
+    let shown = [...list]
       .sort((x, y) => Number(y.fit) - Number(x.fit) || y.a.score - x.a.score)
       .slice(0, 4)
       .sort(
@@ -1944,20 +2019,47 @@ export function openDig(doc: Document, onClose: () => void): void {
           SPOT_ORDER[x.a.kind] - SPOT_ORDER[y.a.kind] ||
           y.a.score - x.a.score,
       );
+    stepsNow = null;
+    if (key !== undefined) {
+      if (stepsAt !== w.pos) {
+        stepsAt = w.pos;
+        stepsBy.clear();
+      }
+      let st = stepsBy.get(key);
+      if (!st) {
+        st = { ids: shown.map((x) => x.a.id), done: new Set() };
+        stepsBy.set(key, st);
+      }
+      const steps = st;
+      stepsNow = steps;
+      shown = steps.ids
+        .filter((id) => !steps.done.has(id))
+        .flatMap((id) => list.filter((x) => x.a.id === id));
+    }
     const prep = w.you.prep ?? [];
+    const finished = !!stepsNow?.ids.length && !shown.length;
     return h(
       'div',
       { class: 'dig-spot' },
+      key !== undefined
+        ? stepsNow?.ids.length
+          ? h(
+              'h4',
+              { class: `dig-plan__h${finished ? ' is-done' : ''}`, 'data-spot': 'head' },
+              finished ? '整った' : 'その場で',
+            )
+          : null
+        : null,
       shown.length
         ? shown.map(({ a, fit }) =>
-            gauge && gauge.key === a.label
+            gauge && gauge.key === a.id
               ? gaugeRow(a, fit)
               : h(
                   'button',
                   {
                     type: 'button',
                     class: `dig-spot__row is-${a.kind}${fit ? ' is-fit' : ''}`,
-                    'data-spot': a.label,
+                    'data-spot': a.id,
                     'aria-label': `${SPOT_VERB[a.kind]}：${a.label}　${a.gain}`,
                     disabled: !!gauge,
                     onclick: () => startGauge(a),
@@ -1966,8 +2068,10 @@ export function openDig(doc: Document, onClose: () => void): void {
                   h('span', { class: 'dig-spot__gain' }, ...heals(a.gain)),
                 ),
           )
-        : h('p', { class: 'dig-quiet dig-spot__none' }, 'いま、ここで足りないものはない。'),
-      prep.length || list.length > shown.length
+        : key !== undefined
+          ? null
+          : h('p', { class: 'dig-quiet dig-spot__none' }, 'いま、ここで足りないものはない。'),
+      prep.length || (key === undefined && list.length > shown.length)
         ? h(
             'p',
             { class: 'dig-spot__foot' },
@@ -1978,7 +2082,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                   `備え：${prep.map((x) => `${x.name}${x.mult && x.mult !== 1 ? ` ×${x.mult}` : ''}`).join('・')}`,
                 )
               : null,
-            list.length > shown.length
+            key === undefined && list.length > shown.length
               ? button(`ほか ${list.length - shown.length}（手札で）`, () => {
                   deckOpen = true;
                   render();
@@ -2106,13 +2210,17 @@ export function openDig(doc: Document, onClose: () => void): void {
     const a = aim?.kind === 'inscribe' ? aim : null;
     const d = a ? epithetDef(a.ep) : undefined;
     const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
+    // 道を選んでいれば、その道で頼る札・尽きる札に印を（道を替えると、印も替わる）。
+    const route = chosenRoute();
     const card = (c: Card) => {
       const def = cardDef(c.id);
       const live = !!a && !!d?.card && c.eps.length < PACE.stack;
+      const lean = !!route?.lean.includes(c.uid);
+      const wear = !!route?.wear.includes(c.uid);
       return h(
         'div',
         {
-          class: `dig-card${c.uses <= 0 ? ' is-spent' : ''}${live ? ' is-live' : a ? ' is-dim' : ''}`,
+          class: `dig-card${c.uses <= 0 ? ' is-spent' : ''}${live ? ' is-live' : a ? ' is-dim' : ''}${lean ? ' is-lean' : ''}`,
           title: [def.sig, def.flavor].filter(Boolean).join('\n'),
           role: live ? 'button' : undefined,
           tabindex: live ? '0' : undefined,
@@ -2130,6 +2238,13 @@ export function openDig(doc: Document, onClose: () => void): void {
           h('span', { class: 'dig-card__key' }, `${c.uses}/${c.max}`),
         ),
         pips(c),
+        lean || wear
+          ? h(
+              'span',
+              { class: 'dig-card__route' },
+              [lean ? 'この道で頼る' : '', wear ? 'この道で尽きる' : ''].filter(Boolean).join('・'),
+            )
+          : null,
         badges(def.ready),
         h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
         c.eps.length
@@ -3000,13 +3115,15 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-bare' },
+          // 札を使わない手も、ほかの選ぶ箱と同じ形（名前と、何が起きるか）。
           basics.map((a) =>
-            button(
-              `${BASIC_NAME[a]}${a === 'leave' ? ` ${lc}%` : ''}`,
-              () => send({ c: 'act', a }),
+            h(
+              'button',
               {
+                type: 'button',
                 class: 'dig-bare__act',
-                title: `${BASIC_GLOSS[a]}（${a === 'leave' ? 'R' : 'T'}）`,
+                title: a === 'leave' ? '立ち去る（R）' : '応じる（T）',
+                onclick: () => send({ c: 'act', a }),
                 onmouseenter: () => {
                   if (hoverAct === a) return;
                   hoverAct = a;
@@ -3018,6 +3135,12 @@ export function openDig(doc: Document, onClose: () => void): void {
                   renderSide();
                 },
               },
+              h('b', {}, BASIC_NAME[a]),
+              h(
+                'span',
+                {},
+                a === 'leave' ? `抜け出せる見込み ${lc}%・決着はつかない` : BASIC_GLOSS[a],
+              ),
             ),
           ),
         ),
@@ -3337,14 +3460,17 @@ export function openDig(doc: Document, onClose: () => void): void {
       : w.you.cards.flatMap((c, slot) =>
           c
             ? alterOptions(w.you, slot).map((o) =>
-                button(
-                  `『${cardDef(c.id).name}』→『${cardDef(o.to).name}』`,
-                  () => send({ c: 'alter', slot, to: o.to }),
+                h(
+                  'button',
                   {
-                    class: 'dig-scene__pick',
+                    type: 'button',
+                    class: 'dig-alter__b',
                     disabled: !o.ready,
-                    title: `${fxText(cardDef(o.to).ready)}（${o.need}）`,
+                    title: fxText(cardDef(o.to).ready),
+                    onclick: () => send({ c: 'alter', slot, to: o.to }),
                   },
+                  h('b', {}, `『${cardDef(o.to).name}』`),
+                  h('span', {}, `『${cardDef(c.id).name}』から・${o.need}`),
                 ),
               )
             : [],
@@ -3386,9 +3512,9 @@ export function openDig(doc: Document, onClose: () => void): void {
       alters.length
         ? h(
             'div',
-            { class: 'dig-scene__row' },
-            h('span', { class: 'dig-scene__label' }, '変質'),
-            alters,
+            { class: 'dig-alter' },
+            h('h4', { class: 'dig-plan__h' }, '変質'),
+            h('div', { class: 'dig-alter__list' }, alters),
           )
         : null,
       p.bet
