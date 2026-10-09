@@ -326,7 +326,15 @@ export function openDig(doc: Document, onClose: () => void): void {
     '−',
   );
   const zoomer = h('div', { class: 'dig-zoom' }, zoomIn, zoomOut);
-  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer);
+  // 人物を決める画面で「手札を見る」を押すと、地図の場所が手札の画面に替わる。
+  const handView = h('div', { class: 'dig-handview', hidden: true });
+  // 人物を決める画面のヒント。地図の欄の下端に重なり、右の欄の「この夜に入る」と同じ段に並ぶ。
+  const createHint = h('div', { class: 'dig-create-hint', hidden: true });
+  const view = h('div', { class: 'dig-view' }, guide, canvas, tip, zoomer, handView, createHint);
+  // 寄せ引きの釦は、ヒントの地の上に出す（ヒントの高さは幅で変わる）。
+  new ResizeObserver(() =>
+    view.style.setProperty('--dig-hint-h', `${createHint.offsetHeight}px`),
+  ).observe(createHint);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
@@ -3154,14 +3162,44 @@ export function openDig(doc: Document, onClose: () => void): void {
     side.replaceChildren();
     tray.replaceChildren();
     const j = jobDef(create.job);
-    // 初めの手札は、押したときだけ遊ぶときと同じ場所（下の帯）に並べる（いつも出して
-    // おくと字が多すぎる）。釦は、右の欄の職の一文と持って入る記憶のあいだに。
+    // 下に帯は足さない（地図の高さが変わると視点が変わる）。ヒントは地図の欄の下端に、
+    // 上の案内帯と同じ作法で重ね、「この夜に入る」は右の欄の下端に重ねて、下端を揃える。
+    // 狭い画面では地図が低く、重ねると半分が隠れるので、地図のすぐ下（脇の欄の頭）に置く。
+    const hint = (): Element[] => [
+      h('b', {}, 'ヒント'),
+      h(
+        'span',
+        {},
+        '灯りを提げて底の見えない建物を十階ずつ下り、六つ目の区画の底にあたる B60 を抜ければ、ひとまずこの夜は越えたことになる。出会う相手とは殴り合うことも話をつけることもでき、手札とエピテットと記憶の組み方しだいで、同じ建物でも周回ごとに違う夜になる。',
+      ),
+    ];
+    createHint.hidden = false;
+    createHint.replaceChildren();
+    fill(createHint, hint());
+    // 手札を開いているあいだは、地図の場所に初めの手札を並べる。見た目は遊ぶときの
+    // 手元と同じ（五枚の枠・見出しは脇の欄と同じ顔）で、押せない見本として。
+    handView.replaceChildren();
+    handView.hidden = !(j && handOpen);
     if (j && handOpen)
-      fill(tray, [
+      fill(handView, [
+        h(
+          'div',
+          { class: 'dig-handview__head' },
+          h('h3', {}, `${j.name}の初めの手札`),
+          button('地図に戻る', () => {
+            handOpen = false;
+            render();
+          }),
+        ),
         h(
           'div',
           { class: 'dig-hand is-preview' },
           j.cards.map((id, i) => previewCard(id, i)),
+        ),
+        h(
+          'p',
+          { class: 'dig-handview__note' },
+          `持てる札は ${j.deck} 枚で、この五枚の後ろに控える札と、その場で使う道具は、入るときに配られる。`,
         ),
       ]);
     const saved = loadRun();
@@ -3201,6 +3239,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         ),
       );
     fill(side, [
+      h('p', { class: 'dig-create-hint is-narrow' }, hint()),
       section(
         '灯りを持つ者',
         saved
@@ -3295,11 +3334,6 @@ export function openDig(doc: Document, onClose: () => void): void {
               ),
             )
           : null,
-        h(
-          'p',
-          { class: 'dig-create-intro' },
-          '灯りを提げて底の見えない建物を十階ずつ下り、六つ目の区画の底にあたる B60 を抜ければ、ひとまずこの夜は越えたことになる。出会う相手とは殴り合うことも話をつけることもでき、手札とエピテットと記憶の組み方しだいで、同じ建物でも周回ごとに違う夜になる。',
-        ),
         pick(
           '持って入る記憶',
           ORIGINS[create.job] ?? [],
@@ -3361,6 +3395,10 @@ export function openDig(doc: Document, onClose: () => void): void {
   // ─── 全体 ───────────────────────────────────────────────────
 
   function render(): void {
+    if (screen !== 'create') {
+      handView.hidden = true;
+      createHint.hidden = true;
+    }
     renderBar();
     renderGuide();
     dialog.classList.toggle('is-create', screen === 'create');

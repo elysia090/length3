@@ -134,11 +134,11 @@
 }
 
 .dig-guide:has(
-    .dig-guide__moment:not([hidden]),
-    .dig-guide__why:not([hidden]),
-    .dig-guide__line.is-on,
-    .dig-guide__hint:not(:empty)
-  ) {
+  .dig-guide__moment:not([hidden]),
+  .dig-guide__why:not([hidden]),
+  .dig-guide__line.is-on,
+  .dig-guide__hint:not(:empty)
+) {
   background: linear-gradient(var(--bg) 70%, transparent);
 }
 
@@ -477,7 +477,8 @@
 /* 相手の計器は深い青の、まばらな網点。 */
 .dig-meter--foe-hp .dig-meter__fill,
 .dig-meter--foe-will .dig-meter__fill {
-  background: radial-gradient(var(--dig-blue) 0.07rem, transparent 0.08rem) 0 0 / 0.1875rem 0.1875rem;
+  background: radial-gradient(var(--dig-blue) 0.07rem, transparent 0.08rem) 0 0 / 0.1875rem
+    0.1875rem;
   box-shadow: inset 0 0 0 0.0625rem var(--dig-blue);
 }
 
@@ -1587,7 +1588,6 @@
   .dig-score__best {
     animation: none;
   }
-
 }
 
 /* 選ぶものの小さな見出し（文ではなく名札）。 */
@@ -2267,4 +2267,177 @@
 .dig-side .dig-create-intro {
   margin: 8px 0 0;
   font-size: var(--font-ui-xs);
+}
+
+/* 能力値：名と目盛りを寄せて並べる。 */
+.dig-stat {
+  justify-content: flex-start;
+}
+
+.dig-stat b {
+  min-width: 2.5rem;
+}
+
+/*
+ * 人物を決める画面の下端。下に帯は足さない（地図の高さが縮むと視点が変わる）。
+ * ヒントは地図の欄に、「この夜に入る」は右の欄に、それぞれ上の案内帯と同じ
+ * 作法で重ねる：罫も板も引かず、紙の地が下から薄く上がるだけ。二つは下端を
+ * 揃えるので一つの段に読めるが、欄の仕切りはまたがない。
+ */
+.dig.is-create {
+  --dig-foot: 7rem;
+}
+
+/* 寄せ引きの釦は地図の中に収め、ヒントの地のすぐ上に置く（地にめり込ませない）。 */
+.dig.is-create .dig-zoom {
+  bottom: calc(max(var(--dig-hint-h, 0px), 8px) + 8px);
+}
+
+.dig.is-create .dig-tray {
+  display: none;
+}
+
+/* 地図は遊ぶ画面と同じ高さのまま（手元の帯ぶんを空ける）。視点を変えない。 */
+.dig.is-create .dig-view {
+  padding-bottom: calc(1.25rem + 1px);
+}
+
+.dig.is-create .dig-side {
+  padding-bottom: 0;
+}
+
+.dig.is-create .dig-start {
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  box-sizing: border-box;
+  margin-top: 0;
+  padding: 2rem 1rem 16px;
+  border-top: 0;
+  background: linear-gradient(transparent, var(--bg) 2rem);
+}
+
+.dig-create-hint {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: auto minmax(0, 44rem);
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+  /* 地は字の上で上がりきる（網点が字に掛からない）。 */
+  padding: 2rem 1rem 16px;
+  background: linear-gradient(transparent, var(--bg) 2rem);
+  font-size: var(--font-ui-xs);
+  line-height: 1.6;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.dig-create-hint[hidden] {
+  display: none;
+}
+
+/* 見出しは遊ぶ画面のヒント（上の案内帯）と同じ顔。 */
+.dig-create-hint b {
+  color: var(--ink);
+}
+
+/*
+ * 手札の画面（地図の場所に替わる）。遊ぶときの手元と同じ五枚の枠で並べ、
+ * 見出しは脇の欄の見出しと同じ顔にする。
+ */
+.dig-handview {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 16px 16px calc(var(--dig-hint-h, 0px) + 16px);
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.dig-handview[hidden] {
+  display: none;
+}
+
+.dig-handview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dig-handview__head h3 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+.dig .dig-handview__head button {
+  min-height: 2rem;
+  padding: 0 12px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-hand.is-preview .dig-card {
+  border: 1px solid var(--ink-2);
+}
+
+/* 見本は読むための場所なので、札の名も眠りぎわの文も切らない。 */
+.dig-hand.is-preview .dig-card__name {
+  white-space: normal;
+}
+
+.dig-hand.is-preview .dig-card__sleep {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.dig-handview__note {
+  max-width: 44rem;
+  margin: 0;
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+/* 手札の画面では地図の寄せ引きは要らない。 */
+.dig-view:has(.dig-handview:not([hidden])) .dig-zoom {
+  display: none;
+}
+
+/*
+ * 狭い画面（地図が上、脇が下）では地図が低い。ヒントは重ねず、地図のすぐ下に
+ * 脇の欄の頭として置く（広い画面では出さない）。
+ */
+.dig-create-hint.is-narrow {
+  display: none;
+}
+
+@media (max-width: 52rem) {
+  .dig-view > .dig-create-hint {
+    display: none;
+  }
+
+  .dig-create-hint.is-narrow {
+    position: static;
+    display: grid;
+    margin: 0 0 16px;
+    padding: 0;
+    background: none;
+  }
+}
+
+/* 狭い画面の見本は、札を読める幅にして横にめくる（遊ぶときの手元と同じ動き）。 */
+@media (max-width: 52rem) {
+  .dig-hand.is-preview {
+    grid-template-columns: repeat(5, minmax(10rem, 1fr));
+    align-items: start;
+  }
 }
