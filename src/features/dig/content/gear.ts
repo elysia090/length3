@@ -21,6 +21,7 @@ export interface Gear {
   refill?: { tags: readonly string[]; n: number };
   prep?: readonly Fx[];
   seek?: Seek;
+  cost?: number;
   price: number;
   flavor: string;
   tool: boolean;
@@ -63,6 +64,7 @@ export function gearOf(id: string): Gear | undefined {
     refill: d.refill,
     prep: d.prep,
     seek: d.seek,
+    cost: d.cost,
     price: d.price,
     flavor: d.flavor,
     tool: false,

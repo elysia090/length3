@@ -32,7 +32,7 @@ export interface Card {
 export type Who = 'you' | 'rival';
 
 /** 決着の余韻の種類（倒す・折る・打ち解ける・暴く）。 */
-export type AfterKind = 'notorious' | 'feared' | 'ally' | 'insight';
+export type AfterKind = 'notorious' | 'feared' | 'ally' | 'insight' | 'crash';
 
 /** 決着の余韻。この先の遭遇に尾を引く（left は残りの遭遇の数）。 */
 export interface After {
@@ -67,6 +67,8 @@ export interface Char {
   back: Card[];
   /** 備え（次の遭遇の初めに起きる効き目）。遭遇が始まると使われて消える。 */
   prep?: { name: string; fx: import('../content/fx').Fx[]; mult?: number }[];
+  /** その場で、最後に使ったもの（品の id か 'breather'）と、その部屋（隠し順序のため）。 */
+  lastUse?: { id: string; at: number | null };
   /** 地力が新しい高さに届いた数（持てる札が一枚ずつ増える）。 */
   level: number;
   /** 手に入れた順。そのまま、この挑戦の履歴になる。 */

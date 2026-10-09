@@ -130,6 +130,37 @@ export const ITEM_LIST: readonly ItemDef[] = [
     price: 55,
     flavor: '裏に、日付だけ。',
   },
+  // 代償つき：いま満ちる代わりに、次の何戦かに反動が残る（道の読みの見込みが変わる）。
+  {
+    id: 'stimulant',
+    kind: 'rest',
+    name: '気付け薬',
+    text: '体力と精神が満ちる。代償：次の三戦、反動（受ける一撃 +2、脅し +1）。',
+    heal: { hp: 99, mind: 99 },
+    cost: 3,
+    price: 58,
+    flavor: '瓶の底に、溶け残った白い粉。',
+  },
+  {
+    id: 'painkiller',
+    kind: 'rest',
+    name: '鎮痛剤',
+    text: '体力 +24。代償：次の二戦、反動（受ける一撃 +2、脅し +1）。',
+    heal: { hp: 24 },
+    cost: 2,
+    price: 30,
+    flavor: '効いているあいだは、どこが痛かったか忘れる。',
+  },
+  {
+    id: 'smelling-salts',
+    kind: 'rest',
+    name: '気付け塩',
+    text: '精神 +24。代償：次の二戦、反動（受ける一撃 +2、脅し +1）。',
+    heal: { mind: 24 },
+    cost: 2,
+    price: 30,
+    flavor: '鼻の奥に、冬が刺さる。',
+  },
   // ─── 備える（次の遭遇の初めに） ─────────────────────────────
   {
     id: 'smoke',

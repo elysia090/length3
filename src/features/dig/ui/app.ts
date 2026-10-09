@@ -6,9 +6,10 @@ import { IDLE, POSTURE, VITALS } from '../content/flavor';
 import { DIFFICULTY, sectionNo, sectionOf, useOf } from '../content/floors';
 import type { Fx } from '../content/fx';
 import { fxText } from '../content/fx';
-import { gearOf } from '../content/gear';
+import { type Gear, gearOf } from '../content/gear';
 import { lawsAt } from '../content/laws';
 import { legendState } from '../content/legends';
+import { orderOf } from '../content/orders';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
 import { quirkDef } from '../content/quirks';
 import {
@@ -34,6 +35,7 @@ import {
   type Advice,
   advise,
   nodeLabel,
+  preview,
   type Route,
   type RouteKind,
   sourceLabel,
@@ -2004,6 +2006,103 @@ export function openDig(doc: Document, onClose: () => void): void {
   const stepsBy = new Map<string, { ids: string[]; done: Set<string> }>();
   let stepsNow: { ids: string[]; done: Set<string> } | null = null;
 
+  /** 箱の品（一服なら null、品でなければ undefined）。 */
+  const spotGear = (a: SpotAction): Gear | null | undefined =>
+    a.id === 'breather' ? null : a.id.startsWith('item:') ? gearOf(a.id.slice(5)) : undefined;
+  const pairOrder = (x: SpotAction, y: SpotAction) => {
+    const gx = spotGear(x);
+    const gy = spotGear(y);
+    return gx === undefined || gy === undefined ? undefined : orderOf(gx, gy);
+  };
+
+  /**
+   * 道の手順の並び：隠し順序が効くように並べ替える（前に置くべきものを前へ、続けて
+   * 効くものを直後へ）。代償つきの品は最後に（使わずに進む余地を残す）。
+   */
+  function inOrder<T extends { a: SpotAction }>(list: readonly T[]): T[] {
+    const rest = [...list].sort((x, y) => Number(!!x.a.cost) - Number(!!y.a.cost));
+    const out: T[] = [];
+    while (rest.length) {
+      const head = rest[0] as T;
+      const lead = rest.findIndex((x) => x !== head && !!pairOrder(x.a, head.a));
+      let cur = rest.splice(lead >= 0 ? lead : 0, 1)[0] as T;
+      out.push(cur);
+      for (;;) {
+        const j = rest.findIndex((y) => !!pairOrder(cur.a, y.a));
+        if (j < 0) break;
+        cur = rest.splice(j, 1)[0] as T;
+        out.push(cur);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * 箱の三行目：見つけた隠し順序（すぐ上の箱か、直前に使ったものに続くとき）と、
+   * 代償つきの品の、道の見込みの変わり方。
+   */
+  function spotExtra(
+    w: World,
+    a: SpotAction,
+    above: SpotAction | undefined,
+    route: Route | undefined,
+  ): HTMLElement | null {
+    const last = w.you.lastUse;
+    const prev =
+      above !== undefined
+        ? spotGear(above)
+        : last && last.at === w.pos
+          ? last.id === 'breather'
+            ? null
+            : gearOf(last.id)
+          : undefined;
+    const g = spotGear(a);
+    const o = prev !== undefined && g !== undefined ? orderOf(prev, g) : undefined;
+    const known =
+      o && (w.found.includes(`order:${o.id}`) || profile.found.includes(`order:${o.id}`));
+    const cost = costNote(w, a, route);
+    if (!known && !cost) return null;
+    return h(
+      'span',
+      { class: 'dig-spot__more' },
+      known ? h('span', { class: 'dig-spot__order' }, `順番：${o?.name}（${o?.effect}）`) : null,
+      cost
+        ? h(
+            'span',
+            { class: `dig-spot__cost${cost.startsWith('-') ? ' is-worse' : ''}` },
+            cost.slice(1),
+          )
+        : null,
+    );
+  }
+
+  /** 代償つきの品を使ったら、選んだ道の見込みがどう変わるか（使う前に）。 */
+  const costCache = new Map<string, string>();
+  function costNote(w: World, a: SpotAction, route: Route | undefined): string {
+    if (!a.cost || !route) return '';
+    const k = `${w.seq}:${a.id}:${route.kind}`;
+    let v = costCache.get(k);
+    if (v === undefined) {
+      // 道の読みの数（上の枠に出ている数）に、使う前と後の差を足して見せる。
+      const p = preview(w, a.cmd, route.path);
+      const pct = (x: number) => Math.round(Math.max(0, Math.min(1, x)) * 100);
+      const parts: string[] = [];
+      if (p) {
+        const da = p.after.alive - p.before.alive;
+        const dh = p.after.hpEnd - p.before.hpEnd;
+        if (Math.abs(da) >= 0.01)
+          parts.push(`抜ける ${pct(route.survive)}% → ${pct(route.survive + da)}%`);
+        if (Math.abs(dh) >= 0.01)
+          parts.push(`着いて体力 ${pct(route.hpEnd)}% → ${pct(route.hpEnd + dh)}%`);
+        if (!parts.length) parts.push('見込みは変わらない');
+        v = `${da < -0.005 || dh < -0.005 ? '-' : '+'}この道：${parts.join('・')}`;
+      } else v = '';
+      if (costCache.size > 40) costCache.clear();
+      costCache.set(k, v);
+    }
+    return v;
+  }
+
   function spotRows(w: World, toward?: number, route?: Route, key?: string): HTMLElement {
     const ink = inkRow(w, route);
     const list = [
@@ -2027,7 +2126,15 @@ export function openDig(doc: Document, onClose: () => void): void {
       }
       let st = stepsBy.get(key);
       if (!st) {
-        st = { ids: shown.map((x) => x.a.id), done: new Set() };
+        // 上の四つに入らなくても、手順の中の箱と隠し順序でつながる品は、一つだけ足す。
+        const extra = list.find(
+          (x) =>
+            !shown.includes(x) && shown.some((y) => !!pairOrder(y.a, x.a) || !!pairOrder(x.a, y.a)),
+        );
+        st = {
+          ids: inOrder(extra ? [...shown, extra] : shown).map((x) => x.a.id),
+          done: new Set(),
+        };
         stepsBy.set(key, st);
       }
       const steps = st;
@@ -2051,7 +2158,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           : null
         : null,
       shown.length
-        ? shown.map(({ a, fit }) =>
+        ? shown.map(({ a, fit }, i) =>
             gauge && gauge.key === a.id
               ? gaugeRow(a, fit)
               : h(
@@ -2066,6 +2173,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                   },
                   h('span', { class: 'dig-spot__what' }, a.label),
                   h('span', { class: 'dig-spot__gain' }, ...heals(a.gain)),
+                  spotExtra(w, a, i === 0 ? undefined : shown[i - 1]?.a, route),
                 ),
           )
         : key !== undefined

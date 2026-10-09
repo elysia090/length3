@@ -3401,3 +3401,24 @@
   letter-spacing: 0.04em;
   color: var(--amber-text);
 }
+
+/* 箱の三行目：見つけた隠し順序（琥珀の印）と、代償つきの品の道の見込み。 */
+.dig-spot__more {
+  display: grid;
+  gap: 1px;
+  font-size: 0.6875rem;
+}
+
+.dig-spot__order {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--amber-text);
+}
+
+.dig-spot__cost {
+  color: var(--ink-2);
+}
+
+.dig-spot__cost.is-worse {
+  color: var(--amber-text);
+}

@@ -33,6 +33,8 @@ export interface SpotAction {
   card?: number;
   /** 戻る体力（休む）。 */
   hp?: number;
+  /** 代償（反動が残る遭遇の数）。 */
+  cost?: number;
 }
 
 const all = (w: World): Card[] => [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
@@ -110,11 +112,18 @@ export function spotActions(w: World, toward?: number): SpotAction[] {
           id: `item:${it.id}`,
           cmd: { c: 'item', index },
           label: `${g.name}${left}`,
-          gain: [hp ? `体力 +${hp}` : '', mind ? `精神 +${mind}` : ''].filter(Boolean).join('・'),
+          gain: [
+            hp ? `体力 +${hp}` : '',
+            mind ? `精神 +${mind}` : '',
+            g.cost ? `反動 ${g.cost} 戦` : '',
+          ]
+            .filter(Boolean)
+            .join('・'),
           kind: 'rest',
           hp,
-          // 減りが大きいほど、無駄なく効くほど上に。
-          score: 1 + 7 * Math.max(hpLow, mindLow) * Math.min(1, want),
+          cost: g.cost,
+          // 減りが大きいほど、無駄なく効くほど上に（代償つきは、少しだけ下げる）。
+          score: (1 + 7 * Math.max(hpLow, mindLow) * Math.min(1, want)) * (g.cost ? 0.8 : 1),
         });
       }
     } else if (g.kind === 'prep' && foe && !preparing) {

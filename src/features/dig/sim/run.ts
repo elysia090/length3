@@ -19,9 +19,10 @@ import {
   useOf,
 } from '../content/floors';
 import { holds, run as runFx } from '../content/fx';
-import { allTools, gearOf, ITEM_CAP } from '../content/gear';
+import { allTools, type Gear, gearOf, ITEM_CAP } from '../content/gear';
 import { LAWS, lawsAt } from '../content/laws';
 import { LEGENDS } from '../content/legends';
+import { type OrderDef, orderOf } from '../content/orders';
 import {
   defaultSheet,
   JOB_EPITHETS,
@@ -1134,15 +1135,41 @@ export const knack = (q?: number): number => Math.min(1.5, Math.max(0.6, q ?? 1)
 
 export function breather(tx: Tx, q?: number): void {
   const w = tx.w;
+  const o = useOrder(tx, null, 'breather');
   tx.emit({ type: 'flag', key: `breath:${w.stratum}:${nodeOf(w, w.pos)?.row ?? -1}`, v: 1 });
   if (w.you.perms.includes('insomnia')) refill(tx, 1, undefined, 'you', true);
   const s = stats(w, 'you');
-  const k = knack(q);
+  const k = knack(q) * (o?.boost.heal ?? 1);
   heal(tx, Math.round(maxHp(s) * 0.1 * k), Math.round(maxMind(s) * 0.1 * k), 'you');
   careBonus(tx);
   shiftAll(tx, 'you');
   passTime(tx, Math.max(0, Math.round(tx.rule('timeCost', { kind: 'rest' }, 1))));
   tx.emit({ type: 'note', text: '壁にもたれて、一服した。', level: 0 });
+}
+
+/**
+ * 隠し順序：直前に、同じ部屋で使ったものに続けて使うと、効き目が変わる。起きた
+ * 順序を返し、いま使ったものを直前として覚える。初めて起きたときは隠し効果として
+ * 明らかにし、二度目からは短く告げる。
+ */
+function useOrder(tx: Tx, g: Gear | null, id: string): OrderDef | undefined {
+  const w = tx.w;
+  const last = w.you.lastUse;
+  const prev =
+    last && last.at === w.pos
+      ? last.id === 'breather'
+        ? null
+        : (gearOf(last.id) ?? undefined)
+      : undefined;
+  const o = orderOf(prev, g);
+  tx.emit({ type: 'use.mark', id, at: w.pos });
+  if (!o) return undefined;
+  const key = `order:${o.id}`;
+  if (!w.found.includes(key)) {
+    tx.emit({ type: 'found', id: key });
+    tx.emit({ type: 'say', who: 'voice', text: `隠し効果：${o.name}（${o.effect}）` });
+  } else tx.emit({ type: 'note', text: `順番が効いた：${o.name}（${o.effect}）`, level: 1 });
+  return o;
 }
 
 /** 古びた・未完のカードは、休ませたことを 2 倍に数える。 */
@@ -1172,12 +1199,14 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
   if (!g || !held || w.enc) return false;
   // 探るのは、地図の上で手の空いているときだけ（何かが起きるので）。
   if (g.kind === 'seek' && w.pending) return false;
+  const o = useOrder(tx, g, held.id);
   tx.emit({ type: 'item.use', who: 'you', index });
   const left = held.uses > 1 ? `（あと ${held.uses - 1} 回）` : '';
   const k = knack(q);
   const how = k > 1 ? '会心。' : k < 1 ? '手元が狂った。' : '';
   if (g.kind === 'prep') {
-    tx.emit({ type: 'prep', who: 'you', name: g.name, fx: [...(g.prep ?? [])], mult: k });
+    const mult = k * (1 + (o?.boost.mult ?? 0));
+    tx.emit({ type: 'prep', who: 'you', name: g.name, fx: [...(g.prep ?? [])], mult });
     tx.emit({ type: 'note', text: `${how}${g.name}を手に、次の相手に備える。${left}`, level: 1 });
     return true;
   }
@@ -1185,18 +1214,32 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
     tx.emit({ type: 'note', text: `${how}${g.name}で、この階を探る。${left}`, level: 1 });
     const sk = g.seek ?? { story: 0.4, find: 0.3 };
     // 会心なら当たりやすく、気づかれない。外れなら当たりにくい。
-    rummage(tx, { story: sk.story * k, find: sk.find * k, quiet: sk.quiet || k > 1 });
+    rummage(tx, {
+      story: sk.story * k,
+      find: sk.find * k + (o?.boost.find ?? 0),
+      quiet: sk.quiet || k > 1 || !!o?.boost.quiet,
+    });
     return true;
   }
   const s = stats(w, 'you');
-  const hp = Math.min(Math.round((g.heal?.hp ?? 0) * k), maxHp(s) - w.you.hp);
-  const mind = Math.min(Math.round((g.heal?.mind ?? 0) * k), maxMind(s) - w.you.mind);
+  const kh = k * (o?.boost.heal ?? 1);
+  const hp = Math.min(Math.round((g.heal?.hp ?? 0) * kh), maxHp(s) - w.you.hp);
+  const mind = Math.min(Math.round((g.heal?.mind ?? 0) * kh), maxMind(s) - w.you.mind);
   if (hp > 0 || mind > 0)
     tx.emit({ type: 'vital', who: 'you', hp: Math.max(0, hp), mind: Math.max(0, mind) });
   if (g.refill) {
     const n = Math.max(1, Math.round(g.refill.n * k));
     if (g.refill.tags.length === 0) refill(tx, n, undefined, 'you');
     else for (const t of g.refill.tags) if (refill(tx, n, t as Tag, 'you')) break;
+  }
+  if (g.cost) {
+    tx.emit({ type: 'after', after: { kind: 'crash', npc: '', left: g.cost } });
+    tx.emit({
+      type: 'note',
+      text: `${how}${g.name}で持ち直した。次の ${g.cost} 戦、反動が残る。${left}`,
+      level: 1,
+    });
+    return true;
   }
   tx.emit({ type: 'note', text: `${how}${g.name}を使った。${left}`, level: 1 });
   return true;

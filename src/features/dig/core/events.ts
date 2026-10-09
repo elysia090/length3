@@ -94,6 +94,8 @@ export type Ev =
   | { type: 'unlock'; story: string }
   | { type: 'story.seen'; id: string }
   | { type: 'found'; id: string }
+  /** その場で、品か一服を使った（隠し順序の直前を覚える）。 */
+  | { type: 'use.mark'; id: string; at: number | null }
   | {
       type: 'enc.start';
       who: Who;

@@ -62,5 +62,17 @@ export const AFTER: Readonly<Partial<Record<Outcome, AfterDef>>> = {
   },
 };
 
+/** 反動：代償つきの品を使ったあとに残る（決着の余韻と同じく、遭遇の数で数える）。 */
+export const CRASH: AfterDef = {
+  kind: 'crash',
+  name: '反動',
+  left: 2,
+  text: '無理に立て直した反動。受ける一撃 +2、脅し +1。',
+  passive: [
+    { rule: 'strikeTaken', fn: (_c, v) => (v > 0 ? v + 2 : v), text: '反動：受ける一撃 +2' },
+    { rule: 'threatTaken', fn: (_c, v) => (v > 0 ? v + 1 : v), text: '反動：脅し +1' },
+  ],
+};
+
 export const afterDef = (kind: AfterKind): AfterDef | undefined =>
-  Object.values(AFTER).find((a) => a?.kind === kind);
+  kind === 'crash' ? CRASH : Object.values(AFTER).find((a) => a?.kind === kind);

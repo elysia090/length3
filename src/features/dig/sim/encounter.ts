@@ -285,6 +285,9 @@ function aftermath(tx: Tx): void {
       case 'notorious':
         say(tx, 'voice', '悪名が先回りしていた。');
         break;
+      case 'crash':
+        say(tx, 'voice', '体が、まだ重い。');
+        break;
     }
   }
   tx.emit({ type: 'after.tick' });

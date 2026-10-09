@@ -15,6 +15,7 @@ import {
 } from '../content/registry';
 import { buildsOf } from '../content/sources';
 import { branch } from '../core/branch';
+import type { Cmd } from '../core/events';
 import type { AfterKind, MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { decide } from './decide';
@@ -565,6 +566,31 @@ function plan(
       };
   }
   return { lean, ink };
+}
+
+/**
+ * 道を一本だけ、通し直す（その道の場所だけを試す。全部を読み直すより軽い）。
+ * その場で何かを使ったら道の見込みがどう変わるかを、使う前に見せるのに使う。
+ */
+export function rewalk(w: World, path: readonly number[]): { alive: number; hpEnd: number } {
+  const probes = new Map<number, Probe>();
+  for (const id of path) {
+    const p = probe(w, id, 1);
+    if (p) probes.set(id, p);
+  }
+  const x = walkPath(w, [...path], probes);
+  return { alive: x.alive, hpEnd: x.hpEnd };
+}
+
+/** いま cmd を使ったら、この道の見込みはどう変わるか（使う前・使った後）。 */
+export function preview(
+  w: World,
+  cmd: Cmd,
+  path: readonly number[],
+): { before: { alive: number; hpEnd: number }; after: { alive: number; hpEnd: number } } | null {
+  const s = branch(w);
+  if (!decide(s, cmd, { sim: true }).length) return null;
+  return { before: rewalk(w, path), after: rewalk(s, path) };
 }
 
 // ─── 三つの道 ─────────────────────────────────────────────────

@@ -343,6 +343,9 @@ export function apply(w: World, ev: Ev): void {
     case 'found':
       if (!w.found.includes(ev.id)) w.found.push(ev.id);
       break;
+    case 'use.mark':
+      w.you.lastUse = { id: ev.id, at: ev.at };
+      break;
     case 'enc.start':
       w.enc = {
         who: ev.who,

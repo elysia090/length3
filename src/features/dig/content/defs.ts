@@ -258,6 +258,8 @@ export interface ItemDef {
   seek?: Seek;
   /** 使える回数（無ければ一度きり）。 */
   uses?: number;
+  /** 代償：使うと、次の n 戦のあいだ反動が残る（受ける一撃と脅しが重くなる）。 */
+  cost?: number;
   price: number;
   flavor: string;
 }

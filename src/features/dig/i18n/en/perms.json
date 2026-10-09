@@ -357,7 +357,41 @@
     "次の相手の最初の手を 5 弱める。": "Weaken the next person's first move by 5.",
     "閉まった扉を開けて回る。何かが見つかりやすい（1 時間）。": "Open locked doors. More likely to find something (1 h).",
     "物陰の声を拾う。出来事が起きやすい（1 時間）。": "Pick up voices from the shadows. Events are more likely (1 h).",
-    "床に印をつけて歩く。誰にも気づかれない（1 時間）。": "Mark the floor as you go. Nobody notices you (1 h)."
+    "床に印をつけて歩く。誰にも気づかれない（1 時間）。": "Mark the floor as you go. Nobody notices you (1 h).",
+    "気付け薬": "Stimulant",
+    "体力と精神が満ちる。代償：次の三戦、反動（受ける一撃 +2、脅し +1）。": "Body and mind refill. Cost: crash for the next three fights (blows taken +2, threats +1).",
+    "瓶の底に、溶け残った白い粉。": "White powder that never dissolved, at the bottom of the bottle.",
+    "鎮痛剤": "Painkiller",
+    "体力 +24。代償：次の二戦、反動（受ける一撃 +2、脅し +1）。": "Body +24. Cost: crash for the next two fights (blows taken +2, threats +1).",
+    "効いているあいだは、どこが痛かったか忘れる。": "While it works, you forget where it hurt.",
+    "気付け塩": "Smelling salts",
+    "精神 +24。代償：次の二戦、反動（受ける一撃 +2、脅し +1）。": "Mind +24. Cost: crash for the next two fights (blows taken +2, threats +1).",
+    "鼻の奥に、冬が刺さる。": "Winter stabs the back of your nose.",
+    "反動": "Crash",
+    "無理に立て直した反動。受ける一撃 +2、脅し +1。": "The price of forcing yourself back up. Blows taken +2, threats +1.",
+    "反動：受ける一撃 +2": "Crash: blows taken +2",
+    "反動：脅し +1": "Crash: threats +1",
+    "体が、まだ重い。": "Your body is still heavy.",
+    "一服のあとの一杯": "A cup after the smoke",
+    "手入れのあとの一服": "A smoke after the upkeep",
+    "傷を縛ってから": "Bandaged first",
+    "物陰で仕込む": "Set it up in the shadows",
+    "備えを重ねる": "Layered preparation",
+    "戻る量 ×2": "recovery ×2",
+    "気づかれず、見つかりやすい": "unnoticed, more likely to find something",
+    "備えの効き目 +50%": "preparation +50%",
+    "後の備えの効き目 +30%": "the second preparation +30%",
+    "見込みは変わらない": "odds unchanged"
   },
-  "templates": {}
+  "templates": {
+    "{0}で持ち直した。次の {1} 戦、反動が残る。{2}": "{0} got you back up. A crash lingers for the next {1} fights.{2}",
+    "反動 {0} 戦": "crash {0} fights",
+    "この道：抜ける {0}% → {1}%": "This route: survive {0}% → {1}%",
+    "着いて体力 {0}% → {1}%": "arrive at {0}% → {1}% body",
+    "隠し効果：{0}（{1}）": "Hidden effect: {0} ({1})",
+    "順番が効いた：{0}（{1}）": "The order paid off: {0} ({1})",
+    "順番：{0}（{1}）": "Order: {0} ({1})",
+    "この道：{0}": "This route: {0}",
+    "抜ける {0}% → {1}%": "survive {0}% → {1}%"
+  }
 }
