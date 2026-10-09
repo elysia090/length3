@@ -900,10 +900,35 @@
 
 /* ─── 狭い画面：塔を上、脇を下へ ─── */
 @media (max-width: 52rem) {
+  /*
+   * 狭い画面は、上から 上帯・地図・手札・情報。手札を地図のすぐ下に（親指の届く
+   * 真ん中に）置き、相手の様子や道の読みは、その下で読む。
+   */
+  .dig-app {
+    grid-template-rows: auto var(--dig-view-h, minmax(12rem, 45dvh)) auto minmax(0, 1fr);
+    grid-template-areas: 'bar' 'view' 'tray' 'side';
+  }
+
   .dig-main,
   .dig.is-create .dig-main {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(12rem, 45dvh) minmax(0, 1fr);
+    display: contents;
+  }
+
+  .dig-app > .dig-bar {
+    grid-area: bar;
+  }
+
+  .dig-view {
+    grid-area: view;
+  }
+
+  .dig-app > .dig-tray {
+    grid-area: tray;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .dig-side {
+    grid-area: side;
   }
 
   .dig-side {
@@ -3568,9 +3593,9 @@
     letter-spacing: 0.02em;
   }
 
-  /* 遭遇：地図を低く、脇（相手の様子と次の手）に高さを残す。 */
-  .dig-enc-on .dig-main {
-    grid-template-rows: minmax(7rem, 24dvh) minmax(0, 1fr);
+  /* 遭遇：地図を低く、手札の下の情報（相手の様子と次の手）に高さを残す。 */
+  .dig-enc-on .dig-app {
+    --dig-view-h: minmax(7rem, 24dvh);
   }
 
   .dig-enc-on .dig-side {
@@ -3709,7 +3734,7 @@
 
 /* スマホ：受け取り・食堂・古物商・出来事のあいだも、地図を低くして欄に高さを残す。 */
 @media (max-width: 52rem) {
-  .dig-pend-on .dig-main {
-    grid-template-rows: minmax(7rem, 22dvh) minmax(0, 1fr);
+  .dig-pend-on .dig-app {
+    --dig-view-h: minmax(7rem, 22dvh);
   }
 }

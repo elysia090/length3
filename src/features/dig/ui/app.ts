@@ -2137,10 +2137,34 @@ export function openDig(doc: Document, onClose: () => void): void {
     return v;
   }
 
+  /** 道の先へ刻む（この道で出会う相手か、寄る部屋へ）を、その場での一箱に。 */
+  function markRow(w: World, route: Route | undefined): (SpotAction & { peel?: Cmd }) | null {
+    const m = route?.mark;
+    if (!m) return null;
+    const n = nodeOf(w, m.node);
+    const ep = epithetDef(m.ep);
+    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
+    const from = m.from !== undefined ? all.find((c) => c.uid === m.from) : undefined;
+    if (!n || !ep || n.visited || n.eps.includes(m.ep)) return null;
+    if (m.from !== undefined ? !from?.eps.includes(m.ep) : !w.you.epithets.includes(m.ep))
+      return null;
+    return {
+      id: `mark:${m.ep}:${m.node}`,
+      cmd: { c: 'inscribe', ep: m.ep, node: m.node },
+      peel: from ? { c: 'peel', uid: from.uid, ep: m.ep } : undefined,
+      label: `《${ep.name}》を${whoOf(n)}へ`,
+      gain: `${from ? `『${cardDef(from.id).name}』から剥がして・` : '手元から・'}道の先に刻む・${m.why}`,
+      kind: 'ink',
+      score: 98,
+    };
+  }
+
   function spotRows(w: World, toward?: number, route?: Route, key?: string): HTMLElement {
     const ink = inkRow(w, route);
+    const mark = markRow(w, route);
     const list = [
       ...(ink ? [{ a: ink as SpotAction, fit: true }] : []),
+      ...(mark ? [{ a: mark as SpotAction, fit: true }] : []),
       ...spotActions(w, toward).map((a) => ({ a, fit: spotFits(a, toward, route) })),
     ];
     let shown = [...list]

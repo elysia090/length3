@@ -19,6 +19,7 @@ import type { Cmd } from '../core/events';
 import type { AfterKind, MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { decide } from './decide';
+import { nodeHardness } from './hardness';
 import { type Miss, misses } from './near';
 import { maxHp, stats } from './ops';
 import { pilot } from './pilot';
@@ -83,6 +84,16 @@ export interface Route {
   lean: number[];
   /** この道のための付け替え（手元か、頼らない札から剥がして、この札へ）。 */
   ink?: Ink;
+  /** 道の先へ刻む（この道で出会う相手か、寄る部屋へ）。 */
+  mark?: Mark;
+}
+
+export interface Mark {
+  ep: string;
+  /** 刻む部屋（地図の場所）。 */
+  node: number;
+  from?: number;
+  why: string;
 }
 
 export interface Ink {
@@ -486,7 +497,8 @@ function plan(
   x: Walk,
   lack?: Miss['lack'],
   miss?: string,
-): { lean: number[]; ink?: Ink } {
+  pickNode?: number,
+): { lean: number[]; ink?: Ink; mark?: Mark } {
   const slots = w.you.cards.flatMap((c, slot) => (c ? [{ c, slot }] : []));
   const fire = fireBySlot(x);
   const by = (f: (slot: number) => number) =>
@@ -565,7 +577,89 @@ function plan(
         why: `${name(to)}がこの道で尽きない（最大回数 +${epithetDef(hit.ep)?.card?.uses ?? 0}）`,
       };
   }
-  return { lean, ink };
+  return { lean, ink, mark: markFor(w, kind, x, keep, pickNode) };
+}
+
+/**
+ * 道の先へ刻む。札だけでなく、この道で出会う相手や寄る部屋にもエピテットは付く。
+ *
+ *   安定    いちばん手強い相手を、殴り合いで弱める語（体力・攻撃・防御・動けない）
+ *   高連鎖  話をつけやすくする語（意志・要る信頼・手がかり・敵意）
+ *   あと一つ 寄る部屋を良くする語（古物商の値段・食堂の回復・出来事の判定）。拾い先なら倍
+ */
+function markFor(
+  w: World,
+  kind: RouteKind,
+  x: Walk,
+  keep: ReadonlySet<number>,
+  pickNode?: number,
+): Mark | undefined {
+  const here = nodeOf(w, w.pos)?.row ?? -1;
+  const nodes = x.path
+    .map((id) => nodeOf(w, id))
+    .filter((n): n is MapNode => !!n && !n.visited && n.row > here && n.eps.length < PACE.stack);
+  if (!nodes.length) return undefined;
+  const pool: { ep: string; from?: number }[] = w.you.epithets.map((ep) => ({ ep }));
+  for (const c of [...w.you.cards, ...w.you.back])
+    if (c && !keep.has(c.uid)) for (const ep of c.eps) pool.push({ ep, from: c.uid });
+  let best: { v: number; m: Mark } | undefined;
+  for (const p of pool) {
+    const d = epithetDef(p.ep);
+    if (!d) continue;
+    for (const n of nodes) {
+      if (n.eps.includes(p.ep)) continue;
+      let v = 0;
+      let text = '';
+      if (n.npc && d.foe) {
+        const f = d.foe;
+        const fight =
+          3 * (1 - (f.hp ?? 1)) + 0.4 * -(f.def ?? 0) + 0.5 * -(f.atk ?? 0) + (f.stun ? 1.5 : 0);
+        const talk =
+          2.5 * (1 - (f.resolve ?? 1)) +
+          0.6 * Math.max(-3, Math.min(3, -(f.need ?? 0))) +
+          0.4 * (f.trust ?? 0) +
+          0.8 * (f.show ?? 0) +
+          0.3 * -(f.hostility ?? 0);
+        v =
+          kind === 'safe'
+            ? 1.4 * fight + 0.5 * talk
+            : kind === 'chain'
+              ? 1.3 * talk + 0.7 * fight
+              : 0.8 * (fight + talk);
+        v *= 0.5 + (nodeHardness(w, n) ?? 4) / 8;
+        text = f.text;
+      } else if (!n.npc && d.place) {
+        const f = d.place;
+        const rest = n.kind === 'rest' ? ((f.heal ?? 1) - 1) * 6 : 0;
+        const shop = n.kind === 'shop' ? (1 - (f.price ?? 1)) * 6 : 0;
+        const story = n.kind === 'event' ? ((f.story ?? 0) / 10) * 0.6 : 0;
+        const road = 0.3 * -(f.time ?? 0) - 0.25 * (f.arrive?.hp ?? 0) - 0.2 * (f.hostility ?? 0);
+        // 安定は休む場所を、高連鎖は出来事を、あと一つは拾い先の店を重く見る。
+        v =
+          kind === 'safe'
+            ? 1.3 * rest + 0.5 * (shop + story) + road
+            : kind === 'chain'
+              ? rest + shop + 1.5 * story + road
+              : (rest + shop) * (n.id === pickNode ? 2 : 1.2) + story + road;
+        text = f.text;
+      } else continue;
+      // 札から剥がしてくるなら、その札が失う効き目を差し引く（回数を増やす語は重い）。
+      // 金の語は剥がさない（札の上でいちばん効いている）。銀・銅は格のぶん重く。
+      if (p.from !== undefined) {
+        const tier = TIER_RANK[epTier(d)];
+        if (tier >= 3) continue;
+        v -= 1 + Math.max(0, d.card?.uses ?? 0) * 0.6 + tier * 0.8;
+      }
+      if (v > 1.2 && (!best || v > best.v)) {
+        const who = n.npc ? foeDef(n.npc).name : NODE_NAME[n.kind];
+        best = {
+          v,
+          m: { ...p, node: n.id, why: `${who}：${text.replace(/。$/, '')}` },
+        };
+      }
+    }
+  }
+  return best?.m;
 }
 
 /**
@@ -658,6 +752,7 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     more: Pick<Route, 'gets' | 'need' | 'pick'> = {},
     lack?: Miss['lack'],
     miss?: string,
+    pickNode?: number,
   ): Route => ({
     kind,
     label: LABEL[kind],
@@ -674,7 +769,7 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     wear: [...x.short, ...x.thin]
       .map((slot) => w.you.cards[slot]?.uid)
       .filter((u): u is number => u !== undefined),
-    ...plan(w, kind, x, lack, miss),
+    ...plan(w, kind, x, lack, miss, pickNode),
     ...more,
   });
 
@@ -741,6 +836,7 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
         },
         m.lack,
         m.name,
+        sup.node.id,
       ),
     );
     break;

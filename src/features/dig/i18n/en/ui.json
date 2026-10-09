@@ -502,7 +502,8 @@
     "大幅値下げ！　何を、とは申しません。口にした途端に、値が戻りますので": "Huge markdowns! I won't say on what. The moment I do, the prices spring back.",
     "本日の目玉は、店にあるもの全部。目玉でないのは、店にないもの全部": "Today's specials: everything in the shop. Not on special: everything that isn't.",
     "準備はできた。できていなくても、夜はこちらの事情など聞いてくれない。": "Ready. Even if you weren't, the night wouldn't ask after your circumstances.",
-    "拍手。誰もいない階段で、拍手。反響が、それを二人ぶんにしてくれる。": "Applause. On an empty stairwell, applause. The echo makes it two people's worth."
+    "拍手。誰もいない階段で、拍手。反響が、それを二人ぶんにしてくれる。": "Applause. On an empty stairwell, applause. The echo makes it two people's worth.",
+    "道の先に刻む": "inscribe ahead"
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -699,6 +700,7 @@
     "『{0}』から": "From “{0}”",
     "［{0}］が付いて、{1}が成立する": "Adds [{0}], completing {1}",
     "{0}がこの道で尽きない（最大回数 +{1}）": "{0} lasts this route (max uses +{1})",
-    "館内放送：「{0}」": "PA: “{0}”"
+    "館内放送：「{0}」": "PA: “{0}”",
+    "《{0}》を{1}へ": "«{0}» onto {1}"
   }
 }
