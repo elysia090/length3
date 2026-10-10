@@ -373,6 +373,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   function send(cmd: Cmd): boolean {
     if (!game || busy || closed) return false;
     lastInput = now();
+    // 何かが動いたら、部屋の札は閉じる（過ぎた階や、今はできない行動を案内しない）。
+    tip.hidden = true;
     // 動いたら近景に戻る（次の一手が、すぐ目の前に見えるように）。
     if (cmd.c === 'move' && tower.overview) setOverview(false);
     const w0 = game.world;
@@ -1207,6 +1209,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   });
   canvas.addEventListener('pointerleave', () => {
     focus = null;
+    tip.hidden = true;
     render();
   });
   /** 見渡す（引く）／近景に戻す。ホイールの向きでも切り替わる。 */
@@ -2359,7 +2362,7 @@ export function openDig(doc: Document, onClose: () => void): void {
             opts.eps.map((e) => epChip(e)),
           )
         : null,
-      opts.lucky ? luckyTag() : null,
+      opts.lucky ? luckyTag(true) : null,
       stackLine(id),
       pips(card),
       badges(def.ready),

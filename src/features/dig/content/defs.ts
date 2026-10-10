@@ -220,6 +220,8 @@ export interface StoryOption {
   needTags?: TagCount;
   needItem?: string;
   needCoins?: number;
+  /** 拾った物を、その場で売値に換えたことにする（受け取りの金に「売値」と添える）。 */
+  sold?: boolean;
   ok: string;
   fail?: string;
   effect: (tx: Tx) => string | undefined;

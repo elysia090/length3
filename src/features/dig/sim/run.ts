@@ -69,7 +69,7 @@ import {
   zeroStats,
 } from '../core/model';
 import { ask } from '../core/rules';
-import { meets, type Tag } from '../core/tags';
+import { meets, TAG_NAME, type Tag } from '../core/tags';
 import type { Tx } from '../core/tx';
 import { Tx as TxClass } from '../core/tx';
 import { autoPlay } from './ai';
@@ -92,6 +92,7 @@ import {
   maxMind,
   refill,
   refillOne,
+  refillTarget,
   settle,
   stats,
   xp,
@@ -1268,6 +1269,29 @@ function lootItem(tx: Tx): string | undefined {
 }
 
 /**
+ * 休む品が、いま使っても何も戻さないなら、その理由（体も心も満ちていて、戻せる札もない）。
+ * 効く先があれば null。使えると見せておいて、品だけ減らさないために。
+ */
+export function itemIdle(w: World, index: number): string | null {
+  const held = w.you.items[index];
+  const g = held ? gearOf(held.id) : undefined;
+  if (!g || g.kind !== 'rest') return null;
+  const s = stats(w, 'you');
+  if ((g.heal?.hp ?? 0) > 0 && w.you.hp < maxHp(s)) return null;
+  if ((g.heal?.mind ?? 0) > 0 && w.you.mind < maxMind(s)) return null;
+  const hp = (g.heal?.hp ?? 0) > 0;
+  const mind = (g.heal?.mind ?? 0) > 0;
+  const body =
+    hp && mind ? '体も心も満ちている' : hp ? '体は満ちている' : mind ? '心は満ちている' : '';
+  if (!g.refill) return body || null;
+  const tags = g.refill.tags.length ? (g.refill.tags as Tag[]) : [undefined];
+  if (tags.some((t) => refillTarget(w.you, t))) return null;
+  const names = g.refill.tags.map((t) => `［${TAG_NAME[t as Tag]}］`).join('か');
+  const cards = names ? `${names}の札は、どれも満ちている` : '札は、どれも満ちている';
+  return body ? `${body}。${cards}` : cards;
+}
+
+/**
  * 持ち物を一回使う。どれも向き合っていないとき（地図の上、受け取り・店・休憩所の
  * 最中も）に、「その場で」使う。休む品はその場で戻し、備える品は次の遭遇の初めに
  * 効く備えになり、探る品と道具は、その階を探る（出来事が起きるかもしれない）。
@@ -1279,6 +1303,7 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
   if (!g || !held || w.enc || g.kind === 'keep') return false;
   // 探るのは、地図の上で手の空いているときだけ（何かが起きるので）。
   if (g.kind === 'seek' && w.pending) return false;
+  if (itemIdle(w, index)) return false;
   const o = useOrder(tx, g, held.id);
   tx.emit({ type: 'item.use', who: 'you', index });
   const left = held.uses > 1 ? `（あと ${held.uses - 1} 回）` : '';
@@ -1312,10 +1337,19 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
   const mind = Math.min(Math.round((g.heal?.mind ?? 0) * kh), maxMind(s) - w.you.mind);
   if (hp > 0 || mind > 0)
     tx.emit({ type: 'vital', who: 'you', hp: Math.max(0, hp), mind: Math.max(0, mind) });
+  // 戻した札を名指しする（どの札に効いたか分かるように）。
+  let filled = '';
   if (g.refill) {
     const n = Math.max(1, Math.round(g.refill.n * k));
-    if (g.refill.tags.length === 0) refill(tx, n, undefined, 'you');
-    else for (const t of g.refill.tags) if (refill(tx, n, t as Tag, 'you')) break;
+    const tags = g.refill.tags.length ? (g.refill.tags as Tag[]) : [undefined];
+    for (const t of tags) {
+      const at = refillTarget(w.you, t);
+      if (!at) continue;
+      const c = at.card;
+      filled = `『${cardDef(c.id).name}』の回数 ${c.uses}/${c.max} → ${Math.min(c.max, c.uses + n)}/${c.max}。`;
+      refill(tx, n, t, 'you');
+      break;
+    }
   }
   // 品ごとの一文（無ければ名前だけ）。時刻と残りの回数で、言い方が替わる。
   const said = USE_LINES[g.id] ? lineAt(USE_LINES[g.id] ?? [], w.hour + held.uses) : '';
@@ -1326,12 +1360,16 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
     tx.emit({ type: 'after', after: { kind: 'crash', npc: '', left: g.cost } });
     tx.emit({
       type: 'note',
-      text: `${how}${line || `${g.name}で持ち直した。`}次の ${g.cost} 戦、反動が残る。${left}`,
+      text: `${how}${line || `${g.name}で持ち直した。`}${filled}次の ${g.cost} 戦、反動が残る。${left}`,
       level: 1,
     });
     return true;
   }
-  tx.emit({ type: 'note', text: `${how}${line || `${g.name}を使った。`}${left}`, level: 1 });
+  tx.emit({
+    type: 'note',
+    text: `${how}${line || `${g.name}を使った。`}${filled}${left}`,
+    level: 1,
+  });
   return true;
 }
 
@@ -1762,7 +1800,7 @@ export function choose(tx: Tx, i: number): boolean {
   const from = tx.out.length;
   const extra = ok ? o.effect(tx) : o.failEffect?.(tx);
   if (twice) o.effect(tx);
-  const got = receipt(tx.out.slice(from));
+  const got = receipt(tx.out.slice(from), ok && o.sold);
   if (w.flags['clear-debt']) {
     const owed = Object.keys(w.you.debts).find((id) => (w.you.debts[id] ?? 0) > 0);
     if (owed) tx.emit({ type: 'debt', who: 'you', npc: owed, n: -1 });
@@ -1780,7 +1818,7 @@ export function choose(tx: Tx, i: number): boolean {
  * 出来事で動いたものの、受け取りの一行（「包帯 ×1・金 −10」）。何が出たかは選んだあとに
  * 確かめられる（選ぶ前には知らせない）。動いたものが無ければ undefined。
  */
-function receipt(evs: readonly Ev[]): string | undefined {
+function receipt(evs: readonly Ev[], sold = false): string | undefined {
   let coin = 0;
   let hp = 0;
   let mind = 0;
@@ -1802,7 +1840,7 @@ function receipt(evs: readonly Ev[]): string | undefined {
   const sign = (n: number) => (n > 0 ? `+${n}` : `−${-n}`);
   if (hp) parts.push(`体力 ${sign(hp)}`);
   if (mind) parts.push(`精神 ${sign(mind)}`);
-  if (coin) parts.push(`金 ${sign(coin)}`);
+  if (coin) parts.push(sold && coin > 0 ? `金 ${sign(coin)}（売値）` : `金 ${sign(coin)}`);
   return parts.length ? parts.join('・') : undefined;
 }
 
@@ -2131,7 +2169,7 @@ export function permValue(c: Char, id: string): number {
   return Math.round(v);
 }
 
-export function buy(tx: Tx, id: string, drop?: number): boolean {
+export function buy(tx: Tx, id: string, drop?: number, dropItem?: string): boolean {
   const w = tx.w;
   const p = w.pending;
   if (p?.kind !== 'shop' || p.sold.includes(id)) return false;
@@ -2152,8 +2190,16 @@ export function buy(tx: Tx, id: string, drop?: number): boolean {
     } else {
       const g = gearOf(id);
       const price = priceOf(w, g?.price ?? 99);
-      if (!g || w.you.coins < price || !itemRoom(w.you, id)) return false;
+      if (!g || w.you.coins < price) return false;
+      // 持ち物がいっぱいなら、手放す一つと入れ替えて買う（報酬の入れ替えと同じ）。
+      const gone = itemRoom(w.you, id) ? undefined : dropItem ? gearOf(dropItem) : undefined;
+      if (!itemRoom(w.you, id) && (!gone || !w.you.items.some((x) => x.id === gone.id)))
+        return false;
       coins(tx, -price, 'you');
+      if (gone) {
+        tx.emit({ type: 'item', who: 'you', id: gone.id, n: -1 });
+        tx.emit({ type: 'note', text: `${gone.name}を、店の棚に置いていった。`, level: 1 });
+      }
       tx.emit({ type: 'item', who: 'you', id, n: 1, uses: g.uses });
     }
   } else return false;

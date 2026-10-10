@@ -26,6 +26,7 @@ import {
   curePrice,
   deckRoom,
   epPrice,
+  itemIdle,
   permValue,
   priceOf,
   storyChance,
@@ -202,15 +203,24 @@ export function shopPanel(w: World, ui: Ui): HTMLElement {
       continue;
     }
     const price = priceOf(w, gearOf(id)?.price ?? 99);
+    const room = itemRoom(w.you, id);
     kids.push(
       gearOffer(
         id,
-        !sold && w.you.coins >= price && itemRoom(w.you, id),
-        () => ui.send({ c: 'buy', id }),
-        sold ? '売約' : `金 ${price}`,
-        sold ? '売約' : !itemRoom(w.you, id) ? '持ち物がいっぱい' : '金が足りない',
+        !sold && w.you.coins >= price,
+        () => {
+          // 持ち物がいっぱいなら、手放す一つを選んでから買う（選ぶまでは何も減らない）。
+          if (room) ui.send({ c: 'buy', id });
+          else {
+            shopSwap = shopSwap === id ? null : id;
+            ui.render();
+          }
+        },
+        sold ? '売約' : room ? `金 ${price}` : `金 ${price}・一つと入れ替え`,
+        sold ? '売約' : '金が足りない',
       ),
     );
+    if (shopSwap === id && !sold && !room) kids.push(gearSwapPicker(w, id, ui));
   }
   for (const perm of w.you.perms) {
     const d = permDef(perm);
@@ -269,6 +279,38 @@ export function swapPicker(w: World, id: string, ui: Ui): HTMLElement {
           { class: 'dig-swap__b' },
         ),
       ),
+    ),
+    button('やめる', () => {
+      shopSwap = null;
+      ui.render();
+    }),
+  );
+}
+
+/** 古物商の品の入れ替え：手放す一つを押すと、入れ替えて買う。 */
+function gearSwapPicker(w: World, id: string, ui: Ui): HTMLElement {
+  return h(
+    'div',
+    { class: 'dig-swap' },
+    h(
+      'p',
+      { class: 'dig-swap__ask' },
+      `手放す一つを押すと、${gearOf(id)?.name ?? id}と入れ替えて買う`,
+    ),
+    h(
+      'div',
+      { class: 'dig-swap__list' },
+      w.you.items.map((it) => {
+        const g = gearOf(it.id);
+        return button(
+          `${g?.name ?? it.id}${g?.kind === 'keep' ? '（身につける）' : it.uses > 1 ? ` ×${it.uses}` : ''}`,
+          () => {
+            shopSwap = null;
+            ui.send({ c: 'buy', id, dropItem: it.id });
+          },
+          { class: 'dig-swap__b', title: g ? `${g.text}\n${g.flavor}` : '' },
+        );
+      }),
     ),
     button('やめる', () => {
       shopSwap = null;
@@ -422,14 +464,18 @@ export function gearRows(
           ),
         ];
       }
+      // 効く先が無い品は押せない（品だけ減らさない）。なぜ効かないかを添える。
+      const idle = itemIdle(w, i);
       return [
         button(
           `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
           () => ui.send({ c: 'item', index: i }),
           {
             class: `dig-gear__item${g.tool ? ' is-tool' : ''}`,
-            disabled: kind === 'seek' && !!w.pending,
-            title: `${g.text}\n${g.flavor}`,
+            disabled: (kind === 'seek' && !!w.pending) || !!idle,
+            title: [g.text, idle ? `いまは効かない：${idle}` : '', g.flavor]
+              .filter(Boolean)
+              .join('\n'),
           },
         ),
       ];

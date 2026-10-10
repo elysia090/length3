@@ -143,6 +143,7 @@ export const STORY_LIST: readonly StoryDef[] = [
         label: '担いでいく（古物商に売れる）',
         stat: 'VIT',
         diff: 15,
+        sold: true,
         ok: '重い。けれど、持っていける。',
         fail: '脚が倒れて、すねを打った。',
         effect: (tx) => {
@@ -260,7 +261,7 @@ export const STORY_LIST: readonly StoryDef[] = [
     id: 'vending',
     title: '自動販売機',
     strata: [1, 2, 3],
-    text: '地下に、なぜか自動販売機が一台。灯りは点いている。',
+    text: '自動販売機が一台。灯りは点いている。硬貨の投入口だけ、ぴかぴかだ。',
     options: [
       {
         label: '硬貨を入れる（金 10）',
@@ -303,6 +304,7 @@ export const STORY_LIST: readonly StoryDef[] = [
         label: '掘り出す',
         stat: 'VIT',
         diff: 15,
+        sold: true,
         ok: '拳ほどの塊がひとつ。古物商が欲しがりそうだ。',
         fail: '崩れた破片で、腕を切った。',
         effect: (tx) => {
