@@ -98,7 +98,7 @@ export function decide(
       ok = peel(tx, cmd.uid, cmd.ep);
       break;
     case 'buy':
-      ok = buy(tx, cmd.id, cmd.drop);
+      ok = buy(tx, cmd.id, cmd.drop, cmd.dropItem);
       break;
     case 'sell':
       ok = sell(tx, cmd.perm);

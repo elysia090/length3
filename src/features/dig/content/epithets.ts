@@ -739,7 +739,7 @@ export const EPITHETS: readonly Epithet[] = [
     gloss: '遠回りした先に、落ちていたもの。',
     rarity: 'uncommon',
     card: {
-      text: '×0.7。使ったあと、手がかりを 1 つ見る。',
+      text: '×0.7。使ったあと、手がかりを 1 つ探る。',
       mult: () => 0.7,
       after: [['clue', 1]],
     },

@@ -222,7 +222,7 @@ export type Cmd =
   | { c: 'choose'; option: number }
   | { c: 'ack' }
   | { c: 'rest'; action: RestAction; slot?: number }
-  | { c: 'buy'; id: string; drop?: number }
+  | { c: 'buy'; id: string; drop?: number; dropItem?: string }
   | { c: 'alter'; slot: number; to: string }
   | {
       c: 'inscribe';

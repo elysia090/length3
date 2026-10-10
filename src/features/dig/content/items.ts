@@ -229,7 +229,7 @@ export const ITEM_LIST: readonly ItemDef[] = [
     id: 'old-map',
     kind: 'prep',
     name: '古い間取り図',
-    text: '次の相手の手がかりを一つ見る。',
+    text: '次の相手の手がかりを一つ探る。',
     prep: [['clue', 1]],
     uses: 2,
     price: 30,

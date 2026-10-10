@@ -265,3 +265,60 @@ describe('playtest direction #105', () => {
     expect(w.enc?.foe.id).toBe(sectionOf(1).keeper.npc);
   });
 });
+
+describe('agent report #107', () => {
+  it('keeps the whisky when no person or trust card can take it', async () => {
+    const { Tx } = await import('./core/tx');
+    const { itemIdle, useItem } = await import('./sim/run');
+    const g = Game.start(16, 'watch');
+    const w = g.world;
+    w.pending = null;
+    w.you.items = [{ id: 'whisky', uses: 1 }];
+    for (const c of [...w.you.cards, ...w.you.back]) if (c) c.uses = c.max;
+    expect(itemIdle(w, 0)).toBeTruthy();
+    expect(useItem(new Tx(w), 0)).toBe(false);
+    expect(w.you.items.length).toBe(1);
+    const fit = [...w.you.cards, ...w.you.back].find(
+      (c) => c && cardDef(c.id).tags.some((t) => t === 'person' || t === 'trust'),
+    );
+    if (!fit) return;
+    fit.uses = 0;
+    expect(itemIdle(w, 0)).toBe(null);
+    expect(useItem(new Tx(w), 0)).toBe(true);
+    expect(fit.uses).toBeGreaterThan(0);
+  });
+
+  it('shows the memory name, not its id, before a card is used', async () => {
+    const { fxText } = await import('./content/fx');
+    const text = fxText([['perm', 'fear', true]]);
+    expect(text).toContain('《怖れ》');
+    expect(text).not.toContain('fear');
+  });
+
+  it('words insight as a probe, not a promise', async () => {
+    const { afterDef } = await import('./content/after');
+    const text = afterDef('insight')?.text ?? '';
+    expect(text).toContain('探る');
+    expect(text).not.toContain('見えている');
+  });
+
+  it('lets a full bag swap an item at the shop', async () => {
+    const { Tx } = await import('./core/tx');
+    const { buy } = await import('./sim/run');
+    const { ITEM_LIST } = await import('./content/items');
+    const g = Game.start(17, 'watch');
+    const w = g.world;
+    const rest = ITEM_LIST.filter((x) => x.kind === 'rest');
+    w.you.items = rest.slice(0, 8).map((x) => ({ id: x.id, uses: 1 }));
+    const want = ITEM_LIST.find((x) => !w.you.items.some((y) => y.id === x.id));
+    if (!want) return;
+    w.you.coins = 999;
+    w.pending = { kind: 'shop', cards: [], items: [want.id], sold: [] };
+    expect(buy(new Tx(w), want.id)).toBe(false);
+    const gone = w.you.items[0]?.id ?? '';
+    expect(buy(new Tx(w), want.id, undefined, gone)).toBe(true);
+    expect(w.you.items.some((x) => x.id === want.id)).toBe(true);
+    expect(w.you.items.some((x) => x.id === gone)).toBe(false);
+    expect(w.you.items.length).toBe(8);
+  });
+});

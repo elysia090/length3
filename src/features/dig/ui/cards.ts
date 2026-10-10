@@ -87,11 +87,19 @@ export function epChip(e: string): HTMLElement {
   );
 }
 
-/** 拾い物の印（運がよかったぶん。失うものはない、という合図）。 */
-export const luckyTag = () =>
+/**
+ * 拾い物の印（運がよかったぶん、選択肢が一つ増えた）。札なら受け取りは通常の札と同じで、
+ * 手札がいっぱいなら一枚と交換になる（失うものが無い、とは言わない）。
+ */
+export const luckyTag = (card = false) =>
   h(
     'i',
-    { class: 'dig-lucky', title: '拾い物：運がよかったぶん。選んでも、何も失わない' },
+    {
+      class: 'dig-lucky',
+      title: card
+        ? '拾い物：もう一枚、見つかった。手札がいっぱいなら交換'
+        : '拾い物：運がよかったぶん。選んでも、何も失わない',
+    },
     '拾い物',
   );
 
@@ -176,7 +184,7 @@ export function cardOffer(
     h(
       'span',
       { class: 'dig-offer__head' },
-      lucky ? luckyTag() : null,
+      lucky ? luckyTag(true) : null,
       inked?.map((e) => epChip(e)),
       h('b', {}, d.name),
       price ? h('span', { class: 'dig-price' }, price) : null,

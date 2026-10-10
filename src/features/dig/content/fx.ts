@@ -308,6 +308,20 @@ export function run(tx: Tx, list: readonly Fx[], ctx: FxCtx): void {
 
 // ─── 本文 ─────────────────────────────────────────────────────
 
+/** 記憶を得る効果：内部の名ではなく記憶の名で。 */
+const permGain = (id: string, first: boolean): string =>
+  `${first ? '初めて使うと' : ''}記憶《${permDef(id)?.name ?? id}》を得る`;
+
+/** 得る記憶が何を背負わせるか（説明の最後に、記憶の文のまま添える）。 */
+function permNotes(list: readonly Fx[]): string {
+  return list
+    .flatMap((f) => {
+      const p = f[0] === 'perm' ? permDef(f[1]) : undefined;
+      return p?.text ? [`《${p.name}》　${p.text}`] : [];
+    })
+    .join('　');
+}
+
 function numText(v: Num): string {
   if (typeof v === 'number') return String(v);
   const parts: string[] = [];
@@ -365,7 +379,7 @@ export function fxText(list: readonly Fx[]): string {
         out.push(`相手の敵意 ${f[1] > 0 ? '+' : ''}${f[1]}`);
         break;
       case 'clue':
-        out.push(`手がかりを ${f[1]} つ見る${f[2] ? '（誤りが混じりうる）' : ''}`);
+        out.push(`手がかりを ${f[1]} つ探る${f[2] ? '（誤りが混じりうる）' : ''}`);
         break;
       case 'see':
         out.push('本当の予告を見る');
@@ -401,7 +415,7 @@ export function fxText(list: readonly Fx[]): string {
         out.push(f[1] ? 'かならず立ち去る（所持品を 1 つ失う）' : 'かならず立ち去る');
         break;
       case 'perm':
-        out.push(`${f[2] ? '初めて使うと' : ''}《${f[1]}》を得る`);
+        out.push(permGain(f[1], !!f[2]));
         break;
       case 'refill':
         out.push(`［${TAG_NAME[f[1]]}］のカードの回数 +${f[2]}`);
@@ -441,7 +455,9 @@ export function fxText(list: readonly Fx[]): string {
         break;
     }
   }
-  return out.filter(Boolean).join('。') + (out.length ? '。' : '');
+  const body = out.filter(Boolean).join('。') + (out.length ? '。' : '');
+  const notes = permNotes(list);
+  return notes ? `${body}　${notes}` : body;
 }
 
 const inner = (list: readonly Fx[]) => fxText(list).replace(/。$/, '').replace(/。/g, '、');

@@ -208,7 +208,10 @@ export function hostile(tx: Tx, n: number): void {
     tx.emit({ type: 'foe', field: 'hostility', n: next - e.foe.hostility, by: e.who });
 }
 
-/** 手がかりを 1 つ見る。fake なら誤りが混じることがある。見られたら true。 */
+/**
+ * 手がかりを 1 つ探る。fake なら誤りが混じることがある。相手が揺らいでいるほど見つかり、
+ * 外れると相手が「……さあね。」と言う。見られたら true。
+ */
 export function revealClue(tx: Tx, fake = false): boolean {
   const e = enc(tx);
   if (!e) return false;
@@ -434,7 +437,21 @@ export function refill(
   rested = false,
 ): boolean {
   if (n <= 0) return false;
-  const c = charOf(tx.w, who);
+  const b = refillTarget(charOf(tx.w, who), tag, rested);
+  if (!b) return false;
+  if (b.slot >= 0) {
+    tx.emit({ type: 'card.uses', who, slot: b.slot, n });
+    if (rested) tx.emit({ type: 'card.mark', who, slot: b.slot, mark: 'rested', n: 1 });
+  } else tx.emit({ type: 'deck.uses', who, index: b.index, n });
+  return true;
+}
+
+/** 回数を戻す先：タグの合う札のうち、いちばん減っている一枚（手札が先）。無ければ null。 */
+export function refillTarget(
+  c: Char,
+  tag?: Tag,
+  rested = false,
+): { slot: number; index: number; card: Card } | null {
   const fits = (card: Card) =>
     card.uses < card.max &&
     (!tag || cardDef(card.id).tags.includes(tag)) &&
@@ -451,12 +468,9 @@ export function refill(
     if (!best || gap > best.gap) best = { slot: -1, index, gap };
   });
   const b = best as { slot: number; index: number; gap: number } | null;
-  if (!b) return false;
-  if (b.slot >= 0) {
-    tx.emit({ type: 'card.uses', who, slot: b.slot, n });
-    if (rested) tx.emit({ type: 'card.mark', who, slot: b.slot, mark: 'rested', n: 1 });
-  } else tx.emit({ type: 'deck.uses', who, index: b.index, n });
-  return true;
+  if (!b) return null;
+  const card = b.slot >= 0 ? c.cards[b.slot] : c.back[b.index];
+  return card ? { slot: b.slot, index: b.index, card } : null;
 }
 
 /** 札を一枚、満タンまで戻す（いちばん減っている札）。 */
