@@ -273,17 +273,9 @@
   align-items: center;
 }
 
-/* 地図のときの手放す一枚：拾える札の右の空いた列に、上詰めで折り返す（狭い画面では下の段）。 */
+/* 狭い画面の手放す一枚：拾える札の下の段に、全幅で折り返す。 */
 .dig-offers > .dig-scene__drop {
-  grid-column: var(--from, 1) / -1;
-  align-self: start;
-  align-content: flex-start;
-}
-
-@media (max-width: 52rem) {
-  .dig-offers > .dig-scene__drop {
-      grid-column: 1 / -1;
-    }
+  grid-column: 1 / -1;
 }
 
 .dig .dig-scene__pick {
@@ -779,4 +771,87 @@
   100% {
     opacity: 0;
   }
+}
+
+/*
+ * 広い画面の受け取り：地図の欄を二段に（地図が縮み、下の帯に拾える札）。手順・手放す一枚・
+ * 釦は右の欄（.dig-claim）。狭い画面は今までどおり、下端の帯と「前へ・次へ」。
+ */
+.dig-left {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dig-band {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 0.0625rem solid var(--rule);
+}
+
+.dig-band[hidden] {
+  display: none;
+}
+
+/* 帯の札は、並ぶ枚数で幅を分ける（四枚まで一段）。 */
+.dig-band .dig-offers {
+  grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr));
+}
+
+@media (max-width: 52rem) {
+  .dig-left {
+      display: contents;
+    }
+
+  .dig-band {
+      display: none;
+    }
+}
+
+/* 右の欄の受け取り：一文 → 手放す一枚（その場での箱と同じ形の一列）→ 釦（右寄せ）。 */
+.dig-claim {
+  display: grid;
+  gap: 8px;
+}
+
+.dig-claim__drops {
+  gap: 4px;
+}
+
+.dig-claim__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  align-items: baseline;
+}
+
+.dig-claim__head .dig-card__key {
+  margin-left: auto;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-claim__head .dig-card__mark + .dig-card__key {
+  margin-left: 0;
+}
+
+.dig .dig-claim__drop.is-chosen {
+  border-color: var(--amber-text);
+  box-shadow: inset 2px 0 0 var(--amber-text);
+}
+
+.dig-claim__drop.is-chosen .dig-spot__what {
+  color: var(--amber-text);
+}
+
+.dig .dig-claim__drop.is-spent {
+  border-style: dashed;
+}
+
+.dig-claim__go {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }

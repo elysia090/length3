@@ -995,3 +995,28 @@
     color: var(--ink-3);
   }
 }
+
+/*
+ * 狭い画面で手札の一覧を開いたとき：地図の枠に押し込まず、上帯の下を全部使う（情報は隠す）。
+ * 札は二列で縦に並べる（横にめくらない。剥がす釦も指で押せる幅に）。
+ */
+@media (max-width: 52rem) {
+  .dig-deck-on .dig-app {
+      grid-template-rows: auto auto minmax(0, 1fr) 0 0 0 auto;
+    }
+
+  .dig-deck-on .dig-side,
+    .dig-deck-on .dig-panes,
+    .dig-deck-on .dig-tray {
+      display: none;
+    }
+
+  .dig-deckview .dig-hand.is-preview {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      overflow: visible;
+    }
+
+  .dig-deckview {
+      padding: 12px 12px 72px;
+    }
+}

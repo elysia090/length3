@@ -160,6 +160,12 @@ export function openDig(doc: Document, onClose: () => void): void {
   /** 狭い画面で、一度押して構えた札（もう一度押すと切る）。 */
   let armedSlot: number | null = null;
   /** 札を二度押しで切る端末（狭い画面か、指で触る端末）。一度目は構えて中身を読む。 */
+  /** 広い画面の並び（地図と右の欄が横に並ぶ）。CSS の狭い画面の切れ目と同じ。 */
+  const layoutQuery = window.matchMedia('(max-width: 52rem)');
+  const wide = () => !layoutQuery.matches;
+  const onLayout = () => {
+    if (!closed) render();
+  };
   const narrow = () =>
     window.matchMedia('(max-width: 52rem), (hover: none) and (pointer: coarse)').matches;
   /** 触れている札以外の手（札と同じく、四つの道に先に映す）。 */
@@ -273,8 +279,11 @@ export function openDig(doc: Document, onClose: () => void): void {
   ).observe(createHint);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
+  // 広い画面の受け取り：拾える札は地図の欄の下に（地図が縮む）。手順と手放す一枚は右の欄。
+  const offerBand = h('div', { class: 'dig-band', hidden: true });
+  const left = h('div', { class: 'dig-left' }, view, offerBand);
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
-  const main = h('main', { class: 'dig-main' }, view, side);
+  const main = h('main', { class: 'dig-main' }, left, side);
   // 狭い画面だけ：地図の下の切り替え（札 ⇄ 情報）と、受け取りの下端の「前へ・次へ」。
   const paneSwitch = h('div', { class: 'dig-panes', role: 'tablist', hidden: true });
   // 狭い画面の遭遇：上帯（あなた）のすぐ下に、相手の段（名前・次の手・四つの道の棒）。
@@ -321,6 +330,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (game && !game.world.ending) saveRun(game.save());
     saveProfile(profile);
     doc.removeEventListener('keydown', onKey, true);
+    layoutQuery.removeEventListener('change', onLayout);
     dialog.close();
     dialog.remove();
     onClose();
@@ -2091,7 +2101,9 @@ export function openDig(doc: Document, onClose: () => void): void {
     deckView.replaceChildren();
     viewSwitch.replaceChildren();
     const w = game?.world;
-    const can = !!w && screen === 'play' && !w.enc && !w.ending;
+    // 狭い画面の受け取りは、下端の帯に拾う・手放す・中身が揃っているので、手札の一覧は開かない。
+    const can =
+      !!w && screen === 'play' && !w.enc && !w.ending && !(w.pending?.kind === 'reward' && !wide());
     if (!can) deckOpen = false;
     viewSwitch.hidden = !can;
     if (w && can) {
@@ -2124,6 +2136,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     const open = !!w && can && deckOpen;
     deckView.hidden = !open;
+    // 狭い画面で手札の一覧を開いているあいだは、地図の下の残りも一覧が使う（情報は隠す）。
+    dialog.classList.toggle('dig-deck-on', open);
     if (!w || !open) return;
     // 受け取りのあいだの手札は、拾う札と手持ちを見比べるだけの場所。
     if (w.pending?.kind === 'reward') {
@@ -2456,37 +2470,96 @@ export function openDig(doc: Document, onClose: () => void): void {
     send({ c: 'claim', take: reward.take, help: reward.help });
   }
 
+  /** いまの段（番号と一文）。何をするかを言うのは、ここだけ。 */
+  const stepLine = (st: NonNullable<ReturnType<typeof rewardState>>) =>
+    h('p', { class: 'dig-confirm__step' }, h('b', {}, String(st.step)), h('span', {}, st.stepText));
+
+  const claimButtons = (w: World, st: NonNullable<ReturnType<typeof rewardState>>) => [
+    button('何も拾わずに進む', claimNone),
+    button('受け取る', () => claimPicked(w), { class: 'dig-go', disabled: !st.ready }),
+  ];
+
   function confirmBar(w: World): HTMLElement | null {
     const st = rewardState(w);
     if (!st) return null;
-    const confirm = () => claimPicked(w);
+    return h('div', { class: 'dig-confirm' }, stepLine(st), claimButtons(w, st));
+  }
+
+  /**
+   * 広い画面の受け取りの右の欄：手順の一文 → 手放す一枚（その場での箱と同じ形の一列）→ 釦。
+   * 拾える札は左（地図の下の帯）、決めるのは右、と分ける。
+   */
+  function claimSection(w: World): HTMLElement | null {
+    const st = rewardState(w);
+    if (!st || (!st.offers.length && !st.p.tools.length)) return null;
     return h(
-      'div',
-      { class: 'dig-confirm' },
-      h(
-        'p',
-        { class: 'dig-confirm__step' },
-        h('b', {}, String(st.step)),
-        h('span', {}, st.stepText),
-      ),
-      button('何も拾わずに進む', claimNone),
-      button('受け取る', confirm, { class: 'dig-go', disabled: !st.ready }),
+      'section',
+      { class: 'dig-sec dig-claim' },
+      stepLine(st),
+      st.needDrop
+        ? h(
+            'div',
+            { class: 'dig-spot dig-claim__drops' },
+            st.all.map((c) => {
+              const def = cardDef(c.id);
+              const chosen = dropUid === c.uid;
+              return h(
+                'button',
+                {
+                  type: 'button',
+                  class: `dig-spot__row dig-claim__drop${c.uses <= 0 ? ' is-spent' : ''}${chosen ? ' is-chosen' : ''}`,
+                  'aria-pressed': chosen ? 'true' : 'false',
+                  title: [def.sig, def.flavor].filter(Boolean).join('\n'),
+                  onclick: selectDrop(c.uid),
+                },
+                h(
+                  'span',
+                  { class: 'dig-claim__head' },
+                  c.eps.map((e) => epChip(e)),
+                  h('b', { class: 'dig-spot__what' }, def.name),
+                  chosen ? h('span', { class: 'dig-card__mark' }, '手放す') : null,
+                  h(
+                    'span',
+                    { class: 'dig-card__key' },
+                    c.uses <= 0 ? '尽きた' : `${c.uses}/${c.max}`,
+                  ),
+                ),
+                h('span', { class: 'dig-spot__gain' }, fxText(def.ready)),
+              );
+            }),
+          )
+        : null,
+      h('div', { class: 'dig-claim__go' }, claimButtons(w, st)),
     );
   }
 
-  /** 受け取りの下の帯（地図のとき）：拾える札、手放す一枚、確かめる釦。 */
+  /** 広い画面の受け取りの、地図の下の帯：拾える札（と、道具を拾えないときの持ち物）。 */
+  function rewardBand(w: World): Child[] {
+    const st = rewardState(w);
+    if (!st || (!st.offers.length && !st.p.tools.length)) return [];
+    const n = st.offers.length + st.p.tools.length;
+    return [
+      h(
+        'div',
+        { class: 'dig-hand dig-offers', style: `--n:${Math.min(n, 4)}` },
+        offerCards(w, true),
+      ),
+      toolBlocked(w, st) ? rewardItems(w) : null,
+    ];
+  }
+
+  /** 狭い画面の受け取りの下の帯：拾える札、手放す一枚、確かめる釦（広い画面は rewardBand と claimSection）。 */
   function rewardTray(w: World): Child[] {
     const st = rewardState(w);
     if (!st || (!st.offers.length && !st.p.tools.length)) return [];
-    // 手放す一枚は、拾える札の右の空いた列に並ぶ（札が四枚以上なら、その下の段に）。
-    const n = st.offers.length + st.p.tools.length;
     return [
       h(
         'div',
         { class: 'dig-hand dig-offers' },
         offerCards(w, true),
-        st.needDrop ? dropPicks(st, n <= 3 ? n + 1 : 1) : null,
+        st.needDrop ? dropPicks(st) : null,
       ),
+      rewardDetail(w, st),
       toolBlocked(w, st) ? rewardItems(w) : null,
       confirmBar(w),
     ];
@@ -2507,11 +2580,93 @@ export function openDig(doc: Document, onClose: () => void): void {
     );
   }
 
-  /** 地図のときの、手放す一枚の候補（尽きた札から）。from は並ぶ列の始まり。 */
-  function dropPicks(st: NonNullable<ReturnType<typeof rewardState>>, from: number): HTMLElement {
+  /**
+   * 狭い画面の受け取りの詳細欄（遭遇の .dig-armdetail と同じ形）。指の端末には触れたときの
+   * 説明が出ないので、押した札の中身（効き目・眠りぎわ・刻まれた語・一文）を札の列の下に開く。
+   * 手放す一枚を選んでいればその札、拾う一枚だけならその札。何も選んでいなければ出さない
+   * （何をするかは手順の一文が言う）。
+   */
+  function rewardDetail(
+    w: World,
+    st: NonNullable<ReturnType<typeof rewardState>>,
+  ): HTMLElement | null {
+    const lines = (
+      name: string,
+      key: string,
+      fx: string,
+      sleep: string,
+      eps: readonly string[],
+      notes: readonly (string | undefined)[],
+      mark: string,
+    ) =>
+      h(
+        'div',
+        { class: 'dig-armdetail', 'aria-live': 'polite' },
+        h(
+          'p',
+          { class: 'dig-armdetail__head' },
+          h('b', {}, name),
+          h('span', { class: 'dig-card__mark' }, mark),
+          h('span', { class: 'dig-armdetail__tags' }, key),
+        ),
+        h('p', { class: 'dig-armdetail__fx' }, fx),
+        sleep ? h('p', { class: 'dig-armdetail__sub' }, `眠りぎわ　${sleep}`) : null,
+        eps.map((e) =>
+          h('p', { class: 'dig-armdetail__sub' }, epChip(e), ` ${epithetDef(e)?.card?.text ?? ''}`),
+        ),
+        notes.filter(Boolean).map((n) => h('p', { class: 'dig-armdetail__flavor' }, n)),
+        h('p', { class: 'dig-armdetail__go' }, 'もう一度押すと外す'),
+      );
+    if (st.drop) {
+      const c = st.drop;
+      const d = cardDef(c.id);
+      const tags = cardTags(c)
+        .map((t) => `［${TAG_NAME[t]}］`)
+        .join('');
+      return lines(
+        cardName(c),
+        `${c.uses}/${c.max} ${tags}`,
+        fxText(d.ready),
+        fxText(d.spent),
+        c.eps,
+        [d.sig, d.flavor],
+        '手放す',
+      );
+    }
+    if (st.isTool && pickId) {
+      const g = gearOf(pickId);
+      return lines(
+        g?.name ?? pickId,
+        `道具・${g?.uses ?? 1} 回`,
+        g?.text ?? '',
+        '',
+        [],
+        [g?.flavor],
+        '拾う',
+      );
+    }
+    if (st.isCard && pickId) {
+      const d = cardDef(pickId);
+      const eps = st.p.inked?.[pickId] ?? [];
+      const tags = d.tags.map((t) => `［${TAG_NAME[t]}］`).join('');
+      return lines(
+        d.name,
+        `${d.uses + epUses(eps)} 回 ${tags}`,
+        fxText(d.ready),
+        fxText(d.spent),
+        eps,
+        [d.sig, d.flavor],
+        '拾う',
+      );
+    }
+    return null;
+  }
+
+  /** 狭い画面の、手放す一枚の候補（尽きた札から。拾える札の下の段に）。 */
+  function dropPicks(st: NonNullable<ReturnType<typeof rewardState>>): HTMLElement {
     return h(
       'div',
-      { class: 'dig-scene__row dig-scene__drop', style: `--from:${from}` },
+      { class: 'dig-scene__row dig-scene__drop' },
       st.all.map((c) =>
         h(
           'button',
@@ -2792,7 +2947,9 @@ export function openDig(doc: Document, onClose: () => void): void {
             ),
           )
         : null,
-      // 拾える札が無ければ、ここで受け取る（あるときは、下の帯か手札の欄で確かめる）。
+      // 広い画面で地図を見ているあいだは、手順と手放す一枚と釦がここ（拾える札は地図の下）。
+      wide() && !deckOpen ? claimSection(w) : null,
+      // 拾える札が無ければ、ここで受け取る（あるときは、ここか、下の帯か手札の欄で確かめる）。
       offers.length || p.tools.length
         ? null
         : h(
@@ -2960,8 +3117,18 @@ export function openDig(doc: Document, onClose: () => void): void {
     const w = staged ?? game.world;
     // 手札の帯は、向き合っているあいだだけ。受け取りでは、拾える札がここに並ぶ。
     // ほかのときは畳む（手持ちは、整えるで地図の場所に広げる）。
+    offerBand.replaceChildren();
+    offerBand.hidden = true;
     if (!w.enc) {
-      const offers = w.pending?.kind === 'reward' && !w.ending && !deckOpen ? rewardTray(w) : [];
+      const live = w.pending?.kind === 'reward' && !w.ending && !deckOpen;
+      if (live && wide()) {
+        const kids = rewardBand(w);
+        offerBand.hidden = !kids.length;
+        fill(offerBand, kids);
+        tray.hidden = true;
+        return;
+      }
+      const offers = live ? rewardTray(w) : [];
       tray.hidden = !offers.length;
       fill(tray, offers);
       return;
@@ -3701,6 +3868,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   }
   doc.addEventListener('keydown', onKey, true);
+  // 広い⇄狭いの切れ目をまたいだら、受け取りの札の置き場（地図の下の帯／下端の帯）を組み直す。
+  layoutQuery.addEventListener('change', onLayout);
 
   const saved = loadRun();
   if (saved) {
