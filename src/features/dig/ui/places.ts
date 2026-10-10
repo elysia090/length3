@@ -395,7 +395,7 @@ export function gearRows(w: World, ui: Ui): HTMLElement | null {
       : null;
   return h(
     'div',
-    { class: 'dig-places' },
+    { class: 'dig-places is-gear' },
     row('休む', '体と心、札一枚の回数を戻す', gear('rest')),
     row('備える', '次に出会う相手との遭遇の初めに効く', gear('prep')),
     row('探る', 'この階を探る（1 時間）。出来事か、拾い物か、誰かに気づかれるか', gear('seek')),

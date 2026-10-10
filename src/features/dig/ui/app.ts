@@ -2660,7 +2660,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       const g = gearOf(pickId);
       return lines(
         g?.name ?? pickId,
-        `道具・${g?.uses ?? 1} 回`,
+        g?.kind === 'keep' ? '身につける' : `道具・${g?.uses ?? 1} 回`,
         g?.text ?? '',
         '',
         [],

@@ -326,6 +326,20 @@
   border-style: dashed;
 }
 
+/* 身につける品は減らないので実線。「身につける」は長いので、収まらなければ名の下の行へ回す。 */
+.dig .dig-scene__card.is-keep {
+  border-style: solid;
+}
+
+.dig-scene__card.is-keep .dig-card__head {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.dig-scene__card.is-keep .dig-card__key {
+  margin-left: auto;
+}
+
 .dig-scene__inked {
   display: flex;
   flex-wrap: wrap;

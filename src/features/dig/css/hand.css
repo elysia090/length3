@@ -617,6 +617,15 @@
   border-style: dashed;
 }
 
+/* 持ち物の列の見出しは「身につける」が一行に収まる幅（列ごとに揃える）。 */
+.dig-places.is-gear .dig-place {
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+}
+
+.dig-places.is-gear .dig-place__label {
+  white-space: nowrap;
+}
+
 /* 身につける品：押して使うものではないので枠で囲まない。名前と、小さな「置いていく」。 */
 .dig-gear__item.is-keep {
   display: inline-flex;
