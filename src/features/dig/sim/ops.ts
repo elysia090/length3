@@ -280,6 +280,9 @@ export function hurt(tx: Tx, base: number): number {
   const e = tx.w.enc;
   if (!e) return 0;
   let amount = Math.max(0, Math.round(tx.rule('strikeTaken', { who: e.who }, base)));
+  // 厚手の外套：相手の最初の一撃を受けたところで使い済み（守りで受け止めても、受けたことは受けた）。
+  if (base > 0 && !e.st.coat && charOf(tx.w, e.who).items.some((x) => x.id === 'thick-coat'))
+    tx.emit({ type: 'enc.st', key: 'coat', n: 1 });
   const g = Math.min(e.guard, amount);
   if (g) tx.emit({ type: 'enc.you', field: 'guard', n: -g });
   amount -= g;

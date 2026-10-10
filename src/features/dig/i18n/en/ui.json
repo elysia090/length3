@@ -918,6 +918,7 @@
     "{0} 手番目": "turn {0}",
     "空き {0}": "{0} free",
     "敵意 {0}": "hostility {0}",
-    "敵意は {0}": "hostility {0}"
+    "敵意は {0}": "hostility {0}",
+    "{0}の区画の底、B{1}。{2}の手前に、{3}が立っていた。": "Bottom of section {0}, B{1}. {3} stood in front of {2}."
   }
 }

@@ -175,15 +175,7 @@ export const KEEPSAKES: readonly ItemDef[] = [
         text: '厚手の外套：最初の一撃を半分',
       },
     ],
-    triggers: [
-      {
-        on: 'vital',
-        when: (ev, w) =>
-          ev.type === 'vital' && ev.who === 'you' && (ev.hp ?? 0) < 0 && !!w.enc && !w.enc.st.coat,
-        run: (tx) => tx.emit({ type: 'enc.st', key: 'coat', n: 1 }),
-        text: '厚手の外套',
-      },
-    ],
+    // 使い済みの印は、相手の一撃を受けたときだけ付く（自分の札の代償では減らない）。ops.ts の hurt が付ける。
     price: 60,
     flavor: '肩に、誰かの古い雨の匂い。',
   },

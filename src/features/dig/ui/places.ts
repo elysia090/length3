@@ -97,7 +97,8 @@ export function restPanel(w: World, ui: Ui): HTMLElement {
           choice(
             '休む',
             [
-              `体力 +${Math.round(PACE.rest * 100)}%・精神 +${Math.round(PACE.rest * 100)}%`,
+              // 同じ区画で二度目からは、鍋の残りぶん（半分）。
+              `体力 +${restPct(w)}%・精神 +${restPct(w)}%`,
               'いちばん減っている札が一枚満ちる',
               '1 時間',
             ],
@@ -349,6 +350,13 @@ export function toldPanel(w: World, ui: Ui): HTMLElement {
 }
 
 /** 整えるの中の持ち物（休む・備える・探る・身につけるの列）。 */
+/** 食堂で休んだときの戻り（%）。同じ区画で二度目からは restAgain 倍。 */
+const restPct = (w: World) =>
+  Math.round(PACE.rest * ((w.flags[`rested${w.stratum}`] ?? 0) > 0 ? PACE.restAgain : 1) * 100);
+
+/** 持ち物の列で、効き目を開いている身につける品（押すと開き、もう一度で閉じる）。 */
+let openKeep: string | null = null;
+
 /**
  * pick を渡すと「置いていく一つを選ぶ」形になる（受け取りで、持ち物がいっぱいのとき）。
  * 場所はいつもの持ち物の列のまま、押すと置いていく印が付く（使いはしない）。
@@ -393,18 +401,27 @@ export function gearRows(
           ),
         ];
       }
-      // 身につける品は押して使うものではないので、名前だけ（入れ替えは決着のあとの受け取りで）。
-      if (kind === 'keep')
+      // 身につける品は押して使うものではないので、枠で囲わず名前だけ。押すと、列の下に効き目を
+      // 開いて読み返せる（指の端末には触れたときの説明が出ないので）。入れ替えは受け取りで。
+      if (kind === 'keep') {
+        const open = openKeep === it.id;
         return [
           h(
-            'span',
+            'button',
             {
-              class: 'dig-gear__item is-keep',
+              type: 'button',
+              class: `dig-gear__item is-keep${open ? ' is-open' : ''}`,
+              'aria-expanded': open ? 'true' : 'false',
               title: [g.text, liveNote(g.text, w), g.flavor].filter(Boolean).join('\n'),
+              onclick: () => {
+                openKeep = open ? null : it.id;
+                ui.render();
+              },
             },
             g.name,
           ),
         ];
+      }
       return [
         button(
           `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
@@ -426,6 +443,8 @@ export function gearRows(
           h('span', { class: 'dig-place__items' }, kids),
         )
       : null;
+  const opened = openKeep ? w.you.items.find((x) => x.id === openKeep) : undefined;
+  const og = opened ? gearOf(opened.id) : undefined;
   return h(
     'div',
     { class: 'dig-places is-gear' },
@@ -433,6 +452,15 @@ export function gearRows(
     row('備える', '次に出会う相手との遭遇の初めに効く', gear('prep')),
     row('探る', 'この階を探る（1 時間）。出来事か、拾い物か、誰かに気づかれるか', gear('seek')),
     row('身につける', '使わない。持っているあいだ、ずっと効く（持ち物の枠は使う）', gear('keep')),
+    og
+      ? h(
+          'div',
+          { class: 'dig-armdetail dig-gear__detail', 'aria-live': 'polite' },
+          h('p', { class: 'dig-armdetail__head' }, h('b', {}, og.name)),
+          h('p', { class: 'dig-armdetail__fx' }, og.text, live(og.text, w)),
+          h('p', { class: 'dig-armdetail__flavor' }, og.flavor),
+        )
+      : null,
   );
 }
 

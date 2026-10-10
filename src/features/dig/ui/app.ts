@@ -1,6 +1,10 @@
 import { AFTER } from '../content/after';
 import { LV_MARK, PACE } from '../content/balance';
 import { cardName, cardTags, JOB_ARCH, lvMark } from '../content/cardinfo';
+
+/** 名前の後ろに添えるレベル（重ねたⅡ・Ⅲだけ。Ⅰは添えない）。 */
+const lvSuffix = (c: { lv?: number }) => ((c.lv ?? 1) > 1 ? lvMark(c) : '');
+
 import { epTier } from '../content/epithets';
 import { IDLE, VITALS } from '../content/flavor';
 import { DIFFICULTY, sectionNo } from '../content/floors';
@@ -40,7 +44,7 @@ import {
   type RouteKind,
   sourceLabel,
 } from '../sim/advise';
-import { bonusOf, incoming, resonance, shownIntent } from '../sim/encounter';
+import { bonusOf, canUseCard, incoming, resonance, shownIntent } from '../sim/encounter';
 import { Game } from '../sim/game';
 import { carryGoals, metric as goalMetric, goalText, REWARD_TEXT } from '../sim/goals';
 import { foeHardness, MINERALS, nodeHardness, outmatched, youHardness } from '../sim/hardness';
@@ -2180,6 +2184,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           'span',
           { class: 'dig-card__head' },
           h('b', { class: 'dig-card__name' }, def.name),
+          lvTag(c),
           h('span', { class: 'dig-card__key' }, `${c.uses}/${c.max}`),
         ),
         pips(c),
@@ -2598,6 +2603,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                   { class: 'dig-claim__head' },
                   c.eps.map((e) => epChip(e)),
                   h('b', { class: 'dig-spot__what' }, def.name),
+                  lvTag(c),
                   chosen ? h('span', { class: 'dig-card__mark' }, '手放す') : null,
                   h(
                     'span',
@@ -2665,7 +2671,7 @@ export function openDig(doc: Document, onClose: () => void): void {
    * （何をするかは手順の一文が言う）。
    */
   function rewardDetail(
-    _w: World,
+    w: World,
     st: NonNullable<ReturnType<typeof rewardState>>,
   ): HTMLElement | null {
     const lines = (
@@ -2700,14 +2706,18 @@ export function openDig(doc: Document, onClose: () => void): void {
       const tags = cardTags(c)
         .map((t) => `［${TAG_NAME[t]}］`)
         .join('');
-      return lines(
-        cardName(c),
+      // 手放す前に、刻んだ語を剥がして残せる（剥がす釦は、手札の一覧と同じく語の欄に）。
+      const box = lines(
+        `${cardName(c)}${lvSuffix(c)}`,
         `${c.uses}/${c.max} ${tags}`,
         fxText(d.ready),
         fxText(d.spent),
-        c.eps,
+        [],
         [d.sig, d.flavor],
       );
+      const eps = cardEps(c, ui, w);
+      if (eps) box.append(eps);
+      return box;
     }
     if (st.isTool && pickId) {
       const g = gearOf(pickId);
@@ -2752,7 +2762,7 @@ export function openDig(doc: Document, onClose: () => void): void {
             onclick: selectDrop(c.uid),
           },
           c.eps.map((e) => epChip(e)),
-          `${cardDef(c.id).name} ${c.uses}/${c.max}`,
+          `${cardDef(c.id).name}${lvSuffix(c)} ${c.uses}/${c.max}`,
           c.uses <= 0 ? h('i', { class: 'dig-quiet' }, ' 尽きた') : null,
         ),
       ),
@@ -2794,6 +2804,7 @@ export function openDig(doc: Document, onClose: () => void): void {
                 'span',
                 { class: 'dig-card__head' },
                 h('b', { class: 'dig-card__name' }, def.name),
+                lvTag(c),
                 chosen ? h('span', { class: 'dig-card__mark' }, '手放す') : null,
                 h('span', { class: 'dig-card__key' }, `${c.uses}/${c.max}`),
               ),
@@ -3400,7 +3411,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     const a = aim ?? hoverAim;
     if (a) return aimOk(w, a, slot) ? 'is-live' : 'is-off';
     if (w.enc?.phase === 'act' && w.enc.who === 'you')
-      return w.you.cards[slot] ? 'is-live' : 'is-off';
+      return canUseCard(w, slot) ? 'is-live' : 'is-off';
     return '';
   }
 

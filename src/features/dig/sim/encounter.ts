@@ -61,7 +61,8 @@ export function scaleFoe(w: World, npc: string, m: Meet = {}, late = 0): Foe {
   const grow =
     PACE.tough *
     (1 + PACE.heat * heat + 0.25 * late + PACE.stratum * (w.stratum - 1)) *
-    PACE.deep ** deep;
+    PACE.deep ** deep *
+    (m.keeper ? PACE.keeper : 1);
   const f: Foe = {
     id: def.id,
     name: def.name,
@@ -153,6 +154,8 @@ export interface Meet {
   after?: string;
   /** 見せ場のタグ。 */
   stage?: readonly Tag[];
+  /** 最後の相手の手前に立つ番人として（ふだんより手強い）。 */
+  keeper?: boolean;
 }
 
 export function startEnc(
@@ -323,7 +326,9 @@ export function leaveChance(w: World): number {
   const e = w.enc;
   if (!e) return 0;
   const f = e.foe;
-  if (f.hostility <= 2 || f.st.stun) return 100;
+  // 片道切符は、穏やかな相手や動けない相手からでも、立ち去れる見込みはいつも 5%。
+  const oneWay = charOf(w, e.who).items.some((x) => x.id === 'one-way');
+  if (f.hostility <= 2 || f.st.stun) return oneWay ? 5 : 100;
   const base = rawLeave(w);
   return Math.max(5, Math.min(100, Math.round(ask(w, 'leaveChance', {}, base))));
 }
@@ -471,6 +476,17 @@ export function chainNext(w: World, tags: readonly Tag[]): number {
   return (e.st.chain ?? 0) + 1;
 }
 
+/**
+ * その枠の札を、いま使えるか。回数の尽きた札は、眠りぎわの顔で遭遇ごとに一度だけ使える
+ * （最後のひと押し）。二度目は無い。札を使い切ると、終わりが近づく。
+ */
+export function canUseCard(w: World, slot: number): boolean {
+  const e = w.enc;
+  const card = e ? charOf(w, e.who).cards[slot] : null;
+  if (!e || !card) return false;
+  return card.uses > 0 || !e.st[`gasp${card.uid}`];
+}
+
 export function useCard(tx: Tx, slot: number): boolean {
   const w = tx.w;
   const e = w.enc;
@@ -478,7 +494,7 @@ export function useCard(tx: Tx, slot: number): boolean {
   const who = e.who;
   const c = charOf(w, who);
   const card = c.cards[slot];
-  if (!card) return false;
+  if (!card || !canUseCard(w, slot)) return false;
   const def = cardDef(card.id);
   const { list, ctx } = facets(c, card);
   const tags = ctx.tags;
@@ -521,8 +537,10 @@ export function useCard(tx: Tx, slot: number): boolean {
   for (const s of def.stats) xp(tx, s, has('fixed') ? 0 : 1);
   if (list.some((x) => x.id === 'recorded')) for (const s of def.stats) xp(tx, s, 1);
   const twice = has('twice');
-  if (spent) tx.emit({ type: 'card.mark', who, slot, mark: 'spent', n: 1 });
-  else {
+  if (spent) {
+    tx.emit({ type: 'card.mark', who, slot, mark: 'spent', n: 1 });
+    tx.emit({ type: 'enc.st', key: `gasp${card.uid}`, n: 1 });
+  } else {
     if (!free)
       tx.emit({
         type: 'card.uses',
