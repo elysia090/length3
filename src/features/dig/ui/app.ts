@@ -62,8 +62,8 @@ import {
   ROWS,
   reachable,
   START_BACK,
-  START_USES,
   stackable,
+  startUses,
   stratumName,
 } from '../sim/run';
 import { type SpotAction, spotActions } from '../sim/spot';
@@ -3502,7 +3502,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-hand is-preview' },
-          j.cards.slice(0, START_CARDS).map((id, i) => previewCard(id, i, START_USES)),
+          j.cards.slice(0, START_CARDS).map((id, i) => previewCard(id, i, startUses())),
         ),
       ]);
     const saved = loadRun();

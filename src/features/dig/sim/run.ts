@@ -116,8 +116,8 @@ export function newCard(uid: number, id: string, eps: string[] = []): Card {
 
 /** 挑戦の初めに後ろへ配る札の数（初めは職の四枚だけ。残りは拾って増やす）。 */
 export const START_BACK = 0;
-/** 初めの札は、回数がこれだけ多い（はじめから弾が多い）。 */
-export const START_USES = 2;
+/** 初めの札は、回数がこれだけ多い（はじめから弾が多い。数は PACE.startUses）。 */
+export const startUses = (): number => PACE.startUses;
 /** 持てる札の上限（枠と後ろを合わせて）。 */
 export const DECK_MAX = 7;
 
@@ -286,7 +286,7 @@ export function makeChar(job: string, name: string, carry?: string, sheet: Sheet
       const id = i < START_CARDS ? j.cards[i] : undefined;
       if (!id) return null;
       const c = newCard(i + 1, id);
-      return { ...c, uses: c.uses + START_USES, max: c.max + START_USES };
+      return { ...c, uses: c.uses + startUses(), max: c.max + startUses() };
     }),
     back: [],
     prep: [],
