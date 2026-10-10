@@ -268,12 +268,8 @@ export function flowRows(w: World, v: EncView): HTMLElement {
 export function armDetail(w: World, v: EncView): HTMLElement | null {
   if (w.enc?.phase !== 'act' || w.enc.who !== 'you') return null;
   const c = v.armedSlot !== null ? w.you.cards[v.armedSlot] : null;
-  if (!c)
-    return h(
-      'p',
-      { class: 'dig-armdetail is-idle' },
-      '札を一度押すと、ここに中身。相手の棒に動く分が映る。もう一度で切る。',
-    );
+  // 何も構えていないときは出さない（押せば開く。手順の説明は置かない）。
+  if (!c) return null;
   const d = cardDef(c.id);
   const spent = c.uses <= 0;
   const b = bonusOf(w, c);

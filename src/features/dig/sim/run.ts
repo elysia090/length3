@@ -278,7 +278,6 @@ export function makeChar(job: string, name: string, carry?: string, sheet: Sheet
     mind: 0,
     coins: 30,
     items: [{ id: item, uses: gearOf(item)?.uses ?? 1 }],
-    // 初めは 3 枚。残りの枠は空いている（拾って埋める）。
     // 職の五枚が枠に入る。後ろの札は、挑戦の初めに配る（start）。
     cards: [0, 1, 2, 3, 4].map((i) => {
       const id = j.cards[i];
@@ -1439,7 +1438,8 @@ export function close(tx: Tx): boolean {
             !w.you.perms.includes(id),
         )
       : [];
-  const help = o === 'trusted' && (p.npc === 'rival' || !!def.rewards.trusted?.help);
+  // 打ち解けた相手に頼って札を満たす選択は出さない（受け取りを、拾う一枚と持ち帰る記憶だけにする）。
+  const help = false;
   const boss = p.tier === 'boss';
   const npc = e.foe.id;
   tx.emit({ type: 'enc.close' });
