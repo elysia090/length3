@@ -36,13 +36,15 @@ export class Tx {
      * （写すたびに鍵を組み直さない）。
      */
     book: Rulebook | null = null,
+    /** 起きたことを書き留めるか（相手の先読みの試行は、世界の行き着く先しか見ないので留めない）。 */
+    private readonly keep = true,
   ) {
     this.book = book;
   }
 
   emit(ev: Ev): void {
     apply(this.w, ev);
-    this.out.push(ev);
+    if (this.keep) this.out.push(ev);
     if (REBUILD.has(ev.type) || (ev.type === 'card.mark' && ev.mark === 'ch')) this.book = null;
     if (this.depth > 6) return;
     const triggers = this.rules().triggers[ev.type];
