@@ -2226,8 +2226,8 @@ export function openDig(doc: Document, onClose: () => void): void {
                 n > 1 ? h('i', { class: 'dig-pill__n' }, `×${n}`) : null,
               );
             }),
-            // 構えているあいだは一言だけ（効き目は触れたときの説明と、刻んだあとの札の中で読める）。
-            a ? h('span', { class: 'dig-amber' }, '刻む札を押す') : null,
+            // 構えているあいだは、札に刻んだときの効き目だけ（押す先は、浮いた札が示す）。
+            a ? h('span', { class: 'dig-amber' }, d?.card?.text ?? '') : null,
           )
         : null,
       h('div', { class: 'dig-hand is-preview' }, all.map(card)),
