@@ -51,7 +51,7 @@ import {
 import { buildsOf } from '../content/sources';
 import { SURGES, tierOf } from '../content/surges';
 import { earnTitle, titleDef } from '../content/titles';
-import { BREATH_LINES, lineAt, USE_LINES } from '../content/voices';
+import { BREATH_LINES, LAST_LINES, lineAt, USE_LINES } from '../content/voices';
 import { branch } from '../core/branch';
 import type { Ev, RestAction } from '../core/events';
 import {
@@ -1037,10 +1037,16 @@ function happen(tx: Tx, node: MapNode): void {
   if (fx.hour) passTime(tx, fx.hour);
 }
 
+/** 部屋に入る（試験からも使う）。 */
+export function enterNode(tx: Tx, node: MapNode, from: number | null = null): void {
+  enter(tx, node, from);
+}
+
 function enter(tx: Tx, node: MapNode, from: number | null = null): void {
   const w = tx.w;
-  // 最後の相手の扉の前で、一度だけ息を整える（体も心も、七割半までは戻る）。
-  // 弱ったまま試験に入って、何もできずに崩れることがないように。
+  // 最後の相手の扉の前で、一度だけ息を整える（体も心も、半分までは戻る）。
+  // 弱ったまま試験に入って、何もできずに崩れることがないように。その先は番人と最後の相手の
+  // 二連戦で、あいだに補給は無い。
   if (node.kind === 'boss' && !w.flags[`gate:${w.stratum}`]) {
     tx.emit({ type: 'flag', key: `gate:${w.stratum}`, v: 1 });
     const s = stats(w, 'you');
@@ -1052,11 +1058,19 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
     }
     // 区画の底に着いた（名場面の帯で、一度だけ）。
     const who = node.npc ? foeDef(node.npc).name : '最後の相手';
+    const guard = foeDef(sectionOf(w.stratum).keeper.npc).name;
     tx.emit({
       type: 'note',
-      text: `${'一二三四五六七八九'[w.stratum - 1] ?? w.stratum}の区画の底、B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}。${who}が待っていた。`,
+      text: `${'一二三四五六七八九'[w.stratum - 1] ?? w.stratum}の区画の底、B${(w.stratum - 1) * (ROWS + 1) + node.row + 1}。${who}の手前に、${guard}が立っていた。`,
       level: 3,
     });
+  }
+  // 最後の相手の手前には番人がいる。番人を越えるまでは、番人と向き合う。
+  if (node.kind === 'boss' && node.npc && !w.flags[`keeper:${w.stratum}`]) {
+    const keeper = sectionOf(w.stratum).keeper.npc;
+    tx.emit({ type: 'pending', p: { kind: 'encounter', npc: keeper, tier: 'boss', back: from } });
+    startEnc(tx, 'you', keeper, 'boss', { stage: node.stage, keeper: true });
+    return;
   }
   if (node.npc) {
     if (node.eps.some((e) => epithetDef(e)?.place?.empty) && node.kind !== 'boss') {
@@ -1304,7 +1318,10 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
     else for (const t of g.refill.tags) if (refill(tx, n, t as Tag, 'you')) break;
   }
   // 品ごとの一文（無ければ名前だけ）。時刻と残りの回数で、言い方が替わる。
-  const line = USE_LINES[g.id] ? lineAt(USE_LINES[g.id] ?? [], w.hour + held.uses) : '';
+  const said = USE_LINES[g.id] ? lineAt(USE_LINES[g.id] ?? [], w.hour + held.uses) : '';
+  // 何度か使える品の最後の一回は、使い切った一景を添える。
+  const last = held.uses === 1 && g.uses > 1 ? (LAST_LINES[g.id] ?? '') : '';
+  const line = said && last ? `${said}${last}` : said || last;
   if (g.cost) {
     tx.emit({ type: 'after', after: { kind: 'crash', npc: '', left: g.cost } });
     tx.emit({
@@ -1393,6 +1410,20 @@ export function close(tx: Tx): boolean {
       key: `retreat:${w.stratum}`,
       v: (w.flags[`retreat:${w.stratum}`] ?? 0) + 1,
     });
+    return true;
+  }
+  // 番人を越えたら、そのまま最後の相手と向き合う（補給も受け取りも無い。体・心・札の回数は
+  // そのまま持ち越す。受け取りは二人目のあとに一度だけ）。
+  const sec = sectionOf(w.stratum);
+  if (p.tier === 'boss' && e.foe.id === sec.keeper.npc && node?.kind === 'boss' && node.npc) {
+    tx.emit({ type: 'flag', key: `keeper:${w.stratum}`, v: 1 });
+    tx.emit({ type: 'enc.close' });
+    tx.emit({ type: 'note', text: sec.keeper.link, level: 3 });
+    tx.emit({
+      type: 'pending',
+      p: { kind: 'encounter', npc: node.npc, tier: 'boss', back: p.back },
+    });
+    startEnc(tx, 'you', node.npc, 'boss', { stage: node.stage, eps: node.eps });
     return true;
   }
   const notes = [...rewards(tx, 'you', e.foe.id, o, node?.rival), ...resonate(tx, 'you')];

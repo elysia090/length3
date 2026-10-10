@@ -44,7 +44,7 @@ import {
   type RouteKind,
   sourceLabel,
 } from '../sim/advise';
-import { bonusOf, incoming, resonance, shownIntent } from '../sim/encounter';
+import { bonusOf, canUseCard, incoming, resonance, shownIntent } from '../sim/encounter';
 import { Game } from '../sim/game';
 import { carryGoals, metric as goalMetric, goalText, REWARD_TEXT } from '../sim/goals';
 import { foeHardness, MINERALS, nodeHardness, outmatched, youHardness } from '../sim/hardness';
@@ -3411,7 +3411,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     const a = aim ?? hoverAim;
     if (a) return aimOk(w, a, slot) ? 'is-live' : 'is-off';
     if (w.enc?.phase === 'act' && w.enc.who === 'you')
-      return w.you.cards[slot] ? 'is-live' : 'is-off';
+      return canUseCard(w, slot) ? 'is-live' : 'is-off';
     return '';
   }
 

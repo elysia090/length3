@@ -38,6 +38,11 @@ export interface Section {
   open: string;
   uses: readonly FloorUse[];
   boss: FloorUse;
+  /**
+   * 最後の相手の手前に立つ番人（この区画の危険な相手）。番人と最後の相手は続けて向き合う
+   * （あいだに補給も受け取りも無い。受け取りは二人目のあと）。link は二人目へつなぐ一景。
+   */
+  keeper: { npc: string; link: string };
   /** 危険の部屋の出やすさ（下の区画ほど荒い）。 */
   danger: number;
   /** 隣の塔（渡り廊下の先）。 */
@@ -129,6 +134,10 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         },
       ],
     },
+    keeper: {
+      npc: 'stray-dog',
+      link: '犬が道をあけた。待合のベンチに、最後の客がまだ座っている。終電の時刻は、もう過ぎている。',
+    },
     boss: {
       id: 'last-train',
       name: '終電の待合',
@@ -214,6 +223,10 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
         },
       ],
     },
+    keeper: {
+      npc: 'censor',
+      link: '検閲官が鋏を置いた。出口へ足を向けると、スクリーンのあなたも立つ。次のコマで、また同じ客席に座っている。',
+    },
     boss: {
       id: 'booth',
       name: '映写室',
@@ -298,6 +311,10 @@ export const SECTIONS: Readonly<Record<number, Section>> = {
           line: '琥珀の中で、まだ花が咲こうとしている。',
         },
       ],
+    },
+    keeper: {
+      npc: 'hound',
+      link: '猟犬の声が遠のくと、部屋そのものが、ひと回り大きく息をした。',
     },
     boss: {
       id: 'volume',

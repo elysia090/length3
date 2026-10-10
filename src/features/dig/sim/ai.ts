@@ -7,7 +7,7 @@ import { believes, portrait } from '../core/mind';
 import type { Intent, World } from '../core/model';
 import { bookOf } from '../core/rules';
 import { Tx } from '../core/tx';
-import { basic, canAccept, useCard } from './encounter';
+import { basic, canAccept, canUseCard, useCard } from './encounter';
 import { foeHardness } from './hardness';
 import { charOf, maxHp, maxMind, stats } from './ops';
 
@@ -51,7 +51,7 @@ export function actions(w: World): Action[] {
   const out: Action[] = [{ kind: 'basic', a: 'leave' }];
   if (canAccept(w)) out.push({ kind: 'basic', a: 'accept' });
   charOf(w, e.who).cards.forEach((c, slot) => {
-    if (c) out.push({ kind: 'card', slot });
+    if (c && canUseCard(w, slot)) out.push({ kind: 'card', slot });
   });
   return out;
 }
@@ -184,7 +184,7 @@ function imagine(tx: Tx): Action {
   const weights: [Action, number][] = [[{ kind: 'basic', a: 'leave' }, thin ? 1.2 : 0.3]];
   const seen = new Set(mind?.cards ?? []);
   you.cards.forEach((c, slot) => {
-    if (!c) return;
+    if (!c || !canUseCard(w, slot)) return;
     const body = cardDef(c.id).tags.includes('body');
     const guess = body ? 0.5 + 2 * p.violent : 0.5 + 2 * p.kind;
     const x = seen.has(c.id) ? 2.2 : guess;

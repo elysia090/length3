@@ -231,3 +231,37 @@ describe('agent report #105', () => {
     expect(leaveChance(w)).toBe(5);
   });
 });
+
+describe('playtest direction #105', () => {
+  it('lets a spent card be played only once per encounter', async () => {
+    const { Tx } = await import('./core/tx');
+    const { canUseCard, startEnc, useCard } = await import('./sim/encounter');
+    const g = Game.start(14, 'watch');
+    const w = g.world;
+    const tx = new Tx(w);
+    startEnc(tx, 'you', 'counterman', 'normal');
+    const slot = w.you.cards.findIndex((c) => !!c);
+    const card = w.you.cards[slot];
+    if (!card || w.enc?.phase !== 'act') return;
+    card.uses = 0;
+    expect(canUseCard(w, slot)).toBe(true);
+    useCard(tx, slot);
+    if (w.enc?.phase !== 'act') return;
+    const now = w.you.cards[slot];
+    if (now?.uid !== card.uid || now.uses > 0) return;
+    expect(canUseCard(w, slot)).toBe(false);
+  });
+
+  it('puts the section keeper in front of the last opponent', async () => {
+    const { sectionOf } = await import('./content/floors');
+    const g = Game.start(15, 'watch');
+    const w = g.world;
+    const boss = w.map.find((n) => n.kind === 'boss');
+    expect(boss).toBeTruthy();
+    if (!boss) return;
+    const { Tx } = await import('./core/tx');
+    const { enterNode } = await import('./sim/run');
+    enterNode(new Tx(w), boss);
+    expect(w.enc?.foe.id).toBe(sectionOf(1).keeper.npc);
+  });
+});
