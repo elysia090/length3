@@ -68,6 +68,8 @@ export type Ev =
   | { type: 'ep.drained'; who: Who; ep: string; n: 1 | -1 }
   | { type: 'card.uses'; who: Who; slot: number; n: number }
   | { type: 'card.max'; who: Who; slot: number; n: number }
+  /** 同じ札を重ねて、レベルが上がる（枠でも後ろでも。回数と最大回数も一つずつ増える）。 */
+  | { type: 'card.lv'; who: Who; uid: number; n: number }
   | { type: 'card.mark'; who: Who; slot: number; mark: string; n: number }
   | { type: 'card.set'; who: Who; slot: number; card: Card | null; why: string }
   /** 後ろの札（手持ち）に加える・枠と入れ替える・回数を戻す・手放す。 */
@@ -202,7 +204,8 @@ export type Cmd =
   | { c: 'move'; node: number }
   /** q は「その場で」の目押しの出来（0.6 外れ・1 良し・1.5 会心）。 */
   | { c: 'breather'; q?: number }
-  | { c: 'item'; index: number; q?: number }
+  /** drop なら使わずに手放す（身につける品を外すのはこちら）。 */
+  | { c: 'item'; index: number; q?: number; drop?: boolean }
   | { c: 'act'; a: Basic }
   | { c: 'card'; slot: number }
   | { c: 'close' }

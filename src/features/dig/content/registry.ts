@@ -18,7 +18,8 @@ import { EPITHETS, type Epithet } from './epithets';
 import { FOE_LIST } from './foes';
 import { ITEM_LIST } from './items';
 import { JOB_LIST } from './jobs';
-import { LEGENDS, legendRules } from './legends';
+import { KEEPSAKES } from './keepsakes';
+import { LEGENDS, levelRules } from './legends';
 import { COMBO_LIST, PERM_LIST } from './perms';
 import { SIGNATURES } from './signatures';
 import { STORY_LIST } from './story';
@@ -43,14 +44,16 @@ function table<T extends { id: string }>(name: string, list: () => readonly T[])
 const cards = () =>
   table<CardDef>('cards', () =>
     [...WORKS, ...BASICS, ...LEGACY].map((d) => {
+      // 札の力は、札そのもの（効き目と一文）とレベルとエピテットだけ（主役の章・構成は無い）。
+      // いくつかの札は、レベルごとに効き目が一つずつ開く（Ⅰ・Ⅱ・Ⅲ）。
       const sig = SIGNATURES[d.id];
       const legend = LEGENDS.find((l) => l.id === d.id);
-      const lr = legend ? legendRules(legend) : null;
+      const lr = legend ? levelRules(legend) : null;
       return tuned({
         ...d,
         arch: d.arch ?? WORK_ARCH[d.id] ?? [],
         sig: sig?.text,
-        legend: legend?.title,
+        levels: legend?.chapters.map((ch) => ch.text),
         passive: [...(d.passive ?? []), ...(sig?.passive ?? []), ...(lr?.passive ?? [])],
         triggers: [...(d.triggers ?? []), ...(sig?.triggers ?? []), ...(lr?.triggers ?? [])],
       });
@@ -74,7 +77,8 @@ export function foeDef(id: string): FoeDef {
 }
 
 export const permDef = (id: string): PermDef | undefined => table('perms', () => PERM_LIST).get(id);
-export const itemDef = (id: string): ItemDef | undefined => table('items', () => ITEM_LIST).get(id);
+export const itemDef = (id: string): ItemDef | undefined =>
+  table('items', () => [...ITEM_LIST, ...KEEPSAKES]).get(id);
 export const storyDef = (id: string): StoryDef | undefined =>
   table('stories', () => STORY_LIST).get(id);
 export const jobDef = (id: string): JobDef | undefined => table('jobs', () => JOB_LIST).get(id);
@@ -84,6 +88,7 @@ export const allCards = (): CardDef[] => [...cards().values()];
 export const allFoes = (): FoeDef[] => [...foes().values()];
 export const allPerms = (): readonly PermDef[] => PERM_LIST;
 export const allItems = (): readonly ItemDef[] => ITEM_LIST;
+export const allKeepsakes = (): readonly ItemDef[] => KEEPSAKES;
 export const allStories = (): readonly StoryDef[] => STORY_LIST;
 export const allJobs = (): readonly JobDef[] => JOB_LIST;
 export const allBuilds = (): readonly BuildDef[] => BUILD_LIST;

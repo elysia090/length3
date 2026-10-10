@@ -1,18 +1,14 @@
-import { allBuilds } from '../content/registry';
-import { archSetsOf, buildsOf, linksOf } from '../content/sources';
-import { tierOf } from '../content/surges';
+import { LV_MARK } from '../content/balance';
+import { cardDef } from '../content/registry';
 import { branch } from '../core/branch';
 import type { Cmd } from '../core/events';
-import type { Card, Char, World } from '../core/model';
-import { ARCH_NAME } from '../core/tags';
+import { type Card, type Char, LV_MAX, type World } from '../core/model';
 import { decide } from '../sim/decide';
-import { misses } from '../sim/near';
 import { newCard } from '../sim/run';
 
 /**
- * 先読み。決める前に、その一手で構成がどう変わるかを見せる（仮の人物を作って
- * ビルド・連携・原型の重なり・段を比べる）。拾う・買う・刻む・入れ替えるの
- * どれにも同じ言い方で答える。
+ * 先読み。決める前に、その一手で手持ちがどう変わるかを見せる（仮の人物を作って、
+ * 重なった札のレベルを比べる）。拾う・買う・刻む・入れ替えるのどれにも同じ言い方で答える。
  */
 
 export interface Delta {
@@ -20,15 +16,11 @@ export interface Delta {
   lost: string[];
 }
 
+/** 手持ちの札のレベル（Ⅱ・Ⅲ）。重ねる一手で、どの札がいくつになるかを比べる。 */
 function snapshot(c: Char): Set<string> {
   const out = new Set<string>();
-  for (const b of buildsOf(c)) {
-    out.add(`《${b.name}》`);
-    const t = tierOf(c, b.id);
-    if (t) out.add(`《${b.name}》${t === 2 ? '極み' : '暴走'}`);
-  }
-  for (const l of linksOf(c)) out.add(`〈${l.name}〉`);
-  for (const s of archSetsOf(c)) out.add(`〈${ARCH_NAME[s.arch]}×${s.at}〉`);
+  for (const card of [...c.cards, ...c.back])
+    if (card && (card.lv ?? 1) > 1) out.add(`『${cardDef(card.id).name}』${LV_MARK[card.lv ?? 1]}`);
   return out;
 }
 
@@ -38,8 +30,11 @@ export function delta(before: Char, after: Char): Delta {
   return { gained: [...b].filter((x) => !a.has(x)), lost: [...a].filter((x) => !b.has(x)) };
 }
 
-/** その札をその枠に入れたら。 */
+/** その札をその枠に入れたら（持っている札なら、その札が重なってレベルが上がる）。 */
 export function withCard(c: Char, slot: number, id: string): Char {
+  const lift = (x: Card) => (x.id === id ? { ...x, lv: Math.min(LV_MAX, (x.lv ?? 1) + 1) } : x);
+  if ([...c.cards, ...c.back].some((x) => x?.id === id))
+    return { ...c, cards: c.cards.map((x) => (x ? lift(x) : x)), back: c.back.map(lift) };
   const cards = [...c.cards];
   cards[slot] = newCard(0, id);
   return { ...c, cards };
@@ -70,19 +65,13 @@ export function bestSlot(c: Char, id: string): number {
   return best;
 }
 
-/** 一行で言う。何も変わらなければ、あと一つの手がかりを。 */
-export function say(d: Delta, after?: Char): string {
+/** 一行で言う（何も変わらなければ空）。 */
+export function say(d: Delta, _after?: Char): string {
   const parts: string[] = [];
   if (d.gained.length) parts.push(`→ ${d.gained.join('・')}`);
   if (d.lost.length) parts.push(`失う ${d.lost.join('・')}`);
-  if (!parts.length && after) {
-    const m = misses({ you: after, flags: {} } as never)[0];
-    if (m) parts.push(`あと一つで ${m.name}`);
-  }
   return parts.join('　');
 }
-
-export const buildName = (id: string) => allBuilds().find((b) => b.id === id)?.name ?? id;
 
 /** 札を一枚使ったときの、相手の四つの道への効き（相手が応じる前まで）。 */
 export interface CardEffect {

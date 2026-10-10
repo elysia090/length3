@@ -131,7 +131,9 @@ const RESONANT = /^(card|perm|build|link|arch|ep|stage|surge):/;
 /** 規則の出どころが変わるイベント（集め直す）。 */
 const REBUILD = new Set<Ev['type']>([
   'card.set',
+  'card.lv',
   'card.ep',
+  'item',
   'perm',
   'perm.ep',
   'enc.start',

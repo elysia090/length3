@@ -3,7 +3,6 @@ import { OPS } from './content/fx';
 import { LEGENDS } from './content/legends';
 import { allCards, allEpithets, cardDef } from './content/registry';
 import { SIGNATURES } from './content/signatures';
-import { SURGES } from './content/surges';
 import { fold, hashWorld } from './core/reduce';
 import { ARCHETYPES } from './core/tags';
 import { decide } from './sim/decide';
@@ -41,13 +40,9 @@ describe('scale', () => {
     }
   });
 
-  it('has twenty leading cards with three chapters each', () => {
+  it('gives twenty cards a rule for each of their three levels', () => {
     expect(LEGENDS).toHaveLength(20);
-    for (const l of LEGENDS) {
-      expect(cardDef(l.id).legend).toBe(l.title);
-      expect(l.chapters).toHaveLength(3);
-    }
-    for (const id of Object.keys(SURGES)) expect(() => cardDef(id)).not.toThrow();
+    for (const l of LEGENDS) expect(cardDef(l.id).levels).toHaveLength(3);
   });
 });
 

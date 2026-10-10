@@ -347,13 +347,31 @@ export function toldPanel(w: World, ui: Ui): HTMLElement {
   );
 }
 
-/** 整えるの中の持ち物（休む・備える・探るの三つの列）。 */
+/** 整えるの中の持ち物（休む・備える・探る・身につけるの列）。 */
 export function gearRows(w: World, ui: Ui): HTMLElement | null {
   if (!w.you.items.length) return null;
-  const gear = (kind: 'rest' | 'prep' | 'seek') =>
+  const gear = (kind: 'rest' | 'prep' | 'seek' | 'keep') =>
     w.you.items.flatMap((it, i) => {
       const g = gearOf(it.id);
       if (!g || g.kind !== kind) return [];
+      // 身につける品は押して使うものではない。名前と、外す釦だけ（札のエピテットの剥がすと同じ形）。
+      if (kind === 'keep')
+        return [
+          h(
+            'span',
+            { class: 'dig-gear__item is-keep', title: `${g.text}\n${g.flavor}` },
+            h('b', {}, g.name),
+            h(
+              'button',
+              {
+                type: 'button',
+                title: '置いていくと、持ち物の枠が一つ空く',
+                onclick: () => ui.send({ c: 'item', index: i, drop: true }),
+              },
+              '置いていく',
+            ),
+          ),
+        ];
       return [
         button(
           `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
@@ -381,6 +399,7 @@ export function gearRows(w: World, ui: Ui): HTMLElement | null {
     row('休む', '体と心、札一枚の回数を戻す', gear('rest')),
     row('備える', '次に出会う相手との遭遇の初めに効く', gear('prep')),
     row('探る', 'この階を探る（1 時間）。出来事か、拾い物か、誰かに気づかれるか', gear('seek')),
+    row('身につける', '使わない。持っているあいだ、ずっと効く（持ち物の枠は使う）', gear('keep')),
   );
 }
 

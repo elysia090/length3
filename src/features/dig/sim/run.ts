@@ -1,6 +1,6 @@
 import { AFTER } from '../content/after';
 import { WORK_ARCH } from '../content/archetypes';
-import { DATA_VERSION, PACE } from '../content/balance';
+import { DATA_VERSION, LV_MARK, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { CardDef } from '../content/defs';
 import { EXTRA_AUTO, FLOOR_EGGS } from '../content/eggs';
@@ -38,6 +38,7 @@ import {
   allCombos,
   allFoes,
   allItems,
+  allKeepsakes,
   allStories,
   cardDef,
   epithetDef,
@@ -57,6 +58,7 @@ import {
   blankMind,
   type Card,
   type Char,
+  LV_MAX,
   type MapNode,
   type Mind,
   type Outcome,
@@ -128,6 +130,20 @@ export const deckSize = (c: Char): number => c.cards.filter(Boolean).length + c.
 export const deckRoom = (c: Char): boolean => deckSize(c) < deckCap(c);
 
 /** 札を手持ちに加える（空いた枠があれば枠へ、なければ後ろへ）。持てなければ false。 */
+/** 手持ちの同じ札（重ねる先）。同じ札は重なるので、あれば一枚。 */
+export const ownedCard = (c: Char, id: string): Card | undefined =>
+  c.cards.find((x) => x?.id === id) ?? c.back.find((x) => x.id === id);
+
+/** 同じ札を重ねられるか（持っていて、まだⅢでない）。 */
+export const stackable = (c: Char, id: string): boolean => {
+  const card = ownedCard(c, id);
+  return !!card && (card.lv ?? 1) < LV_MAX;
+};
+
+/**
+ * 札を手に入れる。同じ札をもう持っていれば、その札のレベルが上がる（手持ちの枚数は
+ * 増えない。刻まれて出てきたエピテットは、重ねた札に移る）。
+ */
 export function addCard(
   tx: Tx,
   id: string,
@@ -136,6 +152,19 @@ export function addCard(
   eps: readonly string[] = [],
 ): boolean {
   const c = charOf(tx.w, who);
+  const same = ownedCard(c, id);
+  if (same) {
+    if ((same.lv ?? 1) >= LV_MAX) return false;
+    tx.emit({ type: 'card.lv', who, uid: same.uid, n: 1 });
+    for (const e of eps) tx.emit({ type: 'ep.held', who, ep: e, n: 1 });
+    if (who === 'you')
+      tx.emit({
+        type: 'note',
+        text: `『${cardDef(id).name}』を重ねた。${LV_MARK[(same.lv ?? 1)] ?? ''}になった。`,
+        level: 2,
+      });
+    return true;
+  }
   const at = c.cards.findIndex((x) => !x);
   if (at >= 0) {
     tx.emit({ type: 'card.set', who, slot: at, card: newCard(c.uid, id, [...eps]), why });
@@ -161,7 +190,33 @@ export function makeRoom(tx: Tx, drop?: number): boolean {
   if (slot >= 0) tx.emit({ type: 'card.set', who: 'you', slot, card: null, why: 'dropped' });
   else tx.emit({ type: 'deck.drop', who: 'you', index });
   tx.emit({ type: 'note', text: `『${cardDef(gone.id).name}』を手放した。`, level: 1 });
+  refund(tx, gone.uses);
   return true;
+}
+
+/** 返品保証書：手放した札に回数が残っていれば、枠でいちばん減っている札の回数 +1。 */
+function refund(tx: Tx, left: number): void {
+  const c = tx.w.you;
+  if (left <= 0 || !c.items.some((x) => x.id === 'warranty')) return;
+  let at = -1;
+  c.cards.forEach((x, i) => {
+    if (!x || x.uses >= x.max) return;
+    const best = at >= 0 ? c.cards[at] : null;
+    if (!best || x.uses < best.uses) at = i;
+  });
+  const to = at >= 0 ? c.cards[at] : null;
+  if (!to) return;
+  tx.emit({ type: 'card.uses', who: 'you', slot: at, n: 1 });
+  tx.emit({ type: 'note', text: `返品保証書：『${cardDef(to.id).name}』の回数 +1。`, level: 1 });
+}
+
+/** まだ持っていない、身につける品を一つ。 */
+function freshKeepsake(tx: Tx): string | undefined {
+  const held = new Set(tx.w.you.items.map((x) => x.id));
+  return tx.pick(
+    'loot',
+    allKeepsakes().filter((d) => !held.has(d.id)),
+  )?.id;
 }
 
 /**
@@ -695,7 +750,8 @@ function rivalStep(tx: Tx): void {
 export function offerCards(tx: Tx, who: Who): string[] {
   const w = tx.w;
   const c = charOf(w, who);
-  const have = new Set([...c.cards.map((x) => x?.id), ...c.back.map((x) => x.id)]);
+  const mine = [...c.cards.filter((x): x is Card => !!x), ...c.back];
+  const have = new Set(mine.map((x) => x.id));
   const tail = new Set(jobDef(c.job)?.cards.slice(START_CARDS) ?? []);
   const want = who === 'you' ? misses(w)[0]?.lack : undefined;
   const fits = (d: CardDef) =>
@@ -727,6 +783,14 @@ export function offerCards(tx: Tx, who: Who): string[] {
     }
     const [d] = pool.splice(i, 1);
     if (d) out.push(d.id);
+  }
+  // ときどき（PACE.again の割合で）、候補の一枚が持っている札になる（拾えば重なってレベルが
+  // 上がる）。Ⅲの札は出ない。枠の札（いま使っている札）から選ぶ。
+  const up = mine.filter((x) => (x.lv ?? 1) < LV_MAX && cardDef(x.id).layer === 'archetype');
+  if (out.length && up.length && tx.rand('loot') < PACE.again) {
+    const pick = up[Math.floor(tx.rand('loot') * up.length)] as Card;
+    // 受け取りに並ぶのは先頭の二枚なので、その一枚と入れ替える。
+    out[Math.min(1, out.length - 1)] = pick.id;
   }
   return out;
 }
@@ -1074,6 +1138,9 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
           .map((i) => i.id),
         ...tx.shuffle('loot', allTools()).slice(0, 2),
       ];
+      // 身につける品が、棚の奥に一つ。
+      const keep = freshKeepsake(tx);
+      if (keep) items.push(keep);
       const eps = tx
         .shuffle('loot', poolEpithets())
         .slice(0, 2)
@@ -1187,6 +1254,17 @@ function lootItem(tx: Tx): string | undefined {
   return tx.pick('loot', allItems())?.id;
 }
 
+/** 持ち物を使わずに手放す（身につける品の枠を空けるのに）。 */
+export function dropItem(tx: Tx, index: number): boolean {
+  const held = tx.w.you.items[index];
+  const g = held ? gearOf(held.id) : undefined;
+  if (!held || !g || tx.w.enc) return false;
+  tx.emit({ type: 'item', who: 'you', id: held.id, n: -1 });
+  tx.emit({ type: 'note', text: `${g.name}を置いていった。`, level: 1 });
+  sync(tx);
+  return true;
+}
+
 /**
  * 持ち物を一回使う。どれも向き合っていないとき（地図の上、受け取り・店・休憩所の
  * 最中も）に、「その場で」使う。休む品はその場で戻し、備える品は次の遭遇の初めに
@@ -1196,7 +1274,7 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
   const w = tx.w;
   const held = w.you.items[index];
   const g = held ? gearOf(held.id) : undefined;
-  if (!g || !held || w.enc) return false;
+  if (!g || !held || w.enc || g.kind === 'keep') return false;
   // 探るのは、地図の上で手の空いているときだけ（何かが起きるので）。
   if (g.kind === 'seek' && w.pending) return false;
   const o = useOrder(tx, g, held.id);
@@ -1423,7 +1501,12 @@ export function close(tx: Tx): boolean {
       // 作品の札を二枚と、道具を一つ。拾えるのはどれか一つ（手持ちがいっぱいなら、
       // 札は一枚手放して拾う）。
       cards: offered,
-      tools: settled ? tx.shuffle('loot', allTools()).slice(0, 1) : [],
+      // ときどき、道具の代わりに身につける品がまざる。
+      tools: settled
+        ? tx.rand('loot') < PACE.keep
+          ? [freshKeepsake(tx) ?? tx.shuffle('loot', allTools())[0] ?? '']
+          : tx.shuffle('loot', allTools()).slice(0, 1)
+        : [],
       inked,
       lucky:
         o === 'left' || o === 'fled'
@@ -1449,9 +1532,9 @@ export function claim(
   // 拾えるのは、作品の札か道具のどちらか一つ。
   if (card && tool) return false;
   if (card && (p.cards.includes(card) || p.lucky === card)) {
-    // 持てる数を超えるなら、代わりに一枚手放す（どれを手放すかは、あなたが選ぶ）。
-    if (!makeRoom(tx, drop)) return false;
-    addCard(tx, card, 'picked', 'you', p.inked?.[card] ?? []);
+    // 持っている札なら重ねる（枚数は増えない）。持てる数を超えるなら、代わりに一枚手放す。
+    if (!stackable(w.you, card) && !makeRoom(tx, drop)) return false;
+    if (!addCard(tx, card, 'picked', 'you', p.inked?.[card] ?? [])) return false;
   }
   if (tool && p.tools.includes(tool)) {
     if (!itemRoom(w.you, tool)) return false;
@@ -1768,7 +1851,9 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
     case 'discard': {
       if (slot === undefined || !y.cards[slot]) return false;
       // 一枚を手放して、ほかの二枚を満たす。
+      const left = y.cards[slot]?.uses ?? 0;
       tx.emit({ type: 'card.set', who: 'you', slot, card: null, why: 'discard' });
+      refund(tx, left);
       refillOne(tx);
       refillOne(tx);
       break;
@@ -2013,7 +2098,8 @@ export function buy(tx: Tx, id: string, drop?: number): boolean {
   if (p.cards.includes(id)) {
     const price = p.bargain === id ? Math.ceil(cardPrice(w, id) / 2) : cardPrice(w, id);
     if (w.you.coins < price) return false;
-    if (!makeRoom(tx, drop)) return false;
+    if (ownedCard(w.you, id) && !stackable(w.you, id)) return false;
+    if (!stackable(w.you, id) && !makeRoom(tx, drop)) return false;
     coins(tx, -price, 'you');
     addCard(tx, id, 'bought');
   } else if (p.items.includes(id)) {
@@ -2074,6 +2160,12 @@ export function sacrifice(tx: Tx, s: Stat, slot: number): boolean {
 export function depart(tx: Tx): boolean {
   const k = tx.w.pending?.kind;
   if (k !== 'shop' && k !== 'rest' && k !== 'told') return false;
+  // 領収書の束：何も買わずに古物商を出ると、次の古物商で一品だけ半額。
+  const p = tx.w.pending;
+  if (p?.kind === 'shop' && tx.w.you.items.some((x) => x.id === 'receipts')) {
+    const v = p.sold.length === 0 ? 1 : 0;
+    if ((tx.w.flags['keep:receipt'] ?? 0) !== v) tx.emit({ type: 'flag', key: 'keep:receipt', v });
+  }
   tx.emit({ type: 'pending', p: null });
   return true;
 }

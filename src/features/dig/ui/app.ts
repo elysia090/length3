@@ -1,12 +1,11 @@
 import { AFTER } from '../content/after';
-import { PACE } from '../content/balance';
-import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
+import { LV_MARK, PACE } from '../content/balance';
+import { cardName, cardTags, JOB_ARCH, lvMark } from '../content/cardinfo';
 import { epTier } from '../content/epithets';
 import { IDLE, VITALS } from '../content/flavor';
 import { DIFFICULTY, sectionNo } from '../content/floors';
 import { fxText } from '../content/fx';
 import { gearOf } from '../content/gear';
-import { legendState } from '../content/legends';
 import { orderOf } from '../content/orders';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
 import { quirkDef } from '../content/quirks';
@@ -19,11 +18,16 @@ import {
   jobDef,
   permDef,
 } from '../content/registry';
-import { buildsOf } from '../content/sources';
-import { nextTier, SURGES, tierOf } from '../content/surges';
 import { CHEER, READY, SETTLED } from '../content/voices';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
-import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
+import {
+  type Card,
+  type Goal,
+  type GoalSize,
+  LV_MAX,
+  type MapNode,
+  type World,
+} from '../core/model';
 import { fold } from '../core/reduce';
 import { ARCH_NAME, type Archetype, TAG_NAME } from '../core/tags';
 import { PHASE_NAME, phaseOf } from '../core/time';
@@ -40,7 +44,6 @@ import { bonusOf, incoming, resonance, shownIntent } from '../sim/encounter';
 import { Game } from '../sim/game';
 import { carryGoals, metric as goalMetric, goalText, REWARD_TEXT } from '../sim/goals';
 import { foeHardness, MINERALS, nodeHardness, outmatched, youHardness } from '../sim/hardness';
-import { misses } from '../sim/near';
 import { epUses, itemRoom, maxHp, maxMind, stats } from '../sim/ops';
 import {
   deckCap,
@@ -48,13 +51,15 @@ import {
   deckSize,
   nodeOf,
   OUTCOME_NAME,
+  ownedCard,
   ROWS,
   reachable,
   START_BACK,
+  stackable,
   stratumName,
 } from '../sim/run';
 import { type SpotAction, spotActions } from '../sim/spot';
-import { badges, epChip, heals, luckyTag, outcome, pips, previewCard } from './cards';
+import { badges, epChip, heals, luckyTag, lvTag, outcome, pips, previewCard } from './cards';
 import { button, type Child, fill, h, meter, pressable, retranslate } from './dom';
 import { armDetail, type EncView, encounterPanel } from './encounter';
 import { HINTS, nextHint } from './hints';
@@ -96,8 +101,6 @@ import {
   facetLines,
   firstStep,
   floorNo,
-  lackText,
-  otherJobs,
   persona,
   pickBy,
   SPOT_ORDER,
@@ -2191,15 +2194,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         'div',
         { class: 'dig-handview__head' },
         h('h3', {}, `手持ちの札 ${deckSize(w.you)}/${deckCap(w.you)}`),
-        buildsOf(w.you).length
-          ? h(
-              'span',
-              { class: 'dig-quiet' },
-              `構成 ${buildsOf(w.you)
-                .map((b) => `《${b.name}》`)
-                .join('')}`,
-            )
-          : null,
       ),
       w.you.epithets.length
         ? h(
@@ -2310,6 +2304,18 @@ export function openDig(doc: Document, onClose: () => void): void {
   const cardAt = (n: number, k: number) => spoilAt(n) + 0.15 + k * 0.22;
 
   /** 拾える札の表（手元の札と同じ顔）。伏せた裏から、表を向ける。 */
+  /** 持っている札なら、拾う・買うと重なって上がるレベルを一言で（「重ねるとⅡ」）。 */
+  function stackLine(id: string): HTMLElement | null {
+    const own = game ? ownedCard(game.world.you, id) : undefined;
+    if (!own) return null;
+    const lv = own.lv ?? 1;
+    return h(
+      'span',
+      { class: 'dig-offer__lead' },
+      lv >= LV_MAX ? 'Ⅲ（これ以上は重ならない）' : `重ねると${LV_MARK[lv + 1]}`,
+    );
+  }
+
   function sceneCard(
     id: string,
     opts: {
@@ -2348,7 +2354,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           )
         : null,
       opts.lucky ? luckyTag() : null,
-      def.legend ? h('span', { class: 'dig-offer__lead' }, `主役『${def.legend}』`) : null,
+      stackLine(id),
       pips(card),
       badges(def.ready),
       h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
@@ -2376,7 +2382,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     const full = !deckRoom(w.you) && !w.you.cards.some((c) => !c);
     const isCard = !!pickId && offers.includes(pickId);
     const isTool = !!pickId && p.tools.includes(pickId);
-    const needDrop = isCard && full;
+    // 持っている札を拾うなら重なる（枚数は増えないので、手放す一枚は要らない）。
+    const needDrop = isCard && full && !!pickId && !stackable(w.you, pickId);
     const all = [...w.you.cards.flatMap((c) => (c ? [c] : [])), ...w.you.back].sort(
       (a, b) => a.uses - b.uses,
     );
@@ -2434,7 +2441,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           'button',
           {
             type: 'button',
-            class: `dig-card dig-scene__card is-tool${b.cls ? ' is-flip' : ''}${pickId === id ? ' is-chosen' : ''}`,
+            class: `dig-card dig-scene__card is-tool${g?.kind === 'keep' ? ' is-keep' : ''}${b.cls ? ' is-flip' : ''}${pickId === id ? ' is-chosen' : ''}`,
             style: 'style' in b ? b.style : undefined,
             disabled: !itemRoom(w.you, id),
             'aria-pressed': pickId === id ? 'true' : 'false',
@@ -2446,7 +2453,11 @@ export function openDig(doc: Document, onClose: () => void): void {
             { class: 'dig-card__head' },
             h('b', { class: 'dig-card__name' }, g?.name ?? id),
             pickId === id ? h('span', { class: 'dig-card__mark' }, '拾う') : null,
-            h('span', { class: 'dig-card__key' }, `道具・${g?.uses ?? 1} 回`),
+            h(
+              'span',
+              { class: 'dig-card__key' },
+              g?.kind === 'keep' ? '身につける' : `道具・${g?.uses ?? 1} 回`,
+            ),
           ),
           h('span', { class: 'dig-card__fx' }, g?.text ?? ''),
         );
@@ -2599,7 +2610,7 @@ export function openDig(doc: Document, onClose: () => void): void {
    * （何をするかは手順の一文が言う）。
    */
   function rewardDetail(
-    w: World,
+    _w: World,
     st: NonNullable<ReturnType<typeof rewardState>>,
   ): HTMLElement | null {
     const lines = (
@@ -3024,23 +3035,16 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   /**
-   * この夜の一枚。手元に残った主役の札のうち、章がいちばん進んだ一枚を、刻まれた語と
-   * 越えた章の一文とともに（押せない。次の挑戦には持ち越さない）。章が進んでいなければ出さない。
+   * この夜の一枚。手元でいちばん重ねた札（レベルの高い順、同じならエピテットの多い順）を、
+   * 刻まれた語とその札の一文とともに（押せない。次の挑戦には持ち越さない）。
+   * 重ねた札も刻んだ札も無ければ出さない。
    */
   function nightCard(w: World): HTMLElement | null {
-    let best: { c: Card; ch: number; p: number } | null = null;
-    for (const c of w.you.cards) {
-      if (!c || !cardDef(c.id).legend) continue;
-      const ch = c.marks.ch ?? 0;
-      const p = c.marks.p ?? 0;
-      if (ch <= 0) continue;
-      if (!best || ch > best.ch || (ch === best.ch && p > best.p)) best = { c, ch, p };
-    }
-    if (!best) return null;
-    const ls = legendState(w.you, best.c.id);
-    if (!ls) return null;
-    const done = ls.legend.chapters.slice(0, best.ch);
-    const last = done[done.length - 1];
+    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
+    const score = (c: Card) => (c.lv ?? 1) * 10 + c.eps.length;
+    const best = all.sort((a, b) => score(b) - score(a))[0];
+    if (!best || score(best) <= 10) return null;
+    const def = cardDef(best.id);
     return h(
       'figure',
       { class: 'dig-night' },
@@ -3048,28 +3052,23 @@ export function openDig(doc: Document, onClose: () => void): void {
       h(
         'p',
         { class: 'dig-night__name' },
-        h('b', {}, `『${cardDef(best.c.id).name}』`),
-        best.c.eps.length
+        h('b', {}, `『${def.name}』`),
+        (best.lv ?? 1) > 1 ? h('span', { class: 'dig-lv' }, lvMark(best)) : null,
+        best.eps.length
           ? h(
               'span',
               {},
-              best.c.eps.map((e) => epChip(e)),
+              best.eps.map((e) => epChip(e)),
             )
           : null,
       ),
-      h(
-        'p',
-        { class: 'dig-night__ch' },
-        `『${ls.legend.title}』${best.ch >= ls.legend.chapters.length ? ' 完' : ` 第${best.ch}章まで`}`,
-      ),
-      last ? h('p', { class: 'dig-night__line' }, last.line) : null,
+      def.flavor ? h('p', { class: 'dig-night__line' }, def.flavor) : null,
     );
   }
 
   function endPanel(w: World): HTMLElement {
     const e = w.ending;
     if (!e) return h('div');
-    const near = misses(w).slice(0, 3);
     return section(
       e.title,
       h('p', { class: 'dig-persona' }, persona(w)),
@@ -3096,15 +3095,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       ),
       nightCard(w),
       h('p', { class: 'dig-quiet' }, `挑戦 ${profile.runs}　踏破 ${profile.wins}`),
-      near.length
-        ? h(
-            'p',
-            {},
-            '見つけていない噛み合わせ：',
-            near.map((m) => `${m.name}（あと${lackText(m.lack)}）`).join('、'),
-          )
-        : null,
-      otherJobs(w).map((t) => h('p', { class: 'dig-quiet' }, t)),
       button(
         'もう一度',
         () => {
@@ -3146,7 +3136,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       return;
     }
     tray.hidden = false;
-    const builds = buildsOf(w.you);
     const deal = dealt();
     const slots = w.you.cards.map((c, slot) => {
       const onClick = () => clickSlot(w, slot);
@@ -3173,8 +3162,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       const spent = c.uses <= 0;
       const was = swapped(slot);
       const acting = w.enc?.phase === 'act' && w.enc.who === 'you';
-      const ls = legendState(w.you, c.id);
-      const ch = ls?.legend.chapters[ls.chapter];
       // 続ければ連鎖になる札は、手の中で少しだけ身を乗り出す（字は出さない）。
       const leans =
         w.enc?.phase === 'act' &&
@@ -3184,7 +3171,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         'button',
         {
           type: 'button',
-          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}${deal ? ' is-dealt' : ''}${was !== null ? ' is-swapped' : ''}${leans ? ' is-lean' : ''}${armedSlot === slot ? ' is-armed' : ''}`,
+          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}${deal ? ' is-dealt' : ''}${was !== null ? ' is-swapped' : ''}${leans ? ' is-lean' : ''}${armedSlot === slot ? ' is-armed' : ''}`,
           style: deal ? `--deal:${slot}` : undefined,
           onclick: onClick,
           ...drop,
@@ -3219,6 +3206,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           'span',
           { class: 'dig-card__head' },
           h('b', { class: 'dig-card__name' }, cardName(c, spent)),
+          lvTag(c),
           h('span', { class: 'dig-card__key' }, String(slot + 1)),
         ),
         pips(c),
@@ -3249,31 +3237,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         !acting && !spent && d.spent.length
           ? h('span', { class: 'dig-card__sleep' }, `眠りぎわ　${fxText(d.spent)}`)
           : null,
-        ls && ch
-          ? h(
-              'span',
-              { class: 'dig-card__legend' },
-              `第${'一二三'[ls.chapter]}章 ${ch.name}`,
-              h('span', { class: 'dig-card__progress' }, `${ls.progress}/${ch.count}`),
-            )
-          : ls
-            ? h('span', { class: 'dig-card__legend' }, `『${ls.legend.title}』完`)
-            : null,
-      );
-    });
-    const buildLine = builds.map((b) => {
-      const t = tierOf(w.you, b.id);
-      const s = SURGES[b.id];
-      const nt = nextTier(w.you, b.id);
-      return h(
-        'span',
-        {
-          class: `dig-build${t ? ' is-surge' : ''}`,
-          title: [b.text, t && s ? (t === 2 ? s.peakText : s.text) : '', nt ?? '']
-            .filter(Boolean)
-            .join('\n'),
-        },
-        `《${b.name}》${t === 2 ? ' 極み' : t === 1 ? ' 暴走' : ''}`,
       );
     });
     fill(tray, [
@@ -3312,14 +3275,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-pills' },
-          buildLine.length
-            ? h(
-                'span',
-                { class: 'dig-pills__group' },
-                h('span', { class: 'dig-pills__label' }, '構成'),
-                buildLine,
-              )
-            : null,
           // エピテットは種類ごとに一つ（同じものは ×n）。刻む先は札・記憶・先の部屋・出来事、
           // 向き合っているあいだは相手（人に効くものだけ、遭遇に一度）。
           w.you.epithets.length ? epithetRow(w) : null,

@@ -1,4 +1,5 @@
 import { PACE } from '../content/balance';
+import { gearOf } from '../content/gear';
 import { cardDef, epithetDef } from '../content/registry';
 import type { Cmd } from '../core/events';
 import type { Card, World } from '../core/model';
@@ -16,7 +17,9 @@ import {
   ITEM_CAP,
   isBridge,
   isHall,
+  priceOf,
   reachable,
+  stackable,
 } from './run';
 import { spotActions } from './spot';
 
@@ -52,8 +55,10 @@ export function pilot(w: World, opts: { quick?: boolean; style?: Style } = {}): 
             }
           });
         }
-        const pick = pickCard(w, p.cards, p.inked);
-        const tool = !pick && w.you.items.length < ITEM_CAP ? p.tools[0] : undefined;
+        // 身につける品は、枠が空いていれば札より先に（ずっと効くので）。
+        const keep = p.tools.find((id) => wantKeep(w, id));
+        const pick = keep ? undefined : pickCard(w, p.cards, p.inked);
+        const tool = keep ?? (!pick && w.you.items.length < ITEM_CAP ? p.tools[0] : undefined);
         return {
           c: 'claim',
           take: p.take[0],
@@ -175,11 +180,29 @@ export function routePilot(w: World, kind: RouteKind): Cmd | null {
   return id === undefined ? own : { c: 'move', node: id };
 }
 
+/** 直感で選ぶ人が手に取る、身につける品（借金と片道は避ける）。 */
+function wantKeep(w: World, id: string): boolean {
+  return (
+    gearOf(id)?.kind === 'keep' &&
+    id !== 'iou' &&
+    id !== 'one-way' &&
+    w.you.items.length < ITEM_CAP - 1 &&
+    !w.you.items.some((x) => x.id === id)
+  );
+}
+
 function shopping(w: World): Cmd | null {
   const p = w.pending;
   if (p?.kind !== 'shop') return null;
   let best: Cmd | null = null;
   let gain = 9;
+  for (const it of p.items)
+    if (
+      !p.sold.includes(it) &&
+      wantKeep(w, it) &&
+      priceOf(w, gearOf(it)?.price ?? 99) <= w.you.coins
+    )
+      return { c: 'buy', id: it };
   for (const id of p.cards) {
     if (p.sold.includes(id) || cardPrice(w, id) > w.you.coins || !deckRoom(w.you)) continue;
     // 後ろに入る札は構成を変えないので、余地があれば一枚だけ買う。
@@ -252,6 +275,9 @@ function pickCard(
   offer: readonly string[],
   inked?: Record<string, string[]>,
 ): { id: string; drop?: number } | null {
+  // 持っている札は重ねる（枚数は増えず、効き目と回数が上がる）。いちばん使い込む札から。
+  const stack = offer.find((id) => stackable(w.you, id));
+  if (stack) return { id: stack };
   let best: string | null = null;
   let most = -1;
   for (const id of offer) {

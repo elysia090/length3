@@ -615,7 +615,18 @@
     "名前": "Name",
     "1 回": "1 use",
     "品・1 回": "Item · 1 use",
-    "道具・1 回": "Tool · 1 use"
+    "道具・1 回": "Tool · 1 use",
+    "身につける": "Worn",
+    " 身につける": " worn",
+    "置いていく": "Leave behind",
+    "置いていくと、持ち物の枠が一つ空く": "Leaving it frees one item space",
+    "使わない。持っているあいだ、ずっと効く（持ち物の枠は使う）": "Never used up. Works for as long as you carry it (takes an item space)",
+    "持っているあいだ、ずっと効く": "Works for as long as you carry it",
+    "約款の最後の一行が、あなたを立たせた。": "The last line of the policy got you back on your feet.",
+    "最悪の保険が下りた。体力が満ち、精神は 1 に。": "The worst insurance paid out. Body full, mind at 1.",
+    "重ねる": "Stacking",
+    "持っている札をもう一度拾う・買うと、重なってレベルが上がる（Ⅱ・Ⅲ）。手持ちの枚数は増えない。上がるたびに効き目が強まり、回数も一つ増える。": "Pick up or buy a card you already hold and it stacks, raising its level (Ⅱ, Ⅲ). Your card count doesn't grow. Each level makes it stronger and adds one use.",
+    "Ⅲ（これ以上は重ならない）": "Ⅲ (won't stack further)"
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -890,6 +901,11 @@
     "{0}の灯り持ちの灯りが、あなたより先にここを照らしていた。": "The {0} lamp-bearer's lamp had lit this place before you.",
     "そのあと、{0}まで下りて、B{1}で灯りを置いた。": "After that, you went down to {0} and set your lamp down at B{1}.",
     "底の手前を抜けたあと、B{0}（{1}）で灯りが消えた。": "After you got past the bottom, your lamp went out at B{0} ({1}).",
-    "{0}（あと{1}が {2} つ）": "{0} ({2} more {1})"
+    "{0}（あと{1}が {2} つ）": "{0} ({2} more {1})",
+    "{0}を置いていった。": "Left the {0} behind.",
+    "返品保証書：『{0}』の回数 +1。": "Return Warranty: “{0}” uses +1.",
+    "『{0}』を重ねた。{1}になった。": "Stacked “{0}”. Now {1}.",
+    "重ねると{0}": "Stack → {0}",
+    "レベル{0}：効き目 ×{1}": "Level {0}: effect ×{1}"
   }
 }

@@ -15,6 +15,7 @@ import {
   close,
   cure,
   depart,
+  dropItem,
   inscribe,
   move,
   onward,
@@ -63,7 +64,7 @@ export function decide(
       break;
     case 'item':
       // 持ち物は、向き合っていないときに使う（探る品は、手の空いているときだけ）。
-      ok = !w.enc && useItem(tx, cmd.index, cmd.q);
+      ok = !w.enc && (cmd.drop ? dropItem(tx, cmd.index) : useItem(tx, cmd.index, cmd.q));
       break;
     case 'act':
       // 素手の手（押す・構える・話す）は無い。立ち去るか、取引に応じるだけ。

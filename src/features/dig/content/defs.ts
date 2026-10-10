@@ -58,6 +58,8 @@ export interface CardDef {
   sig?: string;
   /** 主役の札なら、その物語の題。 */
   legend?: string;
+  /** レベルごとの効き目の一文（Ⅰ・Ⅱ・Ⅲ）。重ねて上がるたびに、次の一文が開く。 */
+  levels?: readonly string[];
   passive?: readonly PassiveSpec[];
   triggers?: readonly TriggerSpec[];
   /** 入った版・退いた版。 */
@@ -234,8 +236,11 @@ export interface StoryDef {
   options: readonly StoryOption[];
 }
 
-/** 持ち物の使いどころ：休む・備える（次の遭遇の初めに）・探る（出来事を起こす）。 */
-export type GearKind = 'rest' | 'prep' | 'seek';
+/**
+ * 持ち物の使いどころ：休む・備える（次の遭遇の初めに）・探る（出来事を起こす）・
+ * 身につける（使わない。持っているあいだずっと効く）。
+ */
+export type GearKind = 'rest' | 'prep' | 'seek' | 'keep';
 
 /** 探る：出来事が起きる割合と、何かが見つかる割合（残りは何も起きないか、気づかれる）。 */
 export interface Seek {
@@ -260,6 +265,10 @@ export interface ItemDef {
   uses?: number;
   /** 代償：使うと、次の n 戦のあいだ反動が残る（受ける一撃と脅しが重くなる）。 */
   cost?: number;
+  /** 身につける：持っているあいだの能力値・規則・反応。 */
+  mods?: Partial<StatBlock>;
+  passive?: readonly PassiveSpec[];
+  triggers?: readonly TriggerSpec[];
   price: number;
   flavor: string;
 }

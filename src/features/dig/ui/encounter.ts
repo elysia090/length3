@@ -241,7 +241,7 @@ export function flowRows(w: World, v: EncView): HTMLElement {
       {
         class: `dig-flow__g${n ? ' is-on' : ''}`,
         title: [
-          '共鳴：札・記憶・構成・エピテットが働くたびに一つ灯り、決着で受け取る',
+          '共鳴：札・記憶・エピテットが働くたびに一つ灯り、決着で受け取る',
           ...RES_STEPS.map(([k, v]) => `${k}　${v}`),
           n
             ? `灯っている：${srcs

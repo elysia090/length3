@@ -1,6 +1,6 @@
 # DIG コードの地図
 
-更新日: 2026-10-09
+更新日: 2026-10-10
 
 DIG（`src/features/dig/`）のどこに何があるか。画面の言葉（色・線・字・触れ方）は
 [dig-design-language.md](../specs/dig-design-language.md)、遊び方は `src/content/blog/dig-wiki.mdx`。
@@ -15,6 +15,13 @@ ui/       画面（DOM と塔の絵）。sim と content を読むが、書き�
 css/      画面の見た目（主題ごと。dig.css が順に読み込む）
 i18n/     英語（画面に出る直前に置き換える）
 ```
+
+札が覚えるのはレベル（Ⅰ〜Ⅲ、`card.lv`。同じ札を重ねて上がる。倍率は `content/balance.ts` の `LV_MULT`、
+作品ごとの段ごとの効き目は `content/legends.ts` の `levelRules`）とエピテットだけ。構成・連携・原型の重ねがけ・
+暴走は規則に集めない（`content/sources.ts` の `buildsOf`・`linksOf`・`archSetsOf` は空）。
+身につける品は `content/keepsakes.ts`（持ち物の `kind: 'keep'`。持っているあいだ `keep:<id>` として規則に入る）。
+手放すときの返品保証書・倒れるときの最悪の保険・古物商を出るときの領収書・溢れた回復の水筒は、
+その手続きの側（`sim/run.ts` の `refund`・`depart`、`sim/ops.ts` の `settle`・`heal`）が読む。
 
 遊びはすべて、一つの種と操作の列から積み直す（`sim/game.ts`）。保存は操作の列で、
 `content/balance.ts` の `DATA_VERSION` が変われば古い保存は読まない。

@@ -617,6 +617,24 @@
   border-style: dashed;
 }
 
+/* 身につける品：押して使うものではないので枠で囲まない。名前と、小さな「置いていく」。 */
+.dig-gear__item.is-keep {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0;
+}
+
+.dig-gear__item.is-keep b {
+  font-weight: 600;
+}
+
+.dig .dig-gear__item.is-keep button {
+  min-height: 1.5rem;
+  padding: 0 6px;
+  font-size: var(--font-ui-xs);
+}
+
 /* 手持ちがいっぱいのとき、手放す札を選ぶ列。 */
 .dig-drop {
   display: grid;

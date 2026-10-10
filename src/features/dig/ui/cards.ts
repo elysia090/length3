@@ -1,3 +1,4 @@
+import { LV_MARK, LV_MULT } from '../content/balance';
 import { EP_TIER_NAME, epTier } from '../content/epithets';
 import type { Fx } from '../content/fx';
 import { fxText } from '../content/fx';
@@ -24,6 +25,18 @@ export const pips = (c: Card) =>
   );
 
 /** 文の中の「体力 +n」「精神 +n」（戻る分）を緑に。 */
+/** 札のレベルの印（Ⅱ・Ⅲ。Ⅰは出さない）。名前のすぐ後ろに置く。 */
+export function lvTag(card: Pick<Card, 'lv'>): HTMLElement | null {
+  const lv = card.lv ?? 1;
+  return lv > 1
+    ? h(
+        'span',
+        { class: 'dig-lv', title: `レベル${LV_MARK[lv]}：効き目 ×${LV_MULT[lv]}` },
+        LV_MARK[lv] ?? '',
+      )
+    : null;
+}
+
 export function heals(text: string): Child[] {
   const parts = text.split(/((?:体力|精神) \+[0-9A-Za-z+.×]+)/);
   // 英語では句読点のあとに語の間が要る（訳した文は末尾の間を落とすので、ここで足す）。
@@ -168,7 +181,6 @@ export function cardOffer(
       h('b', {}, d.name),
       price ? h('span', { class: 'dig-price' }, price) : null,
     ),
-    d.legend ? h('span', { class: 'dig-offer__lead' }, `主役『${d.legend}』`) : null,
     h(
       'span',
       { class: 'dig-quiet' },
@@ -205,11 +217,23 @@ export function gearOffer(
       'span',
       { class: 'dig-offer__head' },
       h('b', {}, g?.name ?? id),
-      h('span', { class: 'dig-quiet' }, ` ${g?.tool ? '道具' : '品'}・${g?.uses ?? 1} 回`),
+      h(
+        'span',
+        { class: 'dig-quiet' },
+        g?.kind === 'keep' ? ' 身につける' : ` ${g?.tool ? '道具' : '品'}・${g?.uses ?? 1} 回`,
+      ),
       price ? h('span', { class: 'dig-price' }, price) : null,
     ),
     h('span', { class: 'dig-offer__fx' }, heals(g?.text ?? '')),
-    h('span', { class: 'dig-quiet' }, can ? '手札の一覧で使う（向き合っていないときに）' : why),
+    h(
+      'span',
+      { class: 'dig-quiet' },
+      !can
+        ? why
+        : g?.kind === 'keep'
+          ? '持っているあいだ、ずっと効く'
+          : '手札の一覧で使う（向き合っていないときに）',
+    ),
   );
 }
 

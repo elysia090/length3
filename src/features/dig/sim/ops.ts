@@ -2,7 +2,7 @@ import { PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { LineKind } from '../content/defs';
 import { gearOf, ITEM_CAP } from '../content/gear';
-import { cardDef, epithetDef, foeDef, permDef } from '../content/registry';
+import { cardDef, epithetDef, foeDef, itemDef, permDef } from '../content/registry';
 import type {
   Card,
   Char,
@@ -58,6 +58,11 @@ export function stats(w: World, who: Who): StatBlock {
   const p = permsOf(c);
   const out = zeroStats();
   for (const s of STATS) out[s] = c.innate[s] + c.growth[s] + p.mods[s];
+  for (const it of c.items) {
+    const d = itemDef(it.id);
+    if (d?.kind === 'keep' && d.mods) for (const s of STATS) out[s] += d.mods[s] ?? 0;
+  }
+  if (who === 'you') out.VIT += keepVit(w);
   if (p.dyn.length && w.enc?.who === who)
     for (const id of p.dyn) {
       const d = permDef(id);
@@ -65,6 +70,15 @@ export function stats(w: World, who: Who): StatBlock {
     }
   for (const s of STATS) out[s] = Math.max(0, out[s]);
   return out;
+}
+
+/** 一生ものの靴・使い古した安全靴で増えた体格（体格 1 = 最大体力 4）。 */
+export function keepVit(w: World): number {
+  const has = (id: string) => w.you.items.some((x) => x.id === id);
+  let v = 0;
+  if (has('lifelong-shoes')) v += Math.floor((w.flags['keep:shoes'] ?? 0) / 4);
+  if (has('worn-boots')) v += w.flags['keep:boots'] ?? 0;
+  return v;
 }
 
 export const statOf = (w: World, who: Who, s: Stat) => stats(w, who)[s];
@@ -260,9 +274,14 @@ export function heal(tx: Tx, hp: number, mind = 0, who: Who = actor(tx)): void {
   const h = Math.min(want, maxHp(s) - c.hp);
   const m = Math.min(Math.round(tx.rule('heal', { who, kind: 'mind' }, mind)), maxMind(s) - c.mind);
   if (h > 0 || m > 0) tx.emit({ type: 'vital', who, hp: Math.max(0, h), mind: Math.max(0, m) });
+  const over = want - Math.max(0, h);
+  // 不滅の水筒：溢れた回復を汲み置く（体力 10 まで）。
+  if (who === 'you' && over > 0 && c.items.some((x) => x.id === 'canteen')) {
+    const was = tx.w.flags['keep:flask'] ?? 0;
+    if (was < 10) tx.emit({ type: 'flag', key: 'keep:flask', v: Math.min(10, was + over) });
+  }
   // 流用：溢れた回復が、相手を削る。
   const e = tx.w.enc;
-  const over = want - Math.max(0, h);
   if (e && e.phase === 'act' && e.who === who && over > 0) {
     const d = Math.round(over * tx.rule('overheal', { who }, 0));
     if (d > 0) hitFoe(tx, d, true);
@@ -537,6 +556,15 @@ export function settle(tx: Tx): void {
       tx.emit({ type: 'after.end', kind: 'ally' });
       say(tx, 'voice', `${foeDef(ally.npc).name}が、あなたの前に立った。`);
       tx.emit({ type: 'note', text: `${foeDef(ally.npc).name}が身代わりになった。`, level: 3 });
+      return;
+    }
+    // 最悪の保険：一度だけ立ち上がる。精神は 1 になり、保険は消える。
+    if (c.items.some((x) => x.id === 'worst-insurance')) {
+      const s = stats(tx.w, 'you');
+      tx.emit({ type: 'item', who: 'you', id: 'worst-insurance', n: -1 });
+      tx.emit({ type: 'vital', who: 'you', hp: maxHp(s) - c.hp, mind: 1 - c.mind });
+      say(tx, 'voice', '約款の最後の一行が、あなたを立たせた。');
+      tx.emit({ type: 'note', text: '最悪の保険が下りた。体力が満ち、精神は 1 に。', level: 3 });
       return;
     }
   }

@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.19.0';
+export const DATA_VERSION = '1.20.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -41,7 +41,16 @@ export const POINTS = {
   noted: 4,
 } as const;
 
+/**
+ * 札のレベル（同じ札を重ねて上がる）。効き目の倍率と、名前に添える印。
+ * 回数と最大回数は、上がるたびに一つずつ増える。
+ */
+export const LV_MULT: readonly number[] = [1, 1, 1.3, 1.6];
+export const LV_MARK: readonly string[] = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ'];
+
 export const PACE = {
+  /** 受け取りの候補の一枚が、持っている札（重ねてレベルが上がる）になる割合。 */
+  again: 0.1,
   rows: 9,
   dawn: 10,
   tough: 1.5,
@@ -86,6 +95,8 @@ export const PACE = {
   epGlow: 0.35,
   /** 決着のあと、その場で使える品が一つ手に入る割合。 */
   loot: 0.15,
+  /** 受け取りの道具が、身につける品になる割合。 */
+  keep: 0.2,
   /** 倒したとき、戦利品に品がまざる割合（金はいつも）。 */
   lootBeaten: 0.5,
   /** 最後の相手の扉の前で、体と心がここまで戻る。 */

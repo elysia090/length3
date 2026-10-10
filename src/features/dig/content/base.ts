@@ -1,9 +1,10 @@
 import { believes } from '../core/mind';
 import type { Tag } from '../core/tags';
 import { isDeep } from '../core/time';
-import { hostile, say } from '../sim/ops';
+import { charOf, hostile, say } from '../sim/ops';
 import { ANSWERS } from './archetypes';
-import { POINTS } from './balance';
+import { LV_MULT, POINTS } from './balance';
+import { cardLv } from './cardinfo';
 import type { PassiveSpec, TriggerSpec } from './defs';
 import { heatOf } from './floors';
 import { foeDef, permDef } from './registry';
@@ -33,6 +34,14 @@ function exploit(key: 'press' | 'talk' | 'force' | 'lie') {
 }
 
 export const BASE_RULES: readonly PassiveSpec[] = [
+  // 札のレベル（同じ札を重ねて上がる）。Ⅱ ×1.3、Ⅲ ×1.6。
+  {
+    rule: 'mult',
+    prio: -20,
+    when: (c) => !!c.card && cardLv(charOf(c.w, c.who), c.card) > 1,
+    fn: (c, v) => v * (LV_MULT[cardLv(charOf(c.w, c.who), c.card ?? '')] ?? 1),
+    text: 'レベル',
+  },
   {
     rule: 'bonus',
     prio: -10,

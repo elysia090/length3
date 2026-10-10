@@ -27,7 +27,12 @@ export interface Card {
   marks: Record<string, number>;
   /** 刻まれた冠装飾子《エピテット》（最大 2）。 */
   eps: string[];
+  /** レベル（Ⅰ〜Ⅲ。同じ札を重ねて上がる）。無ければⅠ。 */
+  lv?: number;
 }
+
+/** 札のレベルの上限（Ⅲ）。 */
+export const LV_MAX = 3;
 
 export type Who = 'you' | 'rival';
 

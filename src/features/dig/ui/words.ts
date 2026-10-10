@@ -1,12 +1,10 @@
-import { JOB_ARCH } from '../content/cardinfo';
 import { sectionOf } from '../content/floors';
-import { allJobs, cardDef, epithetDef, foeDef, jobDef, permDef } from '../content/registry';
+import { cardDef, epithetDef, foeDef, jobDef, permDef } from '../content/registry';
 import type { Basic } from '../core/events';
 import type { MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME } from '../core/tags';
 import { clockOf } from '../core/time';
 import { nodeHardness } from '../sim/hardness';
-import { misses } from '../sim/near';
 import { isBridge, isHall, nodeOf, ROWS } from '../sim/run';
 import type { SpotAction } from '../sim/spot';
 import { h } from './dom';
@@ -125,17 +123,6 @@ export function persona(w: World): string {
   ]
     .filter(Boolean)
     .join(' / ');
-}
-
-export function otherJobs(w: World): string[] {
-  const out: string[] = [];
-  for (const j of allJobs()) {
-    if (j.id === w.you.job) continue;
-    const a = JOB_ARCH[j.id];
-    const hit = misses(w).find((m) => m.lack.arch === a);
-    if (hit) out.push(`${j.name}なら、${hit.name}が成立していた`);
-  }
-  return out.slice(0, 3);
 }
 
 /** エピテットの効き方を、刻む先ごとに（札・人・場所・出来事・記憶）。 */
