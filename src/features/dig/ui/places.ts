@@ -365,17 +365,23 @@ export function gearRows(
       if (!g || g.kind !== kind) return [];
       if (pick) {
         const chosen = pick.chosen === it.id;
+        // 選んだ品は、箱の真下に左寄せで「置いていく」の印（箱の中には重ねない）。
         return [
           h(
-            'button',
-            {
-              type: 'button',
-              class: `dig-gear__item${g.tool ? ' is-tool' : ''}${chosen ? ' is-drop' : ''}`,
-              'aria-pressed': chosen ? 'true' : 'false',
-              title: [g.text, g.flavor].filter(Boolean).join('\n'),
-              onclick: () => pick.on(it.id),
-            },
-            `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
+            'span',
+            { class: 'dig-gear__slot' },
+            h(
+              'button',
+              {
+                type: 'button',
+                class: `dig-gear__item${g.tool ? ' is-tool' : ''}${chosen ? ' is-drop' : ''}`,
+                'aria-pressed': chosen ? 'true' : 'false',
+                title: [g.text, g.flavor].filter(Boolean).join('\n'),
+                onclick: () => pick.on(it.id),
+              },
+              `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
+            ),
+            chosen ? h('span', { class: 'dig-card__mark' }, '置いていく') : null,
           ),
         ];
       }
