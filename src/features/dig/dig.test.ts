@@ -184,3 +184,50 @@ describe('agent report #103', () => {
     }
   });
 });
+
+describe('agent report #105', () => {
+  it('raises every stat once when 2001 stacks to Ⅲ', async () => {
+    const { Tx } = await import('./core/tx');
+    const { addCard } = await import('./sim/run');
+    const g = Game.start(11, 'projectionist');
+    const w = g.world;
+    w.you.cards[0] = newCard(950, 'odyssey');
+    const before = { ...w.you.growth };
+    const tx = new Tx(w);
+    addCard(tx, 'odyssey', 'picked', 'you');
+    addCard(tx, 'odyssey', 'picked', 'you');
+    expect(w.you.cards[0]?.lv).toBe(3);
+    for (const s of ['VIT', 'ATK', 'DEF', 'WIL', 'INT', 'AGI'] as const)
+      expect(w.you.growth[s]).toBe(before[s] + 1);
+    expect(w.flags.starchild).toBe(1);
+  });
+
+  it('keeps the heavy overcoat for the first blow when a card costs body', async () => {
+    const { Tx } = await import('./core/tx');
+    const { startEnc } = await import('./sim/encounter');
+    const { cost, hurt } = await import('./sim/ops');
+    const g = Game.start(12, 'watch');
+    const w = g.world;
+    w.you.items.push({ id: 'thick-coat', uses: 1 });
+    const tx = new Tx(w);
+    startEnc(tx, 'you', 'counterman', 'normal');
+    cost(tx, 3, 0, 'you');
+    expect(w.enc?.st.coat).toBeUndefined();
+    const guard = w.enc?.guard ?? 0;
+    const hp = w.you.hp;
+    hurt(tx, 10 + guard);
+    expect(hp - w.you.hp).toBeLessThan(10);
+    expect(w.enc?.st.coat).toBe(1);
+  });
+
+  it('leaves the one-way ticket at 5% even against a calm opponent', async () => {
+    const { Tx } = await import('./core/tx');
+    const { leaveChance, startEnc } = await import('./sim/encounter');
+    const g = Game.start(13, 'watch');
+    const w = g.world;
+    w.you.items.push({ id: 'one-way', uses: 1 });
+    startEnc(new Tx(w), 'you', 'counterman', 'normal');
+    expect(w.enc?.foe.hostility ?? 9).toBeLessThanOrEqual(2);
+    expect(leaveChance(w)).toBe(5);
+  });
+});

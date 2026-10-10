@@ -323,7 +323,9 @@ export function leaveChance(w: World): number {
   const e = w.enc;
   if (!e) return 0;
   const f = e.foe;
-  if (f.hostility <= 2 || f.st.stun) return 100;
+  // 片道切符は、穏やかな相手や動けない相手からでも、立ち去れる見込みはいつも 5%。
+  const oneWay = charOf(w, e.who).items.some((x) => x.id === 'one-way');
+  if (f.hostility <= 2 || f.st.stun) return oneWay ? 5 : 100;
   const base = rawLeave(w);
   return Math.max(5, Math.min(100, Math.round(ask(w, 'leaveChance', {}, base))));
 }

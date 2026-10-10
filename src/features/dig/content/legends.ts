@@ -866,15 +866,12 @@ export const LEGENDS: readonly Legend[] = [
         when: reached(3),
         count: 1,
         line: '部屋の中で年老いて、部屋の外で生まれ直した。',
-        text: '着いた瞬間、すべての能力値 +1',
+        text: 'Ⅲに重ねた瞬間、すべての能力値 +1',
         triggers: [
           {
-            on: 'card.mark',
-            when: (ev, w) =>
-              ev.type === 'card.mark' &&
-              ev.mark === 'ch' &&
-              chapterNow(w, 'odyssey') >= 3 &&
-              !w.flags['starchild'],
+            // 重ねてⅢになった瞬間に一度だけ（levelRules がⅢのときだけ通す）。
+            on: 'card.lv',
+            when: (ev, w) => ev.type === 'card.lv' && ev.n > 0 && !w.flags.starchild,
             run: (tx) => {
               tx.emit({ type: 'flag', key: 'starchild', v: 1 });
               for (const s of ['VIT', 'ATK', 'DEF', 'WIL', 'INT', 'AGI'] as const)

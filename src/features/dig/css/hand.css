@@ -747,12 +747,28 @@
   }
 }
 
-/* 身につける品：押して使うものではないので枠で囲まない。名前だけ。 */
-.dig-gear__item.is-keep {
+/*
+ * 身につける品：押して使うものではないので枠で囲まない。名前だけ。押すと列の下に効き目が
+ * 開くので、名前には点線の下線（読める印）。開いているあいだは琥珀。
+ */
+.dig .dig-gear__item.is-keep {
   display: inline-flex;
   align-items: center;
+  min-height: 1.75rem;
   padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--ink);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.dig .dig-gear__item.is-keep.is-open {
+  color: var(--amber-text);
+}
+
+.dig-gear__detail {
+  margin-top: 4px;
 }
 
 /* 手持ちがいっぱいのとき、手放す札を選ぶ列。 */
