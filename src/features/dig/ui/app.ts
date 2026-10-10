@@ -2227,9 +2227,11 @@ export function openDig(doc: Document, onClose: () => void): void {
                 n > 1 ? h('i', { class: 'dig-pill__n' }, `×${n}`) : null,
               );
             }),
+            // 構えているあいだの一言。末尾に効き目を足さない（中身は下の枠）。
+            a ? h('span', { class: 'dig-amber' }, '刻む札を押す') : null,
           )
         : null,
-      // 選んだエピテットの中身は、行の下の枠（触れたときの説明と同じ形）に。押す先は浮いた札が示す。
+      // 選んだエピテットの中身は、行の下の枠（触れたときの説明と同じ形）に。
       a
         ? h(
             'div',
