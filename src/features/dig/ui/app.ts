@@ -64,6 +64,7 @@ import { button, type Child, fill, h, meter, pressable, retranslate } from './do
 import { armDetail, type EncView, encounterPanel } from './encounter';
 import { HINTS, nextHint } from './hints';
 import { hoverTips } from './hovertip';
+import { liveNote, live as liveSpan } from './live';
 import {
   act,
   countCoins,
@@ -2185,7 +2186,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           : null,
         badges(def.ready),
         h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
-        cardEps(c, ui),
+        cardEps(c, ui, w),
       );
     };
     // 上から：手持ちの札（手元のエピテットと、札ごとの剥がす）→ 持ち物 → 記憶。
@@ -2751,7 +2752,7 @@ export function openDig(doc: Document, onClose: () => void): void {
               pips(c),
               badges(def.ready),
               h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
-              cardEps(c, ui),
+              cardEps(c, ui, w),
             );
           }),
         ),
@@ -3187,6 +3188,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           },
           title: [
             spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready),
+            liveNote(fxText(spent ? d.spent : d.ready), w),
             !spent && d.spent.length ? `眠りぎわ　${fxText(d.spent)}` : '',
             d.sig,
             d.flavor,
@@ -3233,6 +3235,7 @@ export function openDig(doc: Document, onClose: () => void): void {
               'span',
               { class: 'dig-card__fx' },
               heals(spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready)),
+              liveSpan(fxText(spent ? d.spent : d.ready), w),
             ),
         !acting && !spent && d.spent.length
           ? h('span', { class: 'dig-card__sleep' }, `眠りぎわ　${fxText(d.spent)}`)

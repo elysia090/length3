@@ -32,6 +32,7 @@ import {
 } from '../sim/run';
 import { cardOffer, epChip, gearOffer, heals, luckyTag } from './cards';
 import { button, type Child, h } from './dom';
+import { live, liveNote } from './live';
 import { act, section } from './parts';
 import type { Ui } from './ui';
 import { voiceOf } from './words';
@@ -359,7 +360,10 @@ export function gearRows(w: World, ui: Ui): HTMLElement | null {
         return [
           h(
             'span',
-            { class: 'dig-gear__item is-keep', title: `${g.text}\n${g.flavor}` },
+            {
+              class: 'dig-gear__item is-keep',
+              title: [g.text, liveNote(g.text, w), g.flavor].filter(Boolean).join('\n'),
+            },
             h('b', {}, g.name),
             h(
               'button',
@@ -407,7 +411,7 @@ export function gearRows(w: World, ui: Ui): HTMLElement | null {
  * 札に刻まれたエピテットの欄（札の中、本文の下）：語・効き目・剥がす釦。剥がすと手元に戻る。
  * 整えると受け取りの手札で、同じ形。札そのものを押す操作とは混ぜない。
  */
-export function cardEps(c: Card, ui: Ui): HTMLElement | null {
+export function cardEps(c: Card, ui: Ui, w?: World): HTMLElement | null {
   if (!c.eps.length) return null;
   return h(
     'span',
@@ -417,7 +421,12 @@ export function cardEps(c: Card, ui: Ui): HTMLElement | null {
         'span',
         { class: 'dig-deck__ep' },
         epChip(e),
-        h('span', { class: 'dig-quiet' }, epithetDef(e)?.card?.text ?? ''),
+        h(
+          'span',
+          { class: 'dig-quiet' },
+          epithetDef(e)?.card?.text ?? '',
+          live(epithetDef(e)?.card?.text ?? '', w),
+        ),
         h(
           'button',
           {

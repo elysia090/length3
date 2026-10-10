@@ -18,6 +18,7 @@ import {
 import { foeHardness, youHardness } from '../sim/hardness';
 import { heals } from './cards';
 import { button, type Child, h, meter } from './dom';
+import { live } from './live';
 import { afterRow, hardTag, pipRow } from './parts';
 import { cardEffect, effectOf } from './preview';
 import type { TurnLine } from './state';
@@ -296,6 +297,7 @@ export function armDetail(w: World, v: EncView): HTMLElement | null {
       'p',
       { class: 'dig-armdetail__fx' },
       spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready),
+      live(fxText(spent ? d.spent : d.ready), w),
     ),
     !spent && d.spent.length
       ? h('p', { class: 'dig-armdetail__sub' }, `眠りぎわ　${fxText(d.spent)}`)
