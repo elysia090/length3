@@ -97,7 +97,8 @@ export function restPanel(w: World, ui: Ui): HTMLElement {
           choice(
             '休む',
             [
-              `体力 +${Math.round(PACE.rest * 100)}%・精神 +${Math.round(PACE.rest * 100)}%`,
+              // 同じ区画で二度目からは、鍋の残りぶん（半分）。
+              `体力 +${restPct(w)}%・精神 +${restPct(w)}%`,
               'いちばん減っている札が一枚満ちる',
               '1 時間',
             ],
@@ -349,6 +350,10 @@ export function toldPanel(w: World, ui: Ui): HTMLElement {
 }
 
 /** 整えるの中の持ち物（休む・備える・探る・身につけるの列）。 */
+/** 食堂で休んだときの戻り（%）。同じ区画で二度目からは restAgain 倍。 */
+const restPct = (w: World) =>
+  Math.round(PACE.rest * ((w.flags[`rested${w.stratum}`] ?? 0) > 0 ? PACE.restAgain : 1) * 100);
+
 /** 持ち物の列で、効き目を開いている身につける品（押すと開き、もう一度で閉じる）。 */
 let openKeep: string | null = null;
 

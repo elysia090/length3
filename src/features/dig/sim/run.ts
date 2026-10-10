@@ -1837,9 +1837,16 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
   switch (a) {
     case 'rest': {
       // 休む：体と心を戻し、いちばん減っている札が一枚、満ちる。
+      // 同じ区画で二度目からは、鍋の残りぶん（回復が restAgain 倍）。
       const again = w.flags[`rested${w.stratum}`] ?? 0;
       tx.emit({ type: 'flag', key: `rested${w.stratum}`, v: again + 1 });
-      heal(PACE.rest);
+      heal(PACE.rest * (again > 0 ? PACE.restAgain : 1));
+      if (again > 0)
+        tx.emit({
+          type: 'note',
+          text: '「鍋底をさらって、もう一皿。パンは半分ずつにしましょう。」',
+          level: 1,
+        });
       refillOne(tx);
       if (y.perms.includes('insomnia')) refill(tx, 1, undefined, 'you', true);
       careBonus(tx);
