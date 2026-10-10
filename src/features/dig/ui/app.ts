@@ -2440,11 +2440,14 @@ export function openDig(doc: Document, onClose: () => void): void {
     pickId = pickId === id ? null : id;
     dropUid = null;
     dropGear = null;
+    dropStage = 0;
     render();
   };
   const selectGear = (id: string) => () => {
-    // 同じ品を押すたびに一段ずつ置いていく（線を引く → 灰色に → 消える）。別の品を押せば選び直し。
+    // 同じ品を押すたびに一段ずつ置いていく（線を引く → 灰色に → 消える）。灰色までは仮で、
+    // 別の品を押せば選び直し。消えたら決まり（選び直すのは、拾う一枚を選び直したとき）。
     if (dropGear === id) dropStage = Math.min(3, dropStage + 1);
+    else if (dropStage >= 3) return;
     else {
       dropGear = id;
       dropStage = 1;
@@ -2452,6 +2455,15 @@ export function openDig(doc: Document, onClose: () => void): void {
     dropGearAt = now();
     render();
   };
+  // 灰色までの仮の選びは、釦のない所を押すと外れる（釦は自分の仕事をする：受け取るは選んだまま受け取る）。
+  dialog.addEventListener('click', (ev) => {
+    if (!dropGear || dropStage >= 3) return;
+    const t = ev.target as Element | null;
+    if (t?.closest('button, [role="button"], a, input, select, textarea')) return;
+    dropGear = null;
+    dropStage = 0;
+    render();
+  });
   const selectDrop = (uid: number) => () => {
     dropUid = dropUid === uid ? null : uid;
     render();
@@ -2525,6 +2537,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     pickId = null;
     dropUid = null;
     dropGear = null;
+    dropStage = 0;
     deckOpen = false;
     send(cmd);
   }
@@ -2534,6 +2547,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     pickId = null;
     dropUid = null;
     dropGear = null;
+    dropStage = 0;
     deckOpen = false;
     send({ c: 'claim', take: reward.take, help: reward.help });
   }
