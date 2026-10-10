@@ -2216,7 +2216,8 @@ export function openDig(doc: Document, onClose: () => void): void {
                   type: 'button',
                   class: `dig-pill dig-pill--ep is-${ed ? epTier(ed) : 'plain'}${sameAim(aim, on) ? ' is-chosen' : ''}`,
                   'aria-pressed': sameAim(aim, on) ? 'true' : 'false',
-                  title: facetLines(ep),
+                  // 選んでいるあいだは下の詳細欄に同じ中身が出るので、触れたときの説明は重ねない。
+                  title: sameAim(aim, on) ? undefined : facetLines(ep),
                   onclick: () => {
                     aim = sameAim(aim, on) ? null : on;
                     render();
@@ -2226,8 +2227,16 @@ export function openDig(doc: Document, onClose: () => void): void {
                 n > 1 ? h('i', { class: 'dig-pill__n' }, `×${n}`) : null,
               );
             }),
-            // 構えているあいだは、札に刻んだときの効き目だけ（押す先は、浮いた札が示す）。
-            a ? h('span', { class: 'dig-amber' }, d?.card?.text ?? '') : null,
+          )
+        : null,
+      // 選んだエピテットの中身は、行の下の枠（触れたときの説明と同じ形）に。押す先は浮いた札が示す。
+      a
+        ? h(
+            'div',
+            { class: 'dig-epdetail', 'aria-live': 'polite' },
+            facetLines(a.ep)
+              .split('\n')
+              .map((line, i) => h('span', { class: i ? 'dig-tip__sub' : '' }, line)),
           )
         : null,
       h('div', { class: 'dig-hand is-preview' }, all.map(card)),

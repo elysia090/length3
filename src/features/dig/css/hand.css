@@ -1027,3 +1027,17 @@
       padding: 12px 12px 72px;
     }
 }
+
+/* 整える：選んだエピテットの中身。触れたときの説明（.dig-tip--hover）と同じ枠で、行の下に置く。 */
+.dig-epdetail {
+  display: grid;
+  gap: 0.125rem;
+  justify-self: start;
+  max-width: 32rem;
+  padding: var(--dig-s-1) var(--dig-s-2) 5px;
+  border: 0.0625rem solid var(--ink);
+  background: var(--bg);
+  font-size: var(--dig-t-md);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
