@@ -215,7 +215,15 @@
   align-items: baseline;
 }
 
+/* 効き目は詰めてよい側。合図と取り消しは一行のまま端に残す。 */
+.dig-gauge__foot > .dig-spot__gain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .dig-gauge__say {
+  flex: none;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--font-ui-xs);
   color: var(--ink-3);
@@ -223,6 +231,8 @@
 
 /* 動いているあいだの取り消し。止める操作（枠全体）より小さく、端に。 */
 .dig .dig-gauge__cancel {
+  flex: none;
+  white-space: nowrap;
   min-height: 0;
   margin-left: auto;
   padding: 0 var(--dig-s-2);

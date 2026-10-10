@@ -32,7 +32,10 @@ export function addDict(d: Dict): void {
   for (const [k, v] of Object.entries(d.statics ?? {})) exact.set(k, v);
   for (const [k, v] of Object.entries(d.templates ?? {})) {
     const literal = k.replace(/\{\d+\}/g, '');
-    if (!JA.test(literal)) continue;
+    // 差し込みで始まって差し込みで終わり、決まった字が一字だけの型（「{0}に{1}{2}」のような）は、
+    // どんな文にも当たって訳を壊すので使わない（「金 {0}」のような、字で始まる短い型は使う）。
+    const loose = /^\{\d+\}/.test(k) && /\{\d+\}$/.test(k) && literal.replace(/\s/g, '').length < 2;
+    if (!JA.test(literal) || loose) continue;
     const src = k
       .split(/(\{\d+\})/)
       .map((part) => {
@@ -58,7 +61,7 @@ export async function setLang(next: Lang): Promise<void> {
   cache.clear();
 }
 
-const SEP = /(\n|　|、|。|・|：|／)/;
+const SEP = /(\n|　|、|。|・|：|／| → | × )/;
 const SEP_EN: Record<string, string> = {
   '\n': '\n',
   '　': '  ',
@@ -67,6 +70,8 @@ const SEP_EN: Record<string, string> = {
   '・': ' · ',
   '：': ': ',
   '／': ' / ',
+  ' → ': ' → ',
+  ' × ': ' × ',
 };
 
 function whole(s: string, depth: number): string | null {

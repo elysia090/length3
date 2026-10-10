@@ -495,7 +495,7 @@
   color: var(--amber-text);
 }
 
-/* 手放すと決めた札は、斜線で消して「手放す」の札を添える。 */
+/* 手放すと決めた札は、斜線で消して頭に「手放す」の印を添える。 */
 /* 並びの都合でここに置く（本来は hand.css。.dig .dig-scene__card.is-chosen より後に効く必要がある）。 */
 .dig .dig-card.is-drop {
   outline: 1px solid var(--amber-text);
@@ -505,33 +505,23 @@
     var(--bg);
 }
 
+/* 選んだ印（拾う・手放す）は、どちらも札の頭、回数の手前に同じ形で。本文には重ねない。 */
 /* 並びの都合でここに置く（本来は hand.css。.dig-scene__head より後に効く必要がある）。 */
-.dig-card__drop {
-  align-self: flex-start;
+/* 狭い札では、印と回数が名の下の行へ回る（名は削らない）。 */
+.dig-card__head:has(.dig-card__mark) {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.dig-card__mark {
+  flex: none;
+  margin-left: auto;
   padding: 0 4px;
   border: 1px solid var(--amber-text);
   font-family: var(--font-mono);
   font-size: var(--font-ui-xs);
   color: var(--amber-text);
   background: var(--bg);
-}
-
-.dig .dig-hand .dig-scene__card.is-chosen::after {
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  padding: 0 6px;
-  content: '拾う';
-  font-family: var(--font-mono);
-  font-size: var(--font-ui-xs);
-  color: var(--bg);
-  background: var(--amber-text);
-}
-
-/* 5 「拾う」の札は、回数を隠さないよう下の角に。 */
-.dig .dig-hand .dig-scene__card.is-chosen::after {
-  top: auto;
-  bottom: -1px;
 }
 
 /* 手札の一覧：選んだ道で頼る札は、選んだ箱と同じ琥珀の印。尽きる札は一言だけ。 */

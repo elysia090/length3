@@ -5,6 +5,8 @@ import { tr } from '../i18n';
  * 文字列（子と、読み上げ・題の属性）は、ここで画面の言語に置き換える。
  */
 const SAID = new Set(['aria-label', 'title', 'placeholder', 'alt']);
+/** 読み上げ・題の属性の元の文。言語を替えたとき、作り直さない要素（地図の脇の釦など）を訳し直す。 */
+const SOURCE = new WeakMap<Element, Record<string, string>>();
 export type Child = Node | string | number | false | null | undefined;
 
 export function h<K extends keyof HTMLElementTagNameMap>(
@@ -17,10 +19,34 @@ export function h<K extends keyof HTMLElementTagNameMap>(
     if (v === undefined || v === false) continue;
     if (typeof v === 'function') el.addEventListener(k.slice(2), v);
     else if (v === true) el.setAttribute(k, '');
-    else el.setAttribute(k, SAID.has(k) ? tr(String(v)) : String(v));
+    else if (SAID.has(k)) {
+      const src = SOURCE.get(el) ?? {};
+      src[k] = String(v);
+      SOURCE.set(el, src);
+      el.setAttribute(k, tr(src[k]));
+    } else el.setAttribute(k, String(v));
   }
   fill(el, children);
   return el;
+}
+
+/** root の下で、h() で付けた読み上げ・題の属性を、いまの言語で付け直す（触れたときの預かり分も）。 */
+export function retranslate(root: Element): void {
+  for (const el of [root, ...root.querySelectorAll('*')]) {
+    const src = SOURCE.get(el);
+    if (!src) continue;
+    for (const [k, v] of Object.entries(src)) {
+      if (
+        k === 'title' &&
+        !el.hasAttribute('title') &&
+        el instanceof HTMLElement &&
+        'tip' in el.dataset
+      ) {
+        el.dataset.tip = tr(v);
+        el.setAttribute('aria-description', tr(v).replace(/\n+/g, '　'));
+      } else el.setAttribute(k, tr(v));
+    }
+  }
 }
 
 export function fill(el: Element, children: readonly (Child | readonly Child[])[]): void {

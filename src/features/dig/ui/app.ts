@@ -55,7 +55,7 @@ import {
 } from '../sim/run';
 import { type SpotAction, spotActions } from '../sim/spot';
 import { badges, epChip, heals, luckyTag, outcome, pips, previewCard } from './cards';
-import { button, type Child, fill, h, meter } from './dom';
+import { button, type Child, fill, h, meter, retranslate } from './dom';
 import { armDetail, type EncView, encounterPanel } from './encounter';
 import { HINTS, nextHint } from './hints';
 import { hoverTips } from './hovertip';
@@ -1358,6 +1358,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           saveProfile(profile);
           void setLang(next).then(() => {
             dialog.lang = next;
+            retranslate(dialog);
             renderBar();
             render();
           });
@@ -2335,6 +2336,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         'span',
         { class: 'dig-card__head' },
         h('b', { class: 'dig-card__name' }, def.name),
+        opts.chosen ? h('span', { class: 'dig-card__mark' }, '拾う') : null,
         h('span', { class: 'dig-card__key' }, `${n} 回`),
       ),
       opts.eps?.length
@@ -2442,6 +2444,7 @@ export function openDig(doc: Document, onClose: () => void): void {
             'span',
             { class: 'dig-card__head' },
             h('b', { class: 'dig-card__name' }, g?.name ?? id),
+            pickId === id ? h('span', { class: 'dig-card__mark' }, '拾う') : null,
             h('span', { class: 'dig-card__key' }, `道具・${g?.uses ?? 1} 回`),
           ),
           h('span', { class: 'dig-card__fx' }, g?.text ?? ''),
@@ -2506,7 +2509,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         ? h(
             'div',
             { class: 'dig-scene__row dig-scene__drop' },
-            h('span', { class: 'dig-scene__label' }, '手放す一枚'),
             st.all.map((c) =>
               h(
                 'button',
@@ -2541,8 +2543,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       h(
         'div',
         { class: 'dig-handview__head' },
-        h('h3', {}, `手持ち ${deckSize(w.you)}/${deckCap(w.you)}`),
-        st.needDrop ? h('span', { class: 'dig-handview__ask' }, '手放す一枚を押す') : null,
+        h('h3', {}, `手持ちの札 ${deckSize(w.you)}/${deckCap(w.you)}`),
       ),
       h(
         'div',
@@ -2564,6 +2565,7 @@ export function openDig(doc: Document, onClose: () => void): void {
               'span',
               { class: 'dig-card__head' },
               h('b', { class: 'dig-card__name' }, def.name),
+              dropUid === c.uid ? h('span', { class: 'dig-card__mark' }, '手放す') : null,
               h('span', { class: 'dig-card__key' }, `${c.uses}/${c.max}`),
             ),
             c.eps.length
@@ -2576,7 +2578,6 @@ export function openDig(doc: Document, onClose: () => void): void {
             pips(c),
             badges(def.ready),
             h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
-            dropUid === c.uid ? h('span', { class: 'dig-card__drop' }, '手放す') : null,
           );
         }),
       ),
@@ -3628,17 +3629,17 @@ export function openDig(doc: Document, onClose: () => void): void {
         : st?.needDrop && pickId
           ? '手放す一枚を選ぶ'
           : '拾う一枚を選ぶ';
+    // 何をする段かは、欄の中の一文（確かめる帯）と下端の釦が言う。ここは点だけ（読み上げには段の名）。
     fill(stepNav, [
       button('前へ', () => go('info'), { class: 'dig-stepnav__prev', disabled: first }),
       h(
         'span',
-        { class: 'dig-stepnav__at' },
+        { class: 'dig-stepnav__at', role: 'img', 'aria-label': `${now}/${steps} ${tr(label)}` },
         h(
           'span',
-          { class: 'dig-stepnav__dots', 'aria-hidden': 'true' },
+          { class: 'dig-stepnav__dots' },
           Array.from({ length: steps }, (_, i) => h('i', { class: i + 1 === now ? 'is-on' : '' })),
         ),
-        label,
       ),
       first && offers
         ? button('次へ', () => go('hand'), { class: 'dig-stepnav__next dig-go' })
@@ -3758,5 +3759,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
   const first = profile.lang ?? (doc.documentElement.lang.startsWith('en') ? 'en' : 'ja');
   dialog.lang = first;
-  void setLang(first).then(render);
+  void setLang(first).then(() => {
+    retranslate(dialog);
+    render();
+  });
 }

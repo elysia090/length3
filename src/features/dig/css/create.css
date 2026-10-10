@@ -282,11 +282,3 @@
 .dig-deckview {
   padding-bottom: 64px;
 }
-
-/* 4 手札の欄の「手放す一枚を押す」は、見出しと同じ大きさで琥珀に。 */
-.dig-handview__ask {
-  font-family: var(--font-mono);
-  font-size: var(--font-ui-xs);
-  letter-spacing: 0.08em;
-  color: var(--amber-text);
-}
