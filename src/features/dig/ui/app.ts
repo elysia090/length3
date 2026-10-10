@@ -2627,8 +2627,8 @@ export function openDig(doc: Document, onClose: () => void): void {
         offerCards(w, true),
         st.needDrop ? dropPicks(st) : null,
       ),
-      st.needGear ? gearDrops(w) : null,
       rewardDetail(w, st),
+      st.needGear ? gearDrops(w) : null,
       confirmBar(w),
     ];
   }

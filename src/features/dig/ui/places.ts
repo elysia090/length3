@@ -376,7 +376,6 @@ export function gearRows(
               onclick: () => pick.on(it.id),
             },
             `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
-            chosen ? h('span', { class: 'dig-card__mark' }, '置いていく') : null,
           ),
         ];
       }
