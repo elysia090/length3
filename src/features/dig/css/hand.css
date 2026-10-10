@@ -238,19 +238,27 @@
   line-height: 1;
 }
 
+/*
+ * エピテットは《》がもう語を括っているので、枠で二重に囲わない。格の色の字だけで並べ、
+ * 触れると琥珀に、選んでいるあいだは琥珀の下線（字の幅いっぱい、位置は動かさない）。
+ */
 .dig .dig-pill--ep {
+  padding: 0 2px;
+  border-style: none;
+  background: transparent;
   cursor: grab;
 }
 
 .dig .dig-pill--ep.is-chosen {
-  border-color: var(--amber-text);
+  box-shadow: inset 0 -2px 0 var(--amber-text);
   color: var(--amber-text);
 }
 
 @media (hover: hover) {
   .dig .dig-pill--ep:hover:not(:disabled) {
-      border-color: var(--amber-text);
       color: var(--amber-text);
+      text-decoration: underline dotted;
+      text-underline-offset: 3px;
     }
 }
 
@@ -364,7 +372,7 @@
   border-style: dashed;
 }
 
-/* まだ貼ったことのないエピテットは、縁が静かに琥珀で息をする（貼れる、という合図）。 */
+/* まだ貼ったことのないエピテットは、字が静かに琥珀で息をする（貼れる、という合図）。 */
 .dig .dig-pill--ep.is-fresh:not(:disabled) {
   animation: dig-fresh 1.6s ease-in-out infinite;
 }
@@ -372,7 +380,7 @@
 @media (prefers-reduced-motion: reduce) {
   .dig .dig-pill--ep.is-fresh:not(:disabled) {
       animation: none;
-      border-color: var(--amber-text);
+      color: var(--amber-text);
     }
 }
 
@@ -967,7 +975,6 @@
 
 @keyframes dig-fresh {
   50% {
-    border-color: var(--amber-text);
     color: var(--amber-text);
   }
 }
