@@ -200,6 +200,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   let dropGear: string | null = null;
   /** 置いていく品を押した時刻（押した直後の一度だけ、置く動きを見せる）。 */
   let dropGearAt = -9;
+  /** 置いていく品の段：1 取り消し線 → 2 灰色 → 3 消える（押すたびに一段ずつ）。 */
+  let dropStage = 0;
   /** 人物を決める画面で、初めの手札を開いているか。 */
   let handOpen = false;
   /** 左の欄を、地図ではなく手札の一覧にしているか（向き合っていないとき）。 */
@@ -2441,7 +2443,12 @@ export function openDig(doc: Document, onClose: () => void): void {
     render();
   };
   const selectGear = (id: string) => () => {
-    dropGear = dropGear === id ? null : id;
+    // 同じ品を押すたびに一段ずつ置いていく（線を引く → 灰色に → 消える）。別の品を押せば選び直し。
+    if (dropGear === id) dropStage = Math.min(3, dropStage + 1);
+    else {
+      dropGear = id;
+      dropStage = 1;
+    }
     dropGearAt = now();
     render();
   };
@@ -2603,6 +2610,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       h('h3', {}, '持ち物'),
       gearRows(w, ui, {
         chosen: dropGear,
+        stage: dropStage,
         on: (id) => selectGear(id)(),
         fresh: now() - dropGearAt < 0.5,
       }),

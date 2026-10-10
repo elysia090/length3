@@ -627,8 +627,11 @@
 }
 
 /*
- * 置いていく一つ（受け取りで持ち物がいっぱいのとき）。選んだ品は琥珀の枠に取り消し線。
- * 押した直後の一度だけ、箱が軽く沈んで戻り、線が左から引かれる（自分で置いた手応え）。
+ * 置いていく一つ（受け取りで持ち物がいっぱいのとき）。同じ品を押すたびに一段ずつ：
+ *   1 琥珀の枠に取り消し線（線は左から引かれる）
+ *   2 灰色になる（もう手元のものではない）
+ *   3 縮みながら下へ落ちて消える
+ * 動きは段が変わった直後の一度だけ（is-fresh）。描き直したあとは、その段の止まった姿。
  */
 .dig .dig-gear__item.is-drop {
   position: relative;
@@ -647,12 +650,38 @@
   transform-origin: left center;
 }
 
-.dig .dig-gear__item.is-placing {
+/* 触れていても灰色のまま（押した直後もマウスは乗っているので、触れた色に負けないように）。 */
+.dig .dig-gear__item.is-set,
+.dig .dig-gear__item.is-set:hover:not(:disabled) {
+  border-color: var(--rule);
+  border-style: dashed;
+  color: var(--ink-3);
+  background: transparent;
+}
+
+.dig .dig-gear__item.is-gone {
+  display: none;
+}
+
+.dig .dig-gear__item.is-drop.is-fresh:not(.is-set) {
   animation: dig-set-down 0.3s ease-out;
 }
 
-.dig-gear__item.is-placing::after {
+.dig-gear__item.is-drop.is-fresh:not(.is-set)::after {
   animation: dig-strike 0.26s ease-out 0.06s both;
+}
+
+.dig .dig-gear__item.is-set.is-fresh:not(.is-gone) {
+  animation: dig-dim 0.32s ease-out;
+}
+
+/* 消える段は、描き直した直後だけ姿を残して、縮みながら落ちて消える。 */
+.dig .dig-gear__item.is-gone.is-fresh {
+  display: inline-flex;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: dig-leave 0.46s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  pointer-events: none;
 }
 
 @keyframes dig-set-down {
@@ -675,10 +704,46 @@
   }
 }
 
+@keyframes dig-dim {
+  from {
+    border-color: var(--amber-text);
+    border-style: solid;
+    color: var(--amber-text);
+  }
+}
+
+@keyframes dig-leave {
+  0% {
+    max-width: 12em;
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  40% {
+    max-width: 12em;
+    opacity: 0.8;
+    translate: 0 3px;
+  }
+
+  100% {
+    max-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .dig .dig-gear__item.is-placing,
-  .dig-gear__item.is-placing::after {
+  .dig .dig-gear__item.is-fresh,
+  .dig-gear__item.is-fresh::after {
     animation: none;
+  }
+
+  .dig .dig-gear__item.is-gone.is-fresh {
+    display: none;
   }
 }
 

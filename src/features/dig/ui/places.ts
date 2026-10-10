@@ -356,7 +356,14 @@ export function toldPanel(w: World, ui: Ui): HTMLElement {
 export function gearRows(
   w: World,
   ui: Ui,
-  pick?: { chosen: string | null; on: (id: string) => void; fresh?: boolean },
+  pick?: {
+    chosen: string | null;
+    /** 1 取り消し線 → 2 灰色 → 3 消える。 */
+    stage?: number;
+    on: (id: string) => void;
+    /** 押した直後（その段へ移る動きを一度だけ見せる）。 */
+    fresh?: boolean;
+  },
 ): HTMLElement | null {
   if (!w.you.items.length) return null;
   const gear = (kind: 'rest' | 'prep' | 'seek' | 'keep') =>
@@ -365,15 +372,20 @@ export function gearRows(
       if (!g || g.kind !== kind) return [];
       if (pick) {
         const chosen = pick.chosen === it.id;
-        // 選んだ品は取り消し線。押した直後の一度だけ、箱が沈んで線が引かれる（自分で置いた手応え）。
+        // 選んだ品は押すたびに一段ずつ置いていく：取り消し線 → 灰色 → 消える。
+        // 段が変わった直後の一度だけ、その段の動きを見せる（消える段は、縮んで落ちる）。
+        const stage = chosen ? (pick.stage ?? 1) : 0;
+        const cls = ['', ' is-drop', ' is-drop is-set', ' is-drop is-set is-gone'][stage] ?? '';
+        const label = ['', '置いていく', '置いていく（もう一度で手放す）', '置いた'][stage] ?? '';
         return [
           h(
             'button',
             {
               type: 'button',
-              class: `dig-gear__item${g.tool ? ' is-tool' : ''}${chosen ? ' is-drop' : ''}${chosen && pick.fresh ? ' is-placing' : ''}`,
+              class: `dig-gear__item${g.tool ? ' is-tool' : ''}${cls}${stage && pick.fresh ? ' is-fresh' : ''}`,
               'aria-pressed': chosen ? 'true' : 'false',
-              'aria-label': chosen ? `${g.name}（置いていく）` : undefined,
+              'aria-label': label ? `${g.name}（${label}）` : undefined,
+              disabled: stage >= 3,
               title: [g.text, g.flavor].filter(Boolean).join('\n'),
               onclick: () => pick.on(it.id),
             },
