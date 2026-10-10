@@ -41,8 +41,16 @@ function table<T extends { id: string }>(name: string, list: () => readonly T[])
   return t;
 }
 
+// 表は一度だけ組む。引くたびに table() を通すと、試算の何十万回の引きでそれだけで目立つので、
+// 組んだ表を変数に持っておく。
+let cardT: Map<string, CardDef> | undefined;
+let foeT: Map<string, FoeDef> | undefined;
+let permT: Map<string, PermDef> | undefined;
+let itemT: Map<string, ItemDef> | undefined;
+let epT: Map<string, Epithet> | undefined;
+
 const cards = () =>
-  table<CardDef>('cards', () =>
+  (cardT ??= table<CardDef>('cards', () =>
     [...WORKS, ...BASICS, ...LEGACY].map((d) => {
       // 札の力は、札そのもの（効き目と一文）とレベルとエピテットだけ（主役の章・構成は無い）。
       // いくつかの札は、レベルごとに効き目が一つずつ開く（Ⅰ・Ⅱ・Ⅲ）。
@@ -58,11 +66,11 @@ const cards = () =>
         triggers: [...(d.triggers ?? []), ...(sig?.triggers ?? []), ...(lr?.triggers ?? [])],
       });
     }),
-  );
+  ));
 const foes = () =>
-  table<FoeDef>('foes', () =>
+  (foeT ??= table<FoeDef>('foes', () =>
     FOE_LIST.map((d) => ({ ...d, arch: d.arch ?? (FOE_ARCH[d.id] as readonly Archetype[]) ?? [] })),
-  );
+  ));
 
 export function cardDef(id: string): CardDef {
   const d = cards().get(id);
@@ -76,13 +84,21 @@ export function foeDef(id: string): FoeDef {
   return d;
 }
 
-export const permDef = (id: string): PermDef | undefined => table('perms', () => PERM_LIST).get(id);
-export const itemDef = (id: string): ItemDef | undefined =>
-  table('items', () => [...ITEM_LIST, ...KEEPSAKES]).get(id);
+export function permDef(id: string): PermDef | undefined {
+  permT ??= table('perms', () => PERM_LIST);
+  return permT.get(id);
+}
+export function itemDef(id: string): ItemDef | undefined {
+  itemT ??= table('items', () => [...ITEM_LIST, ...KEEPSAKES]);
+  return itemT.get(id);
+}
 export const storyDef = (id: string): StoryDef | undefined =>
   table('stories', () => STORY_LIST).get(id);
 export const jobDef = (id: string): JobDef | undefined => table('jobs', () => JOB_LIST).get(id);
-export const epithetDef = (id: string): Epithet | undefined => table('eps', () => EPITHETS).get(id);
+export function epithetDef(id: string): Epithet | undefined {
+  epT ??= table('eps', () => EPITHETS);
+  return epT.get(id);
+}
 
 export const allCards = (): CardDef[] => [...cards().values()];
 export const allFoes = (): FoeDef[] => [...foes().values()];

@@ -172,7 +172,8 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'perm': {
       const c = charOf(w, ev.who);
-      if (ev.gain && !c.perms.includes(ev.id)) c.perms.push(ev.id);
+      // 並びは書き換えずに替える（試行の写しが本物と並びを共有できるように）。
+      if (ev.gain && !c.perms.includes(ev.id)) c.perms = [...c.perms, ev.id];
       if (!ev.gain) c.perms = c.perms.filter((p) => p !== ev.id);
       break;
     }

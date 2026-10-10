@@ -295,7 +295,7 @@ export function makeChar(job: string, name: string, carry?: string, sheet: Sheet
     titles: [],
     uid: 6,
   };
-  if (carry && permDef(carry) && !c.perms.includes(carry)) c.perms.push(carry);
+  if (carry && permDef(carry) && !c.perms.includes(carry)) c.perms = [...c.perms, carry];
   const s = statsOfChar(c);
   c.hp = maxHp(s);
   c.mind = maxMind(s);
@@ -527,7 +527,7 @@ export function start(
   sheet: Sheet = {},
 ): void {
   const you = makeChar(job, sheet.name ?? 'あなた', carry, sheet);
-  if (depth >= 2 && !you.perms.includes('fear')) you.perms.push('fear');
+  if (depth >= 2 && !you.perms.includes('fear')) you.perms = [...you.perms, 'fear'];
   const others = [
     'surveyor',
     'watch',

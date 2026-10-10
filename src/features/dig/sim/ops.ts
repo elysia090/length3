@@ -2,7 +2,7 @@ import { PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { LineKind } from '../content/defs';
 import { gearOf, ITEM_CAP } from '../content/gear';
-import { cardDef, epithetDef, foeDef, itemDef, permDef } from '../content/registry';
+import { allKeepsakes, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import type {
   Card,
   Char,
@@ -31,7 +31,43 @@ export const actor = (tx: Tx): Who => tx.w.enc?.who ?? 'you';
 
 /** 記憶（永続カード）の補正の合計と、盤面で変わる記憶。並びが同じなら使い回す。 */
 const permPart = new Map<string, { mods: StatBlock; dyn: string[] }>();
+/**
+ * 記憶の並びごとの直近の答え。並びは付け外しで配列ごと替わり、刻んだ語も語の配列ごと
+ * 替わる（reduce.ts）ので、配列が同じ物なら答えも同じ。試行の写しも並びを共有するので
+ * （branch.ts）、写すたびに鍵の文字列を組み直さずに済む。
+ */
+const permLast = new WeakMap<
+  readonly string[],
+  {
+    perms: readonly string[];
+    len: number;
+    eps: (readonly string[] | undefined)[];
+    out: { mods: StatBlock; dyn: string[] };
+  }
+>();
 function permsOf(c: Char): { mods: StatBlock; dyn: string[] } {
+  const last = permLast.get(c.perms);
+  if (last && last.len === c.perms.length) {
+    let same = true;
+    for (let i = 0; i < last.len; i++) {
+      if (last.eps[i] !== c.permEps[c.perms[i] as string]) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return last.out;
+  }
+  const out = permsKeyed(c);
+  permLast.set(c.perms, {
+    perms: c.perms,
+    len: c.perms.length,
+    eps: c.perms.map((id) => c.permEps[id]),
+    out,
+  });
+  return out;
+}
+
+function permsKeyed(c: Char): { mods: StatBlock; dyn: string[] } {
   let key = c.perms.join(',');
   for (const id of c.perms) {
     const e = c.permEps[id];
@@ -59,8 +95,8 @@ export function stats(w: World, who: Who): StatBlock {
   const out = zeroStats();
   for (const s of STATS) out[s] = c.innate[s] + c.growth[s] + p.mods[s];
   for (const it of c.items) {
-    const d = itemDef(it.id);
-    if (d?.kind === 'keep' && d.mods) for (const s of STATS) out[s] += d.mods[s] ?? 0;
+    const m = keepMods().get(it.id);
+    if (m) for (const s of STATS) out[s] += m[s] ?? 0;
   }
   if (who === 'you') out.VIT += keepVit(w);
   if (p.dyn.length && w.enc?.who === who)
@@ -72,12 +108,18 @@ export function stats(w: World, who: Who): StatBlock {
   return out;
 }
 
+/** 能力値を足す身につける品（id → 足す量）。一度だけ組む。 */
+let keepModT: Map<string, Partial<StatBlock>> | undefined;
+const keepMods = () =>
+  (keepModT ??= new Map(allKeepsakes().flatMap((d) => (d.mods ? [[d.id, d.mods] as const] : []))));
+
 /** 一生ものの靴・使い古した安全靴で増えた体格（体格 1 = 最大体力 4）。 */
 export function keepVit(w: World): number {
-  const has = (id: string) => w.you.items.some((x) => x.id === id);
   let v = 0;
-  if (has('lifelong-shoes')) v += Math.floor((w.flags['keep:shoes'] ?? 0) / 4);
-  if (has('worn-boots')) v += w.flags['keep:boots'] ?? 0;
+  for (const it of w.you.items) {
+    if (it.id === 'lifelong-shoes') v += Math.floor((w.flags['keep:shoes'] ?? 0) / 4);
+    else if (it.id === 'worn-boots') v += w.flags['keep:boots'] ?? 0;
+  }
   return v;
 }
 

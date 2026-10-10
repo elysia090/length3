@@ -5,6 +5,7 @@ import { forkEncounter } from '../core/branch';
 import type { Basic } from '../core/events';
 import { believes, portrait } from '../core/mind';
 import type { Intent, World } from '../core/model';
+import { bookOf } from '../core/rules';
 import { Tx } from '../core/tx';
 import { basic, canAccept, useCard } from './encounter';
 import { foeHardness } from './hardness';
@@ -113,9 +114,10 @@ export function bestAction(w: World, depth = 1): Action {
   const list = actions(w);
   let best: Action = { kind: 'basic', a: 'leave' };
   let bestV = Number.NEGATIVE_INFINITY;
+  const book = bookOf(w);
   list.forEach((a, i) => {
     const s = fork(w, i + 17);
-    act(new Tx(s, true), a);
+    act(new Tx(s, true, book), a);
     let v = judgeYou(w, s);
     if (depth > 1 && s.enc?.phase === 'act' && !(a.kind === 'basic' && a.a === 'leave')) {
       let next = Number.NEGATIVE_INFINITY;
@@ -273,12 +275,13 @@ export function planFoe(tx: Tx): void {
   else {
     const def = foeDef(e.foe.id);
     let best = Number.NEGATIVE_INFINITY;
+    const book = bookOf(w);
     moves.forEach((m, mi) => {
       const k = rollouts(w);
       let total = 0;
       for (let i = 0; i < k; i++) {
         const s = fork(w, mi * 97 + i);
-        const stx = new Tx(s, true);
+        const stx = new Tx(s, true, book);
         const se = s.enc;
         if (!se) continue;
         stx.emit({ type: 'intent', move: m.id, intent: m.intent(s) });

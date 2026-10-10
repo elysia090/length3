@@ -31,7 +31,14 @@ export class Tx {
     readonly w: World,
     /** 頭の試行（イベントは畳み込むが、画面には出さない）。 */
     readonly sim = false,
-  ) {}
+    /**
+     * 試行の写しは元と同じ規則の鍵を持つので、元で引いた規則をそのまま渡せる
+     * （写すたびに鍵を組み直さない）。
+     */
+    book: Rulebook | null = null,
+  ) {
+    this.book = book;
+  }
 
   emit(ev: Ev): void {
     apply(this.w, ev);
