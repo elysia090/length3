@@ -1,11 +1,12 @@
 import { PACE } from '../content/balance';
+import { gearOf } from '../content/gear';
 import { cardDef, epithetDef } from '../content/registry';
-import { archSetsOf, buildsOf, linksOf } from '../content/sources';
 import type { Cmd } from '../core/events';
-import type { Card, Char, World } from '../core/model';
+import type { Card, World } from '../core/model';
 import { advise, type RouteKind } from './advise';
 import { bestAction } from './ai';
 import { foeHardness, youHardness } from './hardness';
+import { bestCardInk, foeValue, type Style } from './inking';
 import { maxHp, stats } from './ops';
 import {
   breathed,
@@ -16,7 +17,9 @@ import {
   ITEM_CAP,
   isBridge,
   isHall,
+  priceOf,
   reachable,
+  stackable,
 } from './run';
 import { spotActions } from './spot';
 
@@ -24,13 +27,14 @@ import { spotActions } from './spot';
  * 自動操縦。あなたの席に座る頭（ライバルと同じ 1 手読み）に、地図の上の
  * 簡単な好みを足したもの。テストと釣り合いの試算、それと「おまかせ」に使う。
  */
-export function pilot(w: World, opts: { quick?: boolean } = {}): Cmd | null {
+export function pilot(w: World, opts: { quick?: boolean; style?: Style } = {}): Cmd | null {
+  const style = opts.style ?? 'safe';
   if (w.ending) return null;
   const e = w.enc;
   if (e) {
     if (e.phase === 'over') return { c: 'close' };
     // 弱めるエピテットは、手強い相手に刻む（手番は使わない）。
-    const weak = foeInk(w);
+    const weak = foeInk(w, style);
     if (weak) return { c: 'inscribe', ep: weak, foe: true };
     // 道の読みの試行の中では 1 手読み（2 手読みは一手ごとに世界を 7×7 回複製する。
     // 試行は場所の数だけ回るので、ここが読みの時間のほとんどを占めていた）。
@@ -51,8 +55,10 @@ export function pilot(w: World, opts: { quick?: boolean } = {}): Cmd | null {
             }
           });
         }
-        const pick = pickCard(w, p.cards, p.inked);
-        const tool = !pick && w.you.items.length < ITEM_CAP ? p.tools[0] : undefined;
+        // 身につける品は、枠が空いていれば札より先に（ずっと効くので）。
+        const keep = p.tools.find((id) => wantKeep(w, id));
+        const pick = keep ? undefined : pickCard(w, p.cards, p.inked);
+        const tool = keep ?? (!pick && w.you.items.length < ITEM_CAP ? p.tools[0] : undefined);
         return {
           c: 'claim',
           take: p.take[0],
@@ -88,7 +94,7 @@ export function pilot(w: World, opts: { quick?: boolean } = {}): Cmd | null {
   // 抜けたあと、最後の相手から二度退いたら、そこで灯りを置く。
   if (w.flags.cleared && (w.flags[`retreat:${w.stratum}`] ?? 0) >= 2)
     return { c: 'onward', go: false };
-  const ins = inscription(w);
+  const ins = inscription(w, style);
   if (ins) return ins;
   const all = reachable(w);
   if (!all.length) return null;
@@ -132,18 +138,57 @@ export function pilot(w: World, opts: { quick?: boolean } = {}): Cmd | null {
  * うち指定の性格の道を一歩進み、それ以外は pilot と同じ。指定の性格の道が
  * 出ていなければ、安定の道を歩く。
  */
+/**
+ * 剥がしたら、次の一手で必ずその先へ刻む（画面の付け替えの箱と同じく、剥がす・刻むで一組）。
+ * 剥がしたあとに読み直すと、頼る札が替わって行き先が揺れ、剥がしては戻すを繰り返すので。
+ */
+let carry: { seed: number; seq: number; cmd: Cmd } | null = null;
+
 export function routePilot(w: World, kind: RouteKind): Cmd | null {
-  if (w.enc || w.pending || w.ending) return pilot(w);
+  const style: Style = kind;
+  const held = carry;
+  carry = null;
+  if (
+    held &&
+    held.seed === w.seed &&
+    w.seq > held.seq &&
+    held.cmd.c === 'inscribe' &&
+    w.you.epithets.includes(held.cmd.ep) &&
+    !w.enc
+  )
+    return held.cmd;
+  if (w.enc || w.pending || w.ending) return pilot(w, { style });
   const a = advise(w, { samples: 1 });
   const all = [...(a?.win ?? []), ...(a?.play ?? [])];
   const r = all.find((x) => x.kind === kind) ?? all.find((x) => x.kind === 'safe');
+  // その道の方針どおりに整える（付け替え、道の先へ刻む）。剥がしてくる語は、先に剥がす。
+  for (const m of [r?.ink, r?.mark]) {
+    if (!m) continue;
+    const put: Cmd =
+      'to' in m
+        ? { c: 'inscribe', ep: m.ep, uid: m.to }
+        : { c: 'inscribe', ep: m.ep, node: m.node };
+    if (m.from !== undefined && !w.you.epithets.includes(m.ep)) {
+      carry = { seed: w.seed, seq: w.seq, cmd: put };
+      return { c: 'peel', uid: m.from, ep: m.ep };
+    }
+    if (w.you.epithets.includes(m.ep)) return put;
+  }
+  const own = pilot(w, { style });
+  if (own && own.c !== 'move') return own;
   const id = r?.path[0];
-  return id === undefined ? pilot(w) : { c: 'move', node: id };
+  return id === undefined ? own : { c: 'move', node: id };
 }
 
-/** 構成の値打ち（ビルド・連携・原型の重なり）。買い物と刻みの判断に使う。 */
-export function deckScore(c: Char): number {
-  return buildsOf(c).length * 30 + linksOf(c).length * 10 + archSetsOf(c).length * 5;
+/** 直感で選ぶ人が手に取る、身につける品（借金と片道は避ける）。 */
+function wantKeep(w: World, id: string): boolean {
+  return (
+    gearOf(id)?.kind === 'keep' &&
+    id !== 'iou' &&
+    id !== 'one-way' &&
+    w.you.items.length < ITEM_CAP - 1 &&
+    !w.you.items.some((x) => x.id === id)
+  );
 }
 
 function shopping(w: World): Cmd | null {
@@ -151,6 +196,13 @@ function shopping(w: World): Cmd | null {
   if (p?.kind !== 'shop') return null;
   let best: Cmd | null = null;
   let gain = 9;
+  for (const it of p.items)
+    if (
+      !p.sold.includes(it) &&
+      wantKeep(w, it) &&
+      priceOf(w, gearOf(it)?.price ?? 99) <= w.you.coins
+    )
+      return { c: 'buy', id: it };
   for (const id of p.cards) {
     if (p.sold.includes(id) || cardPrice(w, id) > w.you.coins || !deckRoom(w.you)) continue;
     // 後ろに入る札は構成を変えないので、余地があれば一枚だけ買う。
@@ -162,7 +214,8 @@ function shopping(w: World): Cmd | null {
   for (const it of p.items) {
     if (!it.startsWith('ep:') || p.sold.includes(it) || epPrice(w, it.slice(3)) > w.you.coins)
       continue;
-    const g = bestInscription(w.you, it.slice(3))?.gain ?? 0;
+    // 値踏みは押し（体力 1 を削るのが 1）。札一枚を買う値打ちを 10 と見る。
+    const g = bestCardInk(w, 'chain', [{ ep: it.slice(3) }])?.v ?? 0;
     if (g > gain) {
       gain = g;
       best = { c: 'buy', id: it };
@@ -171,65 +224,46 @@ function shopping(w: World): Cmd | null {
   return best;
 }
 
-function bestInscription(you: Char, ep: string): { slot: number; gain: number } | null {
-  if (!epithetDef(ep)?.card) return null;
-  const base = deckScore(you);
-  let out: { slot: number; gain: number } | null = null;
-  you.cards.forEach((card, slot) => {
-    if (!card || card.eps.length >= 2 || card.eps.includes(ep)) return;
-    const cards = [...you.cards];
-    cards[slot] = { ...card, eps: [...card.eps, ep] };
-    const c = { ...you, cards };
-    const g = deckScore(c) - base;
-    if (g > 0 && (!out || g > out.gain)) out = { slot, gain: g };
-  });
-  return out;
+/** 手元の語を札へ（値踏みは inking。性格で、回数・強め・構成の重みが替わる）。 */
+function inscription(w: World, style: Style): Cmd | null {
+  const b = bestCardInk(
+    w,
+    style,
+    w.you.epithets.map((ep) => ({ ep })),
+  );
+  return b ? { c: 'inscribe', ep: b.ep, uid: b.to } : null;
 }
 
-function inscription(w: World): Cmd | null {
-  // 回数を増やすエピテットは、尽きた札（無ければ、いちばん減っている札）に刻む。
-  for (const ep of w.you.epithets) {
-    if (!epithetDef(ep)?.card?.uses) continue;
-    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back].filter(
-      (c) => c.eps.length < PACE.stack,
-    );
-    const low = all.sort((a, b) => a.uses - b.uses || b.max - a.max)[0];
-    if (low && !w.enc) return { c: 'inscribe', ep, uid: low.uid };
-  }
-  for (const ep of w.you.epithets) {
-    const b = bestInscription(w.you, ep);
-    if (b) return { c: 'inscribe', ep, slot: b.slot };
-  }
-  // 札を強めるエピテット（×1.1 より上）は、回数のいちばん多い札に重ねる。
-  for (const ep of w.you.epithets) {
-    const text = epithetDef(ep)?.card?.text ?? '';
-    if (!/×1\.[1-9]|×[2-9]/.test(text) || /−|代償/.test(text)) continue;
-    let slot = -1;
-    let most = 0;
-    w.you.cards.forEach((c, i) => {
-      if (c && c.eps.length < PACE.stack && c.max > most) {
-        most = c.max;
-        slot = i;
-      }
-    });
-    if (slot >= 0) return { c: 'inscribe', ep, slot };
-  }
-  return null;
-}
-
-/** 手強い相手（最後の相手か、硬度が上）に刻む、弱めるエピテット。 */
-function foeInk(w: World): string | null {
+/**
+ * 向き合っている相手に刻む、弱める語。手強い相手（最後の相手か、硬度が上）にだけ、
+ * 性格に合う効き目のものを。弱い効き目なら、道の先のために取っておく。
+ */
+function foeInk(w: World, style: Style): string | null {
   const e = w.enc;
   if (!e || e.who !== 'you' || e.phase !== 'act' || (e.st.inked ?? 0) >= PACE.inkEnc) return null;
   if (e.foe.eps.length >= PACE.stackFoe) return null;
-  const tough = e.tier === 'boss' || foeHardness(e.foe) > youHardness(w);
-  if (!tough) return null;
+  const hard = foeHardness(e.foe);
+  if (e.tier !== 'boss' && hard <= youHardness(w)) return null;
+  const f = e.foe;
+  const size = {
+    hp: f.hp,
+    resolve: f.resolve,
+    need: f.need,
+    atk: f.atk,
+    def: f.def,
+    clues: f.clues.filter((c) => !c.shown).length,
+  };
+  let best: string | null = null;
+  let top = 5;
   for (const ep of w.you.epithets) {
-    const f = epithetDef(ep)?.foe;
-    if (!f) continue;
-    if ((f.hp ?? 1) < 1 || (f.resolve ?? 1) < 1 || f.stun || (f.need ?? 0) < 0) return ep;
+    const d = epithetDef(ep);
+    const v = d ? foeValue(w, d, style, size) : 0;
+    if (v > top) {
+      top = v;
+      best = ep;
+    }
   }
-  return null;
+  return best;
 }
 
 /**
@@ -241,6 +275,9 @@ function pickCard(
   offer: readonly string[],
   inked?: Record<string, string[]>,
 ): { id: string; drop?: number } | null {
+  // 持っている札は重ねる（枚数は増えず、効き目と回数が上がる）。いちばん使い込む札から。
+  const stack = offer.find((id) => stackable(w.you, id));
+  if (stack) return { id: stack };
   let best: string | null = null;
   let most = -1;
   for (const id of offer) {

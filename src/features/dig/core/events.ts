@@ -65,8 +65,11 @@ export type Ev =
   | { type: 'card.ep'; who: Who; slot: number; ep: string; on: boolean }
   | { type: 'perm.ep'; who: Who; perm: string; ep: string; on: boolean }
   | { type: 'ep.held'; who: Who; ep: string; n: 1 | -1 }
+  | { type: 'ep.drained'; who: Who; ep: string; n: 1 | -1 }
   | { type: 'card.uses'; who: Who; slot: number; n: number }
   | { type: 'card.max'; who: Who; slot: number; n: number }
+  /** 同じ札を重ねて、レベルが上がる（枠でも後ろでも。回数と最大回数も一つずつ増える）。 */
+  | { type: 'card.lv'; who: Who; uid: number; n: number }
   | { type: 'card.mark'; who: Who; slot: number; mark: string; n: number }
   | { type: 'card.set'; who: Who; slot: number; card: Card | null; why: string }
   /** 後ろの札（手持ち）に加える・枠と入れ替える・回数を戻す・手放す。 */
@@ -213,6 +216,8 @@ export type Cmd =
       /** 手持ちがいっぱいのとき、代わりに手放す札（uid）。 */
       drop?: number;
       tool?: string;
+      /** 持ち物がいっぱいのとき、道具・身につける品の代わりに置いていく持ち物（id）。 */
+      dropItem?: string;
     }
   | { c: 'choose'; option: number }
   | { c: 'ack' }

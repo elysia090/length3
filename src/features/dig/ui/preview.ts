@@ -1,18 +1,14 @@
-import { allBuilds } from '../content/registry';
-import { archSetsOf, buildsOf, linksOf } from '../content/sources';
-import { tierOf } from '../content/surges';
+import { LV_MARK } from '../content/balance';
+import { cardDef } from '../content/registry';
 import { branch } from '../core/branch';
 import type { Cmd } from '../core/events';
-import type { Card, Char, World } from '../core/model';
-import { ARCH_NAME } from '../core/tags';
+import { type Card, type Char, LV_MAX, type World } from '../core/model';
 import { decide } from '../sim/decide';
-import { misses } from '../sim/near';
 import { newCard } from '../sim/run';
 
 /**
- * 先読み。決める前に、その一手で構成がどう変わるかを見せる（仮の人物を作って
- * ビルド・連携・原型の重なり・段を比べる）。拾う・買う・刻む・入れ替えるの
- * どれにも同じ言い方で答える。
+ * 先読み。決める前に、その一手で手持ちがどう変わるかを見せる（仮の人物を作って、
+ * 重なった札のレベルを比べる）。拾う・買う・刻む・入れ替えるのどれにも同じ言い方で答える。
  */
 
 export interface Delta {
@@ -20,15 +16,11 @@ export interface Delta {
   lost: string[];
 }
 
+/** 手持ちの札のレベル（Ⅱ・Ⅲ）。重ねる一手で、どの札がいくつになるかを比べる。 */
 function snapshot(c: Char): Set<string> {
   const out = new Set<string>();
-  for (const b of buildsOf(c)) {
-    out.add(`《${b.name}》`);
-    const t = tierOf(c, b.id);
-    if (t) out.add(`《${b.name}》${t === 2 ? '極み' : '暴走'}`);
-  }
-  for (const l of linksOf(c)) out.add(`〈${l.name}〉`);
-  for (const s of archSetsOf(c)) out.add(`〈${ARCH_NAME[s.arch]}×${s.at}〉`);
+  for (const card of [...c.cards, ...c.back])
+    if (card && (card.lv ?? 1) > 1) out.add(`『${cardDef(card.id).name}』${LV_MARK[card.lv ?? 1]}`);
   return out;
 }
 
@@ -38,8 +30,11 @@ export function delta(before: Char, after: Char): Delta {
   return { gained: [...b].filter((x) => !a.has(x)), lost: [...a].filter((x) => !b.has(x)) };
 }
 
-/** その札をその枠に入れたら。 */
+/** その札をその枠に入れたら（持っている札なら、その札が重なってレベルが上がる）。 */
 export function withCard(c: Char, slot: number, id: string): Char {
+  const lift = (x: Card) => (x.id === id ? { ...x, lv: Math.min(LV_MAX, (x.lv ?? 1) + 1) } : x);
+  if ([...c.cards, ...c.back].some((x) => x?.id === id))
+    return { ...c, cards: c.cards.map((x) => (x ? lift(x) : x)), back: c.back.map(lift) };
   const cards = [...c.cards];
   cards[slot] = newCard(0, id);
   return { ...c, cards };
@@ -70,19 +65,13 @@ export function bestSlot(c: Char, id: string): number {
   return best;
 }
 
-/** 一行で言う。何も変わらなければ、あと一つの手がかりを。 */
-export function say(d: Delta, after?: Char): string {
+/** 一行で言う（何も変わらなければ空）。 */
+export function say(d: Delta, _after?: Char): string {
   const parts: string[] = [];
   if (d.gained.length) parts.push(`→ ${d.gained.join('・')}`);
   if (d.lost.length) parts.push(`失う ${d.lost.join('・')}`);
-  if (!parts.length && after) {
-    const m = misses({ you: after, flags: {} } as never)[0];
-    if (m) parts.push(`あと一つで ${m.name}`);
-  }
   return parts.join('　');
 }
-
-export const buildName = (id: string) => allBuilds().find((b) => b.id === id)?.name ?? id;
 
 /** 札を一枚使ったときの、相手の四つの道への効き（相手が応じる前まで）。 */
 export interface CardEffect {
@@ -95,11 +84,21 @@ export interface CardEffect {
   calm: number;
   youHp: number;
   youMind: number;
+  /** 相手の手番が止まる・敵意・攻めと守りの増減（棒には出ない効き目）。 */
+  stun: number;
+  hostility: number;
+  atk: number;
+  def: number;
   /** この一手で決着がつくなら、その結末。 */
   ends?: string;
 }
 
 const effects = new Map<string, CardEffect>();
+
+/** 新しい挑戦を始めたら（人物が替わったら）、覚えている予測を捨てる。 */
+export function clearEffects(): void {
+  effects.clear();
+}
 
 /**
  * その札を、いま使ったらどうなるか。世界の写しで実際に使ってみて、相手の
@@ -112,7 +111,9 @@ export function cardEffect(w: World, slot: number): CardEffect {
 
 /** 札でも素手でも：その手を、いま打ったらどうなるか（相手の番の前まで）。 */
 export function effectOf(w: World, cmd: Cmd): CardEffect {
-  const key = `${w.seed}:${w.seq}:${JSON.stringify(cmd)}`;
+  // 同じ種と手順でも、人物・難しさ・手札が違えば別の局面（日替わりのやり直しなど）。
+  const hand = w.you.cards.map((c) => (c ? `${c.id}${c.uses}${c.eps.join('+')}` : '-')).join(',');
+  const key = `${w.seed}:${w.seq}:${w.you.job}:${w.depth}:${hand}:${JSON.stringify(cmd)}`;
   const hit = effects.get(key);
   if (hit) return hit;
   const out: CardEffect = {
@@ -124,6 +125,10 @@ export function effectOf(w: World, cmd: Cmd): CardEffect {
     calm: 0,
     youHp: 0,
     youMind: 0,
+    stun: 0,
+    hostility: 0,
+    atk: 0,
+    def: 0,
   };
   const evs = decide(branch(w), cmd, { sim: true });
   for (const ev of evs) {
@@ -134,7 +139,11 @@ export function effectOf(w: World, cmd: Cmd): CardEffect {
       if (ev.field === 'hp') out.hp += ev.n;
       else if (ev.field === 'resolve') out.resolve += ev.n;
       else if (ev.field === 'trust') out.trust += ev.n;
-    } else if (ev.type === 'clue' && ev.shown && !ev.false) out.clues += 1;
+      else if (ev.field === 'hostility') out.hostility += ev.n;
+      else if (ev.field === 'atk') out.atk += ev.n;
+      else if (ev.field === 'def') out.def += ev.n;
+    } else if (ev.type === 'foe.st' && ev.key === 'stun' && ev.n > 0) out.stun += ev.n;
+    else if (ev.type === 'clue' && ev.shown && !ev.false) out.clues += 1;
     else if (ev.type === 'enc.you' && ev.n > 0) {
       if (ev.field === 'guard') out.guard += ev.n;
       else if (ev.field === 'calm') out.calm += ev.n;

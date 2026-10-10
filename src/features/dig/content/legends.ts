@@ -1280,6 +1280,45 @@ export function legendRules(l: Legend): { passive: PassiveSpec[]; triggers: Trig
   return { passive, triggers };
 }
 
+/**
+ * 札のレベルに乗る規則。かつての三つの章の効き目を、そのまま札のⅠ・Ⅱ・Ⅲに置く
+ * （章を進める遊びは無い。同じ札を重ねてレベルが上がると、次の効き目が開く）。
+ * 場面（特定の人物と一度だけ起きる出来事）は、その札を持っていれば起きる。
+ */
+export function levelRules(l: Legend): { passive: PassiveSpec[]; triggers: TriggerSpec[] } {
+  const passive: PassiveSpec[] = [];
+  const triggers: TriggerSpec[] = [];
+  const lvAt = (c: Char) => {
+    const card = c.cards.find((x) => x?.id === l.id) ?? c.back.find((x) => x.id === l.id);
+    return card ? (card.lv ?? 1) : 0;
+  };
+  l.chapters.forEach((ch, k) => {
+    for (const p of ch.passive ?? [])
+      passive.push({ ...p, when: (c) => lvAt(ctxChar(c)) > k && (!p.when || p.when(c)) });
+    for (const t of ch.triggers ?? [])
+      triggers.push({
+        ...t,
+        when: (ev, w) => lvAt(charOf(w, ownerOf(w))) > k && (!t.when || t.when(ev, w)),
+      });
+  });
+  for (const s of l.scenes)
+    triggers.push({
+      on: 'enc.start',
+      when: (ev, w) =>
+        ev.type === 'enc.start' &&
+        ev.foe.id === s.npc &&
+        ev.who === 'you' &&
+        !w.flags[`scene:${l.id}:${s.npc}`],
+      run: (tx) => {
+        tx.emit({ type: 'flag', key: `scene:${l.id}:${s.npc}`, v: 1 });
+        say(tx, 'voice', s.text);
+        s.run(tx);
+      },
+      text: `場面：${s.text}`,
+    });
+  return { passive, triggers };
+}
+
 /** 画面向け：いまの章と進み具合。 */
 export function legendState(
   c: Char,

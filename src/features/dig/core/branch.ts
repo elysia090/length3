@@ -21,8 +21,8 @@ const copyCard = (c: Card | null): Card | null =>
   c ? { ...c, marks: { ...c.marks }, eps: [...c.eps] } : null;
 
 export function copyChar(c: Char): Char {
-  const permEps: Record<string, string[]> = {};
-  for (const [k, v] of Object.entries(c.permEps)) permEps[k] = [...v];
+  // 記憶の並びと、記憶に刻んだ語の配列は、書き換えずに替える（reduce.ts）。だから並びも
+  // 語の配列も共有でき、写すのは語の表（記憶 → 配列）の入れ物だけで足りる。
   return {
     ...c,
     innate: { ...c.innate },
@@ -32,8 +32,7 @@ export function copyChar(c: Char): Char {
     cards: c.cards.map(copyCard),
     back: c.back.map((x) => copyCard(x) as Card),
     prep: c.prep?.map((p) => ({ ...p, fx: [...p.fx] })),
-    perms: [...c.perms],
-    permEps,
+    permEps: { ...c.permEps },
     epithets: [...c.epithets],
     debts: { ...c.debts },
     deeds: { ...c.deeds },

@@ -1,5 +1,6 @@
 import type { Card, Char } from '../core/model';
 import { type ArchCount, type Archetype, TAGS, type Tag, type TagCount } from '../core/tags';
+import { LV_MARK } from './balance';
 import { cardDef, epithetDef, permDef } from './registry';
 
 /** 刻まれたエピテットを重ねた、カードのタグ。 */
@@ -16,6 +17,15 @@ export function cardTags(card: Card): Tag[] {
 }
 
 export const cardArch = (card: Card): readonly Archetype[] => cardDef(card.id).arch ?? [];
+
+/** 手持ちのその札のレベル（Ⅰ〜Ⅲ。持っていなければ 0）。同じ札は重なるので一枚だけ。 */
+export function cardLv(c: Char, id: string): number {
+  const card = c.cards.find((x) => x?.id === id) ?? c.back.find((x) => x.id === id);
+  return card ? (card.lv ?? 1) : 0;
+}
+
+/** レベルの印（Ⅰ・Ⅱ・Ⅲ）。 */
+export const lvMark = (card: Pick<Card, 'lv'>): string => LV_MARK[card.lv ?? 1] ?? '';
 
 /** エピテットを冠した名前（「夜の 海辺の僧侶」）。 */
 export function cardName(card: Card, spent = false): string {

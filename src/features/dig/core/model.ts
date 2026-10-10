@@ -27,7 +27,12 @@ export interface Card {
   marks: Record<string, number>;
   /** 刻まれた冠装飾子《エピテット》（最大 2）。 */
   eps: string[];
+  /** レベル（Ⅰ〜Ⅲ。同じ札を重ねて上がる）。無ければⅠ。 */
+  lv?: number;
 }
+
+/** 札のレベルの上限（Ⅲ）。 */
+export const LV_MAX = 3;
 
 export type Who = 'you' | 'rival';
 
@@ -77,6 +82,11 @@ export interface Char {
   permEps: Record<string, string[]>;
   /** まだどこにも刻んでいないエピテット。 */
   epithets: string[];
+  /**
+   * 回数を増やす語のうち、足した回数を使い切った札から剥がしたもの（手元の語と同じ数だけ）。
+   * 刻み直しても最大回数だけが戻り、いまの回数は増えない（剥がして刻み直すだけで回復しない）。
+   */
+  drained?: string[];
   debts: Record<string, number>;
   /** 振る舞いの記録（冠の元）。 */
   deeds: Record<string, number>;
@@ -276,7 +286,16 @@ export type Pending =
       /** 拾い物：妙な選択肢が一つ増えている（選べば、必ず何か得る）。 */
       odd?: boolean;
     }
-  | { kind: 'told'; id: string; ok: boolean; text: string; chance?: number; roll?: number }
+  | {
+      kind: 'told';
+      id: string;
+      ok: boolean;
+      text: string;
+      chance?: number;
+      roll?: number;
+      /** 手に入れたもの・払ったもの（品・札・エピテット・金・体と心）。結果の下に一行で。 */
+      got?: string;
+    }
   | {
       kind: 'rest';
       used: boolean;

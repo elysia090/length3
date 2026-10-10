@@ -2,7 +2,7 @@ import type { Char, World } from '../core/model';
 import { type Patch, setSources, type Trigger } from '../core/rules';
 import { type ArchCount, meets, TAG_NAME, type TagCount } from '../core/tags';
 import { afterDef } from './after';
-import { ARCH_SETS } from './archetypes';
+import type { ARCH_SETS } from './archetypes';
 import { DATA_VERSION, PACE, POINTS, releaseRules } from './balance';
 import { BASE_RULES, BASE_TRIGGERS, DEPTH_RULES } from './base';
 import { archCount, tagCount } from './cardinfo';
@@ -11,8 +11,7 @@ import { SPILL_AURA } from './epithets';
 import { heatOf } from './floors';
 import { lawsAt } from './laws';
 import { quirkDef } from './quirks';
-import { allBuilds, allLinks, cardDef, epithetDef, jobDef, permDef } from './registry';
-import { SURGES, tierOf } from './surges';
+import { allBuilds, allLinks, cardDef, epithetDef, itemDef, jobDef, permDef } from './registry';
 import { titleDef } from './titles';
 
 /**
@@ -43,7 +42,15 @@ const deckKey = (c: Char) =>
   `${c.cards.map((x) => (x ? `${x.id}+${x.eps.join('+')}` : '-')).join(',')}|${c.perms.map((p) => `${p}${(c.permEps[p] ?? []).join('+')}`).join(',')}`;
 const builds = new Map<string, BuildDef[]>();
 
-export function buildsOf(c: Char): BuildDef[] {
+/**
+ * 構成（ビルド）は遊びから外した。札の力はレベルとエピテットで持つ。呼ぶ側のために空を返す
+ * （画面と試算の名残を片付けたら、関数ごと消す）。
+ */
+export function buildsOf(_c: Char): BuildDef[] {
+  return [];
+}
+
+export function judgedBuilds(c: Char): BuildDef[] {
   const key = deckKey(c);
   const hit = builds.get(key);
   if (hit) return hit;
@@ -65,14 +72,18 @@ function judgeBuilds(c: Char): BuildDef[] {
   );
 }
 
-export function linksOf(c: Char): LinkDef[] {
+export function linksOf(_c: Char): LinkDef[] {
+  return [];
+}
+
+export function judgedLinks(c: Char): LinkDef[] {
   const ids = new Set(c.cards.filter((x) => x).map((x) => x?.id));
   return allLinks().filter((l) => l.cards.every((id) => ids.has(id)));
 }
 
-export function archSetsOf(c: Char) {
-  const arch = archCount(c);
-  return ARCH_SETS.filter((s) => (arch[s.arch] ?? 0) >= s.at);
+/** 原型の重ねがけも外した（構成と同じ考え方なので）。 */
+export function archSetsOf(_c: Char): typeof ARCH_SETS {
+  return [];
 }
 
 function collect(w: World) {
@@ -116,19 +127,15 @@ function collect(w: World) {
     const p = permDef(id);
     if (p) add(`perm:${id}`, p.passive, p.triggers);
   }
+  // 身につける品。持っているあいだ、ずっと効く。
+  for (const it of c.items) {
+    const d = itemDef(it.id);
+    if (d?.kind === 'keep') add(`keep:${d.id}`, d.passive, d.triggers);
+  }
   for (const id of c.titles ?? []) {
     const t = titleDef(id);
     if (t) add(`title:${id}`, t.passive);
   }
-  for (const b of buildsOf(c)) {
-    add(`build:${b.id}`, b.passive, b.triggers);
-    // 段：暴走（上限つき）と極み（上限なし）。
-    const t = tierOf(c, b.id);
-    const sv = SURGES[b.id];
-    if (t > 0 && sv) add(`surge:${b.id}`, sv.passive?.(t === 2), sv.triggers?.(t === 2));
-  }
-  for (const l of linksOf(c)) add(`link:${l.id}`, l.passive, l.triggers);
-  for (const s of archSetsOf(c)) add(`arch:${s.arch}${s.at}`, s.passive, s.triggers);
   // 決着の余韻（悪名・見透かし…）。あなたの遭遇にだけ効く。
   if ((w.enc?.who ?? 'you') === 'you')
     for (const a of w.after) {
@@ -208,6 +215,7 @@ function keyOf(w: World): string {
       .map((x) => (x ? `${x.id}+${(x.eps ?? []).join('+')}+${x.marks.ch ?? 0}` : '-'))
       .join(','),
     (c.titles ?? []).join('+'),
+    c.items.map((x) => x.id).join('+'),
     c.perms.map((p) => `${p}${(c.permEps?.[p] ?? []).join('+')}`).join(','),
     (w.enc?.foe.eps ?? []).join('+'),
     w.after.map((a) => a.kind).join('+'),

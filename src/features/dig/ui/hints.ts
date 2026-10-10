@@ -1,4 +1,3 @@
-import { buildsOf } from '../content/sources';
 import type { World } from '../core/model';
 import { foeHardness, nodeHardness, outmatched, youHardness } from '../sim/hardness';
 import { isBridge, lateral, reachable } from '../sim/run';
@@ -82,7 +81,7 @@ export const HINTS: readonly Hint[] = [
   {
     id: 'routes',
     title: '道の読み',
-    text: '三つの道は、性格が違う。安定は勝ちやすいが得るものが少ない。高連鎖は噛み合うが崩れると大きい。あと一つは、強い構成が成立しかけている道。',
+    text: '二つの道は、性格が違う。安定は勝ちやすいが得るものが少ない。高連鎖は噛み合うが崩れると大きい。自分の脚でを押すと推奨が消え、部屋も順番も自分で選ぶ。',
     when: (w) => onMap(w) && w.pos !== null,
   },
   {
@@ -116,10 +115,14 @@ export const HINTS: readonly Hint[] = [
     when: (w) => w.pending?.kind === 'shop',
   },
   {
-    id: 'build',
-    title: 'ビルド',
-    text: 'ビルドが成立した。主役の札の第二章か、原型の四枚重ねで暴走する。暴走には必ず上限がある。極めれば外れる。',
-    when: (w) => buildsOf(w.you).length > 0,
+    id: 'level',
+    title: '重ねる',
+    text: '持っている札をもう一度拾う・買うと、重なってレベルが上がる（Ⅱ・Ⅲ）。手持ちの枚数は増えない。上がるたびに効き目が強まり、回数も一つ増える。',
+    when: (w) =>
+      w.pending?.kind === 'reward' &&
+      [...w.pending.cards, ...(w.pending.lucky ? [w.pending.lucky] : [])].some((id) =>
+        [...w.you.cards, ...w.you.back].some((c) => c?.id === id),
+      ),
   },
   {
     id: 'title',

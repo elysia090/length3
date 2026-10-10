@@ -37,8 +37,8 @@ export interface TowerView {
   you: number | null;
   /** もう一人の灯り持ちの居場所。 */
   rival: number | null;
-  /** 推奨の道（濃さの違う三本）。 */
-  routes: readonly { kind: 'safe' | 'chain' | 'almost'; path: readonly number[]; mark?: number }[];
+  /** 推奨の道（濃さの違う二本）。 */
+  routes: readonly { kind: 'safe' | 'chain'; path: readonly number[]; mark?: number }[];
   focus: number | null;
   /** 遭遇中。 */
   enc: {

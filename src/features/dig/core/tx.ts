@@ -31,11 +31,20 @@ export class Tx {
     readonly w: World,
     /** 頭の試行（イベントは畳み込むが、画面には出さない）。 */
     readonly sim = false,
-  ) {}
+    /**
+     * 試行の写しは元と同じ規則の鍵を持つので、元で引いた規則をそのまま渡せる
+     * （写すたびに鍵を組み直さない）。
+     */
+    book: Rulebook | null = null,
+    /** 起きたことを書き留めるか（相手の先読みの試行は、世界の行き着く先しか見ないので留めない）。 */
+    private readonly keep = true,
+  ) {
+    this.book = book;
+  }
 
   emit(ev: Ev): void {
     apply(this.w, ev);
-    this.out.push(ev);
+    if (this.keep) this.out.push(ev);
     if (REBUILD.has(ev.type) || (ev.type === 'card.mark' && ev.mark === 'ch')) this.book = null;
     if (this.depth > 6) return;
     const triggers = this.rules().triggers[ev.type];
@@ -131,7 +140,9 @@ const RESONANT = /^(card|perm|build|link|arch|ep|stage|surge):/;
 /** 規則の出どころが変わるイベント（集め直す）。 */
 const REBUILD = new Set<Ev['type']>([
   'card.set',
+  'card.lv',
   'card.ep',
+  'item',
   'perm',
   'perm.ep',
   'enc.start',

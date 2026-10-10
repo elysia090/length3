@@ -1,14 +1,11 @@
-import { AFTER, afterDef } from '../content/after';
-import { PACE } from '../content/balance';
-import { cardName, cardTags, JOB_ARCH } from '../content/cardinfo';
-import { EP_TIER_NAME, epTier } from '../content/epithets';
-import { IDLE, POSTURE, VITALS } from '../content/flavor';
-import { DIFFICULTY, sectionNo, sectionOf, useOf } from '../content/floors';
-import type { Fx } from '../content/fx';
+import { AFTER } from '../content/after';
+import { LV_MARK, PACE } from '../content/balance';
+import { cardName, cardTags, JOB_ARCH, lvMark } from '../content/cardinfo';
+import { epTier } from '../content/epithets';
+import { IDLE, VITALS } from '../content/flavor';
+import { DIFFICULTY, sectionNo } from '../content/floors';
 import { fxText } from '../content/fx';
-import { type Gear, gearOf } from '../content/gear';
-import { lawsAt } from '../content/laws';
-import { legendState } from '../content/legends';
+import { gearOf, ITEM_CAP } from '../content/gear';
 import { orderOf } from '../content/orders';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
 import { quirkDef } from '../content/quirks';
@@ -20,96 +17,100 @@ import {
   itemDef,
   jobDef,
   permDef,
-  storyDef,
 } from '../content/registry';
-import { buildsOf } from '../content/sources';
-import { nextTier, SURGES, tierOf } from '../content/surges';
-import { titleDef } from '../content/titles';
-import {
-  CHEER,
-  DINER_AFTER,
-  DINER_BET,
-  DINER_FULL,
-  DINER_LEAVE,
-  DINER_LIGHT,
-  DINER_MORNING,
-  DINER_NIGHT,
-  READY,
-  SETTLED,
-  SHOP_BARGAIN,
-  SHOP_HELLO,
-  SHOP_LEAVE,
-  SHOP_SOLD,
-} from '../content/voices';
+import { CHEER, READY, SETTLED } from '../content/voices';
 import type { Basic, Cmd, Ev, RestAction } from '../core/events';
-import type { Card, Goal, GoalSize, MapNode, World } from '../core/model';
+import {
+  type Card,
+  type Goal,
+  type GoalSize,
+  LV_MAX,
+  type MapNode,
+  type World,
+} from '../core/model';
 import { fold } from '../core/reduce';
-import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
-import { clockOf, PHASE_NAME, phaseOf } from '../core/time';
+import { ARCH_NAME, type Archetype, TAG_NAME } from '../core/tags';
+import { PHASE_NAME, phaseOf } from '../core/time';
 import { getLang, setLang, tr } from '../i18n';
 import {
   type Advice,
   advise,
-  nodeLabel,
   preview,
   type Route,
   type RouteKind,
   sourceLabel,
 } from '../sim/advise';
-import {
-  bonusOf,
-  canAccept,
-  chainNext,
-  incoming,
-  leaveChance,
-  resonance,
-  shownIntent,
-} from '../sim/encounter';
+import { bonusOf, incoming, resonance, shownIntent } from '../sim/encounter';
 import { Game } from '../sim/game';
 import { carryGoals, metric as goalMetric, goalText, REWARD_TEXT } from '../sim/goals';
-import {
-  foeHardness,
-  hardnessLabel,
-  MINERALS,
-  nodeHardness,
-  outmatched,
-  youHardness,
-} from '../sim/hardness';
-import { misses } from '../sim/near';
+import { foeHardness, MINERALS, nodeHardness, outmatched, youHardness } from '../sim/hardness';
 import { epUses, itemRoom, maxHp, maxMind, stats } from '../sim/ops';
 import {
-  alterOptions,
-  breathed,
-  canChoose,
-  cardPrice,
-  curePrice,
   deckCap,
   deckRoom,
   deckSize,
-  epPrice,
-  ITEM_CAP,
-  isBridge,
-  isHall,
   nodeOf,
   OUTCOME_NAME,
-  permValue,
-  priceOf,
+  ownedCard,
   ROWS,
   reachable,
-  restChance,
   START_BACK,
-  storyChance,
+  stackable,
   stratumName,
 } from '../sim/run';
 import { type SpotAction, spotActions } from '../sim/spot';
-import { BADGE_NAME, badgesOf } from './badges';
-import { button, type Child, fill, h, meter } from './dom';
+import { badges, epChip, heals, luckyTag, lvTag, outcome, pips, previewCard } from './cards';
+import { button, type Child, fill, h, meter, pressable, retranslate } from './dom';
+import { armDetail, type EncView, encounterPanel } from './encounter';
 import { HINTS, nextHint } from './hints';
-import { cardEffect, delta, effectOf, say as sayDelta, withEpithet } from './preview';
+import { hoverTips } from './hovertip';
+import { liveNote, live as liveSpan } from './live';
+import {
+  act,
+  countCoins,
+  hardTag,
+  placeOf,
+  roomInfo,
+  section,
+  statusPanel,
+  tally,
+  titled,
+} from './parts';
+import { cardEps, gearRows, restPanel, shopPanel, storyPanel, toldPanel } from './places';
+import { cardEffect, clearEffects, delta, say as sayDelta, withEpithet } from './preview';
+import {
+  foeInkable,
+  inkRow,
+  inOrder,
+  markRow,
+  nodeInkable,
+  pairOrder,
+  routeFacts,
+  spotFits,
+  spotGear,
+} from './route';
 import { loadProfile, loadRun, type Profile, saveProfile, saveRun } from './save';
 import { DigSound } from './sound';
 import type { TurnLine } from './state';
 import { type RoomView, type Scene, Tower, type TowerView } from './tower';
+import type { Ui } from './ui';
+import {
+  BASIC_NAME,
+  band,
+  clock,
+  dryCount,
+  facetLines,
+  firstStep,
+  floorNo,
+  persona,
+  pickBy,
+  SPOT_ORDER,
+  SPOT_VERB,
+  stepLabel,
+  voiceOf,
+  way,
+  whoOf,
+} from './words';
 
 /**
  * DIG の画面。底の見えない巨大な建物を、フロアごとに下りていく。
@@ -138,106 +139,6 @@ const EMPTY: TowerView = {
   enc: null,
 };
 
-const KIND_NAME: Record<MapNode['kind'], string> = {
-  person: '人',
-  danger: '危険',
-  event: '出来事',
-  rest: '食堂',
-  shop: '古物商',
-  boss: '最後の相手',
-};
-
-/** 札を使わない手が何をするか（触れると出る。効き目は四つの道にも映る）。 */
-const BASIC_GLOSS: Record<Basic, string> = {
-  press: '相手の体力を少し削る（信頼は 1 下がる）',
-  brace: '守りと構えを得る（次の一撃と脅しを受け止める）',
-  talk: '相手の信頼を少し得る',
-  leave: 'この遭遇から抜ける（うまくいけば）',
-  accept: '相手の申し出を受ける',
-};
-
-const BASIC_NAME: Record<Basic, string> = {
-  press: '押す',
-  brace: '構える',
-  talk: '話す',
-  leave: '立ち去る',
-  accept: '応じる',
-};
-
-const clock = (hour: number) => `${String(clockOf(hour)).padStart(2, '0')}:00`;
-const floorNo = (w: World, row: number) => (w.stratum - 1) * (ROWS + 1) + row + 1;
-
-/**
- * 場所・人物・硬度の書き方は一つにそろえる（上帯・触れた札・部屋・遭遇・道の読み）。
- *   場所  B3・閉店間際の酒場     （B# は太字、・でつなぐ）
- *   人物  名前　硬度 5          （硬度は数字だけ。鉱物の名は触れると出る）
- */
-const placeOf = (w: World, n: MapNode | undefined): Child[] =>
-  n
-    ? [
-        h('b', {}, `B${floorNo(w, n.row)}`),
-        `・${useOf(w.stratum, n.use)?.name ?? KIND_NAME[n.kind]}`,
-      ]
-    : [h('b', {}, `B${floorNo(w, 0)}`), `・${stratumName(w.stratum)}の上`];
-/** 体と心の割合を、言葉の目盛り（満ちている・擦れている・傷んでいる・尽きかけ）に。 */
-const band = (r: number): 0 | 1 | 2 | 3 => (r >= 0.75 ? 0 : r >= 0.45 ? 1 : r >= 0.2 ? 2 : 3);
-const titled = (el: HTMLElement, text: string): HTMLElement => {
-  el.title = tr(text);
-  return el;
-};
-
-/** 共鳴の段（灯りの数で、決着のときに受け取るもの）。 */
-const RES_STEPS: readonly [number, string][] = [
-  [2, '金'],
-  [3, '札の回数 +1'],
-  [4, '札にエピテットが宿ることも'],
-  [6, '体と心が戻る'],
-];
-
-/** 小さな四角の並び（埋まった数 / 全部）。 */
-const pipRow = (n: number, of: number, cls: string, fresh = false) =>
-  h(
-    'span',
-    { class: `dig-pips dig-pips--${cls}`, 'aria-hidden': 'true' },
-    Array.from({ length: of }, (_, i) =>
-      h('i', { class: i < n ? (fresh && i === n - 1 ? 'is-on is-new' : 'is-on') : '' }),
-    ),
-  );
-
-/** 文の一つを、決まった鍵で選ぶ（描き直しても揺れないように）。 */
-const pickBy = <T>(list: readonly T[], key: string): T | undefined => {
-  let x = 0;
-  for (let i = 0; i < key.length; i++) x = (x * 31 + key.charCodeAt(i)) >>> 0;
-  return list[x % Math.max(1, list.length)];
-};
-
-/** 声を一つ（種と場所と時刻から決まる。世界の乱数は使わない）。 */
-const voiceOf = (list: readonly string[], w: World, salt: string): string =>
-  pickBy(list, `${w.seed}:${w.pos}:${w.hour}:${salt}`) ?? '';
-
-/** 手持ちの中で、回数の尽きた札の数。 */
-const dryCount = (w: World) =>
-  [...w.you.cards, ...w.you.back].filter((c) => c && c.uses <= 0).length;
-const whoOf = (n: MapNode) => (n.npc ? foeDef(n.npc).name : KIND_NAME[n.kind]);
-const hardTag = (hard: number, you?: number) =>
-  h(
-    'span',
-    {
-      class: `dig-hard${you !== undefined && outmatched(hard, you) ? ' is-over' : ''}`,
-      title: hardnessLabel(hard),
-    },
-    `硬度 ${hard}`,
-  );
-/** 回数の目盛り（残り＝塗り、使った分＝枠だけ）。文字ではなく四角で、字体に左右されない。 */
-const pips = (c: Card) =>
-  h(
-    'span',
-    { class: 'dig-card__uses', 'aria-label': `${Math.max(0, c.uses)}/${c.max}` },
-    Array.from({ length: Math.max(c.max, c.uses) }, (_, i) =>
-      h('i', { class: i < c.uses ? 'is-on' : '' }),
-    ),
-  );
-
 /** 裏で値を動かした規則（出どころ・一文・何番目のイベントの前か）。 */
 type Why = { src: string; text: string; at: number };
 
@@ -251,15 +152,26 @@ export function openDig(doc: Document, onClose: () => void): void {
   /** 押して見ている部屋（脇に詳しく出す）。 */
   let pinned: number | null = null;
   /** 見取り図に描く道（選んだ一本と、触れている一本だけ）。 */
-  let routeSel: RouteKind | null = null;
+  /** 選んでいる道。'walk' は自分の脚で（推奨を切る手動）。 */
+  let routeSel: RouteKind | 'walk' | null = null;
   let routePeek: RouteKind | null = null;
   /** 案内を一覧でめくっているときの位置。 */
   let browse: number | null = null;
   let hintShown: string | null = null;
   /** 遭遇の外で押して開いたカード（触れられない端末でも中身を読める）。 */
   let opened: number | null = null;
-  /** 遭遇中に触れている札（相手の四つの道に、効き目を先に映す）。 */
   let hoverSlot: number | null = null;
+  /** 狭い画面で、一度押して構えた札（もう一度押すと切る）。 */
+  let armedSlot: number | null = null;
+  /** 札を二度押しで切る端末（狭い画面か、指で触る端末）。一度目は構えて中身を読む。 */
+  /** 広い画面の並び（地図と右の欄が横に並ぶ）。CSS の狭い画面の切れ目と同じ。 */
+  const layoutQuery = window.matchMedia('(max-width: 52rem)');
+  const wide = () => !layoutQuery.matches;
+  const onLayout = () => {
+    if (!closed) render();
+  };
+  const narrow = () =>
+    window.matchMedia('(max-width: 52rem), (hover: none) and (pointer: coarse)').matches;
   /** 触れている札以外の手（札と同じく、四つの道に先に映す）。 */
   let hoverAct: Basic | null = null;
   /** 触れている選択肢（押す前に、相手になれる札を白く見せる）。 */
@@ -284,6 +196,12 @@ export function openDig(doc: Document, onClose: () => void): void {
   /** 受け取りで選んでいる一枚（作品の札か道具）と、手放す一枚（uid）。 */
   let pickId: string | null = null;
   let dropUid: number | null = null;
+  /** 持ち物がいっぱいのとき、道具の代わりに置いていく持ち物（id）。 */
+  let dropGear: string | null = null;
+  /** 置いていく品を押した時刻（押した直後の一度だけ、置く動きを見せる）。 */
+  let dropGearAt = -9;
+  /** 置いていく品の段：1 取り消し線 → 2 灰色 → 3 消える（押すたびに一段ずつ）。 */
+  let dropStage = 0;
   /** 人物を決める画面で、初めの手札を開いているか。 */
   let handOpen = false;
   /** 左の欄を、地図ではなく手札の一覧にしているか（向き合っていないとき）。 */
@@ -371,10 +289,36 @@ export function openDig(doc: Document, onClose: () => void): void {
   ).observe(createHint);
   const side = h('aside', { class: 'dig-side' });
   const tray = h('footer', { class: 'dig-tray' });
+  // 広い画面の受け取り：拾える札は地図の欄の下に（地図が縮む）。手順と手放す一枚は右の欄。
+  const offerBand = h('div', { class: 'dig-band', hidden: true });
+  const left = h('div', { class: 'dig-left' }, view, offerBand);
   const live = h('p', { class: 'dig-live', 'aria-live': 'polite' });
-  const main = h('main', { class: 'dig-main' }, view, side);
-  const app = h('div', { class: 'dig-app' }, bar, main, tray, live);
+  const main = h('main', { class: 'dig-main' }, left, side);
+  // 狭い画面だけ：地図の下の切り替え（札 ⇄ 情報）と、受け取りの下端の「前へ・次へ」。
+  const paneSwitch = h('div', { class: 'dig-panes', role: 'tablist', hidden: true });
+  // 狭い画面の遭遇：上帯（あなた）のすぐ下に、相手の段（名前・次の手・四つの道の棒）。
+  const foeBar = h('div', { class: 'dig-foebar', hidden: true });
+  const stepNav = h('nav', { class: 'dig-stepnav', hidden: true });
+  const app = h('div', { class: 'dig-app' }, bar, foeBar, main, paneSwitch, tray, stepNav, live);
   dialog.append(app);
+  // 触れたときの説明は、どこでも同じ枠で（ブラウザの title の代わり）。
+  const tips = hoverTips(dialog);
+  // 外へ出した欄が、操作と描き直しを頼む窓口。
+  const ui: Ui = { send, render, caption: (text) => showCaption(text) };
+  /** 向き合う欄が読む、画面の持ち物（触れている札・構えた札・前の手番・灯った時刻）。 */
+  const encView = (): EncView => ({
+    hoverSlot,
+    armedSlot,
+    hoverAct,
+    lastTurn,
+    inkAt,
+    litAt,
+    now,
+    point: (a) => {
+      hoverAct = a;
+      renderSide();
+    },
+  });
   doc.body.append(dialog);
   dialog.showModal();
   // 開いた直後は、どの印にも焦点を置かない（左上の小さな印に輪が出ないように）。
@@ -385,11 +329,18 @@ export function openDig(doc: Document, onClose: () => void): void {
   // ─── 開け閉め ───────────────────────────────────────────────
 
   let raf = 0;
+  /** 閉じたあとは、残った予約（目押しの後追いなど）から何も送らない。 */
+  let closed = false;
   function close(): void {
+    closed = true;
     cancelAnimationFrame(raf);
+    cancelAnimationFrame(gaugeRaf);
+    clearTimeout(gaugeTimer);
+    gauge = null;
     if (game && !game.world.ending) saveRun(game.save());
     saveProfile(profile);
     doc.removeEventListener('keydown', onKey, true);
+    layoutQuery.removeEventListener('change', onLayout);
     dialog.close();
     dialog.remove();
     onClose();
@@ -416,7 +367,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   let busy = false;
 
   function send(cmd: Cmd): boolean {
-    if (!game || busy) return false;
+    if (!game || busy || closed) return false;
     lastInput = now();
     // 動いたら近景に戻る（次の一手が、すぐ目の前に見えるように）。
     if (cmd.c === 'move' && tower.overview) setOverview(false);
@@ -436,6 +387,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     else if (cmd.c === 'move' || cmd.c === 'close') lastTurn = [];
     hoverSlot = null;
     hoverAct = null;
+    armedSlot = null;
     if (!evs.length) {
       sound.fail();
       return false;
@@ -475,16 +427,21 @@ export function openDig(doc: Document, onClose: () => void): void {
       const [kind, id] = x.src.split(':');
       const label = kind === 'job' ? (jobDef(id ?? '')?.name ?? null) : sourceLabel(x.src);
       const bare = label?.replace(/[《》〈〉『』]/g, '') ?? '';
-      const text = label && !x.text.includes(bare) ? `${label} ${x.text}` : x.text;
+      // 出どころ（太字）と中身を分けて持つ。帯では「出どころ　中身」の一行に。
+      const text = label && !x.text.includes(bare) ? `${label}\t${x.text}` : x.text;
       if (!out.includes(text)) out.push(text);
     }
     if (!out.length) return;
     whyLine.replaceChildren(
-      ...out
-        .slice(0, 5)
-        .map((t, i) =>
-          h('span', { class: 'dig-why-chip', style: `animation-delay:${i * 90}ms` }, t),
-        ),
+      ...out.slice(0, 5).map((t, i) => {
+        const [src, body] = t.includes('\t') ? t.split('\t') : ['', t];
+        return h(
+          'span',
+          { class: 'dig-why-chip', style: `animation-delay:${i * 90}ms` },
+          src ? h('b', {}, src) : null,
+          body ?? '',
+        );
+      }),
     );
     whyLine.hidden = false;
     // 打たれるたびに、小さく鳴る（タイプライタの一打）。
@@ -1047,6 +1004,9 @@ export function openDig(doc: Document, onClose: () => void): void {
     };
     hardSeen = 0;
     bestStreak = 0;
+    streak = 0;
+    // 前の挑戦の予測は使わない（同じ種でも人物が違えば別の局面）。
+    clearEffects();
     game = Game.start(s, create.job, create.depth, {
       carry: profile.carry ?? undefined,
       goals: profile.goals,
@@ -1103,10 +1063,8 @@ export function openDig(doc: Document, onClose: () => void): void {
       ? [...advice.win, ...advice.play].map((r) => ({
           kind: r.kind,
           path: r.path,
-          mark:
-            r.kind === 'almost' && r.hint
-              ? r.path.find((id) => r.hint?.startsWith(nodeLabel(nodeOf(w, id) as MapNode)))
-              : undefined,
+          // 地図の印：道の先へ刻む部屋。
+          mark: r.mark?.node,
         }))
       : [];
     const rv = w.rival;
@@ -1168,12 +1126,25 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   let last = performance.now();
+  /**
+   * 塔の描き替えは、こまの支配項（三角形の塗りと、点の書き出し）。カメラも人も止まって
+   * いるあいだは三十こまに間引き、画面を描き直したとき（操作や触れた部屋が替わったとき）は
+   * すぐに描く。
+   */
+  let lastDraw = 0;
+  let drawNow = true;
   function frame(): void {
     const t = performance.now();
-    const dt = Math.min(0.1, (t - last) / 1000);
+    const due = drawNow || tower.moving || t - lastDraw >= 33;
+    const dt = Math.min(0.1, (t - (due ? lastDraw || last : last)) / 1000);
     last = t;
-    if (screen === 'create' || !game) tower.draw(EMPTY, now(), dt);
-    else if (screen === 'play') {
+    if (screen === 'create' || !game) {
+      if (due) {
+        tower.draw(EMPTY, now(), dt);
+        lastDraw = t;
+        drawNow = false;
+      }
+    } else if (screen === 'play') {
       const w = game.world;
       if (!w.enc && !w.pending && !w.ending && adviceAt !== w.seq) {
         adviceAt = w.seq;
@@ -1181,7 +1152,11 @@ export function openDig(doc: Document, onClose: () => void): void {
         render();
       }
       // 止め（ヒットストップ）のあいだは、絵を描き替えない。
-      if (now() >= freezeUntil) tower.draw(heldView ?? towerView(staged ?? w), now(), dt);
+      if (due && now() >= freezeUntil) {
+        tower.draw(heldView ?? towerView(staged ?? w), now(), dt);
+        lastDraw = t;
+        drawNow = false;
+      }
       idle(w);
     }
     raf = requestAnimationFrame(frame);
@@ -1271,17 +1246,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   });
 
-  /** そこへの行き方（廊下・渡り廊下・階段）と、かかる時間。どの画面でも同じ言い方で。 */
-  function way(w: World, n: MapNode): { name: string; verb: string; hours: number } {
-    const place = n.eps.reduce((a, e) => a + (epithetDef(e)?.place?.time ?? 0), 0);
-    if (w.pos !== null && isBridge(w, n)) {
-      const to = n.tower ? sectionOf(w.stratum).wing.name : '本棟';
-      return { name: '渡り廊下', verb: `渡り廊下で${to}へ`, hours: Math.max(0, 2 + place) };
-    }
-    if (isHall(w, n)) return { name: '廊下', verb: '廊下を歩く', hours: Math.max(0, 1 + place) };
-    return { name: '階段', verb: '下りる', hours: Math.max(0, 1 + place) };
-  }
-
   /** 部屋に触れたときの小さな札（名前・人物・硬度・かかる時間）。 */
   function showTip(id: number | null, x: number, y: number): void {
     const w = game?.world;
@@ -1306,6 +1270,13 @@ export function openDig(doc: Document, onClose: () => void): void {
       ),
       quirkDef(n.quirk)
         ? h('span', { class: 'dig-quiet' }, `階の癖：${quirkDef(n.quirk)?.text}`)
+        : null,
+      n.npc && (w.flags[`wound:${n.npc}`] ?? 0) > 0
+        ? h(
+            'span',
+            { class: 'dig-wound' },
+            `前の傷 体力と意志 −${Math.round((w.flags[`wound:${n.npc}`] ?? 0) / 2)}%`,
+          )
         : null,
       aim?.kind === 'inscribe' && nodeInkable(w, aim.ep, n)
         ? h(
@@ -1407,6 +1378,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           saveProfile(profile);
           void setLang(next).then(() => {
             dialog.lang = next;
+            retranslate(dialog);
             renderBar();
             render();
           });
@@ -1425,7 +1397,65 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   // ─── 脇 ─────────────────────────────────────────────────────
 
+  /** 相手の段（狭い画面の遭遇）。構えた札・触れている札の効き目を、棒の先に点滅で。 */
+  function renderFoeBar(): void {
+    foeBar.replaceChildren();
+    const w = game && screen === 'play' ? (staged ?? game.world) : null;
+    const e = w?.enc;
+    foeBar.hidden = !w || !e;
+    if (!w || !e) return;
+    const f = e.foe;
+    const intent = shownIntent(w);
+    const sel = armedSlot ?? hoverSlot;
+    const eff = e.phase === 'act' && sel !== null && w.you.cards[sel] ? cardEffect(w, sel) : null;
+    const shown = f.clues.filter((c) => c.shown && !c.false).length;
+    const way = (verb: string, el: HTMLElement) =>
+      h('div', { class: 'dig-foebar__way' }, h('span', { class: 'dig-foebar__verb' }, verb), el);
+    fill(foeBar, [
+      h(
+        'p',
+        { class: 'dig-foebar__head' },
+        h('b', { class: 'dig-foebar__name' }, f.name),
+        hardTag(foeHardness(f), youHardness(w)),
+        intent && e.phase === 'act'
+          ? h(
+              'span',
+              { class: 'dig-foebar__intent' },
+              '次の手 ',
+              h('b', {}, intent.label),
+              intent.power ? h('i', {}, String(intent.power)) : null,
+            )
+          : null,
+      ),
+      h(
+        'div',
+        { class: 'dig-foebar__ways' },
+        way(
+          '倒す',
+          meter(f.hp, f.maxHp, 'foe-hp', '体力', { shield: f.guard, loss: eff ? -eff.hp : 0 }),
+        ),
+        way(
+          '折る',
+          meter(f.resolve, f.maxResolve, 'foe-will', '意志', { loss: eff ? -eff.resolve : 0 }),
+        ),
+        f.need < 50
+          ? way(
+              '打ち解ける',
+              meter(f.trust, f.need, 'foe-trust', '信頼', { gain: eff?.trust ?? 0 }),
+            )
+          : way('打ち解ける', h('span', { class: 'dig-quiet' }, '通じない')),
+        f.clues.length
+          ? way(
+              '暴く',
+              meter(shown, f.clues.length, 'foe-clue', '手がかり', { gain: eff?.clues ?? 0 }),
+            )
+          : null,
+      ),
+    ]);
+  }
+
   function renderSide(): void {
+    renderFoeBar();
     const spots = spotSpots();
     side.replaceChildren();
     if (!game) {
@@ -1480,16 +1510,16 @@ export function openDig(doc: Document, onClose: () => void): void {
       return;
     }
     if (w.enc) {
-      fill(side, [encounterPanel(w)]);
+      fill(side, [encounterPanel(w, ui, encView())]);
       return;
     }
     const p = w.pending;
     if (p?.kind === 'story') {
-      fill(side, [storyPanel(w)]);
+      fill(side, [storyPanel(w, ui)]);
       return;
     }
     if (p?.kind === 'told') {
-      fill(side, [toldPanel(w)]);
+      fill(side, [toldPanel(w, ui)]);
       return;
     }
     if (p?.kind === 'reward') {
@@ -1497,7 +1527,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       return;
     }
     if (p?.kind === 'rest') {
-      fill(side, [restPanel(w)]);
+      fill(side, [restPanel(w, ui)]);
       return;
     }
     if (p?.kind === 'summit') {
@@ -1505,7 +1535,7 @@ export function openDig(doc: Document, onClose: () => void): void {
       return;
     }
     if (p?.kind === 'shop') {
-      fill(side, [shopPanel(w)]);
+      fill(side, [shopPanel(w, ui)]);
       return;
     }
     fill(side, [mapPanel(w)]);
@@ -1544,96 +1574,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     return h('section', { class: 'dig-sec dig-goals' }, h('h3', {}, '目標'), h('ol', {}, rows));
   }
 
-  /** いまの状況：その階の癖、尾を引いている余韻、あなたの冠。どれも、何が起きるかを一行で。 */
-  function statusPanel(w: World): HTMLElement | null {
-    if (w.enc || w.ending) return null;
-    const row = (name: string, meta: string, text: string, cls = '') =>
-      h(
-        'li',
-        { class: `dig-state${cls ? ` ${cls}` : ''}` },
-        h('b', {}, name),
-        meta ? h('i', {}, meta) : null,
-        h('span', {}, text),
-      );
-    const quirk = quirkDef(nodeOf(w, w.pos)?.quirk);
-    const rows = [
-      quirk ? row(quirk.name, 'この階', quirk.text, 'is-quirk') : null,
-      // 受け取りのあいだは、結末の欄が余韻を言っているので重ねない。
-      ...(w.pending?.kind === 'reward' ? [] : w.after).map((a) => {
-        const d = afterDef(a.kind);
-        return row(d?.name ?? a.kind, `あと ${a.left} 戦`, d?.text ?? '', `is-${a.kind}`);
-      }),
-      ...w.you.titles.map((id) =>
-        row(`《${epithetDef(id)?.name ?? id}》`, '冠', titleDef(id)?.text ?? ''),
-      ),
-    ].filter((x): x is NonNullable<typeof x> => !!x);
-    return rows.length
-      ? h('section', { class: 'dig-sec dig-status' }, h('h3', {}, '状況'), h('ul', {}, rows))
-      : null;
-  }
-
-  const section = (title: string, ...kids: (Child | readonly Child[])[]) =>
-    h('section', { class: 'dig-sec' }, h('h3', {}, title), ...kids);
-
-  function roomInfo(w: World, n: MapNode): HTMLElement {
-    const you = youHardness(w);
-    const hard = n.npc ? nodeHardness(w, n) : null;
-    const def = n.npc ? foeDef(n.npc) : null;
-    return h(
-      'div',
-      { class: 'dig-room' },
-      h('p', { class: 'dig-place' }, ...placeOf(w, n)),
-      h(
-        'p',
-        { class: 'dig-room__name' },
-        whoOf(n),
-        hard !== null ? '　' : '',
-        hard !== null ? hardTag(hard, you) : null,
-      ),
-      n.tower
-        ? h(
-            'p',
-            { class: 'dig-quiet' },
-            `${sectionOf(w.stratum).wing.name}の部屋。本棟では会わない顔と、珍しい棚。`,
-          )
-        : null,
-      h('p', { class: 'dig-quiet' }, `${way(w, n).name}で ${way(w, n).hours} 時間`),
-      def ? h('p', { class: 'dig-quiet' }, def.desc) : null,
-      hard !== null && outmatched(hard, you)
-        ? h(
-            'p',
-            { class: 'dig-warn' },
-            `正面からは歯が立たない（あなたは硬度 ${you}）。退いて、出直せる。`,
-          )
-        : null,
-      n.stage?.length
-        ? h(
-            'p',
-            { class: 'dig-amber' },
-            `見せ場［${n.stage.map((t) => TAG_NAME[t]).join('・')}］── 合うカードが強く、相手も手強い`,
-          )
-        : null,
-      ...n.eps.map((e) => {
-        const d = epithetDef(e);
-        const facet = n.npc ? d?.foe?.text : d?.place?.text;
-        return h(
-          'p',
-          { class: 'dig-ep' },
-          `《${d?.name ?? e}》`,
-          facet ? ` ${facet}` : '',
-          d ? h('span', { class: 'dig-quiet' }, ` ${d.gloss}`) : null,
-        );
-      }),
-      n.rival
-        ? h(
-            'p',
-            { class: 'dig-quiet' },
-            `もう一人が先に寄った（${OUTCOME_NAME[n.rival as keyof typeof OUTCOME_NAME] ?? n.rival}）`,
-          )
-        : null,
-    );
-  }
-
   /** いま選んでいる道（部屋を指していなければ）。 */
   function chosenRoute(): Route | undefined {
     if (!advice || pinned !== null) return undefined;
@@ -1651,21 +1591,37 @@ export function openDig(doc: Document, onClose: () => void): void {
     const kids: (Child | readonly Child[])[] = [];
     const chosen = sel ? undefined : chosenRoute();
     const go = sel ? (next.some((n) => n.id === sel.id) ? sel.id : undefined) : chosen?.path[0];
+    // 自分の脚で：推奨を切って、部屋も、その場でも、自分で選ぶ（道の読みは何も勧めない）。
+    const manual = routeSel === 'walk' && !sel;
     if (advice) {
       const all = [...advice.win, ...advice.play];
-      const short: Record<RouteKind, string> = {
+      const short: Record<RouteKind | 'walk', string> = {
         safe: '安定',
         chain: '高連鎖',
-        almost: 'あと一つ',
+        walk: '自分の脚で',
       };
       const metric = (r: (typeof all)[number]) =>
         r.kind === 'safe'
           ? r.survive < 0.95
             ? `抜ける ${Math.round(r.survive * 100)}%`
             : `体力 ${Math.round(r.hpEnd * 100)}% で着く`
-          : r.kind === 'chain'
-            ? `噛み合い ${r.links.length}`
-            : '';
+          : `噛み合い ${r.links.length}`;
+      const own = h(
+        'button',
+        {
+          type: 'button',
+          class: `dig-chip dig-chip--walk${manual ? ' is-on' : ''}`,
+          'aria-pressed': manual ? 'true' : 'false',
+          onclick: () => {
+            routeSel = routeSel === 'walk' && pinned === null ? null : 'walk';
+            pinned = null;
+            render();
+          },
+        },
+        h('b', {}, short.walk),
+        h('span', {}, '推奨を切る'),
+        h('span', { class: 'dig-chip__step' }, '部屋は自分で'),
+      );
       kids.push(
         section(
           '道の読み',
@@ -1679,7 +1635,6 @@ export function openDig(doc: Document, onClose: () => void): void {
                   type: 'button',
                   class: `dig-chip dig-chip--${r.kind}${chosen?.kind === r.kind ? ' is-on' : ''}`,
                   'aria-pressed': chosen?.kind === r.kind ? 'true' : 'false',
-                  title: `${r.aim === 'win' ? '勝つ道' : '面白い道'}：${r.label}`,
                   onclick: () => {
                     routeSel = routeSel === r.kind && pinned === null ? null : r.kind;
                     pinned = null;
@@ -1697,13 +1652,14 @@ export function openDig(doc: Document, onClose: () => void): void {
                 firstStep(w, r.path[0]),
               ),
             ),
+            own,
           ),
           sel || chosen ? plan(w, sel, chosen, go) : null,
         ),
       );
     } else if (sel) kids.push(section('部屋', plan(w, sel, undefined, go)));
-    // 道の読みが無いときだけ、行ける部屋を並べる。
-    else
+    // 道の読みが無いとき、または自分の脚でのときは、行ける部屋を並べる（自分で選ぶ）。
+    if (!sel && (!advice || manual))
       kids.push(
         section(
           '行ける部屋',
@@ -1772,54 +1728,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     );
   }
 
-  /**
-   * 選んだ道の中身を、文ではなく見出しつきの短い行で（道・見込み・繋がる・
-   * 足りない・拾える・危うい）。噛み合う相互作用の一覧は、触れると出る。
-   */
-  function routeFacts(w: World, r: Route): HTMLElement {
-    const pct = (x: number) => `${Math.round(x * 100)}%`;
-    const names = r.path.map((id) => nodeOf(w, id)).flatMap((n) => (n ? [whoOf(n)] : []));
-    const rows: [string, string, boolean][] = [
-      ['道', `${names.slice(0, 4).join(' → ')}${names.length > 4 ? ' …' : ''}`, false],
-      ['見込み', `抜ける ${pct(r.survive)}・着いて体力 ${pct(r.hpEnd)}`, r.survive < 0.7],
-    ];
-    const lean = r.lean
-      .map((u) => w.you.cards.find((c) => c?.uid === u))
-      .flatMap((c) => (c ? [`『${cardDef(c.id).name}』`] : []));
-    if (lean.length) rows.push(['頼る札', lean.join(''), false]);
-    if (r.gets?.length) rows.push(['繋がる', r.gets.join('・'), false]);
-    if (r.need) rows.push(['足りない', r.need, false]);
-    if (r.pick) rows.push(['拾える', r.pick, false]);
-    const warn = r.warn.filter((x) => !x.startsWith('倒れる見込み'));
-    if (warn.length) rows.push(['危うい', warn.join('。'), true]);
-    return h(
-      'dl',
-      {
-        class: `dig-route dig-route--${r.kind}`,
-        title: r.links.length ? `噛み合う相互作用：${r.links.join(' × ')}` : '',
-      },
-      rows.flatMap(([k, v, hot]) => [h('dt', { class: hot ? 'is-hot' : '' }, k), h('dd', {}, v)]),
-    );
-  }
-
-  /** いま尾を引いている決着の余韻（残りの遭遇の数つき）。 */
-  function afterRow(w: World): HTMLElement | null {
-    if (!w.after.length) return null;
-    return h(
-      'span',
-      { class: 'dig-afters' },
-      w.after.map((a) => {
-        const d = afterDef(a.kind);
-        return h(
-          'span',
-          { class: `dig-after is-${a.kind}`, title: d?.text ?? '' },
-          `${d?.name ?? a.kind}`,
-          h('i', {}, ` あと ${a.left} 戦`),
-        );
-      }),
-    );
-  }
-
   /** 灯りを置く釦。一度押すと構え（四秒）、もう一度押すと置く。 */
   let lampArmed = -9;
   function lampButton(w: World): HTMLElement {
@@ -1851,17 +1759,6 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   /**
-   * その場で：いまの具合から、効く順に組み立てた一行ずつ（多くて四つ）。どの行も
-   * 押せばそのまま起きる。それ以外の持ち物は、左の欄を手札にすれば全部ある。
-   */
-  const SPOT_VERB: Record<SpotAction['kind'], string> = {
-    rest: '休む',
-    fill: '満たす',
-    ink: '刻む',
-    prep: '備える',
-    seek: '探る',
-  };
-  /**
    * 目押し：その場での一手は、左右に揺れる印を止めて決まる。緑の帯で止めれば
    * そのとおり（×1）、帯の真ん中の細い印なら会心（×1.5）、外せば弱く効く（×0.6）。
    * 結果は命令に添えて送る（記録から同じ夜が再現できるように）。静かな設定では
@@ -1878,6 +1775,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     q?: number;
   } | null = null;
   let gaugeRaf = 0;
+  let gaugeTimer = 0;
   const gaugePos = (t: number) => {
     const x = ((t - (gauge?.at ?? 0)) / GAUGE_PERIOD) % 2;
     return x < 1 ? x : 2 - x;
@@ -1927,7 +1825,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     else sound.fail();
     renderSide();
     const steps = stepsNow;
-    window.setTimeout(() => {
+    gaugeTimer = window.setTimeout(() => {
       gauge = null;
       steps?.done.add(g.key);
       send(withKnack(g.cmd, g.q ?? 1));
@@ -1974,50 +1872,23 @@ export function openDig(doc: Document, onClose: () => void): void {
         { class: 'dig-gauge__foot' },
         h('span', { class: 'dig-spot__gain' }, a.gain),
         h('span', { class: 'dig-gauge__say' }, result ?? '押して止める（Space）'),
+        // 動いているあいだだけ、取り消せる（品も時間も減らない。Esc でも同じ）。
+        g.q === undefined
+          ? h(
+              'button',
+              {
+                type: 'button',
+                class: 'dig-gauge__cancel',
+                onclick: (ev: Event) => {
+                  ev.stopPropagation();
+                  cancelGauge();
+                },
+              },
+              'やめる',
+            )
+          : null,
       ),
     );
-  }
-
-  /**
-   * 並びは、休む（満たすも）→ 備える → 探る。道を選ぶと、その道に効くもの
-   * （その道の相手への備え、その道で尽きる札を満たすもの、傷の深い道なら休む）が
-   * 琥珀の枠になって上へ動く。道を変えれば、また入れ替わる。
-   */
-  const SPOT_ORDER: Record<SpotAction['kind'], number> = {
-    rest: 0,
-    fill: 0,
-    ink: 1,
-    prep: 1,
-    seek: 2,
-  };
-  function spotFits(a: SpotAction, toward: number | undefined, route: Route | undefined): boolean {
-    if (toward === undefined) return false;
-    if (a.kind === 'prep') return true;
-    if (!route) return false;
-    if (a.kind === 'fill') return a.card !== undefined && route.wear.includes(a.card);
-    if (a.kind === 'rest') return !!a.hp && (route.hpEnd < 0.6 || route.survive < 0.85);
-    return false;
-  }
-
-  /** 道の付け替え（剥がして刻む）を、その場での一箱に。 */
-  function inkRow(w: World, route: Route | undefined): (SpotAction & { peel?: Cmd }) | null {
-    const k = route?.ink;
-    if (!k) return null;
-    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
-    const to = all.find((c) => c.uid === k.to);
-    const from = k.from !== undefined ? all.find((c) => c.uid === k.from) : undefined;
-    const ep = epithetDef(k.ep);
-    if (!to || !ep || (k.from !== undefined && !from?.eps.includes(k.ep))) return null;
-    if (k.from === undefined && !w.you.epithets.includes(k.ep)) return null;
-    return {
-      id: `ink:${k.ep}:${k.to}`,
-      cmd: { c: 'inscribe', ep: k.ep, uid: k.to },
-      peel: from ? { c: 'peel', uid: from.uid, ep: k.ep } : undefined,
-      label: `《${ep.name}》を『${cardDef(to.id).name}』へ`,
-      gain: `${from ? `『${cardDef(from.id).name}』から剥がして・` : '手元から・'}${k.why}`,
-      kind: 'ink',
-      score: 99,
-    };
   }
 
   /**
@@ -2029,37 +1900,6 @@ export function openDig(doc: Document, onClose: () => void): void {
   let stepsAt: number | null = null;
   const stepsBy = new Map<string, { ids: string[]; done: Set<string> }>();
   let stepsNow: { ids: string[]; done: Set<string> } | null = null;
-
-  /** 箱の品（一服なら null、品でなければ undefined）。 */
-  const spotGear = (a: SpotAction): Gear | null | undefined =>
-    a.id === 'breather' ? null : a.id.startsWith('item:') ? gearOf(a.id.slice(5)) : undefined;
-  const pairOrder = (x: SpotAction, y: SpotAction) => {
-    const gx = spotGear(x);
-    const gy = spotGear(y);
-    return gx === undefined || gy === undefined ? undefined : orderOf(gx, gy);
-  };
-
-  /**
-   * 道の手順の並び：隠し順序が効くように並べ替える（前に置くべきものを前へ、続けて
-   * 効くものを直後へ）。代償つきの品は最後に（使わずに進む余地を残す）。
-   */
-  function inOrder<T extends { a: SpotAction }>(list: readonly T[]): T[] {
-    const rest = [...list].sort((x, y) => Number(!!x.a.cost) - Number(!!y.a.cost));
-    const out: T[] = [];
-    while (rest.length) {
-      const head = rest[0] as T;
-      const lead = rest.findIndex((x) => x !== head && !!pairOrder(x.a, head.a));
-      let cur = rest.splice(lead >= 0 ? lead : 0, 1)[0] as T;
-      out.push(cur);
-      for (;;) {
-        const j = rest.findIndex((y) => !!pairOrder(cur.a, y.a));
-        if (j < 0) break;
-        cur = rest.splice(j, 1)[0] as T;
-        out.push(cur);
-      }
-    }
-    return out;
-  }
 
   /**
    * 箱の三行目：見つけた隠し順序（すぐ上の箱か、直前に使ったものに続くとき）と、
@@ -2134,8 +1974,10 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   function spotRows(w: World, toward?: number, route?: Route, key?: string): HTMLElement {
     const ink = inkRow(w, route);
+    const mark = markRow(w, route);
     const list = [
       ...(ink ? [{ a: ink as SpotAction, fit: true }] : []),
+      ...(mark ? [{ a: mark as SpotAction, fit: true }] : []),
       ...spotActions(w, toward).map((a) => ({ a, fit: spotFits(a, toward, route) })),
     ];
     let shown = [...list]
@@ -2261,43 +2103,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   }
 
-  /** 整えるの中の持ち物（休む・備える・探るの三つの列）。 */
-  function gearRows(w: World): HTMLElement | null {
-    if (!w.you.items.length) return null;
-    const gear = (kind: 'rest' | 'prep' | 'seek') =>
-      w.you.items.flatMap((it, i) => {
-        const g = gearOf(it.id);
-        if (!g || g.kind !== kind) return [];
-        return [
-          button(
-            `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
-            () => send({ c: 'item', index: i }),
-            {
-              class: `dig-gear__item${g.tool ? ' is-tool' : ''}`,
-              disabled: kind === 'seek' && !!w.pending,
-              title: `${g.text}\n${g.flavor}`,
-            },
-          ),
-        ];
-      });
-    const row = (label: string, gloss: string, kids: HTMLElement[]) =>
-      kids.length
-        ? h(
-            'div',
-            { class: 'dig-place' },
-            h('span', { class: 'dig-place__label', title: gloss }, label),
-            h('span', { class: 'dig-place__items' }, kids),
-          )
-        : null;
-    return h(
-      'div',
-      { class: 'dig-places' },
-      row('休む', '体と心、札一枚の回数を戻す', gear('rest')),
-      row('備える', '次に出会う相手との遭遇の初めに効く', gear('prep')),
-      row('探る', 'この階を探る（1 時間）。出来事か、拾い物か、誰かに気づかれるか', gear('seek')),
-    );
-  }
-
   /**
    * 整える：地図の場所に、手持ちの札（枠と後ろ）を全部広げる。札のエピテットは
    * 剥がして手に戻せ、手元のエピテットを選ぶと、刻める札が浮く（押すと刻む）。
@@ -2306,7 +2111,9 @@ export function openDig(doc: Document, onClose: () => void): void {
     deckView.replaceChildren();
     viewSwitch.replaceChildren();
     const w = game?.world;
-    const can = !!w && screen === 'play' && !w.enc && !w.ending;
+    // 狭い画面の受け取りは、下端の帯に拾う・手放す・中身が揃っているので、手札の一覧は開かない。
+    const can =
+      !!w && screen === 'play' && !w.enc && !w.ending && !(w.pending?.kind === 'reward' && !wide());
     if (!can) deckOpen = false;
     viewSwitch.hidden = !can;
     if (w && can) {
@@ -2339,6 +2146,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
     const open = !!w && can && deckOpen;
     deckView.hidden = !open;
+    // 狭い画面で手札の一覧を開いているあいだは、地図の下の残りも一覧が使う（情報は隠す）。
+    dialog.classList.toggle('dig-deck-on', open);
     if (!w || !open) return;
     // 受け取りのあいだの手札は、拾う札と手持ちを見比べるだけの場所。
     if (w.pending?.kind === 'reward') {
@@ -2360,14 +2169,12 @@ export function openDig(doc: Document, onClose: () => void): void {
         {
           class: `dig-card${c.uses <= 0 ? ' is-spent' : ''}${live ? ' is-live' : a ? ' is-dim' : ''}${lean ? ' is-lean' : ''}`,
           title: [def.sig, def.flavor].filter(Boolean).join('\n'),
-          role: live ? 'button' : undefined,
-          tabindex: live ? '0' : undefined,
-          onclick: live
-            ? () => {
+          ...(live
+            ? pressable(() => {
                 aim = null;
                 send({ c: 'inscribe', ep: a?.ep ?? '', uid: c.uid });
-              }
-            : undefined,
+              })
+            : {}),
         },
         h(
           'span',
@@ -2385,47 +2192,15 @@ export function openDig(doc: Document, onClose: () => void): void {
           : null,
         badges(def.ready),
         h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
-        c.eps.length
-          ? h(
-              'span',
-              { class: 'dig-deck__eps' },
-              c.eps.map((e) =>
-                h(
-                  'span',
-                  { class: 'dig-deck__ep' },
-                  epChip(e),
-                  h('span', { class: 'dig-quiet' }, epithetDef(e)?.card?.text ?? ''),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      onclick: (ev: Event) => {
-                        ev.stopPropagation();
-                        send({ c: 'peel', uid: c.uid, ep: e });
-                      },
-                    },
-                    '剥がす',
-                  ),
-                ),
-              ),
-            )
-          : null,
+        cardEps(c, ui, w),
       );
     };
+    // 上から：手持ちの札（手元のエピテットと、札ごとの剥がす）→ 持ち物 → 記憶。
     fill(deckView, [
       h(
         'div',
         { class: 'dig-handview__head' },
         h('h3', {}, `手持ちの札 ${deckSize(w.you)}/${deckCap(w.you)}`),
-        buildsOf(w.you).length
-          ? h(
-              'span',
-              { class: 'dig-quiet' },
-              `構成 ${buildsOf(w.you)
-                .map((b) => `《${b.name}》`)
-                .join('')}`,
-            )
-          : null,
       ),
       w.you.epithets.length
         ? h(
@@ -2442,7 +2217,8 @@ export function openDig(doc: Document, onClose: () => void): void {
                   type: 'button',
                   class: `dig-pill dig-pill--ep is-${ed ? epTier(ed) : 'plain'}${sameAim(aim, on) ? ' is-chosen' : ''}`,
                   'aria-pressed': sameAim(aim, on) ? 'true' : 'false',
-                  title: facetLines(ep),
+                  // 選んでいるあいだは下の詳細欄に同じ中身が出るので、触れたときの説明は重ねない。
+                  title: sameAim(aim, on) ? undefined : facetLines(ep),
                   onclick: () => {
                     aim = sameAim(aim, on) ? null : on;
                     render();
@@ -2452,17 +2228,23 @@ export function openDig(doc: Document, onClose: () => void): void {
                 n > 1 ? h('i', { class: 'dig-pill__n' }, `×${n}`) : null,
               );
             }),
-            a ? h('span', { class: 'dig-amber' }, `刻む札を押す：${d?.card?.text ?? ''}`) : null,
+            // 構えているあいだの一言。末尾に効き目を足さない（中身は下の枠）。
+            a ? h('span', { class: 'dig-amber' }, '刻む札を押す') : null,
+          )
+        : null,
+      // 選んだエピテットの中身は、行の下の枠（触れたときの説明と同じ形）に。
+      a
+        ? h(
+            'div',
+            { class: 'dig-epdetail', 'aria-live': 'polite' },
+            facetLines(a.ep)
+              .split('\n')
+              .map((line, i) => h('span', { class: i ? 'dig-tip__sub' : '' }, line)),
           )
         : null,
       h('div', { class: 'dig-hand is-preview' }, all.map(card)),
-      h(
-        'p',
-        { class: 'dig-handview__note' },
-        '遭遇のたびに、この七枚から五枚が配られる。使い切った札は、休むか、回数を増やすエピテットが宿るまで眠ったままになる。',
-      ),
       w.you.items.length
-        ? h('div', { class: 'dig-deck__sec' }, h('h3', {}, '持ち物'), gearRows(w))
+        ? h('div', { class: 'dig-deck__sec' }, h('h3', {}, '持ち物'), gearRows(w, ui))
         : null,
       w.you.perms.length
         ? h(
@@ -2523,23 +2305,19 @@ export function openDig(doc: Document, onClose: () => void): void {
   const spoilAt = (k: number) => 0.35 + k * 0.16;
   const cardAt = (n: number, k: number) => spoilAt(n) + 0.15 + k * 0.22;
 
-  /** 金の数を、0 から一段ずつ数え上げる（1-bit の段で、八段）。 */
-  function countCoins(root: Element): void {
-    for (const el of root.querySelectorAll<HTMLElement>('[data-count]')) {
-      const n = Number(el.dataset.count);
-      const wait = Math.max(0, Number(el.dataset.delay ?? 0) * 1000);
-      el.textContent = '金 +0';
-      for (let k = 1; k <= 8; k++)
-        window.setTimeout(
-          () => {
-            el.textContent = `金 +${Math.round((n * k) / 8)}`;
-          },
-          wait + k * 45,
-        );
-    }
+  /** 拾える札の表（手元の札と同じ顔）。伏せた裏から、表を向ける。 */
+  /** 持っている札なら、拾う・買うと重なって上がるレベルを一言で（「重ねるとⅡ」）。 */
+  function stackLine(id: string): HTMLElement | null {
+    const own = game ? ownedCard(game.world.you, id) : undefined;
+    if (!own) return null;
+    const lv = own.lv ?? 1;
+    return h(
+      'span',
+      { class: 'dig-offer__lead' },
+      lv >= LV_MAX ? 'Ⅲ（これ以上は重ならない）' : `重ねると${LV_MARK[lv + 1]}`,
+    );
   }
 
-  /** 拾える札の表（手元の札と同じ顔）。伏せた裏から、表を向ける。 */
   function sceneCard(
     id: string,
     opts: {
@@ -2567,6 +2345,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         'span',
         { class: 'dig-card__head' },
         h('b', { class: 'dig-card__name' }, def.name),
+        opts.chosen ? h('span', { class: 'dig-card__mark' }, '拾う') : null,
         h('span', { class: 'dig-card__key' }, `${n} 回`),
       ),
       opts.eps?.length
@@ -2577,7 +2356,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           )
         : null,
       opts.lucky ? luckyTag() : null,
-      def.legend ? h('span', { class: 'dig-offer__lead' }, `主役『${def.legend}』`) : null,
+      stackLine(id),
       pips(card),
       badges(def.ready),
       h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
@@ -2605,37 +2384,86 @@ export function openDig(doc: Document, onClose: () => void): void {
     const full = !deckRoom(w.you) && !w.you.cards.some((c) => !c);
     const isCard = !!pickId && offers.includes(pickId);
     const isTool = !!pickId && p.tools.includes(pickId);
-    const needDrop = isCard && full;
+    // 持っている札を拾うなら重なる（枚数は増えないので、手放す一枚は要らない）。
+    const needDrop = isCard && full && !!pickId && !stackable(w.you, pickId);
     const all = [...w.you.cards.flatMap((c) => (c ? [c] : [])), ...w.you.back].sort(
       (a, b) => a.uses - b.uses,
     );
     const drop = all.find((c) => c.uid === dropUid);
-    const ready = isTool || (isCard && (!needDrop || !!drop));
+    // 道具・身につける品は、持ち物がいっぱいなら一つ置いていく（札と同じ、決着のあとの入れ替え）。
+    const gearFull = w.you.items.length >= ITEM_CAP;
+    const needGear = isTool && !!pickId && !itemRoom(w.you, pickId);
+    const gearDrop = needGear && dropGear ? w.you.items.find((x) => x.id === dropGear) : undefined;
+    const ready = (isTool && (!needGear || !!gearDrop)) || (isCard && (!needDrop || !!drop));
     const pickName =
       isCard && pickId
         ? cardDef(pickId).name
         : isTool && pickId
           ? (gearOf(pickId)?.name ?? '')
           : '';
-    const step = !pickId ? 1 : needDrop && !drop ? 2 : 3;
+    const step = !pickId ? 1 : (needDrop && !drop) || (needGear && !gearDrop) ? 2 : 3;
+    const dropName = drop
+      ? cardDef(drop.id).name
+      : gearDrop
+        ? (gearOf(gearDrop.id)?.name ?? '')
+        : '';
     const stepText =
       step === 1
         ? full
           ? '拾う一枚を選ぶ（手持ちはいっぱいなので、あとで一枚手放す）'
           : '拾う一枚を選ぶ'
         : step === 2
-          ? `『${pickName}』の代わりに手放す一枚を選ぶ`
-          : needDrop && drop
-            ? `『${pickName}』を拾い、『${cardDef(drop.id).name}』を手放す`
+          ? needGear
+            ? `『${pickName}』の代わりに置いていく持ち物を選ぶ`
+            : `『${pickName}』の代わりに手放す一枚を選ぶ`
+          : dropName
+            ? `『${pickName}』を拾い、『${dropName}』を${needGear ? '置いていく' : '手放す'}`
             : `『${pickName}』を拾う`;
-    return { p, offers, full, isCard, isTool, needDrop, all, drop, ready, step, stepText };
+    return {
+      p,
+      offers,
+      full,
+      gearFull,
+      isCard,
+      isTool,
+      needDrop,
+      needGear,
+      all,
+      drop,
+      ready,
+      step,
+      stepText,
+    };
   }
 
   const selectOffer = (id: string) => () => {
     pickId = pickId === id ? null : id;
     dropUid = null;
+    dropGear = null;
+    dropStage = 0;
     render();
   };
+  const selectGear = (id: string) => () => {
+    // 同じ品を押すたびに一段ずつ置いていく（線を引く → 灰色に → 消える）。灰色までは仮で、
+    // 別の品を押せば選び直し。消えたら決まり（選び直すのは、拾う一枚を選び直したとき）。
+    if (dropGear === id) dropStage = Math.min(3, dropStage + 1);
+    else if (dropStage >= 3) return;
+    else {
+      dropGear = id;
+      dropStage = 1;
+    }
+    dropGearAt = now();
+    render();
+  };
+  // 灰色までの仮の選びは、釦のない所を押すと外れる（釦は自分の仕事をする：受け取るは選んだまま受け取る）。
+  dialog.addEventListener('click', (ev) => {
+    if (!dropGear || dropStage >= 3) return;
+    const t = ev.target as Element | null;
+    if (t?.closest('button, [role="button"], a, input, select, textarea')) return;
+    dropGear = null;
+    dropStage = 0;
+    render();
+  });
   const selectDrop = (uid: number) => () => {
     dropUid = dropUid === uid ? null : uid;
     render();
@@ -2663,9 +2491,8 @@ export function openDig(doc: Document, onClose: () => void): void {
           'button',
           {
             type: 'button',
-            class: `dig-card dig-scene__card is-tool${b.cls ? ' is-flip' : ''}${pickId === id ? ' is-chosen' : ''}`,
+            class: `dig-card dig-scene__card is-tool${g?.kind === 'keep' ? ' is-keep' : ''}${b.cls ? ' is-flip' : ''}${pickId === id ? ' is-chosen' : ''}`,
             style: 'style' in b ? b.style : undefined,
-            disabled: !itemRoom(w.you, id),
             'aria-pressed': pickId === id ? 'true' : 'false',
             title: g?.flavor,
             onclick: selectOffer(id),
@@ -2674,7 +2501,12 @@ export function openDig(doc: Document, onClose: () => void): void {
             'span',
             { class: 'dig-card__head' },
             h('b', { class: 'dig-card__name' }, g?.name ?? id),
-            h('span', { class: 'dig-card__key' }, `道具・${g?.uses ?? 1} 回`),
+            pickId === id ? h('span', { class: 'dig-card__mark' }, '拾う') : null,
+            h(
+              'span',
+              { class: 'dig-card__key' },
+              g?.kind === 'keep' ? '身につける' : `道具・${g?.uses ?? 1} 回`,
+            ),
           ),
           h('span', { class: 'dig-card__fx' }, g?.text ?? ''),
         );
@@ -2683,79 +2515,269 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   /** 手順の段と、確かめる釦（何も拾わない釦も）。 */
+  /** 受け取る（選んだ一枚を拾い、要れば一枚手放す）。 */
+  function claimPicked(w: World): void {
+    const st = rewardState(w);
+    if (!st?.ready || !pickId) return;
+    const cmd = st.isTool
+      ? {
+          c: 'claim' as const,
+          take: reward.take,
+          help: reward.help,
+          tool: pickId,
+          dropItem: st.needGear ? (dropGear ?? undefined) : undefined,
+        }
+      : {
+          c: 'claim' as const,
+          take: reward.take,
+          help: reward.help,
+          card: pickId,
+          drop: st.drop?.uid,
+        };
+    pickId = null;
+    dropUid = null;
+    dropGear = null;
+    dropStage = 0;
+    deckOpen = false;
+    send(cmd);
+  }
+
+  /** 何も拾わずに進む。 */
+  function claimNone(): void {
+    pickId = null;
+    dropUid = null;
+    dropGear = null;
+    dropStage = 0;
+    deckOpen = false;
+    send({ c: 'claim', take: reward.take, help: reward.help });
+  }
+
+  /** いまの段（番号と一文）。何をするかを言うのは、ここだけ。 */
+  const stepLine = (st: NonNullable<ReturnType<typeof rewardState>>) =>
+    h('p', { class: 'dig-confirm__step' }, h('b', {}, String(st.step)), h('span', {}, st.stepText));
+
+  const claimButtons = (w: World, st: NonNullable<ReturnType<typeof rewardState>>) => [
+    button('何も拾わずに進む', claimNone),
+    button('受け取る', () => claimPicked(w), { class: 'dig-go', disabled: !st.ready }),
+  ];
+
   function confirmBar(w: World): HTMLElement | null {
     const st = rewardState(w);
     if (!st) return null;
-    const confirm = () => {
-      if (!st.ready || !pickId) return;
-      const cmd = st.isTool
-        ? { c: 'claim' as const, take: reward.take, help: reward.help, tool: pickId }
-        : {
-            c: 'claim' as const,
-            take: reward.take,
-            help: reward.help,
-            card: pickId,
-            drop: st.drop?.uid,
-          };
-      pickId = null;
-      dropUid = null;
-      deckOpen = false;
-      send(cmd);
-    };
+    return h('div', { class: 'dig-confirm' }, stepLine(st), claimButtons(w, st));
+  }
+
+  /**
+   * 広い画面の受け取りの右の欄：手順の一文 → 手放す一枚（その場での箱と同じ形の一列）→ 釦。
+   * 拾える札は左（地図の下の帯）、決めるのは右、と分ける。
+   */
+  function claimSection(w: World): HTMLElement | null {
+    const st = rewardState(w);
+    if (!st || (!st.offers.length && !st.p.tools.length)) return null;
     return h(
-      'div',
-      { class: 'dig-confirm' },
-      h(
-        'p',
-        { class: 'dig-confirm__step' },
-        h('b', {}, String(st.step)),
-        h('span', {}, st.stepText),
-      ),
-      button('何も拾わずに進む', () => {
-        pickId = null;
-        dropUid = null;
-        deckOpen = false;
-        send({ c: 'claim', take: reward.take, help: reward.help });
-      }),
-      button('受け取る', confirm, { class: 'dig-go', disabled: !st.ready }),
+      'section',
+      { class: 'dig-sec dig-claim' },
+      stepLine(st),
+      st.needDrop
+        ? h(
+            'div',
+            { class: 'dig-spot dig-claim__drops' },
+            st.all.map((c) => {
+              const def = cardDef(c.id);
+              const chosen = dropUid === c.uid;
+              return h(
+                'button',
+                {
+                  type: 'button',
+                  class: `dig-spot__row dig-claim__drop${c.uses <= 0 ? ' is-spent' : ''}${chosen ? ' is-chosen' : ''}`,
+                  'aria-pressed': chosen ? 'true' : 'false',
+                  title: [def.sig, def.flavor].filter(Boolean).join('\n'),
+                  onclick: selectDrop(c.uid),
+                },
+                h(
+                  'span',
+                  { class: 'dig-claim__head' },
+                  c.eps.map((e) => epChip(e)),
+                  h('b', { class: 'dig-spot__what' }, def.name),
+                  chosen ? h('span', { class: 'dig-card__mark' }, '手放す') : null,
+                  h(
+                    'span',
+                    { class: 'dig-card__key' },
+                    c.uses <= 0 ? '尽きた' : `${c.uses}/${c.max}`,
+                  ),
+                ),
+                h('span', { class: 'dig-spot__gain' }, fxText(def.ready)),
+              );
+            }),
+          )
+        : null,
+      st.needGear ? gearDrops(w) : null,
+      h('div', { class: 'dig-claim__go' }, claimButtons(w, st)),
     );
   }
 
-  /** 受け取りの下の帯（地図のとき）：拾える札、手放す一枚、確かめる釦。 */
+  /** 置いていく持ち物を選ぶ節（いつもの持ち物の列のまま、押すと置いていく印が付く）。 */
+  function gearDrops(w: World): HTMLElement {
+    return h(
+      'div',
+      { class: 'dig-deck__sec dig-claim__gear' },
+      h('h3', {}, '持ち物'),
+      gearRows(w, ui, {
+        chosen: dropGear,
+        stage: dropStage,
+        on: (id) => selectGear(id)(),
+        fresh: now() - dropGearAt < 0.5,
+      }),
+    );
+  }
+
+  /** 広い画面の受け取りの、地図の下の帯：拾える札（と、道具を拾えないときの持ち物）。 */
+  function rewardBand(w: World): Child[] {
+    const st = rewardState(w);
+    if (!st || (!st.offers.length && !st.p.tools.length)) return [];
+    const n = st.offers.length + st.p.tools.length;
+    return [
+      h(
+        'div',
+        { class: 'dig-hand dig-offers', style: `--n:${Math.min(n, 4)}` },
+        offerCards(w, true),
+      ),
+    ];
+  }
+
+  /** 狭い画面の受け取りの下の帯：拾える札、手放す一枚、確かめる釦（広い画面は rewardBand と claimSection）。 */
   function rewardTray(w: World): Child[] {
     const st = rewardState(w);
     if (!st || (!st.offers.length && !st.p.tools.length)) return [];
     return [
-      h('div', { class: 'dig-hand dig-offers' }, offerCards(w, true)),
-      st.needDrop
-        ? h(
-            'div',
-            { class: 'dig-scene__row dig-scene__drop' },
-            h('span', { class: 'dig-scene__label' }, '手放す一枚'),
-            st.all.map((c) =>
-              h(
-                'button',
-                {
-                  type: 'button',
-                  class: `dig-scene__pick${c.uses <= 0 ? ' is-spent' : ''}${dropUid === c.uid ? ' is-chosen' : ''}`,
-                  'aria-pressed': dropUid === c.uid ? 'true' : 'false',
-                  title: fxText(cardDef(c.id).ready),
-                  onclick: selectDrop(c.uid),
-                },
-                c.eps.map((e) => epChip(e)),
-                `${cardDef(c.id).name} ${c.uses}/${c.max}`,
-                c.uses <= 0 ? h('i', { class: 'dig-quiet' }, ' 尽きた') : null,
-              ),
-            ),
-          )
-        : null,
+      h(
+        'div',
+        { class: 'dig-hand dig-offers' },
+        offerCards(w, true),
+        st.needDrop ? dropPicks(st) : null,
+      ),
+      rewardDetail(w, st),
+      st.needGear ? gearDrops(w) : null,
       confirmBar(w),
     ];
   }
 
+  /** 受け取りの持ち物の節（使えば枠が空き、道具を拾えるようになる）。 */
+  function rewardItems(w: World): HTMLElement | null {
+    if (!w.you.items.length) return null;
+    return h('div', { class: 'dig-deck__sec' }, h('h3', {}, '持ち物'), gearRows(w, ui));
+  }
+
   /**
-   * 受け取りの左の欄（手札のとき）：拾える札を上に、手持ちの七枚を下に、同じ顔で
-   * 並べて見比べる。手放す一枚は、手持ちの札を押して選ぶ。品やエピテットは出さない。
+   * 狭い画面の受け取りの詳細欄（遭遇の .dig-armdetail と同じ形）。指の端末には触れたときの
+   * 説明が出ないので、押した札の中身（効き目・眠りぎわ・刻まれた語・一文）を札の列の下に開く。
+   * 手放す一枚を選んでいればその札、拾う一枚だけならその札。何も選んでいなければ出さない
+   * （何をするかは手順の一文が言う）。
+   */
+  function rewardDetail(
+    _w: World,
+    st: NonNullable<ReturnType<typeof rewardState>>,
+  ): HTMLElement | null {
+    const lines = (
+      name: string,
+      key: string,
+      fx: string,
+      sleep: string,
+      eps: readonly string[],
+      notes: readonly (string | undefined)[],
+      mark: string,
+    ) =>
+      h(
+        'div',
+        { class: 'dig-armdetail', 'aria-live': 'polite' },
+        h(
+          'p',
+          { class: 'dig-armdetail__head' },
+          h('b', {}, name),
+          h('span', { class: 'dig-card__mark' }, mark),
+          h('span', { class: 'dig-armdetail__tags' }, key),
+        ),
+        h('p', { class: 'dig-armdetail__fx' }, fx),
+        sleep ? h('p', { class: 'dig-armdetail__sub' }, `眠りぎわ　${sleep}`) : null,
+        eps.map((e) =>
+          h('p', { class: 'dig-armdetail__sub' }, epChip(e), ` ${epithetDef(e)?.card?.text ?? ''}`),
+        ),
+        notes.filter(Boolean).map((n) => h('p', { class: 'dig-armdetail__flavor' }, n)),
+        h('p', { class: 'dig-armdetail__go' }, 'もう一度押すと外す'),
+      );
+    if (st.drop) {
+      const c = st.drop;
+      const d = cardDef(c.id);
+      const tags = cardTags(c)
+        .map((t) => `［${TAG_NAME[t]}］`)
+        .join('');
+      return lines(
+        cardName(c),
+        `${c.uses}/${c.max} ${tags}`,
+        fxText(d.ready),
+        fxText(d.spent),
+        c.eps,
+        [d.sig, d.flavor],
+        '手放す',
+      );
+    }
+    if (st.isTool && pickId) {
+      const g = gearOf(pickId);
+      return lines(
+        g?.name ?? pickId,
+        g?.kind === 'keep' ? '身につける' : `道具・${g?.uses ?? 1} 回`,
+        g?.text ?? '',
+        '',
+        [],
+        [g?.flavor],
+        '拾う',
+      );
+    }
+    if (st.isCard && pickId) {
+      const d = cardDef(pickId);
+      const eps = st.p.inked?.[pickId] ?? [];
+      const tags = d.tags.map((t) => `［${TAG_NAME[t]}］`).join('');
+      return lines(
+        d.name,
+        `${d.uses + epUses(eps)} 回 ${tags}`,
+        fxText(d.ready),
+        fxText(d.spent),
+        eps,
+        [d.sig, d.flavor],
+        '拾う',
+      );
+    }
+    return null;
+  }
+
+  /** 狭い画面の、手放す一枚の候補（尽きた札から。拾える札の下の段に）。 */
+  function dropPicks(st: NonNullable<ReturnType<typeof rewardState>>): HTMLElement {
+    return h(
+      'div',
+      { class: 'dig-scene__row dig-scene__drop' },
+      st.all.map((c) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            class: `dig-scene__pick${c.uses <= 0 ? ' is-spent' : ''}${dropUid === c.uid ? ' is-chosen' : ''}`,
+            'aria-pressed': dropUid === c.uid ? 'true' : 'false',
+            title: fxText(cardDef(c.id).ready),
+            onclick: selectDrop(c.uid),
+          },
+          c.eps.map((e) => epChip(e)),
+          `${cardDef(c.id).name} ${c.uses}/${c.max}`,
+          c.uses <= 0 ? h('i', { class: 'dig-quiet' }, ' 尽きた') : null,
+        ),
+      ),
+    );
+  }
+
+  /**
+   * 受け取りの左の欄（手札のとき）。上から：拾える札 → 手持ちの札 → 持ち物 → 手順の一文
+   * （持ち物がいっぱいで拾えない道具があるときだけ、持ち物を拾える札のすぐ下へ）。
+   * 受け取りは保留のまま整えられる：持ち物を使って枠を空ける、手放す札からエピテットを
+   * 剥がしておく（剥がす釦は、整えるの手札と同じく札の中）。手放す一枚は札を押して選ぶ。
    */
   function rewardDeck(w: World): Child[] {
     const st = rewardState(w);
@@ -2765,177 +2787,59 @@ export function openDig(doc: Document, onClose: () => void): void {
       h('div', { class: 'dig-hand is-preview dig-offers' }, offerCards(w, false)),
       h(
         'div',
-        { class: 'dig-handview__head' },
-        h('h3', {}, `手持ち ${deckSize(w.you)}/${deckCap(w.you)}`),
-        st.needDrop ? h('span', { class: 'dig-handview__ask' }, '手放す一枚を押す') : null,
+        { class: 'dig-deck__sec' },
+        h('h3', {}, `手持ちの札 ${deckSize(w.you)}/${deckCap(w.you)}`),
+        h(
+          'div',
+          { class: 'dig-hand is-preview is-droppick' },
+          st.all.map((c) => {
+            const def = cardDef(c.id);
+            const live = st.needDrop;
+            const chosen = dropUid === c.uid;
+            return h(
+              'div',
+              {
+                class: `dig-card${c.uses <= 0 ? ' is-spent' : ''}${live ? ' is-live' : ' is-still'}${chosen ? ' is-chosen is-drop' : ''}`,
+                'aria-pressed': live ? (chosen ? 'true' : 'false') : undefined,
+                title: [def.sig, def.flavor].filter(Boolean).join('\n'),
+                ...(live ? pressable(selectDrop(c.uid)) : {}),
+              },
+              h(
+                'span',
+                { class: 'dig-card__head' },
+                h('b', { class: 'dig-card__name' }, def.name),
+                chosen ? h('span', { class: 'dig-card__mark' }, '手放す') : null,
+                h('span', { class: 'dig-card__key' }, `${c.uses}/${c.max}`),
+              ),
+              pips(c),
+              badges(def.ready),
+              h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
+              cardEps(c, ui, w),
+            );
+          }),
+        ),
       ),
-      h(
-        'div',
-        { class: 'dig-hand is-preview' },
-        st.all.map((c) => {
-          const def = cardDef(c.id);
-          const live = st.needDrop;
-          return h(
-            'button',
-            {
-              type: 'button',
-              class: `dig-card${c.uses <= 0 ? ' is-spent' : ''}${dropUid === c.uid ? ' is-chosen is-drop' : ''}${live ? '' : ' is-still'}`,
-              disabled: !live,
-              'aria-pressed': dropUid === c.uid ? 'true' : 'false',
-              title: [def.sig, def.flavor].filter(Boolean).join('\n'),
-              onclick: selectDrop(c.uid),
-            },
-            h(
-              'span',
-              { class: 'dig-card__head' },
-              h('b', { class: 'dig-card__name' }, def.name),
-              h('span', { class: 'dig-card__key' }, `${c.uses}/${c.max}`),
-            ),
-            c.eps.length
-              ? h(
-                  'span',
-                  { class: 'dig-scene__inked' },
-                  c.eps.map((e) => epChip(e)),
-                )
-              : null,
-            pips(c),
-            badges(def.ready),
-            h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
-            dropUid === c.uid ? h('span', { class: 'dig-card__drop' }, '手放す') : null,
-          );
-        }),
-      ),
+      st.needGear ? gearDrops(w) : rewardItems(w),
       confirmBar(w),
     ];
   }
 
-  /**
-   * 噛み合いの見える化。連鎖（続け打ち）と共鳴（構成の灯り）を、いつも同じ場所に
-   * 四角の列で出す。次に何が起きるかを一言で。
-   */
-  function flowRows(w: World): HTMLElement {
-    const srcs = resonance(w);
-    const n = srcs.length;
-    const step = RES_STEPS.find(([k]) => k > n);
-    const fresh = now() - litAt < 1.2;
-    return h(
-      'p',
-      { class: 'dig-flow' },
-      h(
-        'span',
-        {
-          class: `dig-flow__g${n ? ' is-on' : ''}`,
-          title: [
-            '共鳴：札・記憶・構成・エピテットが働くたびに一つ灯り、決着で受け取る',
-            ...RES_STEPS.map(([k, v]) => `${k}　${v}`),
-            n
-              ? `灯っている：${srcs
-                  .map((x) => sourceLabel(x) ?? '')
-                  .filter(Boolean)
-                  .join('・')}`
-              : '',
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        },
-        h('b', {}, '共鳴'),
-        pipRow(Math.min(n, 6), 6, 'res', fresh),
-        step ? h('span', { class: 'dig-flow__x' }, `→ ${step[1]}`) : null,
-      ),
-    );
-  }
-
-  /**
-   * いまこの札を使ったら、何がいくつ動くか（世界の写しで実際に使ってみた数）。
-   * その下に、効き目一つ一つに足される点の内訳（連鎖・見せ場・弱いタグ…）。
-   */
-  function outcome(w: World, slot: number, c: Card): HTMLElement {
-    const x = cardEffect(w, slot);
-    const b = bonusOf(w, c);
-    const chip = (text: string, cls = '') => h('i', { class: `dig-out${cls}` }, text);
-    const sign = (n: number) => (n > 0 ? `+${n}` : `−${-n}`);
-    const list: HTMLElement[] = [];
-    // この一手で決着がつくなら、それがいちばん先（倒せる・折れる・打ち解ける・暴ける）。
-    const END: Record<string, string> = {
-      beaten: '倒せる',
-      broken: '折れる',
-      trusted: '打ち解ける',
-      uncovered: '暴ける',
-    };
-    if (x.ends && END[x.ends]) list.push(chip(END[x.ends] ?? '', ' is-end'));
-    if (x.hp) list.push(chip(`相手の体力 ${sign(x.hp)}`));
-    if (x.resolve) list.push(chip(`相手の意志 ${sign(x.resolve)}`));
-    if (x.trust) list.push(chip(`相手の信頼 ${sign(x.trust)}`, ' is-blue'));
-    if (x.clues) list.push(chip(`手がかり +${x.clues}`, ' is-blue'));
-    if (x.guard) list.push(chip(`あなたの守り +${x.guard}`, ' is-you'));
-    if (x.calm) list.push(chip(`あなたの構え +${x.calm}`, ' is-you'));
-    if (x.youHp)
-      list.push(chip(`あなたの体力 ${sign(x.youHp)}`, x.youHp > 0 ? ' is-heal' : ' is-cost'));
-    if (x.youMind)
-      list.push(chip(`あなたの精神 ${sign(x.youMind)}`, x.youMind > 0 ? ' is-heal' : ' is-cost'));
-    return h(
-      'span',
-      { class: 'dig-card__out' },
-      h('span', { class: 'dig-outs' }, list.length ? list : chip('動かない', ' is-none')),
-      // 点が足されるのは体力・意志・信頼を動かす札だけ（守るだけの札には出さない）。
-      b.parts.length && (x.hp || x.resolve || x.trust)
-        ? h(
-            'span',
-            { class: 'dig-why' },
-            b.parts.map((p) =>
-              h(
-                'i',
-                {
-                  class: `dig-why__p${p.text.startsWith('連鎖') ? ' is-chain' : ''}${p.n < 0 ? ' is-minus' : ''}`,
-                },
-                p.text,
-              ),
-            ),
-          )
-        : null,
-    );
-  }
-
-  /** エピテットの効き方を、刻む先ごとに（札・人・場所・出来事・記憶）。 */
-  function facetLines(ep: string): string {
+  /** 記憶への刻み先（向き合っているあいだは手札の一覧が開かないので、手元の帯に出す）。 */
+  function memoryTargets(w: World, ep: string): HTMLElement[] {
     const d = epithetDef(ep);
-    if (!d) return '';
-    return [
-      d.gloss,
-      d.card ? `札：${d.card.text}` : '',
-      d.foe ? `人：${d.foe.text}` : '',
-      d.place ? `場所：${d.place.text}` : '',
-      d.story ? `出来事：${d.story.text}` : '',
-      d.memory ? `記憶：${d.memory.text}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-  }
-
-  /** その部屋に、そのエピテットを刻めるか（先の部屋、二つまで）。 */
-  function nodeInkable(w: World, ep: string, n: MapNode): boolean {
-    const d = epithetDef(ep);
-    const here = nodeOf(w, w.pos)?.row ?? -1;
-    return (
-      !w.enc &&
-      !n.visited &&
-      n.row > here &&
-      !!(n.npc ? d?.foe : d?.place) &&
-      n.eps.length < PACE.stack
-    );
-  }
-
-  /** いま向き合っている相手に、そのエピテットを刻めるか。 */
-  function foeInkable(w: World, ep: string): boolean {
-    const e = w.enc;
-    return (
-      !!e &&
-      e.phase === 'act' &&
-      e.who === 'you' &&
-      !!epithetDef(ep)?.foe &&
-      (e.st.inked ?? 0) < PACE.inkEnc &&
-      e.foe.eps.length < PACE.stackFoe
-    );
+    if (!d?.memory) return [];
+    return w.you.perms
+      .filter((pid) => (w.you.permEps[pid] ?? []).length < PACE.stack)
+      .map((pid) =>
+        button(
+          `記憶《${permDef(pid)?.name ?? pid}》に刻む：${d.memory?.text ?? ''}`,
+          () => {
+            aim = null;
+            send({ c: 'inscribe', ep, perm: pid });
+          },
+          { class: 'dig-ink-foe is-live' },
+        ),
+      );
   }
 
   /** そのエピテットを、いまどこかに刻めるか（札・記憶・先の部屋・出来事・相手）。 */
@@ -2948,61 +2852,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       w.map.some((m) => nodeInkable(w, ep, m)) ||
       (w.pending?.kind === 'story' && !!d?.story && w.pending.eps.length < 2) ||
       foeInkable(w, ep)
-    );
-  }
-
-  /** 拾い物の印（運がよかったぶん。失うものはない、という合図）。 */
-  const luckyTag = () =>
-    h(
-      'i',
-      { class: 'dig-lucky', title: '拾い物：運がよかったぶん。選んでも、何も失わない' },
-      '拾い物',
-    );
-
-  /** 札の目当ての印（読まずに分かる）。癒すは緑。 */
-  /**
-   * 札の目当ての印（読まずに分かる）。癒すは緑。遭遇の最中は、覚えておかなくて
-   * いいように、いま効く条件も印にする：直前の札とタグが重なれば「連鎖」、
-   * 見せ場のタグに合えば「見せ場」（どちらも強くなる）。
-   */
-  function badges(
-    list: readonly Fx[],
-    tags: readonly Tag[] | null = null,
-    w?: World,
-  ): HTMLElement | null {
-    const bs = badgesOf(list);
-    const e = w?.enc;
-    const n = tags && w ? chainNext(w, tags) : 0;
-    const chain = n > 0;
-    const stage = !!tags && !!e && e.stage.some((t) => tags.includes(t));
-    if (!bs.length && !chain && !stage) return null;
-    return h(
-      'span',
-      { class: 'dig-badges' },
-      chain ? h('i', { class: 'dig-badge dig-badge--boost dig-badge--chain' }, '連鎖') : null,
-      stage ? h('i', { class: 'dig-badge dig-badge--boost' }, '見せ場') : null,
-      bs.map((b) => h('i', { class: `dig-badge dig-badge--${b}` }, BADGE_NAME[b])),
-    );
-  }
-
-  /** 文の中の「体力 +n」「精神 +n」（戻る分）を緑に。 */
-  function heals(text: string): Child[] {
-    const parts = text.split(/((?:体力|精神) \+[0-9A-Za-z+.×]+)/);
-    return parts.map((p, i) => (i % 2 ? h('span', { class: 'dig-heal' }, p) : p));
-  }
-
-  /** 名前と、押すと何が起きるか（一行）の二段の釦。結果が読める選択肢はこれでそろえる。 */
-  function act(
-    name: string,
-    effect: string,
-    on: () => void,
-    attrs: Record<string, string | boolean | undefined | ((ev: Event) => void)> = {},
-  ): HTMLButtonElement {
-    return h(
-      'button',
-      { type: 'button', ...attrs, class: `dig-act ${attrs.class ?? ''}`.trim(), onclick: on },
-      h('span', { class: 'dig-act__name' }, name),
-      effect ? h('span', { class: 'dig-act__fx' }, ...heals(effect)) : null,
     );
   }
 
@@ -3036,29 +2885,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         send({ c: 'onward', go: true }),
       ),
     );
-  }
-
-  /** その道の最初の一歩（行き方と、そこにいる人・ある物）。 */
-  function stepLabel(w: World, id: number): string {
-    const n = nodeOf(w, id);
-    if (!n) return '進む';
-    const hard = n.npc ? nodeHardness(w, n) : null;
-    return `${way(w, n).verb}：${whoOf(n)}${hard !== null ? `　硬度 ${hard}` : ''}`;
-  }
-
-  function firstStep(w: World, id: number | undefined): HTMLElement | null {
-    if (id === undefined) return null;
-    const n = nodeOf(w, id);
-    if (!n) return null;
-    return h('span', { class: 'dig-chip__step' }, `${way(w, n).name} → ${whoOf(n)}`);
-  }
-
-  function lackText(l: { tag?: string; arch?: string; perm?: string; card?: string }): string {
-    if (l.tag) return `［${TAG_NAME[l.tag as keyof typeof TAG_NAME]}］が 1 つ`;
-    if (l.arch) return `〈${ARCH_NAME[l.arch as Archetype]}〉が 1 つ`;
-    if (l.perm) return `記憶《${permDef(l.perm)?.name ?? l.perm}》`;
-    if (l.card) return `『${cardDef(l.card).name}』`;
-    return '何か';
   }
 
   /**
@@ -3102,264 +2928,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     else if (theirs.length || theirMove)
       out.push({ who: 'foe', what: theirMove ?? '……', effects: theirs });
     return out;
-  }
-
-  function encounterPanel(w: World): HTMLElement {
-    const e = w.enc;
-    if (!e) return h('div');
-    const f = e.foe;
-    const def = foeDef(f.id);
-    const hard = foeHardness(f);
-    const you = youHardness(w);
-    const intent = shownIntent(w);
-    const shown = f.clues.filter((c) => c.shown && !c.false).length;
-    // 触れている札の効き目（相手の番の前まで）。四つの道の棒の先に、点滅で映す。
-    const eff =
-      e.phase !== 'act'
-        ? null
-        : hoverSlot !== null && w.you.cards[hoverSlot]
-          ? cardEffect(w, hoverSlot)
-          : hoverAct
-            ? effectOf(w, { c: 'act', a: hoverAct })
-            : null;
-    // 四つの決着の道。どれか一つを尽くせば終わる（これが遭遇の目当て）。
-    // 道ごとに、終えたあとに何が尾を引くかを一言（四つの道は同じ勝ちではない）。
-    const AFTER_HINT: Record<string, string> = {
-      倒す: '戦利品・悪名',
-      折る: '名を奪う・畏れ',
-      打ち解ける: '味方がつく',
-      暴く: '記憶・見透かし',
-    };
-    const way = (verb: string, el: HTMLElement) =>
-      h(
-        'div',
-        { class: 'dig-way' },
-        h('span', { class: 'dig-way__verb' }, verb),
-        el,
-        h('span', { class: 'dig-way__after' }, AFTER_HINT[verb] ?? ''),
-      );
-    const ways = [
-      way(
-        '倒す',
-        meter(f.hp, f.maxHp, 'foe-hp', '体力', { shield: f.guard, loss: eff ? -eff.hp : 0 }),
-      ),
-      way(
-        '折る',
-        meter(f.resolve, f.maxResolve, 'foe-will', '意志', { loss: eff ? -eff.resolve : 0 }),
-      ),
-      f.need < 50
-        ? way('打ち解ける', meter(f.trust, f.need, 'foe-trust', '信頼', { gain: eff?.trust ?? 0 }))
-        : way('打ち解ける', h('span', { class: 'dig-quiet' }, '言葉は通じない')),
-      f.clues.length
-        ? way(
-            '暴く',
-            meter(shown, f.clues.length, 'foe-clue', '手がかり', { gain: eff?.clues ?? 0 }),
-          )
-        : null,
-    ];
-    const kids: (Child | readonly Child[])[] = [
-      // 刻んだエピテットは、相手の名の前に冠として付く（刻んだ直後は琥珀で押される）。
-      h(
-        'p',
-        { class: 'dig-room__name', title: def.desc },
-        f.eps.map((x, i) =>
-          h(
-            'span',
-            {
-              class: `dig-crown${i === f.eps.length - 1 && now() - inkAt < 1.2 ? ' is-in' : ''}`,
-              title: epithetDef(x)?.foe?.text,
-            },
-            `《${epithetDef(x)?.name ?? x}》`,
-          ),
-        ),
-        f.name,
-        '　',
-        hardTag(hard, you),
-      ),
-      afterRow(w),
-      // 一巡：前の手番（あなた → 相手）と、相手の次の手。
-      lastTurn.length
-        ? h(
-            'div',
-            { class: 'dig-turn' },
-            lastTurn.map((l) =>
-              h(
-                'p',
-                { class: `dig-turn__line is-${l.who}` },
-                h('b', {}, l.who === 'you' ? 'あなた' : l.who === 'foe' ? '相手' : '決着'),
-                ' ',
-                l.what,
-                l.effects.length
-                  ? h(
-                      'span',
-                      { class: 'dig-turn__fx' },
-                      ' → ',
-                      l.effects.flatMap((x, i) => [i ? '・' : '', ...heals(x)]),
-                    )
-                  : '',
-              ),
-            ),
-          )
-        : null,
-      // 次の手。身ぶりの一文は、触れたときだけ。
-      intent && e.phase === 'act'
-        ? h(
-            'p',
-            {
-              class: 'dig-intent',
-              title: pickBy(POSTURE[intent.kind] ?? [], `${f.id}:${e.turn}`) ?? '',
-            },
-            h('span', { class: 'dig-intent__k' }, '次の手'),
-            h('b', {}, intent.label),
-            intent.power ? h('span', { class: 'dig-intent__n' }, String(intent.power)) : null,
-          )
-        : null,
-      // 四つの道は、戦闘（倒す・折る）と交渉（打ち解ける・暴く）の二つに分かれる。
-      h(
-        'div',
-        { class: 'dig-ways' },
-        h('span', { class: 'dig-ways__k' }, '戦闘'),
-        ways[0],
-        ways[1],
-        h('span', { class: 'dig-ways__k' }, '交渉'),
-        ways[2],
-        ways[3],
-      ),
-      e.phase === 'act' ? flowRows(w) : null,
-      // 覚えておかなくていいものは出さない。敵意は荒れているときだけ（信頼が伸びにくく、
-      // 手が重くなる）。見せ場のタグは札の印に出るので、ここでは名前だけ。
-      h(
-        'p',
-        { class: 'dig-quiet dig-enc__aside' },
-        f.hostility >= 7 ? h('span', { class: 'dig-warn' }, '荒れている') : '',
-        e.stage.length
-          ? `${f.hostility >= 7 ? '・' : ''}見せ場［${e.stage.map((t) => TAG_NAME[t]).join('・')}］`
-          : '',
-        // 区画の掟（名前だけ。中身は触れると）。
-        lawsAt(w.stratum).map((l) =>
-          h('span', { class: 'dig-law', title: l.text }, `掟《${l.name}》`),
-        ),
-      ),
-    ];
-    if (e.phase === 'over' && e.outcome) {
-      // 結末は一巡の行（決着 倒した）に出ているので、ここは受け取る釦だけ。
-      kids.push(button('決着を受け取る', () => send({ c: 'close' }), { class: 'dig-go' }));
-    } else {
-      // 札を使わない手は、立ち去る（と、取引に応じる）だけ。持ち物は手番を使わず、一手に一つ。
-      const lc = leaveChance(w);
-      const basics: Basic[] = ['leave'];
-      if (canAccept(w)) basics.push('accept');
-      kids.push(
-        h(
-          'div',
-          { class: 'dig-bare' },
-          // 札を使わない手も、ほかの選ぶ箱と同じ形（名前と、何が起きるか）。
-          basics.map((a) =>
-            h(
-              'button',
-              {
-                type: 'button',
-                class: 'dig-bare__act',
-                title: a === 'leave' ? '立ち去る（R）' : '応じる（T）',
-                onclick: () => send({ c: 'act', a }),
-                onmouseenter: () => {
-                  if (hoverAct === a) return;
-                  hoverAct = a;
-                  renderSide();
-                },
-                onmouseleave: () => {
-                  if (hoverAct !== a) return;
-                  hoverAct = null;
-                  renderSide();
-                },
-              },
-              h('b', {}, BASIC_NAME[a]),
-              h(
-                'span',
-                {},
-                a === 'leave' ? `抜け出せる見込み ${lc}%・決着はつかない` : BASIC_GLOSS[a],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    // 人となりの一文は、向き合った最初だけ（二手目からは名前に触れれば読める）。
-    if (e.turn <= 1 && !lastTurn.length)
-      kids.push(h('p', { class: 'dig-quiet dig-enc__desc' }, def.desc));
-    return h('div', { class: 'dig-enc' }, ...kids);
-  }
-
-  function storyPanel(w: World): HTMLElement {
-    const p = w.pending;
-    if (p?.kind !== 'story') return h('div');
-    const def = storyDef(p.id);
-    if (!def) return h('div');
-    return section(
-      def.title,
-      h('p', {}, def.text),
-      p.eps.length
-        ? h(
-            'p',
-            { class: 'dig-ep' },
-            p.eps
-              .map((e) => `《${epithetDef(e)?.name ?? e}》${epithetDef(e)?.story?.text ?? ''}`)
-              .join(' '),
-          )
-        : null,
-      // 手元のエピテットのうち、出来事に効くものは、この出来事に刻める（二つまで）。
-      p.eps.length < 2
-        ? h(
-            'p',
-            { class: 'dig-row dig-ink' },
-            [...new Set(w.you.epithets)]
-              .filter((ep) => !!epithetDef(ep)?.story && !p.eps.includes(ep))
-              .map((ep) =>
-                button(
-                  `＋《${epithetDef(ep)?.name ?? ep}》 ${epithetDef(ep)?.story?.text ?? ''}`,
-                  () => send({ c: 'inscribe', ep, story: true }),
-                  {
-                    class: 'dig-pill dig-pill--ep is-ink-target',
-                    title: '刻むと、この出来事の判定と実りが変わる',
-                  },
-                ),
-              ),
-          )
-        : null,
-      def.options.map((o, i) =>
-        button(
-          `${o.label}${o.stat ? `（${o.stat} ${storyChance(w, o.stat, o.diff ?? 0)}%）` : ''}`,
-          () => send({ c: 'choose', option: i }),
-          { disabled: !canChoose(w, i) },
-        ),
-      ),
-      // 拾い物：妙な選択肢が一つ増えている（選べば必ず何か得る。失うものはない）。
-      p.odd
-        ? h(
-            'button',
-            {
-              type: 'button',
-              class: 'dig-odd is-lucky',
-              onclick: () => send({ c: 'choose', option: def.options.length }),
-            },
-            luckyTag(),
-            '黙って、灯りを落として待つ',
-          )
-        : null,
-    );
-  }
-
-  function toldPanel(w: World): HTMLElement {
-    const p = w.pending;
-    if (p?.kind !== 'told') return h('div');
-    return section(
-      storyDef(p.id)?.title ?? '',
-      h('p', {}, p.text),
-      p.chance !== undefined
-        ? h('p', { class: 'dig-quiet' }, `判定 ${p.roll} / ${p.chance}%`)
-        : null,
-      button('先へ', () => send({ c: 'ack' }), { class: 'dig-go' }),
-    );
   }
 
   /**
@@ -3465,7 +3033,9 @@ export function openDig(doc: Document, onClose: () => void): void {
             ),
           )
         : null,
-      // 拾える札が無ければ、ここで受け取る（あるときは、下の帯か手札の欄で確かめる）。
+      // 広い画面で地図を見ているあいだは、手順と手放す一枚と釦がここ（拾える札は地図の下）。
+      wide() && !deckOpen ? claimSection(w) : null,
+      // 拾える札が無ければ、ここで受け取る（あるときは、ここか、下の帯か手札の欄で確かめる）。
       offers.length || p.tools.length
         ? null
         : h(
@@ -3505,322 +3075,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     return !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
   }
 
-  /** 拾う札・買う札。押すか、枠へ落とす。決める前に、構成がどう変わるかを一行で。 */
-  function cardOffer(
-    id: string,
-    on: () => void,
-    source: 'pick' | 'buy' | null = null,
-    picked = false,
-    price?: string,
-    /** 拾い物（運がよかったぶんの、余分な一枚）。 */
-    lucky = false,
-    /** エピテットが刻まれたまま出てきた札。 */
-    inked?: readonly string[],
-  ): HTMLElement {
-    const d = cardDef(id);
-    return h(
-      'button',
-      {
-        type: 'button',
-        class: `dig-offer${picked ? ' is-chosen' : ''}${lucky ? ' is-lucky' : ''}${inked?.length ? ' is-inked' : ''}`,
-        'aria-pressed': picked ? 'true' : undefined,
-        disabled: !source && !picked,
-        onclick: on,
-      },
-      h(
-        'span',
-        { class: 'dig-offer__head' },
-        lucky ? luckyTag() : null,
-        inked?.map((e) => epChip(e)),
-        h('b', {}, d.name),
-        price ? h('span', { class: 'dig-price' }, price) : null,
-      ),
-      d.legend ? h('span', { class: 'dig-offer__lead' }, `主役『${d.legend}』`) : null,
-      h(
-        'span',
-        { class: 'dig-quiet' },
-        ` ${d.uses} 回 ［${d.tags.map((t) => TAG_NAME[t]).join('・')}］${(d.arch ?? []).map((a) => `〈${ARCH_NAME[a]}〉`).join('')}`,
-      ),
-      badges(d.ready),
-      h('span', { class: 'dig-offer__fx' }, heals(fxText(d.ready))),
-      d.sig ? h('span', { class: 'dig-offer__sig' }, d.sig) : null,
-      inked?.length
-        ? h(
-            'span',
-            { class: 'dig-offer__next' },
-            inked
-              .map((e) => `《${epithetDef(e)?.name ?? e}》${epithetDef(e)?.card?.text ?? ''}`)
-              .join(' '),
-          )
-        : null,
-    );
-  }
-
-  /** エピテットの名札（格の色で）。 */
-  function epChip(e: string): HTMLElement {
-    const d = epithetDef(e);
-    const t = d ? epTier(d) : 'plain';
-    return h(
-      'span',
-      { class: `dig-ep is-${t}`, title: `${EP_TIER_NAME[t]}　${d?.gloss ?? ''}` },
-      `《${d?.name ?? e}》`,
-    );
-  }
-
-  /** 拾える道具・品（その場で使う。回数つき）。 */
-  function gearOffer(id: string, can: boolean, on: () => void, price?: string): HTMLElement {
-    const g = gearOf(id);
-    return h(
-      'button',
-      { type: 'button', class: 'dig-offer is-gear', disabled: !can, onclick: on },
-      h(
-        'span',
-        { class: 'dig-offer__head' },
-        h('b', {}, g?.name ?? id),
-        h('span', { class: 'dig-quiet' }, ` ${g?.tool ? '道具' : '品'}・${g?.uses ?? 1} 回`),
-        price ? h('span', { class: 'dig-price' }, price) : null,
-      ),
-      h('span', { class: 'dig-offer__fx' }, heals(g?.text ?? '')),
-      h(
-        'span',
-        { class: 'dig-quiet' },
-        can ? '手札の一覧で使う（向き合っていないときに）' : '持ち物がいっぱい',
-      ),
-    );
-  }
-
-  /** 食堂：休み方は二つだけ（どちらか一つ）。変質と、ときどき店主の賭け。 */
-  function restPanel(w: World): HTMLElement {
-    const p = w.pending;
-    if (p?.kind !== 'rest') return h('div');
-    const choice = (name: string, lines: string[], on: () => void, cls = '', dish = '') =>
-      h(
-        'button',
-        { type: 'button', class: `dig-scene__choice ${cls}`.trim(), onclick: on },
-        h('b', {}, name),
-        lines.map((l) => h('span', {}, ...heals(l))),
-        dish ? h('span', { class: 'dig-dish' }, dish) : null,
-      );
-    // 主人の一言：食べる前は挨拶（夜か朝か）、食べたあとは見送りの前の一言。
-    const morning = phaseOf(w.hour) === 'morning' || phaseOf(w.hour) === 'day';
-    const host = p.used
-      ? voiceOf(DINER_AFTER, w, 'after')
-      : voiceOf(morning ? DINER_MORNING : DINER_NIGHT, w, 'hello');
-    const alters = p.altered
-      ? []
-      : w.you.cards.flatMap((c, slot) =>
-          c
-            ? alterOptions(w.you, slot).map((o) =>
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    class: 'dig-alter__b',
-                    disabled: !o.ready,
-                    title: fxText(cardDef(o.to).ready),
-                    onclick: () => send({ c: 'alter', slot, to: o.to }),
-                  },
-                  h('b', {}, `『${cardDef(o.to).name}』`),
-                  h('span', {}, `『${cardDef(c.id).name}』から・${o.need}`),
-                ),
-              )
-            : [],
-        );
-    return h(
-      'div',
-      { class: 'dig-reward' },
-      h(
-        'div',
-        { class: 'dig-scene__head' },
-        h('span', { class: 'dig-scene__label' }, '食堂'),
-        h('b', { class: 'dig-scene__word' }, p.used ? '休んだ' : 'どう休む'),
-      ),
-      host ? h('p', { class: 'dig-host' }, `「${host}」`) : null,
-      p.used
-        ? null
-        : h(
-            'div',
-            { class: 'dig-scene__choices' },
-            choice(
-              '休む',
-              [
-                `体力 +${Math.round(PACE.rest * 100)}%・精神 +${Math.round(PACE.rest * 100)}%`,
-                'いちばん減っている札が一枚満ちる',
-                '1 時間',
-              ],
-              () => send({ c: 'rest', action: 'rest' }),
-              '',
-              voiceOf(DINER_LIGHT, w, 'light'),
-            ),
-            choice(
-              'ひと晩ここで',
-              [
-                '体力 +80%・精神 +80%',
-                '減っている札が二枚満ちる',
-                `3 時間・次の出来事を逃す${w.after.length ? '・決着の余韻が消える' : ''}`,
-              ],
-              () => send({ c: 'rest', action: 'full' }),
-              w.after.length ? 'is-costly' : '',
-              voiceOf(DINER_FULL, w, 'full'),
-            ),
-          ),
-      alters.length
-        ? h(
-            'div',
-            { class: 'dig-alter' },
-            h('h4', { class: 'dig-plan__h' }, '変質'),
-            h('div', { class: 'dig-alter__list' }, alters),
-          )
-        : null,
-      p.bet
-        ? h(
-            'div',
-            { class: 'dig-scene__row' },
-            h('span', { class: 'dig-host dig-host--aside' }, voiceOf(DINER_BET, w, 'bet')),
-            button('店主と賭ける', () => send({ c: 'rest', action: 'bet' }), {
-              class: 'dig-scene__pick is-lucky',
-              title: '負けのない賭け。表なら金 +10、裏ならコーヒーを一杯（精神 +5）',
-            }),
-          )
-        : null,
-      h(
-        'div',
-        { class: 'dig-scene__foot' },
-        button(
-          '出る',
-          () => {
-            const bye = voiceOf(DINER_LEAVE, w, 'leave');
-            if (send({ c: 'depart' }) && bye) showCaption(bye);
-          },
-          { class: p.used ? 'dig-go' : '' },
-        ),
-      ),
-    );
-  }
-
-  function shopPanel(w: World): HTMLElement {
-    const p = w.pending;
-    if (p?.kind !== 'shop') return h('div');
-    const kids: (Child | readonly Child[])[] = [];
-    for (const id of p.cards) {
-      const sold = p.sold.includes(id);
-      // 拾い物：半値の掘り出し物（元の値段を添えて）。
-      const full = cardPrice(w, id);
-      const cost = p.bargain === id ? Math.ceil(full / 2) : full;
-      const room = deckRoom(w.you) || w.you.cards.some((c) => !c);
-      kids.push(
-        cardOffer(
-          id,
-          () => {
-            if (!sold && room && w.you.coins >= cost) send({ c: 'buy', id });
-          },
-          sold || !room || w.you.coins < cost ? null : 'buy',
-          false,
-          sold
-            ? '売約'
-            : !room
-              ? '手持ちがいっぱい'
-              : p.bargain === id
-                ? `金 ${cost}（${full}）`
-                : `金 ${cost}`,
-          p.bargain === id && !sold,
-        ),
-      );
-    }
-    for (const id of p.items) {
-      const sold = p.sold.includes(id);
-      const ep = id.startsWith('ep:') ? epithetDef(id.slice(3)) : undefined;
-      if (ep) {
-        const price = epPrice(w, id.slice(3));
-        kids.push(
-          act(
-            `エピテット《${ep.name}》（${EP_TIER_NAME[epTier(ep)]}）　金 ${price}${sold ? '（売約）' : ''}`,
-            `札に刻むと：${ep.card?.text ?? ep.gloss}`,
-            () => send({ c: 'buy', id }),
-            { disabled: sold || w.you.coins < price, class: `is-ep is-${epTier(ep)}` },
-          ),
-        );
-        continue;
-      }
-      const price = priceOf(w, gearOf(id)?.price ?? 99);
-      kids.push(
-        gearOffer(
-          id,
-          !sold && w.you.coins >= price && w.you.items.length < ITEM_CAP,
-          () => send({ c: 'buy', id }),
-          sold ? '売約' : `金 ${price}`,
-        ),
-      );
-    }
-    for (const perm of w.you.perms) {
-      const d = permDef(perm);
-      if (!d) continue;
-      if (d.bad)
-        kids.push(
-          button(`《${d.name}》を手放す（金 ${curePrice(w)}）`, () => send({ c: 'cure', perm })),
-        );
-      else if (perm !== 'promise' && permValue(w.you, perm) > 0)
-        kids.push(
-          button(`記憶《${d.name}》を売る（金 ${permValue(w.you, perm)}）`, () =>
-            send({ c: 'sell', perm }),
-          ),
-        );
-    }
-    kids.push(
-      button(
-        '出る',
-        () => {
-          const bye = voiceOf(SHOP_LEAVE, w, 'leave');
-          if (send({ c: 'depart' }) && bye) showCaption(bye);
-        },
-        { class: 'dig-go' },
-      ),
-    );
-    // 古物商の一言：買ったあと／掘り出し物があるとき／ふだん。
-    const talk = p.sold.length
-      ? voiceOf(SHOP_SOLD, w, `sold${p.sold.length}`)
-      : p.bargain && !p.sold.includes(p.bargain)
-        ? voiceOf(SHOP_BARGAIN, w, 'bargain')
-        : voiceOf(SHOP_HELLO, w, 'hello');
-    return section('古物商', talk ? h('p', { class: 'dig-host' }, `「${talk}」`) : null, ...kids);
-  }
-
   // ─── 終わり ─────────────────────────────────────────────────
-
-  function persona(w: World): string {
-    const arch: Record<string, number> = {};
-    for (const c of w.you.cards)
-      for (const a of c ? (cardDef(c.id).arch ?? []) : []) arch[a] = (arch[a] ?? 0) + 1;
-    const top = Object.entries(arch).sort((a, b) => b[1] - a[1])[0]?.[0] as Archetype | undefined;
-    const outcomes: Record<string, number> = {};
-    for (const m of Object.values(w.minds))
-      for (const [k, v] of Object.entries(m.outcomes)) outcomes[k] = (outcomes[k] ?? 0) + (v ?? 0);
-    const memory = w.you.perms.find((p) => p !== 'promise' && !permDef(p)?.bad);
-    return [
-      jobDef(w.you.job)?.name,
-      top ? ARCH_NAME[top] : null,
-      ...w.you.titles.map((id) => epithetDef(id)?.name),
-      memory ? permDef(memory)?.name : null,
-      `${outcomes.trusted ?? 0} 人と打ち解けた`,
-      `${(outcomes.left ?? 0) + (outcomes.fled ?? 0)} 件 未解決`,
-    ]
-      .filter(Boolean)
-      .join(' / ');
-  }
-
-  function otherJobs(w: World): string[] {
-    const out: string[] = [];
-    for (const j of allJobs()) {
-      if (j.id === w.you.job) continue;
-      const a = JOB_ARCH[j.id];
-      const hit = misses(w).find((m) => m.lack.arch === a);
-      if (hit) out.push(`${j.name}なら、${hit.name}が成立していた`);
-    }
-    return out.slice(0, 3);
-  }
-
-  const tally = (k: string, v: string) =>
-    h('div', { class: 'dig-tally__item' }, h('dt', {}, k), h('dd', {}, v));
 
   /** 点の数え上げ（一度だけ。描き直しでは最後の値のまま）。 */
   let counted = '';
@@ -3842,10 +3097,41 @@ export function openDig(doc: Document, onClose: () => void): void {
     return el;
   }
 
+  /**
+   * この夜の一枚。手元でいちばん重ねた札（レベルの高い順、同じならエピテットの多い順）を、
+   * 刻まれた語とその札の一文とともに（押せない。次の挑戦には持ち越さない）。
+   * 重ねた札も刻んだ札も無ければ出さない。
+   */
+  function nightCard(w: World): HTMLElement | null {
+    const all = [...w.you.cards.filter((c): c is Card => !!c), ...w.you.back];
+    const score = (c: Card) => (c.lv ?? 1) * 10 + c.eps.length;
+    const best = all.sort((a, b) => score(b) - score(a))[0];
+    if (!best || score(best) <= 10) return null;
+    const def = cardDef(best.id);
+    return h(
+      'figure',
+      { class: 'dig-night' },
+      h('figcaption', { class: 'dig-night__h' }, 'この夜の一枚'),
+      h(
+        'p',
+        { class: 'dig-night__name' },
+        h('b', {}, `『${def.name}』`),
+        (best.lv ?? 1) > 1 ? h('span', { class: 'dig-lv' }, lvMark(best)) : null,
+        best.eps.length
+          ? h(
+              'span',
+              {},
+              best.eps.map((e) => epChip(e)),
+            )
+          : null,
+      ),
+      def.flavor ? h('p', { class: 'dig-night__line' }, def.flavor) : null,
+    );
+  }
+
   function endPanel(w: World): HTMLElement {
     const e = w.ending;
     if (!e) return h('div');
-    const near = misses(w).slice(0, 3);
     return section(
       e.title,
       h('p', { class: 'dig-persona' }, persona(w)),
@@ -3870,16 +3156,8 @@ export function openDig(doc: Document, onClose: () => void): void {
         tally('目標', `${['S', 'M', 'L'].reduce((a, k) => a + (w.flags[`goal:${k}`] ?? 0), 0)} 個`),
         tally('最長の連鎖', bestStreak ? `${bestStreak}` : '―'),
       ),
+      nightCard(w),
       h('p', { class: 'dig-quiet' }, `挑戦 ${profile.runs}　踏破 ${profile.wins}`),
-      near.length
-        ? h(
-            'p',
-            {},
-            '見つけていない噛み合わせ：',
-            near.map((m) => `${m.name}（あと${lackText(m.lack)}）`).join('、'),
-          )
-        : null,
-      otherJobs(w).map((t) => h('p', { class: 'dig-quiet' }, t)),
       button(
         'もう一度',
         () => {
@@ -3904,14 +3182,23 @@ export function openDig(doc: Document, onClose: () => void): void {
     const w = staged ?? game.world;
     // 手札の帯は、向き合っているあいだだけ。受け取りでは、拾える札がここに並ぶ。
     // ほかのときは畳む（手持ちは、整えるで地図の場所に広げる）。
+    offerBand.replaceChildren();
+    offerBand.hidden = true;
     if (!w.enc) {
-      const offers = w.pending?.kind === 'reward' && !w.ending && !deckOpen ? rewardTray(w) : [];
+      const live = w.pending?.kind === 'reward' && !w.ending && !deckOpen;
+      if (live && wide()) {
+        const kids = rewardBand(w);
+        offerBand.hidden = !kids.length;
+        fill(offerBand, kids);
+        tray.hidden = true;
+        return;
+      }
+      const offers = live ? rewardTray(w) : [];
       tray.hidden = !offers.length;
       fill(tray, offers);
       return;
     }
     tray.hidden = false;
-    const builds = buildsOf(w.you);
     const deal = dealt();
     const slots = w.you.cards.map((c, slot) => {
       const onClick = () => clickSlot(w, slot);
@@ -3938,8 +3225,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       const spent = c.uses <= 0;
       const was = swapped(slot);
       const acting = w.enc?.phase === 'act' && w.enc.who === 'you';
-      const ls = legendState(w.you, c.id);
-      const ch = ls?.legend.chapters[ls.chapter];
       // 続ければ連鎖になる札は、手の中で少しだけ身を乗り出す（字は出さない）。
       const leans =
         w.enc?.phase === 'act' &&
@@ -3949,7 +3234,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         'button',
         {
           type: 'button',
-          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${d.legend ? ' is-lead' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}${deal ? ' is-dealt' : ''}${was !== null ? ' is-swapped' : ''}${leans ? ' is-lean' : ''}`,
+          class: `dig-card ${cardState(w, slot)}${spent ? ' is-spent' : ''}${opened === slot ? ' is-open' : ''}${fresh(slot) ? ' is-new' : ''}${deal ? ' is-dealt' : ''}${was !== null ? ' is-swapped' : ''}${leans ? ' is-lean' : ''}${armedSlot === slot ? ' is-armed' : ''}`,
           style: deal ? `--deal:${slot}` : undefined,
           onclick: onClick,
           ...drop,
@@ -3965,12 +3250,14 @@ export function openDig(doc: Document, onClose: () => void): void {
           },
           title: [
             spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready),
+            liveNote(fxText(spent ? d.spent : d.ready), w),
             !spent && d.spent.length ? `眠りぎわ　${fxText(d.spent)}` : '',
+            d.sig,
+            d.flavor,
+            // タグは説明の最後に（札の上には浮かせない。説明と重なるので）。
             cardTags(c)
               .map((t) => `［${TAG_NAME[t]}］`)
               .join(''),
-            d.sig,
-            d.flavor,
           ]
             .filter(Boolean)
             .join('\n'),
@@ -3983,6 +3270,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           'span',
           { class: 'dig-card__head' },
           h('b', { class: 'dig-card__name' }, cardName(c, spent)),
+          lvTag(c),
           h('span', { class: 'dig-card__key' }, String(slot + 1)),
         ),
         pips(c),
@@ -4009,39 +3297,16 @@ export function openDig(doc: Document, onClose: () => void): void {
               'span',
               { class: 'dig-card__fx' },
               heals(spent ? `${d.spentName}：${fxText(d.spent)}` : fxText(d.ready)),
+              liveSpan(fxText(spent ? d.spent : d.ready), w),
             ),
         !acting && !spent && d.spent.length
           ? h('span', { class: 'dig-card__sleep' }, `眠りぎわ　${fxText(d.spent)}`)
           : null,
-        ls && ch
-          ? h(
-              'span',
-              { class: 'dig-card__legend' },
-              `第${'一二三'[ls.chapter]}章 ${ch.name}`,
-              h('span', { class: 'dig-card__progress' }, `${ls.progress}/${ch.count}`),
-            )
-          : ls
-            ? h('span', { class: 'dig-card__legend' }, `『${ls.legend.title}』完`)
-            : null,
-      );
-    });
-    const buildLine = builds.map((b) => {
-      const t = tierOf(w.you, b.id);
-      const s = SURGES[b.id];
-      const nt = nextTier(w.you, b.id);
-      return h(
-        'span',
-        {
-          class: `dig-build${t ? ' is-surge' : ''}`,
-          title: [b.text, t && s ? (t === 2 ? s.peakText : s.text) : '', nt ?? '']
-            .filter(Boolean)
-            .join('\n'),
-        },
-        `《${b.name}》${t === 2 ? ' 極み' : t === 1 ? ' 暴走' : ''}`,
       );
     });
     fill(tray, [
       h('div', { class: 'dig-hand' }, slots),
+      armDetail(w, encView()),
       h(
         'div',
         { class: 'dig-held' },
@@ -4063,6 +3328,8 @@ export function openDig(doc: Document, onClose: () => void): void {
                     { class: 'dig-ink-foe is-live' },
                   )
                 : null,
+              // 記憶へも、向き合っているあいだに刻める（手番は使わない）。案内と同じ場所に。
+              aim.kind === 'inscribe' && w.enc ? memoryTargets(w, aim.ep) : null,
               ' ',
               button('やめる', () => {
                 aim = null;
@@ -4073,14 +3340,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-pills' },
-          buildLine.length
-            ? h(
-                'span',
-                { class: 'dig-pills__group' },
-                h('span', { class: 'dig-pills__label' }, '構成'),
-                buildLine,
-              )
-            : null,
           // エピテットは種類ごとに一つ（同じものは ×n）。刻む先は札・記憶・先の部屋・出来事、
           // 向き合っているあいだは相手（人に効くものだけ、遭遇に一度）。
           w.you.epithets.length ? epithetRow(w) : null,
@@ -4218,6 +3477,13 @@ export function openDig(doc: Document, onClose: () => void): void {
       return;
     }
     if (w.enc?.phase === 'act' && w.you.cards[slot]) {
+      // 狭い画面では、一度目は構えるだけ（相手の棒に、動く分が映る）。二度目で切る。
+      if (narrow() && armedSlot !== slot) {
+        armedSlot = slot;
+        hoverSlot = slot;
+        render();
+        return;
+      }
       send({ c: 'card', slot });
       return;
     }
@@ -4227,28 +3493,6 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
 
   // ─── 人物を決める ───────────────────────────────────────────
-
-  /** 人物を決める画面の、初めの手札（押せない。遊ぶときと同じ顔）。 */
-  function previewCard(id: string, slot: number): HTMLElement {
-    const d = cardDef(id);
-    const c: Card = { uid: 0, id, uses: d.uses, max: d.uses, marks: {}, eps: [] };
-    return h(
-      'div',
-      { class: 'dig-card', title: [d.sig, d.flavor].filter(Boolean).join('\n') },
-      h(
-        'span',
-        { class: 'dig-card__head' },
-        h('b', { class: 'dig-card__name' }, d.name),
-        h('span', { class: 'dig-card__key' }, String(slot + 1)),
-      ),
-      pips(c),
-      badges(d.ready),
-      h('span', { class: 'dig-card__fx' }, heals(fxText(d.ready))),
-      d.spent.length
-        ? h('span', { class: 'dig-card__sleep' }, `眠りぎわ　${fxText(d.spent)}`)
-        : null,
-    );
-  }
 
   function renderCreate(): void {
     side.replaceChildren();
@@ -4287,11 +3531,6 @@ export function openDig(doc: Document, onClose: () => void): void {
           'div',
           { class: 'dig-hand is-preview' },
           j.cards.map((id, i) => previewCard(id, i)),
-        ),
-        h(
-          'p',
-          { class: 'dig-handview__note' },
-          `この五枚に、入るときに配られる二枚を足した七枚が手持ちになる。遭遇のたびに五枚が配られ、二枚は出番を待つ。`,
         ),
       ]);
     const saved = loadRun();
@@ -4487,6 +3726,9 @@ export function openDig(doc: Document, onClose: () => void): void {
   // ─── 全体 ───────────────────────────────────────────────────
 
   function render(): void {
+    drawNow = true;
+    // 描き直しで触れていた札が消えたら、説明も畳む。
+    queueMicrotask(() => tips.sync());
     if (screen !== 'create') {
       handView.hidden = true;
       createHint.hidden = true;
@@ -4495,6 +3737,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     renderGuide();
     dialog.classList.toggle('is-create', screen === 'create');
     dialog.classList.toggle('dig-enc-on', !!game?.world.enc);
+    dialog.classList.toggle('dig-pend-on', !game?.world.enc && !!game?.world.pending);
     // エピテットの刻む先を選んでいるあいだ、刻めないものは沈める。
     app.classList.toggle('is-aiming', aim?.kind === 'inscribe');
     if (screen === 'create') {
@@ -4504,12 +3747,103 @@ export function openDig(doc: Document, onClose: () => void): void {
     renderSide();
     renderTray();
     renderDeck();
+    renderPanes();
+  }
+
+  /**
+   * 狭い画面の切り替え。地図はいつも残し、その下を「札」か「情報」のどちらかに
+   * 使う。場面が替わると、まず見るべきほうに戻す（遭遇は札、受け取りは結末から）。
+   * 受け取りでは、下端に「前へ・次へ」（結末 → 拾う → 受け取る）。
+   */
+  let pane: 'hand' | 'info' = 'info';
+  let paneAt = '';
+  function renderPanes(): void {
+    paneSwitch.replaceChildren();
+    stepNav.replaceChildren();
+    const w = game && screen === 'play' ? (staged ?? game.world) : null;
+    const reward = w?.pending?.kind === 'reward' && !w.enc ? w : null;
+    const two = !!w && !tray.hidden;
+    const at = w ? (w.enc ? `enc:${w.enc.foe.id}` : (w.pending?.kind ?? 'map')) : '';
+    if (at !== paneAt) {
+      paneAt = at;
+      pane = w?.enc ? 'hand' : 'info';
+    }
+    // 受け取りは「前へ・次へ」だけで順に進む（切り替えと二重にしない）。
+    paneSwitch.hidden = !two || !!reward;
+    dialog.classList.toggle('dig-panes-on', two);
+    dialog.classList.toggle('dig-pane-hand', two && pane === 'hand');
+    dialog.classList.toggle('dig-pane-info', two && pane === 'info');
+    const go = (next: 'hand' | 'info') => {
+      if (pane === next) return;
+      pane = next;
+      renderPanes();
+    };
+    if (two && !reward) {
+      const [handName, infoName] = ['札', '相手'];
+      const tab = (name: string, which: 'hand' | 'info') =>
+        h(
+          'button',
+          {
+            type: 'button',
+            role: 'tab',
+            class: `dig-panes__b${pane === which ? ' is-on' : ''}`,
+            'aria-selected': pane === which ? 'true' : 'false',
+            onclick: () => go(which),
+          },
+          name,
+        );
+      fill(paneSwitch, [tab(handName, 'hand'), tab(infoName, 'info')]);
+    }
+    stepNav.hidden = !reward;
+    if (!reward) return;
+    // 段：結末 → 拾う一枚 →（手持ちがいっぱいなら）手放す一枚。選び終わると「受け取る」。
+    const st = rewardState(reward);
+    const offers = two;
+    const first = !offers || pane === 'info';
+    // 点の数は最初から決まっている（手持ちがいっぱいなら、手放す段が一つ増える）。
+    const steps = !offers ? 1 : st?.full || st?.gearFull ? 3 : 2;
+    const now = first ? 1 : (st?.needDrop || st?.needGear) && pickId ? 3 : 2;
+    const label = first
+      ? '結末'
+      : st?.ready && pickId
+        ? '受け取る'
+        : st?.needGear && pickId
+          ? '置いていく持ち物を選ぶ'
+          : st?.needDrop && pickId
+            ? '手放す一枚を選ぶ'
+            : '拾う一枚を選ぶ';
+    // 何をする段かは、欄の中の一文（確かめる帯）と下端の釦が言う。ここは点だけ（読み上げには段の名）。
+    fill(stepNav, [
+      button('前へ', () => go('info'), { class: 'dig-stepnav__prev', disabled: first }),
+      h(
+        'span',
+        { class: 'dig-stepnav__at', role: 'img', 'aria-label': `${now}/${steps} ${tr(label)}` },
+        h(
+          'span',
+          { class: 'dig-stepnav__dots' },
+          Array.from({ length: steps }, (_, i) => h('i', { class: i + 1 === now ? 'is-on' : '' })),
+        ),
+      ),
+      first && offers
+        ? button('次へ', () => go('hand'), { class: 'dig-stepnav__next dig-go' })
+        : st?.ready && pickId
+          ? button('受け取る', () => claimPicked(reward), { class: 'dig-stepnav__next dig-go' })
+          : button(offers ? '拾わずに進む' : '受け取って進む', claimNone, {
+              class: `dig-stepnav__next${offers ? '' : ' dig-go'}`,
+            }),
+    ]);
   }
 
   function onKey(ev: KeyboardEvent): void {
     if (!game || screen !== 'play' || ev.target instanceof HTMLInputElement) return;
+    // 釦・リンクの上の Enter と Space は、その釦のもの（地図の移動や目押しに奪わない）。
+    const onControl =
+      ev.target instanceof Element &&
+      !!ev.target.closest('button, a, select, textarea, [role="button"]:not(.dig-gauge)');
+    const press = ev.key === 'Enter' || ev.key === ' ';
+    if (onControl && press) return;
     if (gauge) {
-      if (ev.key === ' ' || ev.key === 'Enter') {
+      if (press) {
         ev.preventDefault();
         stopGauge();
       } else if (ev.key === 'Escape') {
@@ -4563,6 +3897,8 @@ export function openDig(doc: Document, onClose: () => void): void {
     }
   }
   doc.addEventListener('keydown', onKey, true);
+  // 広い⇄狭いの切れ目をまたいだら、受け取りの札の置き場（地図の下の帯／下端の帯）を組み直す。
+  layoutQuery.addEventListener('change', onLayout);
 
   const saved = loadRun();
   if (saved) {
@@ -4571,9 +3907,45 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (g) {
       game = g;
       screen = 'play';
+      resume(g, saved);
     } else saveRun(null);
+  }
+
+  /**
+   * 続きから再開したとき、画面だけが持っていた数を、記録から戻す。
+   * いまの連鎖と最長の連鎖（起きたことの列から数え直す）と、人物を決めた内容
+   * （「同じ夜をもう一度」が、同じ人物・難しさ・名前で始まるように）。
+   */
+  function resume(g: Game, s: { cmds: readonly Cmd[] }): void {
+    let run = 0;
+    let you = false;
+    for (const ev of g.events) {
+      if (ev.type === 'enc.start') {
+        you = ev.who === 'you';
+        run = 0;
+      } else if (ev.type === 'enc.st' && ev.key === 'chain' && you) {
+        run = Math.max(0, run + ev.n);
+        bestStreak = Math.max(bestStreak, run);
+      }
+    }
+    streak = g.world.enc?.who === 'you' ? run : 0;
+    const first = s.cmds[0];
+    if (first?.c === 'start') {
+      create = {
+        ...create,
+        job: first.job,
+        depth: first.depth ?? 0,
+        name: first.sheet?.name ?? '',
+        ...(first.sheet?.origin ? { origin: first.sheet.origin } : {}),
+        ...(first.sheet?.ep ? { ep: first.sheet.ep } : {}),
+        ...(first.sheet?.item ? { item: first.sheet.item } : {}),
+      };
+    }
   }
   const first = profile.lang ?? (doc.documentElement.lang.startsWith('en') ? 'en' : 'ja');
   dialog.lang = first;
-  void setLang(first).then(render);
+  void setLang(first).then(() => {
+    retranslate(dialog);
+    render();
+  });
 }

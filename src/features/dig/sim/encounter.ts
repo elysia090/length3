@@ -252,7 +252,7 @@ export function startEnc(
 
 /**
  * 決着の余韻が、遭遇の初めに効く（悪名と見透かしの規則は sources が持つ）。
- * 効いたら、どの余韻も一つ減る。
+ * 残りの数は、遭遇が終わるときに一つ減る（ops の end。「次の二戦」なら二戦目の終わりまで効く）。
  */
 function aftermath(tx: Tx): void {
   const w = tx.w;
@@ -290,7 +290,6 @@ function aftermath(tx: Tx): void {
         break;
     }
   }
-  tx.emit({ type: 'after.tick' });
 }
 
 function rivalStats(w: World, r: Char) {
@@ -327,6 +326,11 @@ export function leaveChance(w: World): number {
   if (f.hostility <= 2 || f.st.stun) return 100;
   const base = rawLeave(w);
   return Math.max(5, Math.min(100, Math.round(ask(w, 'leaveChance', {}, base))));
+}
+
+/** 取引に応じたときに払う金（実際に引かれる額。補正込み）。 */
+export function acceptPrice(w: World): number {
+  return Math.round(ask(w, 'price', {}, w.enc?.foe.intent?.price ?? 0));
 }
 
 export function canAccept(w: World): boolean {

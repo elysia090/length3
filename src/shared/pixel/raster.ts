@@ -78,24 +78,53 @@ export class Raster {
     const maxY = Math.min(this.h - 1, Math.ceil(Math.max(y0, y1, y2)));
     const inv = 1 / area;
     const { w, color, depth } = this;
+    // 一番内側の輪は画面の点の数だけ回る（地図の描画の支配項）。行ごとに決まる差は行の外で
+    // 一度だけ求め、閾値の表も直接引く。式の並びは元のまま（同じ点が、同じように塗られる）。
     for (let y = minY; y <= maxY; y++) {
       const py = y + 0.5;
-      for (let x = minX; x <= maxX; x++) {
+      const a0 = y2 - py;
+      const b0 = y1 - py;
+      const a1 = y0 - py;
+      const row = (y & 3) * 4;
+      const row2 = ((y + 2) & 3) * 4;
+      // この行で三角形の内側にかかる横の範囲を、三辺の式（px の一次式）から先に絞る。
+      // 端は一点ずつ余白を取り、内側の判定は元の式のまま（丸めで点が増減しない）。
+      let lo = minX;
+      let hi = maxX;
+      const k0 = (b0 - a0) * inv;
+      const c0 = (x1 * a0 - x2 * b0) * inv;
+      const k1 = (a0 - a1) * inv;
+      const c1 = (x2 * a1 - x0 * a0) * inv;
+      const k2 = -(k0 + k1);
+      const c2 = 1 - c0 - c1;
+      if (k0 > 1e-12) lo = Math.max(lo, Math.floor(-c0 / k0 - 0.5) - 1);
+      else if (k0 < -1e-12) hi = Math.min(hi, Math.ceil(-c0 / k0 - 0.5) + 1);
+      else if (c0 < -1e-9) continue;
+      if (k1 > 1e-12) lo = Math.max(lo, Math.floor(-c1 / k1 - 0.5) - 1);
+      else if (k1 < -1e-12) hi = Math.min(hi, Math.ceil(-c1 / k1 - 0.5) + 1);
+      else if (c1 < -1e-9) continue;
+      if (k2 > 1e-12) lo = Math.max(lo, Math.floor(-c2 / k2 - 0.5) - 1);
+      else if (k2 < -1e-12) hi = Math.min(hi, Math.ceil(-c2 / k2 - 0.5) + 1);
+      else if (c2 < -1e-9) continue;
+      if (lo > hi) continue;
+      let i = y * w + lo;
+      for (let x = lo; x <= hi; x++, i++) {
         const px = x + 0.5;
-        const w0 = ((x1 - px) * (y2 - py) - (x2 - px) * (y1 - py)) * inv;
-        const w1 = ((x2 - px) * (y0 - py) - (x0 - px) * (y2 - py)) * inv;
+        const w0 = ((x1 - px) * a0 - (x2 - px) * b0) * inv;
+        if (w0 < 0) continue;
+        const w1 = ((x2 - px) * a1 - (x0 - px) * a0) * inv;
+        if (w1 < 0) continue;
         const w2 = 1 - w0 - w1;
-        if (w0 < 0 || w1 < 0 || w2 < 0) continue;
-        const i = y * w + x;
-        const dark1 = tone < threshold(x, y);
+        if (w2 < 0) continue;
+        const dark1 = tone < (BAYER4[row + (x & 3)] as number);
         if (decal) {
           if (depth[i] === -Infinity && dark1) color[i] = dark;
           continue;
         }
         const z = w0 * z0 + w1 * z1 + w2 * z2;
-        if (z < (depth[i] ?? 0)) continue;
+        if (z < (depth[i] as number)) continue;
         depth[i] = z;
-        color[i] = dark1 ? (mix > threshold(x + 1, y + 2) ? alt : dark) : light;
+        color[i] = dark1 ? (mix > (BAYER4[row2 + ((x + 1) & 3)] as number) ? alt : dark) : light;
       }
     }
   }
@@ -152,6 +181,15 @@ export class Raster {
 
   present(out: Uint32Array, palette: Uint32Array): void {
     const { color } = this;
-    for (let i = 0; i < color.length; i++) out[i] = palette[color[i] ?? 0] ?? 0;
+    const n = color.length;
+    // 色は四つ（多くて六つ）。表を局所に写して、点ごとの ?? を外す。
+    const p0 = palette[0] ?? 0;
+    const p1 = palette[1] ?? 0;
+    const p2 = palette[2] ?? 0;
+    const p3 = palette[3] ?? 0;
+    for (let i = 0; i < n; i++) {
+      const c = color[i] as number;
+      out[i] = c === 0 ? p0 : c === 1 ? p1 : c === 2 ? p2 : c === 3 ? p3 : (palette[c] ?? 0);
+    }
   }
 }

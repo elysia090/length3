@@ -2,7 +2,7 @@ import { PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { LineKind } from '../content/defs';
 import { gearOf, ITEM_CAP } from '../content/gear';
-import { cardDef, epithetDef, foeDef, permDef } from '../content/registry';
+import { allKeepsakes, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import type {
   Card,
   Char,
@@ -31,7 +31,43 @@ export const actor = (tx: Tx): Who => tx.w.enc?.who ?? 'you';
 
 /** 記憶（永続カード）の補正の合計と、盤面で変わる記憶。並びが同じなら使い回す。 */
 const permPart = new Map<string, { mods: StatBlock; dyn: string[] }>();
+/**
+ * 記憶の並びごとの直近の答え。並びは付け外しで配列ごと替わり、刻んだ語も語の配列ごと
+ * 替わる（reduce.ts）ので、配列が同じ物なら答えも同じ。試行の写しも並びを共有するので
+ * （branch.ts）、写すたびに鍵の文字列を組み直さずに済む。
+ */
+const permLast = new WeakMap<
+  readonly string[],
+  {
+    perms: readonly string[];
+    len: number;
+    eps: (readonly string[] | undefined)[];
+    out: { mods: StatBlock; dyn: string[] };
+  }
+>();
 function permsOf(c: Char): { mods: StatBlock; dyn: string[] } {
+  const last = permLast.get(c.perms);
+  if (last && last.len === c.perms.length) {
+    let same = true;
+    for (let i = 0; i < last.len; i++) {
+      if (last.eps[i] !== c.permEps[c.perms[i] as string]) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return last.out;
+  }
+  const out = permsKeyed(c);
+  permLast.set(c.perms, {
+    perms: c.perms,
+    len: c.perms.length,
+    eps: c.perms.map((id) => c.permEps[id]),
+    out,
+  });
+  return out;
+}
+
+function permsKeyed(c: Char): { mods: StatBlock; dyn: string[] } {
   let key = c.perms.join(',');
   for (const id of c.perms) {
     const e = c.permEps[id];
@@ -58,6 +94,11 @@ export function stats(w: World, who: Who): StatBlock {
   const p = permsOf(c);
   const out = zeroStats();
   for (const s of STATS) out[s] = c.innate[s] + c.growth[s] + p.mods[s];
+  for (const it of c.items) {
+    const m = keepMods().get(it.id);
+    if (m) for (const s of STATS) out[s] += m[s] ?? 0;
+  }
+  if (who === 'you') out.VIT += keepVit(w);
   if (p.dyn.length && w.enc?.who === who)
     for (const id of p.dyn) {
       const d = permDef(id);
@@ -65,6 +106,21 @@ export function stats(w: World, who: Who): StatBlock {
     }
   for (const s of STATS) out[s] = Math.max(0, out[s]);
   return out;
+}
+
+/** 能力値を足す身につける品（id → 足す量）。一度だけ組む。 */
+let keepModT: Map<string, Partial<StatBlock>> | undefined;
+const keepMods = () =>
+  (keepModT ??= new Map(allKeepsakes().flatMap((d) => (d.mods ? [[d.id, d.mods] as const] : []))));
+
+/** 一生ものの靴・使い古した安全靴で増えた体格（体格 1 = 最大体力 4）。 */
+export function keepVit(w: World): number {
+  let v = 0;
+  for (const it of w.you.items) {
+    if (it.id === 'lifelong-shoes') v += Math.floor((w.flags['keep:shoes'] ?? 0) / 4);
+    else if (it.id === 'worn-boots') v += w.flags['keep:boots'] ?? 0;
+  }
+  return v;
 }
 
 export const statOf = (w: World, who: Who, s: Stat) => stats(w, who)[s];
@@ -260,9 +316,14 @@ export function heal(tx: Tx, hp: number, mind = 0, who: Who = actor(tx)): void {
   const h = Math.min(want, maxHp(s) - c.hp);
   const m = Math.min(Math.round(tx.rule('heal', { who, kind: 'mind' }, mind)), maxMind(s) - c.mind);
   if (h > 0 || m > 0) tx.emit({ type: 'vital', who, hp: Math.max(0, h), mind: Math.max(0, m) });
+  const over = want - Math.max(0, h);
+  // 不滅の水筒：溢れた回復を汲み置く（体力 10 まで）。
+  if (who === 'you' && over > 0 && c.items.some((x) => x.id === 'canteen')) {
+    const was = tx.w.flags['keep:flask'] ?? 0;
+    if (was < 10) tx.emit({ type: 'flag', key: 'keep:flask', v: Math.min(10, was + over) });
+  }
   // 流用：溢れた回復が、相手を削る。
   const e = tx.w.enc;
-  const over = want - Math.max(0, h);
   if (e && e.phase === 'act' && e.who === who && over > 0) {
     const d = Math.round(over * tx.rule('overheal', { who }, 0));
     if (d > 0) hitFoe(tx, d, true);
@@ -421,19 +482,44 @@ export const cardAt = (c: Char, at: CardAt): Card | undefined =>
  * 札にエピテットを刻む・剥がす。回数を増やす語なら、最大回数も同じだけ動く
  * （刻めば回数も増え、剥がせば最大に合わせて削れる）。
  */
-export function markEp(tx: Tx, who: Who, at: CardAt, ep: string, on: boolean): void {
+/**
+ * 札にエピテットを刻む・剥がす。回数を増やす語は、最大回数と一緒に「いまの回数」も運ぶ。
+ *   刻む    最大 +u。運んでいる回数があれば、いまの回数も +u（剥がして戻った語は運ばない）
+ *   剥がす  最大 −u。いまの回数から u を持ち帰る。足りなければ true を返す（手元に戻す
+ *           なら「使い切った語」として。次に刻んでも、いまの回数は増えない）
+ * `charge` を false にすると、刻んでも回数を運ばない。
+ */
+export function markEp(
+  tx: Tx,
+  who: Who,
+  at: CardAt,
+  ep: string,
+  on: boolean,
+  charge = true,
+): boolean {
   if ('slot' in at) tx.emit({ type: 'card.ep', who, slot: at.slot, ep, on });
   else tx.emit({ type: 'deck.ep', who, index: at.index, ep, on });
   const u = epithetDef(ep)?.card?.uses ?? 0;
-  if (!u) return;
-  const n = on ? u : -u;
-  if ('slot' in at) {
-    tx.emit({ type: 'card.max', who, slot: at.slot, n });
-    if (on) tx.emit({ type: 'card.uses', who, slot: at.slot, n });
-  } else {
-    tx.emit({ type: 'deck.max', who, index: at.index, n });
-    if (on) tx.emit({ type: 'deck.uses', who, index: at.index, n });
+  if (!u) return false;
+  const card = cardAt(charOf(tx.w, who), at);
+  const max = (n: number) =>
+    'slot' in at
+      ? tx.emit({ type: 'card.max', who, slot: at.slot, n })
+      : tx.emit({ type: 'deck.max', who, index: at.index, n });
+  const uses = (n: number) =>
+    'slot' in at
+      ? tx.emit({ type: 'card.uses', who, slot: at.slot, n })
+      : tx.emit({ type: 'deck.uses', who, index: at.index, n });
+  if (on) {
+    max(u);
+    if (charge) uses(u);
+    return false;
   }
+  // 持ち帰れる回数（いまの回数のうち、この語が足したぶんまで）。
+  const back = Math.min(u, Math.max(0, card?.uses ?? 0));
+  if (back) uses(-back);
+  max(-u);
+  return back < u;
 }
 
 /**
@@ -479,6 +565,8 @@ export function end(tx: Tx, outcome: Outcome): void {
   if (!e || e.phase !== 'act') return;
   if (['beaten', 'broken', 'trusted', 'uncovered', 'fled'].includes(outcome))
     line(tx, outcome as LineKind);
+  // 余韻は、この遭遇が終わるときに一つ減る（この決着で新しく付く余韻は、このあと付く）。
+  if (tx.w.after.length) tx.emit({ type: 'after.tick' });
   tx.emit({ type: 'enc.end', outcome });
 }
 
@@ -510,6 +598,15 @@ export function settle(tx: Tx): void {
       tx.emit({ type: 'after.end', kind: 'ally' });
       say(tx, 'voice', `${foeDef(ally.npc).name}が、あなたの前に立った。`);
       tx.emit({ type: 'note', text: `${foeDef(ally.npc).name}が身代わりになった。`, level: 3 });
+      return;
+    }
+    // 最悪の保険：一度だけ立ち上がる。精神は 1 になり、保険は消える。
+    if (c.items.some((x) => x.id === 'worst-insurance')) {
+      const s = stats(tx.w, 'you');
+      tx.emit({ type: 'item', who: 'you', id: 'worst-insurance', n: -1 });
+      tx.emit({ type: 'vital', who: 'you', hp: maxHp(s) - c.hp, mind: 1 - c.mind });
+      say(tx, 'voice', '約款の最後の一行が、あなたを立たせた。');
+      tx.emit({ type: 'note', text: '最悪の保険が下りた。体力が満ち、精神は 1 に。', level: 3 });
       return;
     }
   }

@@ -1,0 +1,110 @@
+/* 部品をまたぐ状態の印：エピテットの格の色、拾い物、押した瞬間の跳ね。 */
+
+.dig-ep {
+  color: var(--ink-2);
+}
+
+.dig-card__uses i.is-on {
+  background: var(--amber-text);
+}
+
+/* 選んでいる選択肢（押されたまま）。 */
+.dig button.is-chosen,
+.dig .dig-offer.is-chosen {
+  border-width: 0.125rem;
+  border-color: var(--amber-text);
+  background: #fff;
+  color: var(--amber-text);
+}
+
+.dig .dig-pick button.is-on {
+  border-color: var(--amber-text);
+  box-shadow: inset 2px 0 0 var(--amber-text);
+}
+
+.dig-pips i.is-on {
+  border-color: var(--amber);
+  background: var(--amber);
+}
+
+/* 灯ったばかりの一つは、三度だけ明滅する（1-bit の点滅）。 */
+.dig-pips i.is-new {
+  animation: dig-blink 0.6s steps(2, jump-none) 2;
+}
+
+/*
+ * 拾い物（運がよかったぶんの、余分な一つ）。点線の琥珀の縁と、小さな名札。
+ * ほかの選択肢と同じ形のまま、足し算であることだけが見分けられる。
+ */
+.dig .is-lucky {
+  border: 1px dashed var(--amber-text);
+}
+
+.dig-ep.is-gold,
+.dig .is-gold.dig-pill--ep,
+.dig .is-ep.is-gold {
+  color: var(--dig-gold);
+  border-color: var(--dig-gold);
+}
+
+.dig-ep.is-silver,
+.dig .is-silver.dig-pill--ep,
+.dig .is-ep.is-silver {
+  color: var(--dig-silver);
+  border-color: var(--dig-silver);
+}
+
+.dig-ep.is-bronze,
+.dig .is-bronze.dig-pill--ep,
+.dig .is-ep.is-bronze {
+  color: var(--dig-bronze);
+  border-color: var(--dig-bronze);
+}
+
+.dig-ep.is-plain,
+.dig .is-plain.dig-pill--ep {
+  color: var(--ink-2);
+}
+
+.dig-ep {
+  font-weight: 700;
+}
+
+.dig-tired i.is-on {
+  background: var(--ink-2);
+  border-color: var(--ink-2);
+}
+
+.dig-stat__pips i.is-on {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.dig .dig-scene__card.is-flip .dig-scene__inked .dig-ep {
+  animation: dig-stamp 160ms steps(2, jump-none) both;
+  animation-delay: calc(var(--d, 0s) + 0.4s);
+}
+
+.dig .dig-scene__card.is-flip .dig-scene__inked .dig-ep.is-gold {
+  animation:
+    dig-stamp 160ms steps(2, jump-none) both,
+    dig-twinkle 0.24s steps(2, jump-none) 3;
+  animation-delay: calc(var(--d, 0s) + 0.4s), calc(var(--d, 0s) + 0.6s);
+}
+
+.dig-route dt.is-hot {
+  color: var(--amber-text);
+}
+
+@media (max-width: 52rem) {
+  .dig-stepnav__dots i.is-on {
+      border-color: var(--ink);
+      background: var(--ink);
+    }
+}
+
+@keyframes dig-twinkle {
+  50% {
+    opacity: 0.25;
+  }
+}

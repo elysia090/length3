@@ -1,0 +1,1181 @@
+/* 手元：札（顔・回数・効き目・状態）、手札の帯、持ち物と構成の札、手札の一覧、構えた札の中身。 */
+
+.dig-card__next,
+.dig-offer__next {
+  font-size: var(--font-ui-xs);
+  color: var(--amber-text);
+}
+
+/* ─── 手元 ─── */
+.dig-tray {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 0.0625rem solid var(--rule);
+}
+
+.dig-hand {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.dig .dig-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 4.75rem;
+  padding: 0.4375rem 0.5625rem 0.5rem;
+  border-color: var(--ink-2);
+  background: var(--bg);
+  font-size: var(--font-ui-xs);
+  line-height: 1.45;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.dig-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* 札の名は二行まで（文節で折る。省略しない）。 */
+.dig-card__name {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--dig-t-base);
+  line-height: 1.3;
+  text-wrap: balance;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.dig-card__key {
+  flex: none;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+}
+
+/* 回数：残りは琥珀の四角、使った分は枠だけ。 */
+.dig-card__uses {
+  display: flex;
+  gap: 0.1875rem;
+}
+
+.dig-card__uses i {
+  width: 0.375rem;
+  height: 0.375rem;
+  border: 0.0625rem solid var(--amber-text);
+}
+
+.dig .dig-card.is-lead {
+  border-width: 0.125rem;
+}
+
+.dig .dig-card.is-spent {
+  border-style: dashed;
+}
+
+.dig .dig-card.is-empty {
+  align-items: center;
+  justify-content: center;
+  border: 0.0625rem dashed var(--rule);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: default;
+}
+
+/* 札の見え方は三つ。ふだんは、ふつうの札。何かを選んでいる間（選択肢・遭遇）だけ、
+   押せる札が白く浮き（押して初めて実行）、押せない札は薄く沈む。暗くはしない。 */
+.dig .dig-card.is-live {
+  border-style: solid;
+  border-color: var(--ink);
+  background: #fff;
+  box-shadow: 0 0.125rem 0 var(--ink);
+  transform: translateY(-0.125rem);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.dig .dig-card.is-live.is-spent {
+  border-style: dashed;
+}
+
+.dig .dig-card.is-live:focus-visible {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
+.dig .dig-card.is-live:focus-visible {
+  border-color: var(--amber-text);
+  box-shadow: 0 0.1875rem 0 var(--amber-text);
+  color: var(--ink);
+}
+
+@media (hover: hover) {
+  .dig .dig-card.is-live:hover {
+      border-color: var(--amber-text);
+      box-shadow: 0 0.1875rem 0 var(--amber-text);
+      color: var(--ink);
+    }
+}
+
+.dig .dig-card.is-off {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.dig .dig-card.is-off:hover {
+  border-color: var(--ink-2);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-card {
+      transition: none;
+    }
+
+  .dig .dig-card.is-live {
+      transform: none;
+    }
+}
+
+/*
+ * カードは名前・回数・効き目（いつも）。タグは、押して開いたときに札の上へ浮かぶ
+ * （札の高さを変えない）。マウスで触れたときは、共通の説明枠の最後の行に。
+ */
+.dig-card__tags {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: -1px;
+  right: -1px;
+  z-index: 2;
+  padding: 2px 8px;
+  border: 1px solid var(--ink-3);
+  background: var(--bg);
+  color: var(--ink-3);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 触れたときのタグは共通の説明枠が言う。ここは、押して開いたとき（指の端末）だけ。 */
+.dig .dig-card.is-open .dig-card__tags {
+  visibility: visible;
+}
+
+/* 主役の章は、札の下端に細い線で区切って。進み具合だけ琥珀。 */
+.dig-card__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.25rem;
+  border-top: 0.0625rem dotted var(--rule);
+  color: var(--ink-3);
+}
+
+.dig-card__progress {
+  flex: none;
+  font-family: var(--font-mono);
+  color: var(--amber-text);
+}
+
+.dig-held {
+  display: grid;
+  gap: 0.375rem;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-held p {
+  margin: 0;
+}
+
+/*
+ * 手元の下の一行：ビルド・エピテット・記憶。押せるのはエピテットだけなので、
+ * 枠を持つのもエピテットだけ。ビルドと記憶は字のまま（触れると効き目）。
+ */
+.dig-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+}
+
+.dig-pills__group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.dig-pills__group--ep {
+  gap: 4px;
+}
+
+.dig-pills__label {
+  margin-right: 4px;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+}
+
+.dig .dig-pill,
+.dig-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0 8px 0 4px;
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--font-ui-xs);
+  line-height: 1;
+}
+
+/*
+ * エピテットは《》がもう語を括っているので、枠で二重に囲わない。格の色の字だけで並べ、
+ * 触れると琥珀に、選んでいるあいだは琥珀の下線（字の幅いっぱい、位置は動かさない）。
+ */
+.dig .dig-pill--ep {
+  padding: 0 2px;
+  border-style: none;
+  background: transparent;
+  cursor: grab;
+}
+
+.dig .dig-pill--ep.is-chosen {
+  box-shadow: inset 0 -2px 0 var(--amber-text);
+  color: var(--amber-text);
+}
+
+@media (hover: hover) {
+  .dig .dig-pill--ep:hover:not(:disabled) {
+      color: var(--amber-text);
+      text-decoration: underline dotted;
+      text-underline-offset: 3px;
+    }
+}
+
+.dig .dig-pill--ep:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.dig-pill__plus {
+  font-style: normal;
+  color: var(--amber-text);
+}
+
+.dig .dig-pill--ep:disabled .dig-pill__plus {
+  color: var(--rule);
+}
+
+.dig-pill__n {
+  font-family: var(--font-mono);
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+/* ビルドと記憶は字だけ。ビルドは暴走・極みのときだけ琥珀。悪い記憶は印つき。 */
+.dig-build,
+.dig-mem {
+  color: var(--ink-2);
+  cursor: help;
+}
+
+.dig-build.is-surge {
+  color: var(--amber-text);
+  font-weight: 700;
+}
+
+.dig-mem + .dig-mem::before {
+  content: '・';
+  margin-right: 0;
+  color: var(--rule);
+}
+
+.dig-mem.is-bad {
+  color: var(--ink);
+  text-decoration: underline dotted var(--ink-3);
+  text-underline-offset: 3px;
+}
+
+.dig .dig-held button:not(.dig-pill) {
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
+  font-size: var(--font-ui-xs);
+}
+
+/* 構えた札の中身は、狭い画面だけ（広い画面では札に触れれば読める）。 */
+.dig-armdetail {
+  display: none;
+}
+
+@media (max-width: 52rem) {
+  .dig-pane-hand .dig-app > .dig-tray {
+      align-content: start;
+      overflow-y: auto;
+    }
+}
+
+@media (max-width: 52rem) {
+  .dig-app > .dig-tray {
+      grid-area: tray;
+      border-bottom: 1px solid var(--rule);
+    }
+}
+
+@media (max-width: 52rem) {
+  .dig-hand {
+      grid-template-columns: repeat(5, minmax(4.5rem, 1fr));
+      overflow-x: auto;
+    }
+
+  .dig .dig-card {
+      min-height: 5rem;
+    }
+
+  .dig-card__tags {
+      display: none;
+    }
+}
+
+/* 札の目当ての印（倒す・折る・打ち解ける・暴く・守る・癒す…）。読まずに分かるように。 */
+.dig-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1875rem;
+}
+
+.dig-badge {
+  padding: 0 0.25rem;
+  border: 0.0625rem solid var(--rule);
+  font-size: 0.625rem;
+  font-style: normal;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.dig-badge--heal {
+  border-color: var(--dig-green);
+  color: var(--dig-green);
+}
+
+.dig-badge--trust,
+.dig-badge--expose {
+  border-style: dashed;
+}
+
+/* まだ貼ったことのないエピテットは、字が静かに琥珀で息をする（貼れる、という合図）。 */
+.dig .dig-pill--ep.is-fresh:not(:disabled) {
+  animation: dig-fresh 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-pill--ep.is-fresh:not(:disabled) {
+      animation: none;
+      color: var(--amber-text);
+    }
+}
+
+/* いま効く条件（連鎖・見せ場）は琥珀の印。覚えておかなくていいように、札の上に。 */
+.dig-badge--boost {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+  font-weight: 700;
+}
+
+.dig-pips {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.dig-pips i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--ink-3);
+}
+
+/* 新しく入った札（下から一段差し込まれ、縁が琥珀に）。 */
+.dig-card.is-new {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+  animation: dig-card-in 140ms ease-out both;
+}
+
+/* 遭遇の初めに配り直した五枚：左から一枚ずつ差し込む。 */
+.dig-card.is-dealt {
+  animation: dig-card-in 140ms ease-out both;
+  animation-delay: calc(var(--deal, 0) * 70ms);
+}
+
+/*
+ * 尽きた札と入れ替わった札。札の上に「『…』と入れ替え」の名札をしばらく残す
+ * （黙って替わらない）。差し込みの動きは is-new と同じ。
+ */
+.dig-card.is-swapped {
+  outline: 1px solid var(--amber-text);
+  outline-offset: 2px;
+}
+
+.dig-card__swap {
+  align-self: flex-start;
+  padding: 0 4px;
+  border: 1px solid var(--amber-text);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.04em;
+  color: var(--amber-text);
+  background: var(--bg);
+}
+
+/* 連鎖できる札の印は、直前の札と繋がっていることを、灯りの明滅で（1-bit の段で）。 */
+.dig-enc-on .dig-badge--chain {
+  animation: dig-link 1.2s steps(2, jump-none) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-enc-on .dig-badge--chain {
+      animation: none;
+    }
+}
+
+/*
+ * 札の効き目（向き合っているあいだ）。いま使ったら動く数を小さな札片で、その下に
+ * 足される点の内訳を琥珀で。式（4+腕力 削る）は、その下に薄く残る。
+ */
+.dig-card__out {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.dig-outs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dig-out {
+  padding: 0 4px;
+  border: 1px solid var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-style: normal;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.dig-out.is-blue {
+  border-color: var(--dig-blue);
+  color: var(--dig-blue);
+}
+
+.dig-out.is-you {
+  border-style: dashed;
+}
+
+.dig-out.is-heal {
+  border-color: var(--dig-green);
+  color: var(--dig-green);
+}
+
+.dig-out.is-cost {
+  border-style: dotted;
+  font-weight: 400;
+}
+
+.dig-out.is-end {
+  border-color: var(--amber-text);
+  background: var(--bg);
+  color: var(--amber-text);
+}
+
+.dig-out.is-none {
+  border-color: var(--rule);
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.dig-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+}
+
+.dig-why__p {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-style: normal;
+  color: var(--amber-text);
+}
+
+.dig-why__p.is-minus {
+  color: var(--ink-3);
+}
+
+/* 連鎖の点は、直前の札と繋がっているあいだ、1-bit の段で明滅する。 */
+.dig-why__p.is-chain {
+  animation: dig-link-text 1.2s steps(2, jump-none) infinite;
+}
+
+/* 向き合っているあいだ、式は脇役（数は上の札片が言う）。 */
+.dig-enc-on .dig-card__fx {
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig-why__p.is-chain {
+      animation: none;
+    }
+}
+
+/*
+ * 手番の段取り。札は枠の中で一目盛り跳ねて落ち（動きは app.ts で）、落ちた
+ * 瞬間に、上の帯・場面・脇・手元がいっしょに一度だけ沈む。
+ */
+/* 続ければ連鎖になる札は、手の中で少し身を乗り出す（縁の上だけ琥珀の印）。 */
+.dig .dig-card.is-live.is-lean {
+  border-top-color: var(--amber-text);
+  transform: translateY(-0.5rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-card.is-live.is-lean {
+      transform: none;
+    }
+}
+
+/* 並びの都合でここに置く（本来は guide.css。.dig-pips i より後に効く必要がある）。 */
+.dig-guide__why > :nth-child(n + 4) {
+  display: none;
+}
+
+.dig-why-chip b {
+  margin-right: 0.75em;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* 後ろで眠っている札。回数の尽きた札は薄く。 */
+.dig-back {
+  flex-wrap: wrap;
+}
+
+.dig-back__card {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+  color: var(--ink-2);
+}
+
+.dig-back__card.is-asleep {
+  color: var(--ink-3);
+}
+
+.dig-back__n {
+  font-family: var(--font-mono);
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+/* 札の眠りぎわ（回数が尽きて後ろへ回るときの一度きり）。 */
+.dig-card__sleep {
+  color: var(--ink-3);
+  font-size: var(--font-ui-xs);
+}
+
+/* その場で使う持ち物（品と道具）。 */
+.dig-gear {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.dig-gear__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig .dig-gear__item {
+  min-height: 1.75rem;
+  padding: 0 8px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig .dig-gear__item.is-tool {
+  border-style: dashed;
+}
+
+/* 持ち物の列の見出しは「身につける」が一行に収まる幅（列ごとに揃える）。 */
+.dig-places.is-gear .dig-place {
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+}
+
+.dig-places.is-gear .dig-place__label {
+  white-space: nowrap;
+}
+
+/*
+ * 置いていく一つ（受け取りで持ち物がいっぱいのとき）。同じ品を押すたびに一段ずつ：
+ *   1 琥珀の枠に取り消し線（線は左から引かれる）
+ *   2 灰色になる（もう手元のものではない）
+ *   3 縮みながら下へ落ちて消える
+ * 動きは段が変わった直後の一度だけ（is-fresh）。描き直したあとは、その段の止まった姿。
+ */
+.dig .dig-gear__item.is-drop {
+  position: relative;
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+.dig-gear__item.is-drop::after {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  left: 6px;
+  height: 1px;
+  background: currentColor;
+  content: '';
+  transform-origin: left center;
+}
+
+/* 触れていても灰色のまま（押した直後もマウスは乗っているので、触れた色に負けないように）。 */
+.dig .dig-gear__item.is-set,
+.dig .dig-gear__item.is-set:hover:not(:disabled) {
+  border-color: var(--rule);
+  border-style: dashed;
+  color: var(--ink-3);
+  background: transparent;
+}
+
+.dig .dig-gear__item.is-gone {
+  display: none;
+}
+
+.dig .dig-gear__item.is-drop.is-fresh:not(.is-set) {
+  animation: dig-set-down 0.3s ease-out;
+}
+
+.dig-gear__item.is-drop.is-fresh:not(.is-set)::after {
+  animation: dig-strike 0.26s ease-out 0.06s both;
+}
+
+.dig .dig-gear__item.is-set.is-fresh:not(.is-gone) {
+  animation: dig-dim 0.32s ease-out;
+}
+
+/* 消える段は、描き直した直後だけ姿を残して、縮みながら落ちて消える。 */
+.dig .dig-gear__item.is-gone.is-fresh {
+  display: inline-flex;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: dig-leave 0.46s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  pointer-events: none;
+}
+
+@keyframes dig-set-down {
+  0% {
+    translate: 0 -2px;
+  }
+
+  55% {
+    translate: 0 2px;
+  }
+
+  100% {
+    translate: 0 0;
+  }
+}
+
+@keyframes dig-strike {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes dig-dim {
+  from {
+    border-color: var(--amber-text);
+    border-style: solid;
+    color: var(--amber-text);
+  }
+}
+
+@keyframes dig-leave {
+  0% {
+    max-width: 12em;
+    opacity: 1;
+    translate: 0 0;
+  }
+
+  40% {
+    max-width: 12em;
+    opacity: 0.8;
+    translate: 0 3px;
+  }
+
+  100% {
+    max-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-gear__item.is-fresh,
+  .dig-gear__item.is-fresh::after {
+    animation: none;
+  }
+
+  .dig .dig-gear__item.is-gone.is-fresh {
+    display: none;
+  }
+}
+
+/* 身につける品：押して使うものではないので枠で囲まない。名前だけ。 */
+.dig-gear__item.is-keep {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  color: var(--ink);
+}
+
+/* 手持ちがいっぱいのとき、手放す札を選ぶ列。 */
+.dig-drop {
+  display: grid;
+  gap: 4px;
+}
+
+.dig .dig-drop__card {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-card__sleep {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 灯りを置く（挑戦を終える一手）。ほかの釦から一段離し、二度押しで。 */
+.dig-lamp {
+  margin-top: 24px;
+  padding-top: 8px;
+  border-top: 1px dotted var(--rule);
+}
+
+.dig .dig-lamp__b {
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+}
+
+.dig .dig-lamp__b.is-armed {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+/*
+ * エピテットの刻む先を選んでいるあいだ：刻めない札・記憶・欄は沈め、刻める先
+ * （白い札・記憶・相手・出来事・地図の部屋の輪）だけが浮く。
+ */
+.dig-app.is-aiming .dig-bar,
+.dig-app.is-aiming .dig-side > *:not(:has(.is-ink-target)),
+.dig-app.is-aiming .dig-pills__group:not(.dig-pills__group--ep):not(:has(.is-live)),
+.dig-app.is-aiming .dig-mem:not(.is-live),
+.dig-app.is-aiming .dig-pills__group--ep .dig-pill:not(.is-chosen) {
+  opacity: 0.32;
+}
+
+/* 疲れ（十の目盛り。三つ溜まると字が琥珀に）。 */
+.dig-tired {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  color: var(--ink-3);
+  cursor: help;
+}
+
+.dig-tired i {
+  width: 4px;
+  height: 8px;
+  border: 1px solid var(--ink-3);
+}
+
+.dig-tired.is-heavy {
+  color: var(--amber-text);
+}
+
+/* 初めの手札（押せない見本）。 */
+.dig-hand.is-preview .dig-card {
+  cursor: default;
+}
+
+.dig.is-create .dig-tray {
+  display: none;
+}
+
+/* 横に脇の欄があるぶん地図の欄は狭いので、見本は四枚で折り返す。 */
+.dig-hand.is-preview {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dig-hand.is-preview .dig-card {
+  border: 1px solid var(--ink-2);
+}
+
+/* 見本は読むための場所なので、札の名も眠りぎわの文も切らない。 */
+.dig-hand.is-preview .dig-card__name {
+  white-space: normal;
+}
+
+.dig-hand.is-preview .dig-card__sleep {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+/* 狭い画面の見本は、札を読める幅にして横にめくる（遊ぶときの手元と同じ動き）。 */
+@media (max-width: 52rem) {
+  .dig-hand.is-preview {
+      grid-template-columns: repeat(5, minmax(10rem, 1fr));
+    }
+}
+
+.dig .dig-gear__item.is-on {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+/* 整える：手持ちの札を全部広げた画面。剥がす釦は小さく、刻める札だけが浮く。 */
+.dig-deck__held {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin: 0;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-deck__held .dig-pills__label {
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+}
+
+.dig-deck__eps {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--rule);
+}
+
+.dig-deck__ep {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+}
+
+.dig .dig-deck__ep button {
+  min-height: 1.5rem;
+  margin-left: auto;
+  padding: 0 8px;
+  font-size: var(--font-ui-xs);
+}
+
+.dig-deckview .dig-card.is-live {
+  border-color: var(--amber-text);
+  cursor: pointer;
+}
+
+/* 受け取りで手放す一枚を選ぶときは、刻む先の琥珀ではなく、ふだんの「押せる」（墨で浮く）。 */
+.dig-deckview .is-droppick .dig-card.is-live:not(.is-chosen) {
+  border-color: var(--ink);
+}
+
+.dig-deckview .dig-card.is-dim {
+  opacity: 0.32;
+}
+
+.dig-mems .dig-pills__label {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.dig-deck__sec {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.dig-deck__sec h3 {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-ui-xs);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  color: var(--ink-3);
+}
+
+.dig-deck__mems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.dig-tray[hidden] {
+  display: none;
+}
+
+.dig .dig-card.is-still {
+  cursor: default;
+}
+
+.dig-deck__mems .dig-mem {
+  padding: 2px 8px;
+  border: 1px solid var(--rule);
+  font-size: var(--font-ui-xs);
+}
+
+.dig-deck__mems .dig-mem.is-dim {
+  opacity: 0.32;
+}
+
+/* 目標の下：いまの状況（階の癖・余韻・冠）。 */
+/* 並びの都合でここに置く（本来は side.css。.dig-guide__why > :nth-child(n + 4) より後に効く必要がある）。 */
+.dig-status ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 52rem) {
+  /* 札は三列×二段。横にめくらない（勘で続けて打てるように、全部見える）。 */
+  .dig-hand {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      overflow: visible;
+    }
+
+  .dig-tray {
+      gap: 4px;
+      padding: 6px 12px 8px;
+    }
+}
+
+@media (max-width: 52rem) {
+  .dig .dig-card .dig-why,
+    .dig .dig-card .dig-card__legend,
+    .dig .dig-card .dig-card__sleep,
+    .dig .dig-card .dig-card__next {
+      display: none;
+    }
+
+  .dig .dig-card .dig-outs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+    }
+
+  .dig .dig-card .dig-out {
+      padding: 0 4px;
+      font-size: 0.6875rem;
+      line-height: 1.5;
+    }
+
+  .dig-pills {
+      font-size: 0.6875rem;
+    }
+}
+
+@media (max-width: 52rem) {
+  /* 一度目に押した札の中身。手札の下の空きに開く（広い画面で札に触れたときの説明と同じ）。 */
+  .dig-armdetail {
+      display: grid;
+      gap: 4px;
+      margin-top: 4px;
+      padding: 8px 10px 9px 12px;
+      border: 1px solid var(--rule);
+      box-shadow: inset 2px 0 0 var(--amber-text);
+      background: var(--bg);
+    }
+
+  .dig-armdetail p {
+      margin: 0;
+    }
+
+  .dig-armdetail.is-idle {
+      margin-bottom: 0;
+      border-style: dashed;
+      box-shadow: none;
+      font-size: 0.6875rem;
+      line-height: 1.55;
+      color: var(--ink-3);
+    }
+
+  .dig-armdetail__head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 8px;
+      font-size: 0.8125rem;
+    }
+
+  .dig-armdetail__tags {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      color: var(--ink-3);
+    }
+
+  .dig-armdetail__fx {
+      font-size: 0.75rem;
+      line-height: 1.6;
+    }
+
+  .dig-armdetail__sub,
+    .dig-armdetail__flavor {
+      font-size: 0.6875rem;
+      line-height: 1.55;
+      color: var(--ink-3);
+    }
+
+  .dig-armdetail__why {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0 8px;
+    }
+
+  .dig-armdetail__go {
+      justify-self: end;
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      letter-spacing: 0.08em;
+      color: var(--amber-text);
+    }
+
+  /* 手の枠の中で浮く札が、枠の上端で切れないように（浮きは小さく、枠に余白）。 */
+  .dig-app > .dig-tray {
+      padding-top: 10px;
+    }
+
+  .dig .dig-card.is-live.is-lean {
+      transform: translateY(-3px);
+    }
+}
+
+@media (max-width: 52rem) {
+  .dig-hand:has(.is-armed) .dig-card:not(.is-armed) {
+      opacity: 0.5;
+    }
+}
+
+/* 指で触る広い画面（タブレット）でも、構えた札の中身は手札の下に開く。 */
+@media (min-width: 52.001rem) and (hover: none) and (pointer: coarse) {
+  .dig-armdetail {
+      display: grid;
+      gap: var(--dig-s-1);
+      margin-top: var(--dig-s-2);
+      padding: var(--dig-s-2) var(--dig-s-3);
+      border: var(--dig-line);
+      box-shadow: inset 2px 0 0 var(--amber-text);
+      font-size: var(--dig-t-md);
+    }
+
+  .dig-armdetail p {
+      margin: 0;
+    }
+}
+
+@keyframes dig-fresh {
+  50% {
+    color: var(--amber-text);
+  }
+}
+
+@keyframes dig-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes dig-link {
+  50% {
+    border-color: var(--rule);
+    color: var(--ink-3);
+  }
+}
+
+@keyframes dig-link-text {
+  50% {
+    color: var(--ink-3);
+  }
+}
+
+/*
+ * 狭い画面で手札の一覧を開いたとき：地図の枠に押し込まず、上帯の下を全部使う（情報は隠す）。
+ * 札は二列で縦に並べる（横にめくらない。剥がす釦も指で押せる幅に）。
+ */
+@media (max-width: 52rem) {
+  .dig-deck-on .dig-app {
+      grid-template-rows: auto auto minmax(0, 1fr) 0 0 0 auto;
+    }
+
+  .dig-deck-on .dig-side,
+    .dig-deck-on .dig-panes,
+    .dig-deck-on .dig-tray {
+      display: none;
+    }
+
+  .dig-deckview .dig-hand.is-preview {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      overflow: visible;
+    }
+
+  .dig-deckview {
+      padding: 12px 12px 72px;
+    }
+}
+
+/* 整える：選んだエピテットの中身。触れたときの説明（.dig-tip--hover）と同じ枠で、行の下に置く。 */
+.dig-epdetail {
+  display: grid;
+  gap: 0.125rem;
+  justify-self: start;
+  max-width: 32rem;
+  padding: var(--dig-s-1) var(--dig-s-2) 5px;
+  border: 0.0625rem solid var(--ink);
+  background: var(--bg);
+  font-size: var(--dig-t-md);
+  line-height: 1.55;
+  text-wrap: pretty;
+}

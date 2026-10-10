@@ -5,6 +5,7 @@ import { forkEncounter } from '../core/branch';
 import type { Basic } from '../core/events';
 import { believes, portrait } from '../core/mind';
 import type { Intent, World } from '../core/model';
+import { bookOf } from '../core/rules';
 import { Tx } from '../core/tx';
 import { basic, canAccept, useCard } from './encounter';
 import { foeHardness } from './hardness';
@@ -33,11 +34,9 @@ export type Action = { kind: 'basic'; a: Basic } | { kind: 'card'; slot: number 
 /** 世界の複製（試行用）。乱数の流れも分けて、本物の流れを汚さない。 */
 export function fork(w: World, salt: number): World {
   const c = forkEncounter(w);
-  c.rng = {
-    ...c.rng,
-    enc: (c.rng.enc ^ Math.imul(salt + 1, 0x9e3779b1)) >>> 0,
-    ai: (c.rng.ai ^ Math.imul(salt + 7, 0x85ebca6b)) >>> 0,
-  };
+  // 写しの乱数はもう本物と別の入れ物なので、そのまま書き換えてよい。
+  c.rng.enc = (c.rng.enc ^ Math.imul(salt + 1, 0x9e3779b1)) >>> 0;
+  c.rng.ai = (c.rng.ai ^ Math.imul(salt + 7, 0x85ebca6b)) >>> 0;
   return c;
 }
 
@@ -113,15 +112,16 @@ export function bestAction(w: World, depth = 1): Action {
   const list = actions(w);
   let best: Action = { kind: 'basic', a: 'leave' };
   let bestV = Number.NEGATIVE_INFINITY;
+  const book = bookOf(w);
   list.forEach((a, i) => {
     const s = fork(w, i + 17);
-    act(new Tx(s, true), a);
+    act(new Tx(s, true, book, false), a);
     let v = judgeYou(w, s);
     if (depth > 1 && s.enc?.phase === 'act' && !(a.kind === 'basic' && a.a === 'leave')) {
       let next = Number.NEGATIVE_INFINITY;
       actions(s).forEach((b, j) => {
         const s2 = fork(s, j + 31);
-        act(new Tx(s2, true), b);
+        act(new Tx(s2, true, null, false), b);
         next = Math.max(next, judgeYou(w, s2));
       });
       if (next > Number.NEGATIVE_INFINITY) v = 0.4 * v + 0.6 * next;
@@ -273,12 +273,13 @@ export function planFoe(tx: Tx): void {
   else {
     const def = foeDef(e.foe.id);
     let best = Number.NEGATIVE_INFINITY;
+    const book = bookOf(w);
     moves.forEach((m, mi) => {
       const k = rollouts(w);
       let total = 0;
       for (let i = 0; i < k; i++) {
         const s = fork(w, mi * 97 + i);
-        const stx = new Tx(s, true);
+        const stx = new Tx(s, true, book, false);
         const se = s.enc;
         if (!se) continue;
         stx.emit({ type: 'intent', move: m.id, intent: m.intent(s) });

@@ -1,6 +1,6 @@
 import { AFTER } from '../content/after';
 import { WORK_ARCH } from '../content/archetypes';
-import { DATA_VERSION, PACE } from '../content/balance';
+import { DATA_VERSION, LV_MARK, PACE } from '../content/balance';
 import { memoryMods, tagCount } from '../content/cardinfo';
 import type { CardDef } from '../content/defs';
 import { EXTRA_AUTO, FLOOR_EGGS } from '../content/eggs';
@@ -38,6 +38,7 @@ import {
   allCombos,
   allFoes,
   allItems,
+  allKeepsakes,
   allStories,
   cardDef,
   epithetDef,
@@ -52,11 +53,12 @@ import { SURGES, tierOf } from '../content/surges';
 import { earnTitle, titleDef } from '../content/titles';
 import { BREATH_LINES, lineAt, USE_LINES } from '../content/voices';
 import { branch } from '../core/branch';
-import type { RestAction } from '../core/events';
+import type { Ev, RestAction } from '../core/events';
 import {
   blankMind,
   type Card,
   type Char,
+  LV_MAX,
   type MapNode,
   type Mind,
   type Outcome,
@@ -128,6 +130,20 @@ export const deckSize = (c: Char): number => c.cards.filter(Boolean).length + c.
 export const deckRoom = (c: Char): boolean => deckSize(c) < deckCap(c);
 
 /** 札を手持ちに加える（空いた枠があれば枠へ、なければ後ろへ）。持てなければ false。 */
+/** 手持ちの同じ札（重ねる先）。同じ札は重なるので、あれば一枚。 */
+export const ownedCard = (c: Char, id: string): Card | undefined =>
+  c.cards.find((x) => x?.id === id) ?? c.back.find((x) => x.id === id);
+
+/** 同じ札を重ねられるか（持っていて、まだⅢでない）。 */
+export const stackable = (c: Char, id: string): boolean => {
+  const card = ownedCard(c, id);
+  return !!card && (card.lv ?? 1) < LV_MAX;
+};
+
+/**
+ * 札を手に入れる。同じ札をもう持っていれば、その札のレベルが上がる（手持ちの枚数は
+ * 増えない。刻まれて出てきたエピテットは、重ねた札に移る）。
+ */
 export function addCard(
   tx: Tx,
   id: string,
@@ -136,6 +152,19 @@ export function addCard(
   eps: readonly string[] = [],
 ): boolean {
   const c = charOf(tx.w, who);
+  const same = ownedCard(c, id);
+  if (same) {
+    if ((same.lv ?? 1) >= LV_MAX) return false;
+    tx.emit({ type: 'card.lv', who, uid: same.uid, n: 1 });
+    for (const e of eps) tx.emit({ type: 'ep.held', who, ep: e, n: 1 });
+    if (who === 'you')
+      tx.emit({
+        type: 'note',
+        text: `『${cardDef(id).name}』を重ねた。${LV_MARK[(same.lv ?? 1)] ?? ''}になった。`,
+        level: 2,
+      });
+    return true;
+  }
   const at = c.cards.findIndex((x) => !x);
   if (at >= 0) {
     tx.emit({ type: 'card.set', who, slot: at, card: newCard(c.uid, id, [...eps]), why });
@@ -161,7 +190,33 @@ export function makeRoom(tx: Tx, drop?: number): boolean {
   if (slot >= 0) tx.emit({ type: 'card.set', who: 'you', slot, card: null, why: 'dropped' });
   else tx.emit({ type: 'deck.drop', who: 'you', index });
   tx.emit({ type: 'note', text: `『${cardDef(gone.id).name}』を手放した。`, level: 1 });
+  refund(tx, gone.uses);
   return true;
+}
+
+/** 返品保証書：手放した札に回数が残っていれば、枠でいちばん減っている札の回数 +1。 */
+function refund(tx: Tx, left: number): void {
+  const c = tx.w.you;
+  if (left <= 0 || !c.items.some((x) => x.id === 'warranty')) return;
+  let at = -1;
+  c.cards.forEach((x, i) => {
+    if (!x || x.uses >= x.max) return;
+    const best = at >= 0 ? c.cards[at] : null;
+    if (!best || x.uses < best.uses) at = i;
+  });
+  const to = at >= 0 ? c.cards[at] : null;
+  if (!to) return;
+  tx.emit({ type: 'card.uses', who: 'you', slot: at, n: 1 });
+  tx.emit({ type: 'note', text: `返品保証書：『${cardDef(to.id).name}』の回数 +1。`, level: 1 });
+}
+
+/** まだ持っていない、身につける品を一つ。 */
+function freshKeepsake(tx: Tx): string | undefined {
+  const held = new Set(tx.w.you.items.map((x) => x.id));
+  return tx.pick(
+    'loot',
+    allKeepsakes().filter((d) => !held.has(d.id)),
+  )?.id;
 }
 
 /**
@@ -240,7 +295,7 @@ export function makeChar(job: string, name: string, carry?: string, sheet: Sheet
     titles: [],
     uid: 6,
   };
-  if (carry && permDef(carry) && !c.perms.includes(carry)) c.perms.push(carry);
+  if (carry && permDef(carry) && !c.perms.includes(carry)) c.perms = [...c.perms, carry];
   const s = statsOfChar(c);
   c.hp = maxHp(s);
   c.mind = maxMind(s);
@@ -472,7 +527,7 @@ export function start(
   sheet: Sheet = {},
 ): void {
   const you = makeChar(job, sheet.name ?? 'あなた', carry, sheet);
-  if (depth >= 2 && !you.perms.includes('fear')) you.perms.push('fear');
+  if (depth >= 2 && !you.perms.includes('fear')) you.perms = [...you.perms, 'fear'];
   const others = [
     'surveyor',
     'watch',
@@ -639,11 +694,8 @@ function rivalStep(tx: Tx): void {
     tx.rand('rival');
   const target = options.reduce((a, b) => (want(b) > want(a) ? b : a));
   tx.emit({ type: 'rival', node: target.id, row: target.row });
-  if (
-    target.npc &&
-    (target.kind !== 'boss' || true) &&
-    !(target.visited && target.kind !== 'boss')
-  ) {
+  let lost = false;
+  if (target.npc && !(target.visited && target.kind !== 'boss')) {
     const outcome = rivalFight(
       tx,
       target.npc,
@@ -654,6 +706,7 @@ function rivalStep(tx: Tx): void {
     if (target.kind !== 'boss') tx.emit({ type: 'node', id: target.id, rival: outcome });
     tx.emit({ type: 'rival', log: `${foeDef(target.npc).name}：${OUTCOME_NAME[outcome]}` });
     if (outcome === 'fallen' || outcome === 'shattered') {
+      lost = true;
       const back = charOf(tx.w, 'rival');
       const s2 = stats(tx.w, 'rival');
       tx.emit({
@@ -680,7 +733,8 @@ function rivalStep(tx: Tx): void {
     });
     tx.emit({ type: 'node', id: target.id, rival: 'passed' });
   } else tx.emit({ type: 'node', id: target.id, rival: 'passed' });
-  if (target.kind === 'boss') {
+  // 負けて手前へ退いたなら、扉は越えていない（突破も先着も、ここでは起きない）。
+  if (target.kind === 'boss' && !lost) {
     if (rv.stratum >= LAST) {
       tx.emit({ type: 'rival', down: true, first: !w.ending });
       if (!w.ending)
@@ -696,7 +750,8 @@ function rivalStep(tx: Tx): void {
 export function offerCards(tx: Tx, who: Who): string[] {
   const w = tx.w;
   const c = charOf(w, who);
-  const have = new Set([...c.cards.map((x) => x?.id), ...c.back.map((x) => x.id)]);
+  const mine = [...c.cards.filter((x): x is Card => !!x), ...c.back];
+  const have = new Set(mine.map((x) => x.id));
   const tail = new Set(jobDef(c.job)?.cards.slice(START_CARDS) ?? []);
   const want = who === 'you' ? misses(w)[0]?.lack : undefined;
   const fits = (d: CardDef) =>
@@ -728,6 +783,14 @@ export function offerCards(tx: Tx, who: Who): string[] {
     }
     const [d] = pool.splice(i, 1);
     if (d) out.push(d.id);
+  }
+  // ときどき（PACE.again の割合で）、候補の一枚が持っている札になる（拾えば重なってレベルが
+  // 上がる）。Ⅲの札は出ない。枠の札（いま使っている札）から選ぶ。
+  const up = mine.filter((x) => (x.lv ?? 1) < LV_MAX && cardDef(x.id).layer === 'archetype');
+  if (out.length && up.length && tx.rand('loot') < PACE.again) {
+    const pick = up[Math.floor(tx.rand('loot') * up.length)] as Card;
+    // 受け取りに並ぶのは先頭の二枚なので、その一枚と入れ替える。
+    out[Math.min(1, out.length - 1)] = pick.id;
   }
   return out;
 }
@@ -1075,6 +1138,9 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
           .map((i) => i.id),
         ...tx.shuffle('loot', allTools()).slice(0, 2),
       ];
+      // 身につける品が、棚の奥に一つ。
+      const keep = freshKeepsake(tx);
+      if (keep) items.push(keep);
       const eps = tx
         .shuffle('loot', poolEpithets())
         .slice(0, 2)
@@ -1110,18 +1176,18 @@ function enter(tx: Tx, node: MapNode, from: number | null = null): void {
 function pickStory(tx: Tx): string | null {
   const w = tx.w;
   if (Object.values(w.you.debts).some((n) => n > 0) && tx.rand('story') < 0.35) return 'favor-due';
+  // 出来事は区画の主題で選ぶ（B31 から下は、上の三つの主題を繰り返す）。
+  const theme = sectionNo(w.stratum);
   const open = w.unlocked.find(
-    (id) => !w.seen.includes(id) && storyDef(id)?.strata.includes(w.stratum),
+    (id) => !w.seen.includes(id) && storyDef(id)?.strata.includes(theme),
   );
   if (open) return open;
   const tags = tagCount(w.you);
-  const pool = allStories().filter(
-    (s) =>
-      !s.locked &&
-      s.strata.includes(w.stratum) &&
-      !w.seen.includes(s.id) &&
-      (!s.needTags || meets(tags, s.needTags)),
-  );
+  const fits = (s: ReturnType<typeof allStories>[number]) =>
+    !s.locked && s.strata.includes(theme) && (!s.needTags || meets(tags, s.needTags));
+  let pool = allStories().filter((s) => fits(s) && !w.seen.includes(s.id));
+  // 繰り返しの区画で見尽くしたら、同じ主題の出来事にもう一度立ち会う。
+  if (!pool.length && theme !== w.stratum) pool = allStories().filter(fits);
   const pick = pool[Math.floor(tx.rand('story') * pool.length)];
   return pick?.id ?? null;
 }
@@ -1197,7 +1263,7 @@ export function useItem(tx: Tx, index: number, q?: number): boolean {
   const w = tx.w;
   const held = w.you.items[index];
   const g = held ? gearOf(held.id) : undefined;
-  if (!g || !held || w.enc) return false;
+  if (!g || !held || w.enc || g.kind === 'keep') return false;
   // 探るのは、地図の上で手の空いているときだけ（何かが起きるので）。
   if (g.kind === 'seek' && w.pending) return false;
   const o = useOrder(tx, g, held.id);
@@ -1424,7 +1490,12 @@ export function close(tx: Tx): boolean {
       // 作品の札を二枚と、道具を一つ。拾えるのはどれか一つ（手持ちがいっぱいなら、
       // 札は一枚手放して拾う）。
       cards: offered,
-      tools: settled ? tx.shuffle('loot', allTools()).slice(0, 1) : [],
+      // ときどき、道具の代わりに身につける品がまざる。
+      tools: settled
+        ? tx.rand('loot') < PACE.keep
+          ? [freshKeepsake(tx) ?? tx.shuffle('loot', allTools())[0] ?? '']
+          : tx.shuffle('loot', allTools()).slice(0, 1)
+        : [],
       inked,
       lucky:
         o === 'left' || o === 'fled'
@@ -1441,21 +1512,34 @@ export function close(tx: Tx): boolean {
 
 export function claim(
   tx: Tx,
-  cmd: { take?: string; help?: number; card?: string; drop?: number; tool?: string },
+  cmd: {
+    take?: string;
+    help?: number;
+    card?: string;
+    drop?: number;
+    tool?: string;
+    dropItem?: string;
+  },
 ): boolean {
   const w = tx.w;
   const p = w.pending;
   if (p?.kind !== 'reward') return false;
-  const { take, help, card, drop, tool } = cmd;
+  const { take, help, card, drop, tool, dropItem } = cmd;
   // 拾えるのは、作品の札か道具のどちらか一つ。
   if (card && tool) return false;
   if (card && (p.cards.includes(card) || p.lucky === card)) {
-    // 持てる数を超えるなら、代わりに一枚手放す（どれを手放すかは、あなたが選ぶ）。
-    if (!makeRoom(tx, drop)) return false;
-    addCard(tx, card, 'picked', 'you', p.inked?.[card] ?? []);
+    // 持っている札なら重ねる（枚数は増えない）。持てる数を超えるなら、代わりに一枚手放す。
+    if (!stackable(w.you, card) && !makeRoom(tx, drop)) return false;
+    if (!addCard(tx, card, 'picked', 'you', p.inked?.[card] ?? [])) return false;
   }
   if (tool && p.tools.includes(tool)) {
-    if (!itemRoom(w.you, tool)) return false;
+    // 持ち物がいっぱいなら、代わりに一つ置いていく（札と同じく、決着のあとの入れ替えで）。
+    if (!itemRoom(w.you, tool)) {
+      const gone = dropItem ? gearOf(dropItem) : undefined;
+      if (!gone || !w.you.items.some((x) => x.id === dropItem)) return false;
+      tx.emit({ type: 'item', who: 'you', id: gone.id, n: -1 });
+      tx.emit({ type: 'note', text: `${gone.name}を置いていった。`, level: 1 });
+    }
     giveItem(tx, tool);
   }
   if (take && p.take.includes(take)) gainPerm(tx, take, p.npc, 'you');
@@ -1644,8 +1728,10 @@ export function choose(tx: Tx, i: number): boolean {
     xp(tx, o.stat, ok ? 2 : 1, 'you');
   }
   const twice = ok && p.eps.some((e) => epithetDef(e)?.story?.twice);
+  const from = tx.out.length;
   const extra = ok ? o.effect(tx) : o.failEffect?.(tx);
   if (twice) o.effect(tx);
+  const got = receipt(tx.out.slice(from));
   if (w.flags['clear-debt']) {
     const owed = Object.keys(w.you.debts).find((id) => (w.you.debts[id] ?? 0) > 0);
     if (owed) tx.emit({ type: 'debt', who: 'you', npc: owed, n: -1 });
@@ -1654,9 +1740,39 @@ export function choose(tx: Tx, i: number): boolean {
   tx.emit({ type: 'story.seen', id: p.id });
   const text = [ok ? o.ok : (o.fail ?? o.ok), extra || ''].filter(Boolean).join(' ');
   tx.emit({ type: 'note', text: `${def.title}：${text}`, level: 0 });
-  tx.emit({ type: 'pending', p: { kind: 'told', id: p.id, ok, text, chance, roll } });
+  tx.emit({ type: 'pending', p: { kind: 'told', id: p.id, ok, text, chance, roll, got } });
   sync(tx);
   return true;
+}
+
+/**
+ * 出来事で動いたものの、受け取りの一行（「包帯 ×1・金 −10」）。何が出たかは選んだあとに
+ * 確かめられる（選ぶ前には知らせない）。動いたものが無ければ undefined。
+ */
+function receipt(evs: readonly Ev[]): string | undefined {
+  let coin = 0;
+  let hp = 0;
+  let mind = 0;
+  const items = new Map<string, number>();
+  const parts: string[] = [];
+  for (const ev of evs) {
+    if (ev.type === 'coins' && ev.who === 'you') coin += ev.n;
+    else if (ev.type === 'vital' && ev.who === 'you') {
+      hp += ev.hp ?? 0;
+      mind += ev.mind ?? 0;
+    } else if (ev.type === 'item' && ev.who === 'you' && ev.n > 0)
+      items.set(ev.id, (items.get(ev.id) ?? 0) + ev.n);
+    else if (ev.type === 'ep.held' && ev.who === 'you' && ev.n > 0)
+      parts.push(`《${epithetDef(ev.ep)?.name ?? ev.ep}》`);
+    else if (ev.type === 'perm' && ev.who === 'you')
+      parts.push(`記憶《${permDef(ev.id)?.name ?? ev.id}》`);
+  }
+  for (const [id, n] of items) parts.unshift(`${gearOf(id)?.name ?? id} ×${n}`);
+  const sign = (n: number) => (n > 0 ? `+${n}` : `−${-n}`);
+  if (hp) parts.push(`体力 ${sign(hp)}`);
+  if (mind) parts.push(`精神 ${sign(mind)}`);
+  if (coin) parts.push(`金 ${sign(coin)}`);
+  return parts.length ? parts.join('・') : undefined;
 }
 
 // ─── 食堂 ─────────────────────────────────────────────────────
@@ -1737,7 +1853,9 @@ export function rest(tx: Tx, a: RestAction, slot?: number): boolean {
     case 'discard': {
       if (slot === undefined || !y.cards[slot]) return false;
       // 一枚を手放して、ほかの二枚を満たす。
+      const left = y.cards[slot]?.uses ?? 0;
       tx.emit({ type: 'card.set', who: 'you', slot, card: null, why: 'discard' });
+      refund(tx, left);
       refillOne(tx);
       refillOne(tx);
       break;
@@ -1831,6 +1949,8 @@ export function inscribe(
   const def = epithetDef(ep);
   if (!def) return false;
   const { slot, perm } = to;
+  // 使い切って剥がした語から先に使う（札に刻んでも、いまの回数は増えない）。
+  const drained = (w.you.drained ?? []).includes(ep);
   if (to.foe) {
     if (!inkFoe(tx, ep)) return false;
   } else if (to.story) {
@@ -1857,13 +1977,14 @@ export function inscribe(
     if (!at || ('index' in at && w.enc)) return false;
     const card = cardAt(w.you, at);
     if (!card || !def.card || card.eps.length >= PACE.stack) return false;
-    markEp(tx, 'you', at, ep, true);
+    markEp(tx, 'you', at, ep, true, !drained);
   } else if (perm) {
     const list = w.you.permEps[perm] ?? [];
     if (!w.you.perms.includes(perm) || !def.memory || list.length >= PACE.stack) return false;
     tx.emit({ type: 'perm.ep', who: 'you', perm, ep, on: true });
   } else return false;
   tx.emit({ type: 'ep.held', who: 'you', ep, n: -1 });
+  if (drained) tx.emit({ type: 'ep.drained', who: 'you', ep, n: -1 });
   sync(tx);
   return true;
 }
@@ -1878,11 +1999,12 @@ export function peel(tx: Tx, uid: number, ep: string): boolean {
   const at = findCard(w.you, uid);
   const card = at ? cardAt(w.you, at) : undefined;
   if (!at || !card?.eps.includes(ep)) return false;
-  markEp(tx, 'you', at, ep, false);
+  const empty = markEp(tx, 'you', at, ep, false);
   tx.emit({ type: 'ep.held', who: 'you', ep, n: 1 });
+  if (empty) tx.emit({ type: 'ep.drained', who: 'you', ep, n: 1 });
   tx.emit({
     type: 'note',
-    text: `『${cardDef(card.id).name}』から《${epithetDef(ep)?.name ?? ep}》を剥がした。`,
+    text: `『${cardDef(card.id).name}』から《${epithetDef(ep)?.name ?? ep}》を剥がした。${empty ? '足したぶんは使ってしまったので、刻み直しても回数は戻らない。' : ''}`,
     level: 0,
   });
   return true;
@@ -1947,6 +2069,8 @@ function inkFoe(tx: Tx, ep: string): boolean {
     text: `《${epithetDef(ep)?.name ?? ep}》を${f.name}に刻んだ。${ff.text}`,
     level: 2,
   });
+  // 刻んだだけで決着の条件に届いたなら（信頼が足りた・手がかりが揃った）、ここで決着。
+  settle(tx);
   return true;
 }
 
@@ -1976,7 +2100,8 @@ export function buy(tx: Tx, id: string, drop?: number): boolean {
   if (p.cards.includes(id)) {
     const price = p.bargain === id ? Math.ceil(cardPrice(w, id) / 2) : cardPrice(w, id);
     if (w.you.coins < price) return false;
-    if (!makeRoom(tx, drop)) return false;
+    if (ownedCard(w.you, id) && !stackable(w.you, id)) return false;
+    if (!stackable(w.you, id) && !makeRoom(tx, drop)) return false;
     coins(tx, -price, 'you');
     addCard(tx, id, 'bought');
   } else if (p.items.includes(id)) {
@@ -2037,6 +2162,12 @@ export function sacrifice(tx: Tx, s: Stat, slot: number): boolean {
 export function depart(tx: Tx): boolean {
   const k = tx.w.pending?.kind;
   if (k !== 'shop' && k !== 'rest' && k !== 'told') return false;
+  // 領収書の束：何も買わずに古物商を出ると、次の古物商で一品だけ半額。
+  const p = tx.w.pending;
+  if (p?.kind === 'shop' && tx.w.you.items.some((x) => x.id === 'receipts')) {
+    const v = p.sold.length === 0 ? 1 : 0;
+    if ((tx.w.flags['keep:receipt'] ?? 0) !== v) tx.emit({ type: 'flag', key: 'keep:receipt', v });
+  }
   tx.emit({ type: 'pending', p: null });
   return true;
 }

@@ -1,6 +1,6 @@
 import type { Ev } from './events';
 import { perceive } from './mind';
-import { blankMind, type Char, type Who, type World, zeroStats } from './model';
+import { blankMind, type Char, LV_MAX, type Who, type World, zeroStats } from './model';
 
 /**
  * 畳み込み。世界を書き換えるのはここだけ。乱数を引かず、時計も見ない。
@@ -172,7 +172,8 @@ export function apply(w: World, ev: Ev): void {
     }
     case 'perm': {
       const c = charOf(w, ev.who);
-      if (ev.gain && !c.perms.includes(ev.id)) c.perms.push(ev.id);
+      // 並びは書き換えずに替える（試行の写しが本物と並びを共有できるように）。
+      if (ev.gain && !c.perms.includes(ev.id)) c.perms = [...c.perms, ev.id];
       if (!ev.gain) c.perms = c.perms.filter((p) => p !== ev.id);
       break;
     }
@@ -206,6 +207,16 @@ export function apply(w: World, ev: Ev): void {
       }
       break;
     }
+    case 'ep.drained': {
+      const c = charOf(w, ev.who);
+      const list = c.drained ?? [];
+      if (ev.n > 0) c.drained = [...list, ev.ep];
+      else {
+        const i = list.indexOf(ev.ep);
+        c.drained = i >= 0 ? list.filter((_, k) => k !== i) : list;
+      }
+      break;
+    }
     case 'card.ep': {
       const card = charOf(w, ev.who).cards[ev.slot];
       if (card) {
@@ -228,6 +239,18 @@ export function apply(w: World, ev: Ev): void {
       if (card) {
         card.max = Math.max(1, card.max + ev.n);
         card.uses = Math.min(card.uses, card.max);
+      }
+      break;
+    }
+    case 'card.lv': {
+      const c = charOf(w, ev.who);
+      const card = c.cards.find((x) => x?.uid === ev.uid) ?? c.back.find((x) => x.uid === ev.uid);
+      if (card) {
+        const lv = Math.min(LV_MAX, Math.max(1, (card.lv ?? 1) + ev.n));
+        const d = lv - (card.lv ?? 1);
+        card.lv = lv;
+        card.max += d;
+        card.uses = Math.max(0, Math.min(card.max, card.uses + d));
       }
       break;
     }

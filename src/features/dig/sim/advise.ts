@@ -1,24 +1,14 @@
 import { afterDef } from '../content/after';
-import { WORK_ARCH } from '../content/archetypes';
 import { PACE } from '../content/balance';
-import { epTier } from '../content/epithets';
 import { quirkDef } from '../content/quirks';
-import {
-  allBuilds,
-  allCards,
-  allEpithets,
-  allLinks,
-  cardDef,
-  epithetDef,
-  foeDef,
-  permDef,
-} from '../content/registry';
+import { allBuilds, allLinks, cardDef, epithetDef, foeDef, permDef } from '../content/registry';
 import { buildsOf } from '../content/sources';
 import { branch } from '../core/branch';
 import type { Cmd } from '../core/events';
-import type { AfterKind, MapNode, World } from '../core/model';
+import type { AfterKind, Card, MapNode, World } from '../core/model';
 import { ARCH_NAME, type Archetype, TAG_NAME, type Tag } from '../core/tags';
 import { decide } from './decide';
+import { bestCardInk, bestNodeInk, inkSources, type Style } from './inking';
 import { type Miss, misses } from './near';
 import { maxHp, stats } from './ops';
 import { pilot } from './pilot';
@@ -26,11 +16,10 @@ import { nodeOf, reachable } from './run';
 
 /**
  * ルート読み。いちばん勝てる道を一つ示すのではなく、いまの構成を読んで、
- * 性格の違う三つの道を出す。
+ * 性格の違う二つの道を出す。三つ目の「自分の脚で」は推奨を切る手動で、ここは何も出さない。
  *
- *   勝つための推奨      低連鎖・高安定  ほぼ抜けられる。ただし得るものは少ない
- *   面白いことのための  高連鎖・高リスク  相互作用が幾つも噛み合う。崩れると大きい
- *                       未完成・高価値  強い構成が成立しかけている。あと一つ足りない
+ *   安定        低連鎖・高安定  ほぼ抜けられる。ただし得るものは少ない
+ *   高連鎖      高連鎖・高リスク  相互作用が幾つも噛み合う。崩れると大きい
  *
  * やり方
  *   試行   残りの地図の場所ごとに、世界を複製して自動操縦で通してみる（頭は軽い
@@ -56,7 +45,7 @@ export interface Probe {
   gets: string[];
 }
 
-export type RouteKind = 'chain' | 'safe' | 'almost';
+export type RouteKind = 'chain' | 'safe';
 
 export interface Route {
   kind: RouteKind;
@@ -74,15 +63,22 @@ export interface Route {
   hint?: string;
   /** 成功すれば繋がるもの（高連鎖）。 */
   gets?: string[];
-  /** あと一つ：成立しかけているものと足りないもの、拾えそうな場所。 */
-  need?: string;
-  pick?: string;
   /** この道で回数が尽きる・残り 1 回を切る札（uid）。 */
   wear: number[];
   /** この道で頼る札（uid、多くて 3）。道ごとに違う札が前に出る。 */
   lean: number[];
   /** この道のための付け替え（手元か、頼らない札から剥がして、この札へ）。 */
   ink?: Ink;
+  /** 道の先へ刻む（この道で出会う相手か、寄る部屋へ）。 */
+  mark?: Mark;
+}
+
+export interface Mark {
+  ep: string;
+  /** 刻む部屋（地図の場所）。 */
+  node: number;
+  from?: number;
+  why: string;
 }
 
 export interface Ink {
@@ -105,7 +101,6 @@ export interface Advice {
 const LABEL: Record<RouteKind, string> = {
   chain: '高連鎖・高リスク',
   safe: '低連鎖・高安定',
-  almost: '未完成・高価値',
 };
 
 const NODE_NAME: Record<MapNode['kind'], string> = {
@@ -345,122 +340,22 @@ function score(kind: RouteKind, x: Walk): number {
       return links * 14 + x.gain * 0.6 + x.alive * 25;
     case 'safe':
       return x.alive * 220 + x.hpEnd * 50 + x.gain * 0.15 - links * 3;
-    case 'almost':
-      return x.alive * 80 + x.gain * 0.6 + links * 4;
   }
 }
 
 /** 道どうしの重なりの引き算（一歩目が同じ・通る場所の割合）。点の大きさは score に合わせる。 */
 const OVERLAP = { first: 90, shared: 60 } as const;
 
-// ─── あと一つ ─────────────────────────────────────────────────
-
-function lackText(l: Miss['lack']): string {
-  if (l.tag) return `［${TAG_NAME[l.tag]}］が 1 つ`;
-  if (l.arch) return `〈${ARCH_NAME[l.arch]}〉の原型が 1 つ`;
-  if (l.perm) return `記憶《${permDef(l.perm)?.name ?? l.perm}》`;
-  if (l.card) return `『${cardDef(l.card).name}』`;
-  return '何か';
-}
-
-interface Supply {
-  node: MapNode;
-  chance: number;
-  what: string;
-}
-
-/** 足りないものが、地図のどこで拾えそうか。確約はしない。 */
-function supplies(
-  _w: World,
-  lack: Miss['lack'],
-  ahead: readonly MapNode[],
-  probes: Map<number, Probe>,
-): Supply[] {
-  const out: Supply[] = [];
-  const pool = allCards().filter((d) => d.layer !== 'legacy' && !d.retired);
-  const cardEps = allEpithets().filter((e) => !!e.card);
-  for (const n of ahead) {
-    if (n.kind === 'shop') {
-      if (lack.tag) {
-        const t = lack.tag;
-        const frac = pool.filter((d) => d.tags.includes(t)).length / pool.length;
-        const eps = cardEps.filter((e) => e.card?.add?.includes(t));
-        const c = 1 - (1 - frac) ** 3 + (eps.length / cardEps.length) * 2;
-        const ep = eps[0];
-        out.push({
-          node: n,
-          chance: Math.min(0.9, c),
-          what: ep
-            ? `［${TAG_NAME[t]}］のカードか、《${ep.name}》系のエピテット`
-            : `［${TAG_NAME[t]}］のカード`,
-        });
-      } else if (lack.arch) {
-        const a = lack.arch;
-        const frac = pool.filter((d) => (WORK_ARCH[d.id] ?? []).includes(a)).length / pool.length;
-        out.push({
-          node: n,
-          chance: 1 - (1 - frac) ** 3,
-          what: `〈${ARCH_NAME[a]}〉の原型を持つカード`,
-        });
-      } else if (lack.card) {
-        out.push({ node: n, chance: 3 / pool.length, what: `『${cardDef(lack.card).name}』` });
-      }
-    }
-    if (n.npc) {
-      const def = foeDef(n.npc);
-      const p = probes.get(n.id);
-      const odds = (k: string) => p?.outcomes[k] ?? 0.25;
-      const perms = [
-        ...def.take,
-        ...Object.values(def.rewards).flatMap((r) => (r?.perm ? [r.perm] : [])),
-      ];
-      const hit = perms.find((id) =>
-        lack.perm ? id === lack.perm : lack.tag ? permDef(id)?.tags.includes(lack.tag) : false,
-      );
-      if (hit)
-        out.push({
-          node: n,
-          chance: Math.max(odds('uncovered'), odds('trusted')),
-          what: `${def.name}の記憶《${permDef(hit)?.name ?? hit}》`,
-        });
-      else if (lack.tag) {
-        const t = lack.tag;
-        const eps = cardEps.filter((e) => e.card?.add?.includes(t));
-        const ep = eps[0];
-        if (ep)
-          out.push({
-            node: n,
-            chance:
-              0.45 * (odds('trusted') + odds('uncovered')) * (eps.length / allEpithets().length),
-            what: `《${ep.name}》系のエピテット`,
-          });
-      }
-    }
-  }
-  return out.filter((s) => s.chance > 0.02).sort((a, b) => b.chance - a.chance);
-}
-
-const odds = (c: number) => (c >= 0.5 ? '見込みは高い' : c >= 0.2 ? '見込みはある' : '望みは薄い');
-
 // ─── 道ごとの方針 ─────────────────────────────────────────────
 
 /**
- * 方針：三つの道は、行き先だけでなく、どの札に頼り、どのエピテットをどこへ
+ * 方針：二つの道は、行き先だけでなく、どの札に頼り、どのエピテットをどこへ
  * 付け替えるかまで違う。道を選び替えると、前に出る札と、勧める付け替えが
  * がらりと替わる（規則を一枚差し替えたように）。
  *
  *   安定    いちばん使うのに尽きない札に頼る。いちばん減る札へ、回数を増やす語を
  *   高連鎖  噛み合いの芯（規則をいちばん動かす札）に頼る。その札へ、強める語を
- *   あと一つ 足りないタグ・原型に近い札に頼る。足りないタグを足す語があれば、
- *           いまここで付けて成立させる
  */
-/** 付け替えに勧めない語（壊れる・錆びる・凍る・回数が減る）。 */
-const badInk = (ep: string): boolean => {
-  const c = epithetDef(ep)?.card;
-  return !c || !!c.burn || !!c.rusty || !!c.frozen || (c.uses ?? 0) < 0;
-};
-const TIER_RANK = { gold: 3, silver: 2, bronze: 1, plain: 0 } as const;
-
 function fireBySlot(x: Walk): number[] {
   const out: number[] = [];
   for (const [src, n] of x.fired) {
@@ -472,100 +367,46 @@ function fireBySlot(x: Walk): number[] {
   return out;
 }
 
-/** 付け替えに使えるエピテット：手元のものと、頼らない札に付いているもの。 */
-function inkPool(w: World, keep: ReadonlySet<number>): { ep: string; from?: number }[] {
-  const out: { ep: string; from?: number }[] = w.you.epithets.map((ep) => ({ ep }));
-  for (const c of [...w.you.cards, ...w.you.back])
-    if (c && !keep.has(c.uid)) for (const ep of c.eps) out.push({ ep, from: c.uid });
-  return out.filter((x) => !badInk(x.ep));
-}
+/** 道の性格を、値踏みの性格に。 */
+const STYLE: Record<RouteKind, Style> = { safe: 'safe', chain: 'chain' };
 
-function plan(
-  w: World,
-  kind: RouteKind,
-  x: Walk,
-  lack?: Miss['lack'],
-  miss?: string,
-): { lean: number[]; ink?: Ink } {
+function plan(w: World, kind: RouteKind, x: Walk): { lean: number[]; ink?: Ink; mark?: Mark } {
   const slots = w.you.cards.flatMap((c, slot) => (c ? [{ c, slot }] : []));
   const fire = fireBySlot(x);
   const by = (f: (slot: number) => number) =>
     [...slots].sort((a, b) => f(b.slot) - f(a.slot)).filter((s) => f(s.slot) > 0.05);
-  const fits = (id: string) =>
-    lack?.tag
-      ? cardDef(id).tags.includes(lack.tag)
-      : lack?.arch
-        ? (WORK_ARCH[id] ?? []).includes(lack.arch)
-        : false;
   const order =
     kind === 'chain'
       ? by((s) => (fire[s] ?? 0) + 0.1 * (x.spent[s] ?? 0))
-      : kind === 'safe'
-        ? by((s) => (x.short.has(s) ? 0 : (x.spent[s] ?? 0) + 0.2))
-        : by((s) => {
-            const c = w.you.cards[s];
-            return (c && fits(c.id) ? 5 : 0) + (x.spent[s] ?? 0) * 0.5 + (fire[s] ?? 0) * 0.2;
-          });
+      : by((s) => (x.short.has(s) ? 0 : (x.spent[s] ?? 0) + 0.2));
   const lean = order.slice(0, 3).map((s) => s.c.uid);
   const keep = new Set(lean);
-  const room = (uid: number) => {
-    const c = slots.find((s) => s.c.uid === uid)?.c;
-    return !!c && c.eps.length < PACE.stack;
+  const slotOf = (uid: number) => slots.find((s) => s.c.uid === uid)?.slot;
+  // 値踏みは inking に任せる。この道で使う回数と、規則を動かす重みを渡す。
+  const sources = inkSources(w, keep);
+  const style = STYLE[kind];
+  const ctx = {
+    wear: (c: Card) => {
+      const i = slotOf(c.uid);
+      return i === undefined ? 0 : (x.spent[i] ?? 0) + (x.short.has(i) ? 3 : 0);
+    },
+    fire: (c: Card) => {
+      const i = slotOf(c.uid);
+      return i === undefined ? 0 : Math.min(3, (fire[i] ?? 0) / 2);
+    },
   };
-  const pool = (to: number) =>
-    inkPool(w, keep).filter((p) => {
-      const c = slots.find((s) => s.c.uid === to)?.c;
-      return p.from !== to && !c?.eps.includes(p.ep);
-    });
-  const name = (uid: number) => {
-    const c = slots.find((s) => s.c.uid === uid)?.c;
-    return c ? `『${cardDef(c.id).name}』` : '';
+  // 道の先へ刻む語を先に決め、その語は札への付け替えの候補から外す（同じ語を部屋へ剥がして、
+  // 札へ戻す、の行き来をさせない）。剥がす損は、札と同じ物差し（この道の減り方）で測る。
+  const node = bestNodeInk(w, style, sources, x.path, ctx);
+  const card = bestCardInk(w, style, node ? sources.filter((s) => s.ep !== node.ep) : sources, {
+    ...ctx,
+    targets: style === 'chain' ? lean : undefined,
+  });
+  return {
+    lean,
+    ink: card ? { ep: card.ep, to: card.to, from: card.from, why: card.why } : undefined,
+    mark: node ? { ep: node.ep, node: node.node, from: node.from, why: node.why } : undefined,
   };
-  const rank = (ep: string) => {
-    const d = epithetDef(ep);
-    return d ? TIER_RANK[epTier(d)] : 0;
-  };
-  let ink: Ink | undefined;
-  if (kind === 'almost' && lack?.tag) {
-    const t = lack.tag;
-    const to = [...lean, ...slots.map((s) => s.c.uid)].find(
-      (u) => room(u) && !fits(slots.find((s) => s.c.uid === u)?.c.id ?? ''),
-    );
-    const hit =
-      to !== undefined ? pool(to).find((p) => epithetDef(p.ep)?.card?.add?.includes(t)) : undefined;
-    if (to !== undefined && hit)
-      ink = { ...hit, to, why: `［${TAG_NAME[t]}］が付いて、${miss ?? '構成'}が成立する` };
-  }
-  if (!ink && kind === 'chain') {
-    const to = lean.find(room);
-    const hit =
-      to !== undefined
-        ? pool(to)
-            .filter((p) => !!epithetDef(p.ep)?.card?.mult && !epithetDef(p.ep)?.card?.uses)
-            .sort((a, b) => rank(b.ep) - rank(a.ep))[0]
-        : undefined;
-    if (to !== undefined && hit) ink = { ...hit, to, why: '噛み合いの芯を強める' };
-  }
-  if (!ink) {
-    // 安定（と、ほかに手が無いとき）：いちばん減る札へ、回数を増やす語を。
-    const worn = by((s) => (x.spent[s] ?? 0) + (x.short.has(s) ? 3 : 0)).map((s) => s.c.uid);
-    const to = worn.find(room);
-    const hit =
-      to !== undefined
-        ? pool(to)
-            .filter((p) => (epithetDef(p.ep)?.card?.uses ?? 0) > 0)
-            .sort(
-              (a, b) => (epithetDef(b.ep)?.card?.uses ?? 0) - (epithetDef(a.ep)?.card?.uses ?? 0),
-            )[0]
-        : undefined;
-    if (to !== undefined && hit)
-      ink = {
-        ...hit,
-        to,
-        why: `${name(to)}がこの道で尽きない（最大回数 +${epithetDef(hit.ep)?.card?.uses ?? 0}）`,
-      };
-  }
-  return { lean, ink };
 }
 
 /**
@@ -655,9 +496,7 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     text: string,
     warn: string[],
     hint?: string,
-    more: Pick<Route, 'gets' | 'need' | 'pick'> = {},
-    lack?: Miss['lack'],
-    miss?: string,
+    more: Pick<Route, 'gets'> = {},
   ): Route => ({
     kind,
     label: LABEL[kind],
@@ -674,7 +513,7 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
     wear: [...x.short, ...x.thin]
       .map((slot) => w.you.cards[slot]?.uid)
       .filter((u): u is number => u !== undefined),
-    ...plan(w, kind, x, lack, miss),
+    ...plan(w, kind, x),
     ...more,
   });
 
@@ -717,33 +556,6 @@ export function advise(w: World, opts: { samples?: number } = {}): Advice | null
       ),
     );
   }
-  // あと一つ。足りないものと、拾えそうな場所を一つだけ示す。
-  for (const m of out.misses) {
-    const sup = supplies(w, m.lack, ahead, probes)[0];
-    if (!sup) continue;
-    const through = walks.filter((x) => x.path.includes(sup.node.id));
-    const x = best(
-      'almost',
-      through,
-      [safe?.path, chain?.path].filter((p): p is number[] => !!p),
-    );
-    if (!x) continue;
-    out.play.push(
-      route(
-        'almost',
-        x,
-        `${m.name}が成立しかけている。あと${lackText(m.lack)}足りない。`,
-        x.alive < 0.6 ? [`倒れる見込み ${Math.round((1 - x.alive) * 100)}%`] : [],
-        `${nodeLabel(sup.node)}に寄れば、${sup.what}を拾える可能性がある（${odds(sup.chance)}）。寄るかどうかは、あなた次第。`,
-        {
-          need: `${m.name}に、あと${lackText(m.lack)}`,
-          pick: `${nodeLabel(sup.node)}で${sup.what}（${odds(sup.chance)}）`,
-        },
-        m.lack,
-        m.name,
-      ),
-    );
-    break;
-  }
+  // 自分の脚では、道の読みが勧めない（推奨を切って、自分で選ぶ）。ここでは何も足さない。
   return out;
 }
