@@ -181,7 +181,14 @@ function whole(s: string, depth: number): string | null {
       said[k] = t;
     }
     if (!ok) continue;
-    return p.en.replace(/\{(\d+)\}/g, (_, i: string) => said[`p${i}`] ?? '');
+    // 読点のあとに差し込む文は、文の途中なので頭を小文字に（「If they're [Memory], see 1 clue」）。
+    // 頭の二字が大文字の語（HP・WIL）と、引用で始まる名前はそのまま。
+    return p.en.replace(/(, |; )?\{(\d+)\}/g, (_, sep: string | undefined, i: string) => {
+      const t = said[`p${i}`] ?? '';
+      return sep && /^[A-Z][a-z]/.test(t)
+        ? `${sep}${t[0]?.toLowerCase()}${t.slice(1)}`
+        : `${sep ?? ''}${t}`;
+    });
   }
   return null;
 }

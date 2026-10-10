@@ -426,7 +426,8 @@
     "誰も振り向かない。": "No one turns around.",
     "静かになった。久しぶりの静けさだ。": "It's quiet now. Quiet, for the first time in a long while.",
     "エピテットの刻まれた場所に着く": "Reach a place inscribed with an epithet",
-    "内側のほうが広い：場所に刻まれたエピテットと見せ場が多いほど強い（1 つにつき ×1.25）": "Bigger on the inside: stronger the more epithets and spotlights are inscribed on places (×1.25 each)"
+    "内側のほうが広い：場所に刻まれたエピテットと見せ場が多いほど強い（1 つにつき ×1.25）": "Bigger on the inside: stronger the more epithets and spotlights are inscribed on places (×1.25 each)",
+    "嘘をつく（INT を相手と比べる）": "Lie (INT against theirs)"
   },
   "templates": {
     "{0}［{1}］の数": "{0}[{1}] count",
@@ -466,6 +467,12 @@
     "場所《{0}》：出来事 {1}{2}%": "Place «{0}»: events {1}{2}%",
     "場所《{0}》：回復 ×{1}": "Place «{0}»: recovery ×{1}",
     "場所《{0}》：値段 ×{1}": "Place «{0}»: prices ×{1}",
-    "出来事《{0}》：判定 {1}%": "Event «{0}»: odds {1}%"
+    "出来事《{0}》：判定 {1}%": "Event «{0}»: odds {1}%",
+    "相手が［{0}］なら{1}": "If they're [{0}], {1}",
+    "敵意が {0} 以上なら{1}": "If hostility ≥ {0}, {1}",
+    "深夜（0 時過ぎ）なら{0}": "After midnight, {0}",
+    "この遭遇で初めてなら{0}": "If it's the first use this encounter, {0}",
+    "嘘をつく（INT を相手と比べる、+{0}%）": "Lie (INT against theirs, +{0}%)",
+    "通れば信頼 +{0}、ばれると敵意 +3": "If it passes, trust +{0}; if caught, hostility +3"
   }
 }

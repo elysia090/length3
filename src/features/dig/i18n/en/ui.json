@@ -626,7 +626,11 @@
     "最悪の保険が下りた。体力が満ち、精神は 1 に。": "The worst insurance paid out. Body full, mind at 1.",
     "重ねる": "Stacking",
     "持っている札をもう一度拾う・買うと、重なってレベルが上がる（Ⅱ・Ⅲ）。手持ちの枚数は増えない。上がるたびに効き目が強まり、回数も一つ増える。": "Pick up or buy a card you already hold and it stacks, raising its level (Ⅱ, Ⅲ). Your card count doesn't grow. Each level makes it stronger and adds one use.",
-    "Ⅲ（これ以上は重ならない）": "Ⅲ (won't stack further)"
+    "Ⅲ（これ以上は重ならない）": "Ⅲ (won't stack further)",
+    "拾い物": "Windfall",
+    "拾い物：運がよかったぶん。選んでも、何も失わない": "Windfall: pure luck. Choosing it costs you nothing",
+    "使うと、持ち物の枠が空く": "Using one frees an item space",
+    "手札の一覧で使う（向き合っていないときに）": "Use from the hand view (when not in an encounter)"
   },
   "templates": {
     "「{0}」": "“{0}”",
