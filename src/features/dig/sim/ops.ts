@@ -209,10 +209,10 @@ export function hostile(tx: Tx, n: number): void {
 }
 
 /**
- * 手がかりを 1 つ探る。fake なら誤りが混じることがある。sure なら（秘密を握っているので）
- * 揺らぎの判定なしに見える。見られたら true。
+ * 手がかりを 1 つ探る。fake なら誤りが混じることがある。相手が揺らいでいるほど見つかり、
+ * 外れると相手が「……さあね。」と言う。見られたら true。
  */
-export function revealClue(tx: Tx, fake = false, sure = false): boolean {
+export function revealClue(tx: Tx, fake = false): boolean {
   const e = enc(tx);
   if (!e) return false;
   if (fake) {
@@ -230,7 +230,7 @@ export function revealClue(tx: Tx, fake = false, sure = false): boolean {
   const shaken = 1 - Math.max(0, f.resolve) / Math.max(1, f.maxResolve);
   const base =
     100 * (PACE.slip + (1 - PACE.slip) * shaken + 0.1 * Math.min(1, f.trust / Math.max(1, f.need)));
-  if (!sure && tx.rand('enc') * 100 >= tx.rule('slip', { who: e.who }, base)) {
+  if (tx.rand('enc') * 100 >= tx.rule('slip', { who: e.who }, base)) {
     say(tx, 'foe', '……さあね。');
     return false;
   }

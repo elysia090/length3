@@ -283,7 +283,7 @@ function aftermath(tx: Tx): void {
         say(tx, 'voice', `${foeDef(a.npc).name}が、そばにいる。`);
         break;
       case 'insight':
-        revealClue(tx, false, true);
+        revealClue(tx);
         break;
       case 'notorious':
         say(tx, 'voice', '悪名が先回りしていた。');

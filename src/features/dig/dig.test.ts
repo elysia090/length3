@@ -295,17 +295,11 @@ describe('agent report #107', () => {
     expect(text).not.toContain('fear');
   });
 
-  it('sees one clue for sure with insight', async () => {
-    const { Tx } = await import('./core/tx');
-    const { startEnc } = await import('./sim/encounter');
-    for (let seed = 1; seed <= 8; seed++) {
-      const g = Game.start(seed, 'watch');
-      const w = g.world;
-      w.after = [{ kind: 'insight', npc: '', left: 3 }];
-      startEnc(new Tx(w), 'you', 'counterman', 'normal');
-      if (!w.enc?.foe.clues.length) continue;
-      expect(w.enc.foe.clues.some((c) => c.shown)).toBe(true);
-    }
+  it('words insight as a probe, not a promise', async () => {
+    const { afterDef } = await import('./content/after');
+    const text = afterDef('insight')?.text ?? '';
+    expect(text).toContain('探る');
+    expect(text).not.toContain('見えている');
   });
 
   it('lets a full bag swap an item at the shop', async () => {

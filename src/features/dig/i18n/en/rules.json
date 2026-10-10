@@ -409,7 +409,7 @@
     "悪名の勢い：相手の体力を削る量 +3": "Notoriety's Momentum: Opponent HP damage +3",
     "相手の名を奪った。次の三戦、噂を聞いた相手は意志が三割削れた状態で現れる。": "You took their name. For the next three encounters, opponents have heard the rumor and arrive with their will already 30% broken.",
     "味方がついた。次の四戦、初めに守り +4・構え +4・相手の信頼 +1。倒れる一撃を一度だけ肩代わりする。": "You found an Ally. For the next four encounters, start with guard +4 · poise +4 · Opponent trust +1. They take one fatal blow for you, once.",
-    "秘密を握った。次の三戦、相手の予告はいつも本当の姿で見え、手がかりが一つ見えている。": "You hold a secret. For the next three encounters, opponents' tells always show their true form, and one clue is visible.",
+    "秘密を握った。次の三戦、相手の予告はいつも本当の姿で見える。戦いの初めに、手がかりを一つ探る。": "You hold a secret. For the next three encounters, opponents' tells always show their true form. At the start of each, you probe for one clue.",
     "見透かし：予告が本当の姿で見える": "Insight: Tells show their true form",
     "深夜と、深い層ほど荒れている": "Rougher late at night, and the deeper you go",
     "ハード：受ける傷 +1": "Hard: Wounds taken +1",
