@@ -349,12 +349,37 @@ export function toldPanel(w: World, ui: Ui): HTMLElement {
 }
 
 /** 整えるの中の持ち物（休む・備える・探る・身につけるの列）。 */
-export function gearRows(w: World, ui: Ui): HTMLElement | null {
+/**
+ * pick を渡すと「置いていく一つを選ぶ」形になる（受け取りで、持ち物がいっぱいのとき）。
+ * 場所はいつもの持ち物の列のまま、押すと置いていく印が付く（使いはしない）。
+ */
+export function gearRows(
+  w: World,
+  ui: Ui,
+  pick?: { chosen: string | null; on: (id: string) => void },
+): HTMLElement | null {
   if (!w.you.items.length) return null;
   const gear = (kind: 'rest' | 'prep' | 'seek' | 'keep') =>
     w.you.items.flatMap((it, i) => {
       const g = gearOf(it.id);
       if (!g || g.kind !== kind) return [];
+      if (pick) {
+        const chosen = pick.chosen === it.id;
+        return [
+          h(
+            'button',
+            {
+              type: 'button',
+              class: `dig-gear__item${g.tool ? ' is-tool' : ''}${chosen ? ' is-drop' : ''}`,
+              'aria-pressed': chosen ? 'true' : 'false',
+              title: [g.text, g.flavor].filter(Boolean).join('\n'),
+              onclick: () => pick.on(it.id),
+            },
+            `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
+            chosen ? h('span', { class: 'dig-card__mark' }, '置いていく') : null,
+          ),
+        ];
+      }
       // 身につける品は押して使うものではないので、名前だけ（入れ替えは決着のあとの受け取りで）。
       if (kind === 'keep')
         return [

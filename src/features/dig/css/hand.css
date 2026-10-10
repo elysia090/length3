@@ -626,6 +626,16 @@
   white-space: nowrap;
 }
 
+/* 置いていく一つ（受け取りで持ち物がいっぱいのとき）。選んだ印は札の「手放す」と同じ形。 */
+.dig .dig-gear__item.is-drop {
+  border-color: var(--amber-text);
+  color: var(--amber-text);
+}
+
+.dig-gear__item .dig-card__mark {
+  margin-left: 6px;
+}
+
 /* 身につける品：押して使うものではないので枠で囲まない。名前だけ。 */
 .dig-gear__item.is-keep {
   display: inline-flex;

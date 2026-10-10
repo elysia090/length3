@@ -2592,37 +2592,13 @@ export function openDig(doc: Document, onClose: () => void): void {
     );
   }
 
-  /** 置いていく持ち物の候補（手放す一枚と同じ形の一列：名前・回数、二行目に効き目）。 */
+  /** 置いていく持ち物を選ぶ節（いつもの持ち物の列のまま、押すと置いていく印が付く）。 */
   function gearDrops(w: World): HTMLElement {
     return h(
       'div',
-      { class: 'dig-spot dig-claim__drops' },
-      w.you.items.map((it) => {
-        const g = gearOf(it.id);
-        const chosen = dropGear === it.id;
-        return h(
-          'button',
-          {
-            type: 'button',
-            class: `dig-spot__row dig-claim__drop${chosen ? ' is-chosen' : ''}`,
-            'aria-pressed': chosen ? 'true' : 'false',
-            title: g?.flavor,
-            onclick: selectGear(it.id),
-          },
-          h(
-            'span',
-            { class: 'dig-claim__head' },
-            h('b', { class: 'dig-spot__what' }, g?.name ?? it.id),
-            chosen ? h('span', { class: 'dig-card__mark' }, '置いていく') : null,
-            h(
-              'span',
-              { class: 'dig-card__key' },
-              g?.kind === 'keep' ? '身につける' : `${it.uses} 回`,
-            ),
-          ),
-          h('span', { class: 'dig-spot__gain' }, g?.text ?? ''),
-        );
-      }),
+      { class: 'dig-deck__sec dig-claim__gear' },
+      h('h3', {}, '持ち物'),
+      gearRows(w, ui, { chosen: dropGear, on: (id) => selectGear(id)() }),
     );
   }
 
@@ -2780,7 +2756,6 @@ export function openDig(doc: Document, onClose: () => void): void {
     return [
       h('div', { class: 'dig-handview__head' }, h('h3', {}, '拾える札')),
       h('div', { class: 'dig-hand is-preview dig-offers' }, offerCards(w, false)),
-      st.needGear ? gearDrops(w) : null,
       h(
         'div',
         { class: 'dig-deck__sec' },
@@ -2815,7 +2790,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           }),
         ),
       ),
-      st.needGear ? null : rewardItems(w),
+      st.needGear ? gearDrops(w) : rewardItems(w),
       confirmBar(w),
     ];
   }
