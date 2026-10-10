@@ -5,6 +5,7 @@ import { gearOf } from '../content/gear';
 import { cardDef, epithetDef } from '../content/registry';
 import type { Card, World } from '../core/model';
 import { ARCH_NAME, TAG_NAME, type Tag } from '../core/tags';
+import { getLang } from '../i18n';
 import { bonusOf, chainNext } from '../sim/encounter';
 import { BADGE_NAME, badgesOf } from './badges';
 import { type Child, h } from './dom';
@@ -25,7 +26,15 @@ export const pips = (c: Card) =>
 /** 文の中の「体力 +n」「精神 +n」（戻る分）を緑に。 */
 export function heals(text: string): Child[] {
   const parts = text.split(/((?:体力|精神) \+[0-9A-Za-z+.×]+)/);
-  return parts.map((p, i) => (i % 2 ? h('span', { class: 'dig-heal' }, p) : p));
+  // 英語では句読点のあとに語の間が要る（訳した文は末尾の間を落とすので、ここで足す）。
+  const gap = getLang() === 'en';
+  return parts.flatMap((p, i): Child[] =>
+    i % 2
+      ? [h('span', { class: 'dig-heal' }, p)]
+      : gap && p && i < parts.length - 1 && /[、。]$/.test(p)
+        ? [p, ' ']
+        : [p],
+  );
 }
 
 /** 札の目当ての印（読まずに分かる）。癒すは緑。 */

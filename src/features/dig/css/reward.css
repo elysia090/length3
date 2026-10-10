@@ -855,3 +855,10 @@
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* 英語では、続けて並ぶ効き目・一文・添え書きのあいだに語の間を置く（日本語は詰めたまま）。 */
+.dig:lang(en) .dig-offer__fx + .dig-offer__sig::before,
+.dig:lang(en) .dig-offer__fx + .dig-quiet::before,
+.dig:lang(en) .dig-offer__sig + .dig-offer__next::before {
+  content: ' ';
+}
