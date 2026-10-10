@@ -355,7 +355,7 @@ export function gearRows(w: World, ui: Ui): HTMLElement | null {
     w.you.items.flatMap((it, i) => {
       const g = gearOf(it.id);
       if (!g || g.kind !== kind) return [];
-      // 身につける品は押して使うものではない。名前と、外す釦だけ（札のエピテットの剥がすと同じ形）。
+      // 身につける品は押して使うものではないので、名前だけ（入れ替えは決着のあとの受け取りで）。
       if (kind === 'keep')
         return [
           h(
@@ -364,16 +364,7 @@ export function gearRows(w: World, ui: Ui): HTMLElement | null {
               class: 'dig-gear__item is-keep',
               title: [g.text, liveNote(g.text, w), g.flavor].filter(Boolean).join('\n'),
             },
-            h('b', {}, g.name),
-            h(
-              'button',
-              {
-                type: 'button',
-                title: '置いていくと、持ち物の枠が一つ空く',
-                onclick: () => ui.send({ c: 'item', index: i, drop: true }),
-              },
-              '置いていく',
-            ),
+            g.name,
           ),
         ];
       return [

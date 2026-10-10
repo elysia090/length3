@@ -1254,17 +1254,6 @@ function lootItem(tx: Tx): string | undefined {
   return tx.pick('loot', allItems())?.id;
 }
 
-/** 持ち物を使わずに手放す（身につける品の枠を空けるのに）。 */
-export function dropItem(tx: Tx, index: number): boolean {
-  const held = tx.w.you.items[index];
-  const g = held ? gearOf(held.id) : undefined;
-  if (!held || !g || tx.w.enc) return false;
-  tx.emit({ type: 'item', who: 'you', id: held.id, n: -1 });
-  tx.emit({ type: 'note', text: `${g.name}を置いていった。`, level: 1 });
-  sync(tx);
-  return true;
-}
-
 /**
  * 持ち物を一回使う。どれも向き合っていないとき（地図の上、受け取り・店・休憩所の
  * 最中も）に、「その場で」使う。休む品はその場で戻し、備える品は次の遭遇の初めに
@@ -1523,12 +1512,19 @@ export function close(tx: Tx): boolean {
 
 export function claim(
   tx: Tx,
-  cmd: { take?: string; help?: number; card?: string; drop?: number; tool?: string },
+  cmd: {
+    take?: string;
+    help?: number;
+    card?: string;
+    drop?: number;
+    tool?: string;
+    dropItem?: string;
+  },
 ): boolean {
   const w = tx.w;
   const p = w.pending;
   if (p?.kind !== 'reward') return false;
-  const { take, help, card, drop, tool } = cmd;
+  const { take, help, card, drop, tool, dropItem } = cmd;
   // 拾えるのは、作品の札か道具のどちらか一つ。
   if (card && tool) return false;
   if (card && (p.cards.includes(card) || p.lucky === card)) {
@@ -1537,7 +1533,13 @@ export function claim(
     if (!addCard(tx, card, 'picked', 'you', p.inked?.[card] ?? [])) return false;
   }
   if (tool && p.tools.includes(tool)) {
-    if (!itemRoom(w.you, tool)) return false;
+    // 持ち物がいっぱいなら、代わりに一つ置いていく（札と同じく、決着のあとの入れ替えで）。
+    if (!itemRoom(w.you, tool)) {
+      const gone = dropItem ? gearOf(dropItem) : undefined;
+      if (!gone || !w.you.items.some((x) => x.id === dropItem)) return false;
+      tx.emit({ type: 'item', who: 'you', id: gone.id, n: -1 });
+      tx.emit({ type: 'note', text: `${gone.name}を置いていった。`, level: 1 });
+    }
     giveItem(tx, tool);
   }
   if (take && p.take.includes(take)) gainPerm(tx, take, p.npc, 'you');

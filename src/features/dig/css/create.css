@@ -249,13 +249,6 @@
   font-size: var(--font-ui-xs);
 }
 
-.dig-handview__note {
-  max-width: 44rem;
-  margin: 0;
-  font-size: var(--font-ui-xs);
-  color: var(--ink-3);
-}
-
 /*
  * 狭い画面（地図が上、脇が下）では地図が低い。ヒントは重ねず、地図のすぐ下に
  * 脇の欄の頭として置く（広い画面では出さない）。

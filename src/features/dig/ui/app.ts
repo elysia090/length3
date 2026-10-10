@@ -5,7 +5,7 @@ import { epTier } from '../content/epithets';
 import { IDLE, VITALS } from '../content/flavor';
 import { DIFFICULTY, sectionNo } from '../content/floors';
 import { fxText } from '../content/fx';
-import { gearOf } from '../content/gear';
+import { gearOf, ITEM_CAP } from '../content/gear';
 import { orderOf } from '../content/orders';
 import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
 import { quirkDef } from '../content/quirks';
@@ -196,6 +196,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   /** 受け取りで選んでいる一枚（作品の札か道具）と、手放す一枚（uid）。 */
   let pickId: string | null = null;
   let dropUid: number | null = null;
+  /** 持ち物がいっぱいのとき、道具の代わりに置いていく持ち物（id）。 */
+  let dropGear: string | null = null;
   /** 人物を決める画面で、初めの手札を開いているか。 */
   let handOpen = false;
   /** 左の欄を、地図ではなく手札の一覧にしているか（向き合っていないとき）。 */
@@ -2237,11 +2239,6 @@ export function openDig(doc: Document, onClose: () => void): void {
           )
         : null,
       h('div', { class: 'dig-hand is-preview' }, all.map(card)),
-      h(
-        'p',
-        { class: 'dig-handview__note' },
-        '遭遇のたびに、この七枚から五枚が配られる。使い切った札は、休むか、回数を増やすエピテットが宿るまで眠ったままになる。',
-      ),
       w.you.items.length
         ? h('div', { class: 'dig-deck__sec' }, h('h3', {}, '持ち物'), gearRows(w, ui))
         : null,
@@ -2389,30 +2386,60 @@ export function openDig(doc: Document, onClose: () => void): void {
       (a, b) => a.uses - b.uses,
     );
     const drop = all.find((c) => c.uid === dropUid);
-    const ready = isTool || (isCard && (!needDrop || !!drop));
+    // 道具・身につける品は、持ち物がいっぱいなら一つ置いていく（札と同じ、決着のあとの入れ替え）。
+    const gearFull = w.you.items.length >= ITEM_CAP;
+    const needGear = isTool && !!pickId && !itemRoom(w.you, pickId);
+    const gearDrop = needGear && dropGear ? w.you.items.find((x) => x.id === dropGear) : undefined;
+    const ready = (isTool && (!needGear || !!gearDrop)) || (isCard && (!needDrop || !!drop));
     const pickName =
       isCard && pickId
         ? cardDef(pickId).name
         : isTool && pickId
           ? (gearOf(pickId)?.name ?? '')
           : '';
-    const step = !pickId ? 1 : needDrop && !drop ? 2 : 3;
+    const step = !pickId ? 1 : (needDrop && !drop) || (needGear && !gearDrop) ? 2 : 3;
+    const dropName = drop
+      ? cardDef(drop.id).name
+      : gearDrop
+        ? (gearOf(gearDrop.id)?.name ?? '')
+        : '';
     const stepText =
       step === 1
         ? full
           ? '拾う一枚を選ぶ（手持ちはいっぱいなので、あとで一枚手放す）'
           : '拾う一枚を選ぶ'
         : step === 2
-          ? `『${pickName}』の代わりに手放す一枚を選ぶ`
-          : needDrop && drop
-            ? `『${pickName}』を拾い、『${cardDef(drop.id).name}』を手放す`
+          ? needGear
+            ? `『${pickName}』の代わりに置いていく持ち物を選ぶ`
+            : `『${pickName}』の代わりに手放す一枚を選ぶ`
+          : dropName
+            ? `『${pickName}』を拾い、『${dropName}』を${needGear ? '置いていく' : '手放す'}`
             : `『${pickName}』を拾う`;
-    return { p, offers, full, isCard, isTool, needDrop, all, drop, ready, step, stepText };
+    return {
+      p,
+      offers,
+      full,
+      gearFull,
+      isCard,
+      isTool,
+      needDrop,
+      needGear,
+      all,
+      drop,
+      ready,
+      step,
+      stepText,
+    };
   }
 
   const selectOffer = (id: string) => () => {
     pickId = pickId === id ? null : id;
     dropUid = null;
+    dropGear = null;
+    render();
+  };
+  const selectGear = (id: string) => () => {
+    dropGear = dropGear === id ? null : id;
     render();
   };
   const selectDrop = (uid: number) => () => {
@@ -2444,7 +2471,6 @@ export function openDig(doc: Document, onClose: () => void): void {
             type: 'button',
             class: `dig-card dig-scene__card is-tool${g?.kind === 'keep' ? ' is-keep' : ''}${b.cls ? ' is-flip' : ''}${pickId === id ? ' is-chosen' : ''}`,
             style: 'style' in b ? b.style : undefined,
-            disabled: !itemRoom(w.you, id),
             'aria-pressed': pickId === id ? 'true' : 'false',
             title: g?.flavor,
             onclick: selectOffer(id),
@@ -2472,7 +2498,13 @@ export function openDig(doc: Document, onClose: () => void): void {
     const st = rewardState(w);
     if (!st?.ready || !pickId) return;
     const cmd = st.isTool
-      ? { c: 'claim' as const, take: reward.take, help: reward.help, tool: pickId }
+      ? {
+          c: 'claim' as const,
+          take: reward.take,
+          help: reward.help,
+          tool: pickId,
+          dropItem: st.needGear ? (dropGear ?? undefined) : undefined,
+        }
       : {
           c: 'claim' as const,
           take: reward.take,
@@ -2482,6 +2514,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         };
     pickId = null;
     dropUid = null;
+    dropGear = null;
     deckOpen = false;
     send(cmd);
   }
@@ -2490,6 +2523,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   function claimNone(): void {
     pickId = null;
     dropUid = null;
+    dropGear = null;
     deckOpen = false;
     send({ c: 'claim', take: reward.take, help: reward.help });
   }
@@ -2553,7 +2587,42 @@ export function openDig(doc: Document, onClose: () => void): void {
             }),
           )
         : null,
+      st.needGear ? gearDrops(w) : null,
       h('div', { class: 'dig-claim__go' }, claimButtons(w, st)),
+    );
+  }
+
+  /** 置いていく持ち物の候補（手放す一枚と同じ形の一列：名前・回数、二行目に効き目）。 */
+  function gearDrops(w: World): HTMLElement {
+    return h(
+      'div',
+      { class: 'dig-spot dig-claim__drops' },
+      w.you.items.map((it) => {
+        const g = gearOf(it.id);
+        const chosen = dropGear === it.id;
+        return h(
+          'button',
+          {
+            type: 'button',
+            class: `dig-spot__row dig-claim__drop${chosen ? ' is-chosen' : ''}`,
+            'aria-pressed': chosen ? 'true' : 'false',
+            title: g?.flavor,
+            onclick: selectGear(it.id),
+          },
+          h(
+            'span',
+            { class: 'dig-claim__head' },
+            h('b', { class: 'dig-spot__what' }, g?.name ?? it.id),
+            chosen ? h('span', { class: 'dig-card__mark' }, '置いていく') : null,
+            h(
+              'span',
+              { class: 'dig-card__key' },
+              g?.kind === 'keep' ? '身につける' : `${it.uses} 回`,
+            ),
+          ),
+          h('span', { class: 'dig-spot__gain' }, g?.text ?? ''),
+        );
+      }),
     );
   }
 
@@ -2568,7 +2637,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         { class: 'dig-hand dig-offers', style: `--n:${Math.min(n, 4)}` },
         offerCards(w, true),
       ),
-      toolBlocked(w, st) ? rewardItems(w) : null,
     ];
   }
 
@@ -2583,25 +2651,16 @@ export function openDig(doc: Document, onClose: () => void): void {
         offerCards(w, true),
         st.needDrop ? dropPicks(st) : null,
       ),
+      st.needGear ? gearDrops(w) : null,
       rewardDetail(w, st),
-      toolBlocked(w, st) ? rewardItems(w) : null,
       confirmBar(w),
     ];
   }
 
-  /** 持ち物がいっぱいで、拾えない道具があるか（そのときだけ、持ち物を拾える札のすぐ下に出す）。 */
-  const toolBlocked = (w: World, st: NonNullable<ReturnType<typeof rewardState>>) =>
-    st.p.tools.some((id) => !itemRoom(w.you, id));
-
   /** 受け取りの持ち物の節（使えば枠が空き、道具を拾えるようになる）。 */
   function rewardItems(w: World): HTMLElement | null {
     if (!w.you.items.length) return null;
-    return h(
-      'div',
-      { class: 'dig-deck__sec' },
-      h('h3', { title: '使うと、持ち物の枠が空く' }, '持ち物'),
-      gearRows(w, ui),
-    );
+    return h('div', { class: 'dig-deck__sec' }, h('h3', {}, '持ち物'), gearRows(w, ui));
   }
 
   /**
@@ -2718,11 +2777,10 @@ export function openDig(doc: Document, onClose: () => void): void {
   function rewardDeck(w: World): Child[] {
     const st = rewardState(w);
     if (!st) return [];
-    const blocked = toolBlocked(w, st);
     return [
       h('div', { class: 'dig-handview__head' }, h('h3', {}, '拾える札')),
       h('div', { class: 'dig-hand is-preview dig-offers' }, offerCards(w, false)),
-      blocked ? rewardItems(w) : null,
+      st.needGear ? gearDrops(w) : null,
       h(
         'div',
         { class: 'dig-deck__sec' },
@@ -2757,7 +2815,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           }),
         ),
       ),
-      blocked ? null : rewardItems(w),
+      st.needGear ? null : rewardItems(w),
       confirmBar(w),
     ];
   }
@@ -3470,11 +3528,6 @@ export function openDig(doc: Document, onClose: () => void): void {
           { class: 'dig-hand is-preview' },
           j.cards.map((id, i) => previewCard(id, i)),
         ),
-        h(
-          'p',
-          { class: 'dig-handview__note' },
-          `この五枚に、入るときに配られる二枚を足した七枚が手持ちになる。遭遇のたびに五枚が配られ、二枚は出番を待つ。`,
-        ),
       ]);
     const saved = loadRun();
     const pick = <T extends string>(
@@ -3744,15 +3797,17 @@ export function openDig(doc: Document, onClose: () => void): void {
     const offers = two;
     const first = !offers || pane === 'info';
     // 点の数は最初から決まっている（手持ちがいっぱいなら、手放す段が一つ増える）。
-    const steps = !offers ? 1 : st?.full ? 3 : 2;
-    const now = first ? 1 : st?.needDrop && pickId ? 3 : 2;
+    const steps = !offers ? 1 : st?.full || st?.gearFull ? 3 : 2;
+    const now = first ? 1 : (st?.needDrop || st?.needGear) && pickId ? 3 : 2;
     const label = first
       ? '結末'
       : st?.ready && pickId
         ? '受け取る'
-        : st?.needDrop && pickId
-          ? '手放す一枚を選ぶ'
-          : '拾う一枚を選ぶ';
+        : st?.needGear && pickId
+          ? '置いていく持ち物を選ぶ'
+          : st?.needDrop && pickId
+            ? '手放す一枚を選ぶ'
+            : '拾う一枚を選ぶ';
     // 何をする段かは、欄の中の一文（確かめる帯）と下端の釦が言う。ここは点だけ（読み上げには段の名）。
     fill(stepNav, [
       button('前へ', () => go('info'), { class: 'dig-stepnav__prev', disabled: first }),

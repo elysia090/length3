@@ -204,8 +204,7 @@ export type Cmd =
   | { c: 'move'; node: number }
   /** q は「その場で」の目押しの出来（0.6 外れ・1 良し・1.5 会心）。 */
   | { c: 'breather'; q?: number }
-  /** drop なら使わずに手放す（身につける品を外すのはこちら）。 */
-  | { c: 'item'; index: number; q?: number; drop?: boolean }
+  | { c: 'item'; index: number; q?: number }
   | { c: 'act'; a: Basic }
   | { c: 'card'; slot: number }
   | { c: 'close' }
@@ -217,6 +216,8 @@ export type Cmd =
       /** 手持ちがいっぱいのとき、代わりに手放す札（uid）。 */
       drop?: number;
       tool?: string;
+      /** 持ち物がいっぱいのとき、道具・身につける品の代わりに置いていく持ち物（id）。 */
+      dropItem?: string;
     }
   | { c: 'choose'; option: number }
   | { c: 'ack' }
