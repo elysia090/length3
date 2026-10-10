@@ -238,10 +238,9 @@ export function gearOffer(
 }
 
 /** 人物を決める画面の、初めの手札（押せない。遊ぶときと同じ顔）。 */
-export function previewCard(id: string, slot: number, extra = 0): HTMLElement {
+export function previewCard(id: string, slot: number): HTMLElement {
   const d = cardDef(id);
-  const n = d.uses + extra;
-  const c: Card = { uid: 0, id, uses: n, max: n, marks: {}, eps: [] };
+  const c: Card = { uid: 0, id, uses: d.uses, max: d.uses, marks: {}, eps: [] };
   return h(
     'div',
     { class: 'dig-card', title: [d.sig, d.flavor].filter(Boolean).join('\n') },

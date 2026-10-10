@@ -51,8 +51,6 @@ export const LV_MARK: readonly string[] = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ'];
 export const PACE = {
   /** 受け取りの候補の一枚が、持っている札（重ねてレベルが上がる）になる割合。 */
   again: 0.2,
-  /** 初めの札（職の四枚）に足す回数（はじめから弾が多い）。 */
-  startUses: 2,
   rows: 9,
   dawn: 10,
   tough: 1.5,

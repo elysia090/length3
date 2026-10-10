@@ -630,8 +630,7 @@
     "拾い物": "Windfall",
     "拾い物：運がよかったぶん。選んでも、何も失わない": "Windfall: pure luck. Choosing it costs you nothing",
     "使うと、持ち物の枠が空く": "Using one frees an item space",
-    "手札の一覧で使う（向き合っていないときに）": "Use from the hand view (when not in an encounter)",
-    "手持ちは職の四枚から始まり、拾うたびに増えて七枚まで持てる。遭遇のたびに五枚が配られる。七枚になってからは、拾うには一枚を手放すので、尽きた札を新しい札と入れ替えるか、回数を増やすエピテットが宿るのを待つかを、決着のたびに選ぶ。": "You start with your trade's four cards and can grow to seven as you pick more up. Each encounter deals five. Once you hold seven, picking one up means letting one go, so after each settlement you choose: swap a spent card for a new one, or wait for an epithet that adds uses."
+    "手札の一覧で使う（向き合っていないときに）": "Use from the hand view (when not in an encounter)"
   },
   "templates": {
     "「{0}」": "“{0}”",
@@ -919,7 +918,6 @@
     "{0} 手番目": "turn {0}",
     "空き {0}": "{0} free",
     "敵意 {0}": "hostility {0}",
-    "敵意は {0}": "hostility {0}",
-    "手持ち {0} 枚・七枚まで増える": "Hand of {0}, grows to seven"
+    "敵意は {0}": "hostility {0}"
   }
 }

@@ -7,14 +7,7 @@ import { DIFFICULTY, sectionNo } from '../content/floors';
 import { fxText } from '../content/fx';
 import { gearOf, ITEM_CAP } from '../content/gear';
 import { orderOf } from '../content/orders';
-import {
-  defaultSheet,
-  JOB_EPITHETS,
-  JOB_ITEMS,
-  ORIGINS,
-  type Sheet,
-  START_CARDS,
-} from '../content/origins';
+import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
 import { quirkDef } from '../content/quirks';
 import {
   allJobs,
@@ -63,7 +56,6 @@ import {
   reachable,
   START_BACK,
   stackable,
-  startUses,
   stratumName,
 } from '../sim/run';
 import { type SpotAction, spotActions } from '../sim/spot';
@@ -3502,7 +3494,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-hand is-preview' },
-          j.cards.slice(0, START_CARDS).map((id, i) => previewCard(id, i, startUses())),
+          j.cards.map((id, i) => previewCard(id, i)),
         ),
       ]);
     const saved = loadRun();
@@ -3633,7 +3625,7 @@ export function openDig(doc: Document, onClose: () => void): void {
               h(
                 'span',
                 { class: 'dig-quiet' },
-                `手持ち ${START_CARDS + START_BACK} 枚・七枚まで増える`,
+                `手持ち ${j.cards.length + START_BACK} 枚・遭遇ごとに五枚`,
               ),
             )
           : null,

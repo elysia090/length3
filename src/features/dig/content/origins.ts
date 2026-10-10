@@ -44,8 +44,8 @@ export const JOB_ITEMS: Readonly<Record<string, readonly string[]>> = {
   welder: ['whisky', 'brass', 'bandage'],
 };
 
-/** はじめに枠へ入る職の札の数（枠は五つなので一つは空き。職の残りの札は、拾える札に出やすい）。 */
-export const START_CARDS = 4;
+/** はじめに枠へ入る札の数（残りは空き枠）。 */
+export const START_CARDS = 3;
 
 /** 何も選ばなかったときの人物（3 分で始めたい人向け）。 */
 export const defaultSheet = (job: string): Required<Omit<Sheet, 'name'>> => ({

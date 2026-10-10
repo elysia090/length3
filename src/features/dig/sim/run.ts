@@ -114,10 +114,8 @@ export function newCard(uid: number, id: string, eps: string[] = []): Card {
   return { uid, id, uses: n, max: n, marks: {}, eps };
 }
 
-/** 挑戦の初めに後ろへ配る札の数（初めは職の四枚だけ。残りは拾って増やす）。 */
-export const START_BACK = 0;
-/** 初めの札は、回数がこれだけ多い（はじめから弾が多い。数は PACE.startUses）。 */
-export const startUses = (): number => PACE.startUses;
+/** 挑戦の初めに後ろへ配る札の数。 */
+export const START_BACK = 2;
 /** 持てる札の上限（枠と後ろを合わせて）。 */
 export const DECK_MAX = 7;
 
@@ -280,13 +278,10 @@ export function makeChar(job: string, name: string, carry?: string, sheet: Sheet
     mind: 0,
     coins: 30,
     items: [{ id: item, uses: gearOf(item)?.uses ?? 1 }],
-    // 職の札の初めの四枚が枠に入り、五つ目の枠は空いている（拾って埋める）。
-    // 初めの札は回数が多い（はじめから弾が多い）。
+    // 職の五枚が枠に入る。後ろの札は、挑戦の初めに配る（start）。
     cards: [0, 1, 2, 3, 4].map((i) => {
-      const id = i < START_CARDS ? j.cards[i] : undefined;
-      if (!id) return null;
-      const c = newCard(i + 1, id);
-      return { ...c, uses: c.uses + startUses(), max: c.max + startUses() };
+      const id = j.cards[i];
+      return id ? newCard(i + 1, id) : null;
     }),
     back: [],
     prep: [],
