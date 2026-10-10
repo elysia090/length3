@@ -198,6 +198,8 @@ export function openDig(doc: Document, onClose: () => void): void {
   let dropUid: number | null = null;
   /** 持ち物がいっぱいのとき、道具の代わりに置いていく持ち物（id）。 */
   let dropGear: string | null = null;
+  /** 置いていく品を押した時刻（押した直後の一度だけ、置く動きを見せる）。 */
+  let dropGearAt = -9;
   /** 人物を決める画面で、初めの手札を開いているか。 */
   let handOpen = false;
   /** 左の欄を、地図ではなく手札の一覧にしているか（向き合っていないとき）。 */
@@ -2440,6 +2442,7 @@ export function openDig(doc: Document, onClose: () => void): void {
   };
   const selectGear = (id: string) => () => {
     dropGear = dropGear === id ? null : id;
+    dropGearAt = now();
     render();
   };
   const selectDrop = (uid: number) => () => {
@@ -2598,7 +2601,11 @@ export function openDig(doc: Document, onClose: () => void): void {
       'div',
       { class: 'dig-deck__sec dig-claim__gear' },
       h('h3', {}, '持ち物'),
-      gearRows(w, ui, { chosen: dropGear, on: (id) => selectGear(id)() }),
+      gearRows(w, ui, {
+        chosen: dropGear,
+        on: (id) => selectGear(id)(),
+        fresh: now() - dropGearAt < 0.5,
+      }),
     );
   }
 

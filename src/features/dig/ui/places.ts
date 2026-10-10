@@ -356,7 +356,7 @@ export function toldPanel(w: World, ui: Ui): HTMLElement {
 export function gearRows(
   w: World,
   ui: Ui,
-  pick?: { chosen: string | null; on: (id: string) => void },
+  pick?: { chosen: string | null; on: (id: string) => void; fresh?: boolean },
 ): HTMLElement | null {
   if (!w.you.items.length) return null;
   const gear = (kind: 'rest' | 'prep' | 'seek' | 'keep') =>
@@ -365,23 +365,19 @@ export function gearRows(
       if (!g || g.kind !== kind) return [];
       if (pick) {
         const chosen = pick.chosen === it.id;
-        // 選んだ品は、箱の真下に左寄せで「置いていく」の印（箱の中には重ねない）。
+        // 選んだ品は取り消し線。押した直後の一度だけ、箱が沈んで線が引かれる（自分で置いた手応え）。
         return [
           h(
-            'span',
-            { class: 'dig-gear__slot' },
-            h(
-              'button',
-              {
-                type: 'button',
-                class: `dig-gear__item${g.tool ? ' is-tool' : ''}${chosen ? ' is-drop' : ''}`,
-                'aria-pressed': chosen ? 'true' : 'false',
-                title: [g.text, g.flavor].filter(Boolean).join('\n'),
-                onclick: () => pick.on(it.id),
-              },
-              `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
-            ),
-            chosen ? h('span', { class: 'dig-card__mark' }, '置いていく') : null,
+            'button',
+            {
+              type: 'button',
+              class: `dig-gear__item${g.tool ? ' is-tool' : ''}${chosen ? ' is-drop' : ''}${chosen && pick.fresh ? ' is-placing' : ''}`,
+              'aria-pressed': chosen ? 'true' : 'false',
+              'aria-label': chosen ? `${g.name}（置いていく）` : undefined,
+              title: [g.text, g.flavor].filter(Boolean).join('\n'),
+              onclick: () => pick.on(it.id),
+            },
+            `${g.name}${it.uses > 1 ? ` ×${it.uses}` : ''}`,
           ),
         ];
       }

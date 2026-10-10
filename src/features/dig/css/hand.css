@@ -627,28 +627,59 @@
 }
 
 /*
- * 置いていく一つ（受け取りで持ち物がいっぱいのとき）。選んだ品は琥珀の枠になり、
- * 「置いていく」の印は箱の中ではなく、箱の真下に左寄せで出る。
+ * 置いていく一つ（受け取りで持ち物がいっぱいのとき）。選んだ品は琥珀の枠に取り消し線。
+ * 押した直後の一度だけ、箱が軽く沈んで戻り、線が左から引かれる（自分で置いた手応え）。
  */
-.dig-gear__slot {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-
-.dig-gear__slot .dig-card__mark {
-  margin-left: 0;
-}
-
 .dig .dig-gear__item.is-drop {
+  position: relative;
   border-color: var(--amber-text);
   color: var(--amber-text);
 }
 
-/* 印の付いた品の行も、ほかの箱は上で揃える（印のぶん行が伸びても、箱は動かさない）。 */
-.dig-place__items:has(.dig-gear__slot) {
-  align-items: flex-start;
+.dig-gear__item.is-drop::after {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  left: 6px;
+  height: 1px;
+  background: currentColor;
+  content: '';
+  transform-origin: left center;
+}
+
+.dig .dig-gear__item.is-placing {
+  animation: dig-set-down 0.3s ease-out;
+}
+
+.dig-gear__item.is-placing::after {
+  animation: dig-strike 0.26s ease-out 0.06s both;
+}
+
+@keyframes dig-set-down {
+  0% {
+    translate: 0 -2px;
+  }
+
+  55% {
+    translate: 0 2px;
+  }
+
+  100% {
+    translate: 0 0;
+  }
+}
+
+@keyframes dig-strike {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dig .dig-gear__item.is-placing,
+  .dig-gear__item.is-placing::after {
+    animation: none;
+  }
 }
 
 /* 身につける品：押して使うものではないので枠で囲まない。名前だけ。 */
