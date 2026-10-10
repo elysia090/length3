@@ -56,6 +56,22 @@ export function fill(el: Element, children: readonly (Child | readonly Child[])[
   }
 }
 
+/**
+ * 中に釦を持つ札（剥がす釦のある札など）は button にできないので、div を押せる形にする。
+ * Enter と Space は札そのものに触れているときだけ（中の釦のキーは、その釦のもの）。
+ */
+export const pressable = (on: () => void) => ({
+  role: 'button',
+  tabindex: '0',
+  onclick: on,
+  onkeydown: (ev: Event) => {
+    const k = (ev as KeyboardEvent).key;
+    if (ev.target !== ev.currentTarget || (k !== 'Enter' && k !== ' ')) return;
+    ev.preventDefault();
+    on();
+  },
+});
+
 export const button = (
   label: string,
   on: () => void,

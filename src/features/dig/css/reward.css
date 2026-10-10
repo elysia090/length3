@@ -273,6 +273,19 @@
   align-items: center;
 }
 
+/* 地図のときの手放す一枚：拾える札の右の空いた列に、上詰めで折り返す（狭い画面では下の段）。 */
+.dig-offers > .dig-scene__drop {
+  grid-column: var(--from, 1) / -1;
+  align-self: start;
+  align-content: flex-start;
+}
+
+@media (max-width: 52rem) {
+  .dig-offers > .dig-scene__drop {
+      grid-column: 1 / -1;
+    }
+}
+
 .dig .dig-scene__pick {
   min-height: 2rem;
   padding: 0 10px;

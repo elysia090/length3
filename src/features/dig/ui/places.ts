@@ -36,7 +36,7 @@ import { act, section } from './parts';
 import type { Ui } from './ui';
 import { voiceOf } from './words';
 
-/** 場所の欄：食堂・古物商（入れ替えで買う）・出来事と結果。持ち物の列と、剥がして残す列。 */
+/** 場所の欄：食堂・古物商（入れ替えで買う）・出来事と結果。持ち物の列と、札のエピテットの欄。 */
 
 /** 古物商で、手持ちがいっぱいのときに入れ替えで買おうとしている札。 */
 let shopSwap: string | null = null;
@@ -384,26 +384,31 @@ export function gearRows(w: World, ui: Ui): HTMLElement | null {
   );
 }
 
-/** 受け取りのあいだに、札のエピテットを剥がして手元に戻す（手放す前に、語だけ残す）。 */
-export function peelRows(all: readonly Card[], ui: Ui): HTMLElement | null {
-  const inked = all.filter((c) => c.eps.length);
-  if (!inked.length) return null;
+/**
+ * 札に刻まれたエピテットの欄（札の中、本文の下）：語・効き目・剥がす釦。剥がすと手元に戻る。
+ * 整えると受け取りの手札で、同じ形。札そのものを押す操作とは混ぜない。
+ */
+export function cardEps(c: Card, ui: Ui): HTMLElement | null {
+  if (!c.eps.length) return null;
   return h(
-    'div',
-    { class: 'dig-deck__sec' },
-    h('h3', {}, '剥がして残す'),
-    h(
-      'div',
-      { class: 'dig-deck__eps' },
-      inked.flatMap((c) =>
-        c.eps.map((e) =>
-          h(
-            'span',
-            { class: 'dig-deck__ep' },
-            h('span', {}, `『${cardDef(c.id).name}』`),
-            epChip(e),
-            button('剥がす', () => ui.send({ c: 'peel', uid: c.uid, ep: e })),
-          ),
+    'span',
+    { class: 'dig-deck__eps' },
+    c.eps.map((e) =>
+      h(
+        'span',
+        { class: 'dig-deck__ep' },
+        epChip(e),
+        h('span', { class: 'dig-quiet' }, epithetDef(e)?.card?.text ?? ''),
+        h(
+          'button',
+          {
+            type: 'button',
+            onclick: (ev: Event) => {
+              ev.stopPropagation();
+              ui.send({ c: 'peel', uid: c.uid, ep: e });
+            },
+          },
+          '剥がす',
         ),
       ),
     ),

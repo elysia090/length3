@@ -55,7 +55,7 @@ import {
 } from '../sim/run';
 import { type SpotAction, spotActions } from '../sim/spot';
 import { badges, epChip, heals, luckyTag, outcome, pips, previewCard } from './cards';
-import { button, type Child, fill, h, meter, retranslate } from './dom';
+import { button, type Child, fill, h, meter, pressable, retranslate } from './dom';
 import { armDetail, type EncView, encounterPanel } from './encounter';
 import { HINTS, nextHint } from './hints';
 import { hoverTips } from './hovertip';
@@ -70,7 +70,7 @@ import {
   tally,
   titled,
 } from './parts';
-import { gearRows, peelRows, restPanel, shopPanel, storyPanel, toldPanel } from './places';
+import { cardEps, gearRows, restPanel, shopPanel, storyPanel, toldPanel } from './places';
 import { cardEffect, clearEffects, delta, say as sayDelta, withEpithet } from './preview';
 import {
   foeInkable,
@@ -2145,14 +2145,12 @@ export function openDig(doc: Document, onClose: () => void): void {
         {
           class: `dig-card${c.uses <= 0 ? ' is-spent' : ''}${live ? ' is-live' : a ? ' is-dim' : ''}${lean ? ' is-lean' : ''}`,
           title: [def.sig, def.flavor].filter(Boolean).join('\n'),
-          role: live ? 'button' : undefined,
-          tabindex: live ? '0' : undefined,
-          onclick: live
-            ? () => {
+          ...(live
+            ? pressable(() => {
                 aim = null;
                 send({ c: 'inscribe', ep: a?.ep ?? '', uid: c.uid });
-              }
-            : undefined,
+              })
+            : {}),
         },
         h(
           'span',
@@ -2170,33 +2168,10 @@ export function openDig(doc: Document, onClose: () => void): void {
           : null,
         badges(def.ready),
         h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
-        c.eps.length
-          ? h(
-              'span',
-              { class: 'dig-deck__eps' },
-              c.eps.map((e) =>
-                h(
-                  'span',
-                  { class: 'dig-deck__ep' },
-                  epChip(e),
-                  h('span', { class: 'dig-quiet' }, epithetDef(e)?.card?.text ?? ''),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      onclick: (ev: Event) => {
-                        ev.stopPropagation();
-                        send({ c: 'peel', uid: c.uid, ep: e });
-                      },
-                    },
-                    '剥がす',
-                  ),
-                ),
-              ),
-            )
-          : null,
+        cardEps(c, ui),
       );
     };
+    // 上から：手持ちの札（手元のエピテットと、札ごとの剥がす）→ 持ち物 → 記憶。
     fill(deckView, [
       h(
         'div',
@@ -2503,95 +2478,107 @@ export function openDig(doc: Document, onClose: () => void): void {
   function rewardTray(w: World): Child[] {
     const st = rewardState(w);
     if (!st || (!st.offers.length && !st.p.tools.length)) return [];
+    // 手放す一枚は、拾える札の右の空いた列に並ぶ（札が四枚以上なら、その下の段に）。
+    const n = st.offers.length + st.p.tools.length;
     return [
-      h('div', { class: 'dig-hand dig-offers' }, offerCards(w, true)),
-      st.needDrop
-        ? h(
-            'div',
-            { class: 'dig-scene__row dig-scene__drop' },
-            st.all.map((c) =>
-              h(
-                'button',
-                {
-                  type: 'button',
-                  class: `dig-scene__pick${c.uses <= 0 ? ' is-spent' : ''}${dropUid === c.uid ? ' is-chosen' : ''}`,
-                  'aria-pressed': dropUid === c.uid ? 'true' : 'false',
-                  title: fxText(cardDef(c.id).ready),
-                  onclick: selectDrop(c.uid),
-                },
-                c.eps.map((e) => epChip(e)),
-                `${cardDef(c.id).name} ${c.uses}/${c.max}`,
-                c.uses <= 0 ? h('i', { class: 'dig-quiet' }, ' 尽きた') : null,
-              ),
-            ),
-          )
-        : null,
+      h(
+        'div',
+        { class: 'dig-hand dig-offers' },
+        offerCards(w, true),
+        st.needDrop ? dropPicks(st, n <= 3 ? n + 1 : 1) : null,
+      ),
+      toolBlocked(w, st) ? rewardItems(w) : null,
       confirmBar(w),
     ];
   }
 
+  /** 持ち物がいっぱいで、拾えない道具があるか（そのときだけ、持ち物を拾える札のすぐ下に出す）。 */
+  const toolBlocked = (w: World, st: NonNullable<ReturnType<typeof rewardState>>) =>
+    st.p.tools.some((id) => !itemRoom(w.you, id));
+
+  /** 受け取りの持ち物の節（使えば枠が空き、道具を拾えるようになる）。 */
+  function rewardItems(w: World): HTMLElement | null {
+    if (!w.you.items.length) return null;
+    return h(
+      'div',
+      { class: 'dig-deck__sec' },
+      h('h3', { title: '使うと、持ち物の枠が空く' }, '持ち物'),
+      gearRows(w, ui),
+    );
+  }
+
+  /** 地図のときの、手放す一枚の候補（尽きた札から）。from は並ぶ列の始まり。 */
+  function dropPicks(st: NonNullable<ReturnType<typeof rewardState>>, from: number): HTMLElement {
+    return h(
+      'div',
+      { class: 'dig-scene__row dig-scene__drop', style: `--from:${from}` },
+      st.all.map((c) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            class: `dig-scene__pick${c.uses <= 0 ? ' is-spent' : ''}${dropUid === c.uid ? ' is-chosen' : ''}`,
+            'aria-pressed': dropUid === c.uid ? 'true' : 'false',
+            title: fxText(cardDef(c.id).ready),
+            onclick: selectDrop(c.uid),
+          },
+          c.eps.map((e) => epChip(e)),
+          `${cardDef(c.id).name} ${c.uses}/${c.max}`,
+          c.uses <= 0 ? h('i', { class: 'dig-quiet' }, ' 尽きた') : null,
+        ),
+      ),
+    );
+  }
+
   /**
-   * 受け取りの左の欄（手札のとき）：拾える札を上に、手持ちの七枚を下に、同じ顔で
-   * 並べて見比べる。手放す一枚は、手持ちの札を押して選ぶ。品やエピテットは出さない。
+   * 受け取りの左の欄（手札のとき）。上から：拾える札 → 手持ちの札 → 持ち物 → 手順の一文
+   * （持ち物がいっぱいで拾えない道具があるときだけ、持ち物を拾える札のすぐ下へ）。
+   * 受け取りは保留のまま整えられる：持ち物を使って枠を空ける、手放す札からエピテットを
+   * 剥がしておく（剥がす釦は、整えるの手札と同じく札の中）。手放す一枚は札を押して選ぶ。
    */
   function rewardDeck(w: World): Child[] {
     const st = rewardState(w);
     if (!st) return [];
+    const blocked = toolBlocked(w, st);
     return [
       h('div', { class: 'dig-handview__head' }, h('h3', {}, '拾える札')),
       h('div', { class: 'dig-hand is-preview dig-offers' }, offerCards(w, false)),
+      blocked ? rewardItems(w) : null,
       h(
         'div',
-        { class: 'dig-handview__head' },
+        { class: 'dig-deck__sec' },
         h('h3', {}, `手持ちの札 ${deckSize(w.you)}/${deckCap(w.you)}`),
+        h(
+          'div',
+          { class: 'dig-hand is-preview is-droppick' },
+          st.all.map((c) => {
+            const def = cardDef(c.id);
+            const live = st.needDrop;
+            const chosen = dropUid === c.uid;
+            return h(
+              'div',
+              {
+                class: `dig-card${c.uses <= 0 ? ' is-spent' : ''}${live ? ' is-live' : ' is-still'}${chosen ? ' is-chosen is-drop' : ''}`,
+                'aria-pressed': live ? (chosen ? 'true' : 'false') : undefined,
+                title: [def.sig, def.flavor].filter(Boolean).join('\n'),
+                ...(live ? pressable(selectDrop(c.uid)) : {}),
+              },
+              h(
+                'span',
+                { class: 'dig-card__head' },
+                h('b', { class: 'dig-card__name' }, def.name),
+                chosen ? h('span', { class: 'dig-card__mark' }, '手放す') : null,
+                h('span', { class: 'dig-card__key' }, `${c.uses}/${c.max}`),
+              ),
+              pips(c),
+              badges(def.ready),
+              h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
+              cardEps(c, ui),
+            );
+          }),
+        ),
       ),
-      h(
-        'div',
-        { class: 'dig-hand is-preview' },
-        st.all.map((c) => {
-          const def = cardDef(c.id);
-          const live = st.needDrop;
-          return h(
-            'button',
-            {
-              type: 'button',
-              class: `dig-card${c.uses <= 0 ? ' is-spent' : ''}${dropUid === c.uid ? ' is-chosen is-drop' : ''}${live ? '' : ' is-still'}`,
-              disabled: !live,
-              'aria-pressed': dropUid === c.uid ? 'true' : 'false',
-              title: [def.sig, def.flavor].filter(Boolean).join('\n'),
-              onclick: selectDrop(c.uid),
-            },
-            h(
-              'span',
-              { class: 'dig-card__head' },
-              h('b', { class: 'dig-card__name' }, def.name),
-              dropUid === c.uid ? h('span', { class: 'dig-card__mark' }, '手放す') : null,
-              h('span', { class: 'dig-card__key' }, `${c.uses}/${c.max}`),
-            ),
-            c.eps.length
-              ? h(
-                  'span',
-                  { class: 'dig-scene__inked' },
-                  c.eps.map((e) => epChip(e)),
-                )
-              : null,
-            pips(c),
-            badges(def.ready),
-            h('span', { class: 'dig-card__fx' }, heals(fxText(def.ready))),
-          );
-        }),
-      ),
-      // 受け取る前に整える：手放す札からエピテットを剥がしておく、持ち物を使って枠を空ける。
-      // （受け取りは保留のまま。整えたら、同じ受け取りに戻る）
-      peelRows(st.all, ui),
-      w.you.items.length
-        ? h(
-            'div',
-            { class: 'dig-deck__sec' },
-            h('h3', {}, '持ち物（使って枠を空けられる）'),
-            gearRows(w, ui),
-          )
-        : null,
+      blocked ? null : rewardItems(w),
       confirmBar(w),
     ];
   }

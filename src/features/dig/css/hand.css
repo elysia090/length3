@@ -763,6 +763,11 @@
   cursor: pointer;
 }
 
+/* 受け取りで手放す一枚を選ぶときは、刻む先の琥珀ではなく、ふだんの「押せる」（墨で浮く）。 */
+.dig-deckview .is-droppick .dig-card.is-live:not(.is-chosen) {
+  border-color: var(--ink);
+}
+
 .dig-deckview .dig-card.is-dim {
   opacity: 0.32;
 }
