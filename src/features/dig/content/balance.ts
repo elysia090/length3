@@ -9,7 +9,7 @@ import type { CardDef, PassiveSpec } from './defs';
  * 古い保存データに退いた札が残っていても動くように、退いた札は消さずに
  * 置いておく（店にも褒美にも出ない）。
  */
-export const DATA_VERSION = '1.20.0';
+export const DATA_VERSION = '1.21.0';
 
 /**
  * 一夜の長さ。1 挑戦 40 分を目安に組む（3 層 × 8 段 + 最後の相手、
@@ -50,7 +50,7 @@ export const LV_MARK: readonly string[] = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ'];
 
 export const PACE = {
   /** 受け取りの候補の一枚が、持っている札（重ねてレベルが上がる）になる割合。 */
-  again: 0.1,
+  again: 0.2,
   rows: 9,
   dawn: 10,
   tough: 1.5,

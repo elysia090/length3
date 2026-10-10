@@ -1,0 +1,76 @@
+---
+export const prerender = true;
+
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="DIG — Length³"
+  description="DIG — 夜の塔を一階ずつ下りる、札のローグライク。"
+  lang="ja"
+>
+  <Header />
+  <main class="page-shell dig-page" id="main-content">
+    <h1 class="dig-page__title">DIG</h1>
+    <hr class="amber-rule dig-page__rule" />
+    <p class="dig-page__body">夜の塔を一階ずつ下りる、札のローグライク。</p>
+    <button type="button" class="dig-page__open" data-dig-open>はじめる</button>
+    <noscript><p class="dig-page__body">遊ぶには JavaScript が要ります。</p></noscript>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  // このページは DIG の入口。開いたらすぐ遊べるように、読み込んだら開く。
+  // 閉じたらページに戻り、「はじめる」でもう一度開ける。
+  import { openDig } from '../features/dig';
+
+  const button = document.querySelector<HTMLButtonElement>('[data-dig-open]');
+  const open = () => openDig(document, () => button?.focus());
+  button?.addEventListener('click', open);
+  open();
+</script>
+
+<style>
+  .dig-page {
+    flex: 1;
+  }
+
+  .dig-page__title {
+    margin-bottom: 1.25rem;
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 300;
+    line-height: 1.15;
+    color: var(--ink);
+  }
+
+  .dig-page__rule {
+    margin-bottom: 1.25rem;
+  }
+
+  .dig-page__body {
+    margin-bottom: 1.5rem;
+    font-size: 0.9375rem;
+    color: var(--ink-2);
+  }
+
+  .dig-page__open {
+    min-height: 2.75rem;
+    padding: 0 1.25rem;
+    border: 0.125rem solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .dig-page__open:hover,
+  .dig-page__open:focus-visible {
+    border-color: var(--amber-text);
+    color: var(--amber-text);
+  }
+</style>

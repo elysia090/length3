@@ -7,7 +7,14 @@ import { DIFFICULTY, sectionNo } from '../content/floors';
 import { fxText } from '../content/fx';
 import { gearOf, ITEM_CAP } from '../content/gear';
 import { orderOf } from '../content/orders';
-import { defaultSheet, JOB_EPITHETS, JOB_ITEMS, ORIGINS, type Sheet } from '../content/origins';
+import {
+  defaultSheet,
+  JOB_EPITHETS,
+  JOB_ITEMS,
+  ORIGINS,
+  type Sheet,
+  START_CARDS,
+} from '../content/origins';
 import { quirkDef } from '../content/quirks';
 import {
   allJobs,
@@ -55,6 +62,7 @@ import {
   ROWS,
   reachable,
   START_BACK,
+  START_USES,
   stackable,
   stratumName,
 } from '../sim/run';
@@ -2303,7 +2311,6 @@ export function openDig(doc: Document, onClose: () => void): void {
   }
   /** 受け取りの、品と札の時刻（秒）。 */
   const spoilAt = (k: number) => 0.35 + k * 0.16;
-  const cardAt = (n: number, k: number) => spoilAt(n) + 0.15 + k * 0.22;
 
   /** 拾える札の表（手元の札と同じ顔）。伏せた裏から、表を向ける。 */
   /** 持っている札なら、拾う・買うと重なって上がるレベルを一言で（「重ねるとⅡ」）。 */
@@ -2469,24 +2476,24 @@ export function openDig(doc: Document, onClose: () => void): void {
     render();
   };
 
-  /** 拾える札と道具（地図のときは伏せたまま並んで表を向け、手札のときは静かに並ぶ）。 */
-  function offerCards(w: World, animate: boolean): HTMLElement[] {
+  /** 拾える札と道具（伏せずに、初めから表で並ぶ）。 */
+  function offerCards(w: World): HTMLElement[] {
     const st = rewardState(w);
     if (!st) return [];
-    const n = spoils.list.length;
     return [
-      ...st.offers.map((id, k) =>
+      ...st.offers.map((id) =>
         sceneCard(id, {
           on: selectOffer(id),
           eps: st.p.inked?.[id],
           lucky: id === st.p.lucky,
           chosen: pickId === id,
-          d: animate ? cardAt(n, k) : -9,
+          // 拾える札は伏せて回さず、初めから表で並べる。
+          d: -9,
         }),
       ),
-      ...st.p.tools.map((id, k) => {
+      ...st.p.tools.map((id) => {
         const g = gearOf(id);
-        const b = animate ? beat(cardAt(n, st.offers.length + k)) : { cls: '' };
+        const b: { cls: string; style?: string } = { cls: '' };
         return h(
           'button',
           {
@@ -2637,11 +2644,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (!st || (!st.offers.length && !st.p.tools.length)) return [];
     const n = st.offers.length + st.p.tools.length;
     return [
-      h(
-        'div',
-        { class: 'dig-hand dig-offers', style: `--n:${Math.min(n, 4)}` },
-        offerCards(w, true),
-      ),
+      h('div', { class: 'dig-hand dig-offers', style: `--n:${Math.min(n, 4)}` }, offerCards(w)),
     ];
   }
 
@@ -2650,12 +2653,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     const st = rewardState(w);
     if (!st || (!st.offers.length && !st.p.tools.length)) return [];
     return [
-      h(
-        'div',
-        { class: 'dig-hand dig-offers' },
-        offerCards(w, true),
-        st.needDrop ? dropPicks(st) : null,
-      ),
+      h('div', { class: 'dig-hand dig-offers' }, offerCards(w), st.needDrop ? dropPicks(st) : null),
       rewardDetail(w, st),
       st.needGear ? gearDrops(w) : null,
       confirmBar(w),
@@ -2685,7 +2683,6 @@ export function openDig(doc: Document, onClose: () => void): void {
       sleep: string,
       eps: readonly string[],
       notes: readonly (string | undefined)[],
-      mark: string,
     ) =>
       h(
         'div',
@@ -2694,7 +2691,7 @@ export function openDig(doc: Document, onClose: () => void): void {
           'p',
           { class: 'dig-armdetail__head' },
           h('b', {}, name),
-          h('span', { class: 'dig-card__mark' }, mark),
+          // 拾う・手放すの印は札の頭だけ（中身の欄には重ねない）。
           h('span', { class: 'dig-armdetail__tags' }, key),
         ),
         h('p', { class: 'dig-armdetail__fx' }, fx),
@@ -2718,7 +2715,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         fxText(d.spent),
         c.eps,
         [d.sig, d.flavor],
-        '手放す',
       );
     }
     if (st.isTool && pickId) {
@@ -2730,7 +2726,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         '',
         [],
         [g?.flavor],
-        '拾う',
       );
     }
     if (st.isCard && pickId) {
@@ -2744,7 +2739,6 @@ export function openDig(doc: Document, onClose: () => void): void {
         fxText(d.spent),
         eps,
         [d.sig, d.flavor],
-        '拾う',
       );
     }
     return null;
@@ -2784,7 +2778,7 @@ export function openDig(doc: Document, onClose: () => void): void {
     if (!st) return [];
     return [
       h('div', { class: 'dig-handview__head' }, h('h3', {}, '拾える札')),
-      h('div', { class: 'dig-hand is-preview dig-offers' }, offerCards(w, false)),
+      h('div', { class: 'dig-hand is-preview dig-offers' }, offerCards(w)),
       h(
         'div',
         { class: 'dig-deck__sec' },
@@ -2932,7 +2926,7 @@ export function openDig(doc: Document, onClose: () => void): void {
 
   /**
    * 受け取りの右の欄：判（結末の一語）→ 余韻 → 品が一つずつ押される。拾える
-   * 札は下の帯（手札の場所）に並ぶ。持ち帰る記憶と、頼って満たす札もここで。
+   * 札は下の帯（手札の場所）に並ぶ。持ち帰る記憶もここで。
    */
   function rewardPanel(w: World): HTMLElement {
     const p = w.pending;
@@ -3008,28 +3002,6 @@ export function openDig(doc: Document, onClose: () => void): void {
                   title: permDef(id)?.text,
                 },
               ),
-            ),
-          )
-        : null,
-      p.help
-        ? h(
-            'div',
-            { class: `dig-scene__row${rows.cls}`, style: rows.style },
-            h('span', { class: 'dig-scene__label', title: '頼ると借りができる' }, '頼って満たす札'),
-            [...w.you.cards, ...w.you.back].map((c, i) =>
-              c && c.uses < c.max && i < 5
-                ? button(
-                    cardName(c),
-                    () => {
-                      reward.help = reward.help === i ? undefined : i;
-                      render();
-                    },
-                    {
-                      class: `dig-scene__pick${reward.help === i ? ' is-chosen' : ''}`,
-                      'aria-pressed': reward.help === i ? 'true' : 'false',
-                    },
-                  )
-                : null,
             ),
           )
         : null,
@@ -3530,7 +3502,7 @@ export function openDig(doc: Document, onClose: () => void): void {
         h(
           'div',
           { class: 'dig-hand is-preview' },
-          j.cards.map((id, i) => previewCard(id, i)),
+          j.cards.slice(0, START_CARDS).map((id, i) => previewCard(id, i, START_USES)),
         ),
       ]);
     const saved = loadRun();
@@ -3661,7 +3633,7 @@ export function openDig(doc: Document, onClose: () => void): void {
               h(
                 'span',
                 { class: 'dig-quiet' },
-                `手持ち ${j.cards.length + START_BACK} 枚・遭遇ごとに五枚`,
+                `手持ち ${START_CARDS + START_BACK} 枚・七枚まで増える`,
               ),
             )
           : null,
